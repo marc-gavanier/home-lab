@@ -1,0 +1,91 @@
+---
+# =============================================================================
+# Role: storage — HDD mount and directory structure
+# =============================================================================
+
+- name: Install filesystem utilities
+  ansible.builtin.apt:
+    name:
+      - e2fsprogs
+      - hdparm
+    state: present
+
+- name: Create mount point
+  ansible.builtin.file:
+    path: "{{ data_mount_point }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Mount data disk
+  ansible.posix.mount:
+    path: "{{ data_mount_point }}"
+    src: "{{ data_disk_device }}"
+    fstype: "{{ data_filesystem }}"
+    opts: defaults,noatime,nofail
+    state: mounted
+
+- name: Create data directory structure
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "1000"
+    group: "1000"
+    mode: "0755"
+  loop:
+    # Service data
+    - "{{ services_data_dir }}"
+    - "{{ services_data_dir }}/nextcloud"
+    - "{{ services_data_dir }}/nextcloud/data"
+    - "{{ services_data_dir }}/nextcloud/db"
+    - "{{ services_data_dir }}/jellyfin"
+    - "{{ services_data_dir }}/jellyfin/config"
+    - "{{ services_data_dir }}/jellyfin/cache"
+    - "{{ services_data_dir }}/navidrome"
+    - "{{ services_data_dir }}/immich"
+    - "{{ services_data_dir }}/immich/upload"
+    - "{{ services_data_dir }}/immich/db"
+    - "{{ services_data_dir }}/vaultwarden"
+    - "{{ services_data_dir }}/hedgedoc"
+    - "{{ services_data_dir }}/hedgedoc/db"
+    - "{{ services_data_dir }}/pihole"
+    - "{{ services_data_dir }}/wireguard"
+    - "{{ services_data_dir }}/traefik"
+    - "{{ services_data_dir }}/traefik/acme"
+    - "{{ services_data_dir }}/uptime-kuma"
+    # Media
+    - "{{ media_dir }}"
+    - "{{ media_dir }}/music"
+    - "{{ media_dir }}/videos"
+    - "{{ media_dir }}/photos"
+    # Backups
+    - "{{ backup_dir }}"
+
+- name: Create swap file on HDD
+  ansible.builtin.command:
+    cmd: "dd if=/dev/zero of={{ data_mount_point }}/swapfile bs=1M count={{ swap_size_mb }}"
+    creates: "{{ data_mount_point }}/swapfile"
+
+- name: Set swap file permissions
+  ansible.builtin.file:
+    path: "{{ data_mount_point }}/swapfile"
+    mode: "0600"
+
+- name: Format swap file
+  ansible.builtin.command:
+    cmd: "mkswap {{ data_mount_point }}/swapfile"
+  when: ansible_swaptotal_mb == 0
+
+- name: Enable swap file
+  ansible.builtin.command:
+    cmd: "swapon {{ data_mount_point }}/swapfile"
+  when: ansible_swaptotal_mb == 0
+
+- name: Add swap to fstab
+  ansible.posix.mount:
+    path: none
+    src: "{{ data_mount_point }}/swapfile"
+    fstype: swap
+    opts: sw
+    state: present

@@ -1,0 +1,406 @@
+# =============================================================================
+# Home Lab — Docker Compose
+# =============================================================================
+# All services for the home lab. Deploy with:
+#   docker compose up -d
+# =============================================================================
+
+networks:
+  proxy:
+    external: true
+  internal:
+    driver: bridge
+
+# =============================================================================
+# Phase 2 — Network infrastructure
+# =============================================================================
+
+services:
+
+  # --- Traefik (Reverse Proxy) ---
+  traefik:
+    image: traefik:v3
+    container_name: traefik
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ${SERVICES_DATA_DIR}/traefik/acme:/acme
+      - ./configs/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./configs/traefik/dynamic:/etc/traefik/dynamic:ro
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.rule=Host(`traefik.${DOMAIN}`)"
+      - "traefik.http.routers.traefik.entrypoints=websecure"
+      - "traefik.http.routers.traefik.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.traefik.service=api@internal"
+      # Traefik dashboard only via VPN
+      - "traefik.http.routers.traefik.middlewares=vpn-only@file"
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # --- Pi-hole (DNS + Ad blocking) ---
+  pihole:
+    image: pihole/pihole:latest
+    container_name: pihole
+    restart: unless-stopped
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+    environment:
+      TZ: ${TZ}
+      WEBPASSWORD: ${PIHOLE_PASSWORD}
+      DNSMASQ_LISTENING: all
+    volumes:
+      - ${SERVICES_DATA_DIR}/pihole/etc:/etc/pihole
+      - ${SERVICES_DATA_DIR}/pihole/dnsmasq:/etc/dnsmasq.d
+    networks:
+      - proxy
+      - internal
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.pihole.rule=Host(`dns.${DOMAIN}`)"
+      - "traefik.http.routers.pihole.entrypoints=websecure"
+      - "traefik.http.routers.pihole.tls.certresolver=letsencrypt"
+      - "traefik.http.services.pihole.loadbalancer.server.port=80"
+      - "traefik.http.routers.pihole.middlewares=vpn-only@file"
+    healthcheck:
+      test: ["CMD", "dig", "+norecurse", "+retry=0", "@127.0.0.1", "pi.hole"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # --- WireGuard VPN ---
+  wg-easy:
+    image: ghcr.io/wg-easy/wg-easy:latest
+    container_name: wg-easy
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+      - net.ipv4.ip_forward=1
+    ports:
+      - "51820:51820/udp"
+    environment:
+      WG_HOST: ${WG_HOST}
+      PASSWORD_HASH: ${WG_PASSWORD_HASH}
+      WG_DEFAULT_DNS: ${PI_LAN_IP}
+      WG_ALLOWED_IPS: 0.0.0.0/0
+    volumes:
+      - ${SERVICES_DATA_DIR}/wireguard:/etc/wireguard
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.wireguard.rule=Host(`vpn.${DOMAIN}`)"
+      - "traefik.http.routers.wireguard.entrypoints=websecure"
+      - "traefik.http.routers.wireguard.tls.certresolver=letsencrypt"
+      - "traefik.http.services.wireguard.loadbalancer.server.port=51821"
+      - "traefik.http.routers.wireguard.middlewares=vpn-only@file"
+
+# =============================================================================
+# Phase 3 — Essential services
+# =============================================================================
+
+  # --- Nextcloud ---
+  nextcloud:
+    image: nextcloud:apache
+    container_name: nextcloud
+    restart: unless-stopped
+    depends_on:
+      nextcloud-db:
+        condition: service_healthy
+    environment:
+      MYSQL_HOST: nextcloud-db
+      MYSQL_DATABASE: ${NEXTCLOUD_DB_NAME}
+      MYSQL_USER: ${NEXTCLOUD_DB_USER}
+      MYSQL_PASSWORD: ${NEXTCLOUD_DB_PASSWORD}
+      NEXTCLOUD_ADMIN_USER: ${NEXTCLOUD_ADMIN_USER}
+      NEXTCLOUD_ADMIN_PASSWORD: ${NEXTCLOUD_ADMIN_PASSWORD}
+      NEXTCLOUD_TRUSTED_DOMAINS: nextcloud.${DOMAIN}
+      OVERWRITEPROTOCOL: https
+    volumes:
+      - ${SERVICES_DATA_DIR}/nextcloud/data:/var/www/html
+    networks:
+      - proxy
+      - internal
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.nextcloud.rule=Host(`nextcloud.${DOMAIN}`)"
+      - "traefik.http.routers.nextcloud.entrypoints=websecure"
+      - "traefik.http.routers.nextcloud.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.nextcloud.middlewares=nextcloud-headers@file"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/status.php"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
+  nextcloud-db:
+    image: mariadb:11
+    container_name: nextcloud-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${NEXTCLOUD_DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${NEXTCLOUD_DB_NAME}
+      MYSQL_USER: ${NEXTCLOUD_DB_USER}
+      MYSQL_PASSWORD: ${NEXTCLOUD_DB_PASSWORD}
+    volumes:
+      - ${SERVICES_DATA_DIR}/nextcloud/db:/var/lib/mysql
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # --- Vaultwarden ---
+  vaultwarden:
+    image: vaultwarden/server:latest
+    container_name: vaultwarden
+    restart: unless-stopped
+    environment:
+      DOMAIN: https://vault.${DOMAIN}
+      SIGNUPS_ALLOWED: ${VAULTWARDEN_SIGNUPS_ALLOWED:-false}
+      ADMIN_TOKEN: ${VAULTWARDEN_ADMIN_TOKEN}
+    volumes:
+      - ${SERVICES_DATA_DIR}/vaultwarden:/data
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.vaultwarden.rule=Host(`vault.${DOMAIN}`)"
+      - "traefik.http.routers.vaultwarden.entrypoints=websecure"
+      - "traefik.http.routers.vaultwarden.tls.certresolver=letsencrypt"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/alive"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+# =============================================================================
+# Phase 4 — Secondary services
+# =============================================================================
+
+  # --- Jellyfin (Video) ---
+  jellyfin:
+    image: jellyfin/jellyfin:latest
+    container_name: jellyfin
+    restart: unless-stopped
+    environment:
+      JELLYFIN_PublishedServerUrl: https://media.${DOMAIN}
+    volumes:
+      - ${SERVICES_DATA_DIR}/jellyfin/config:/config
+      - ${SERVICES_DATA_DIR}/jellyfin/cache:/cache
+      - ${MEDIA_DIR}/videos:/media/videos:ro
+      - ${MEDIA_DIR}/music:/media/music:ro
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.jellyfin.rule=Host(`media.${DOMAIN}`)"
+      - "traefik.http.routers.jellyfin.entrypoints=websecure"
+      - "traefik.http.routers.jellyfin.tls.certresolver=letsencrypt"
+      - "traefik.http.services.jellyfin.loadbalancer.server.port=8096"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8096/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # --- Navidrome (Music) ---
+  navidrome:
+    image: deluan/navidrome:latest
+    container_name: navidrome
+    restart: unless-stopped
+    environment:
+      ND_SCANSCHEDULE: 1h
+      ND_LOGLEVEL: info
+      ND_BASEURL: ""
+    volumes:
+      - ${SERVICES_DATA_DIR}/navidrome:/data
+      - ${MEDIA_DIR}/music:/music:ro
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.navidrome.rule=Host(`music.${DOMAIN}`)"
+      - "traefik.http.routers.navidrome.entrypoints=websecure"
+      - "traefik.http.routers.navidrome.tls.certresolver=letsencrypt"
+      - "traefik.http.services.navidrome.loadbalancer.server.port=4533"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:4533/ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # --- Immich (Photos) ---
+  immich-server:
+    image: ghcr.io/immich-app/immich-server:release
+    container_name: immich-server
+    restart: unless-stopped
+    depends_on:
+      immich-db:
+        condition: service_healthy
+      immich-redis:
+        condition: service_started
+    environment:
+      DB_HOSTNAME: immich-db
+      DB_USERNAME: ${IMMICH_DB_USER}
+      DB_PASSWORD: ${IMMICH_DB_PASSWORD}
+      DB_DATABASE_NAME: ${IMMICH_DB_NAME}
+      REDIS_HOSTNAME: immich-redis
+    volumes:
+      - ${SERVICES_DATA_DIR}/immich/upload:/usr/src/app/upload
+      - ${MEDIA_DIR}/photos:/usr/src/app/external:ro
+    networks:
+      - proxy
+      - internal
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.immich.rule=Host(`photos.${DOMAIN}`)"
+      - "traefik.http.routers.immich.entrypoints=websecure"
+      - "traefik.http.routers.immich.tls.certresolver=letsencrypt"
+      - "traefik.http.services.immich.loadbalancer.server.port=2283"
+
+  immich-machine-learning:
+    image: ghcr.io/immich-app/immich-machine-learning:release
+    container_name: immich-ml
+    restart: unless-stopped
+    volumes:
+      - ${SERVICES_DATA_DIR}/immich/ml-cache:/cache
+    networks:
+      - internal
+
+  immich-redis:
+    image: redis:7-alpine
+    container_name: immich-redis
+    restart: unless-stopped
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  immich-db:
+    image: tensorchord/pgvecto-rs:pg16-v0.2.0
+    container_name: immich-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${IMMICH_DB_USER}
+      POSTGRES_PASSWORD: ${IMMICH_DB_PASSWORD}
+      POSTGRES_DB: ${IMMICH_DB_NAME}
+    volumes:
+      - ${SERVICES_DATA_DIR}/immich/db:/var/lib/postgresql/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d ${IMMICH_DB_NAME} -U ${IMMICH_DB_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # --- HedgeDoc (Notes) ---
+  hedgedoc:
+    image: quay.io/hedgedoc/hedgedoc:latest
+    container_name: hedgedoc
+    restart: unless-stopped
+    depends_on:
+      hedgedoc-db:
+        condition: service_healthy
+    environment:
+      CMD_DB_URL: postgres://${HEDGEDOC_DB_USER}:${HEDGEDOC_DB_PASSWORD}@hedgedoc-db:5432/${HEDGEDOC_DB_NAME}
+      CMD_DOMAIN: notes.${DOMAIN}
+      CMD_PROTOCOL_USESSL: "true"
+      CMD_ALLOW_ANONYMOUS: "false"
+      CMD_ALLOW_FREEURL: "true"
+    volumes:
+      - ${SERVICES_DATA_DIR}/hedgedoc/uploads:/hedgedoc/public/uploads
+    networks:
+      - proxy
+      - internal
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.hedgedoc.rule=Host(`notes.${DOMAIN}`)"
+      - "traefik.http.routers.hedgedoc.entrypoints=websecure"
+      - "traefik.http.routers.hedgedoc.tls.certresolver=letsencrypt"
+      - "traefik.http.services.hedgedoc.loadbalancer.server.port=3000"
+
+  hedgedoc-db:
+    image: postgres:16-alpine
+    container_name: hedgedoc-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${HEDGEDOC_DB_USER}
+      POSTGRES_PASSWORD: ${HEDGEDOC_DB_PASSWORD}
+      POSTGRES_DB: ${HEDGEDOC_DB_NAME}
+    volumes:
+      - ${SERVICES_DATA_DIR}/hedgedoc/db:/var/lib/postgresql/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${HEDGEDOC_DB_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+# =============================================================================
+# Phase 5 — Observability
+# =============================================================================
+
+  # --- Uptime Kuma ---
+  uptime-kuma:
+    image: louislam/uptime-kuma:latest
+    container_name: uptime-kuma
+    restart: unless-stopped
+    volumes:
+      - ${SERVICES_DATA_DIR}/uptime-kuma:/app/data
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.uptime.rule=Host(`monitor.${DOMAIN}`)"
+      - "traefik.http.routers.uptime.entrypoints=websecure"
+      - "traefik.http.routers.uptime.tls.certresolver=letsencrypt"
+      - "traefik.http.services.uptime.loadbalancer.server.port=3001"
+      - "traefik.http.routers.uptime.middlewares=vpn-only@file"
+
+  # --- Netdata ---
+  netdata:
+    image: netdata/netdata:latest
+    container_name: netdata
+    restart: unless-stopped
+    cap_add:
+      - SYS_PTRACE
+      - SYS_ADMIN
+    security_opt:
+      - apparmor:unconfined
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /etc/os-release:/host/etc/os-release:ro
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.netdata.rule=Host(`netdata.${DOMAIN}`)"
+      - "traefik.http.routers.netdata.entrypoints=websecure"
+      - "traefik.http.routers.netdata.tls.certresolver=letsencrypt"
+      - "traefik.http.services.netdata.loadbalancer.server.port=19999"
+      - "traefik.http.routers.netdata.middlewares=vpn-only@file"

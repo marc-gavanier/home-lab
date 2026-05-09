@@ -1,0 +1,42 @@
+# =============================================================================
+# Traefik — Dynamic configuration (middlewares)
+# =============================================================================
+
+http:
+  middlewares:
+    # Restrict access to VPN clients only (WireGuard subnet)
+    vpn-only:
+      ipAllowList:
+        sourceRange:
+          - "10.8.0.0/24"     # WireGuard subnet
+          - "192.168.1.0/24"  # LAN subnet
+
+    # Security headers for all services
+    secure-headers:
+      headers:
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        stsPreload: true
+        forceSTSHeader: true
+        frameDeny: true
+        contentTypeNosniff: true
+        browserXssFilter: true
+        referrerPolicy: "strict-origin-when-cross-origin"
+
+    # Nextcloud-specific headers
+    nextcloud-headers:
+      headers:
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        stsPreload: true
+        customFrameOptionsValue: "SAMEORIGIN"
+        contentTypeNosniff: true
+        browserXssFilter: true
+        customResponseHeaders:
+          X-Robots-Tag: "noindex, nofollow"
+
+    # Rate limiting
+    rate-limit:
+      rateLimit:
+        average: 100
+        burst: 50

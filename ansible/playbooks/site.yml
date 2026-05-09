@@ -1,0 +1,59 @@
+---
+# =============================================================================
+# Home Lab — Main Playbook
+# =============================================================================
+# Provisions the entire system from bare Ubuntu Server to running services.
+#
+# Usage:
+#   ansible-playbook playbooks/site.yml
+#
+# To run a specific phase:
+#   ansible-playbook playbooks/site.yml --tags phase1
+#   ansible-playbook playbooks/site.yml --tags security
+# =============================================================================
+
+- name: Provision Home Lab
+  hosts: homelab
+  become: true
+
+  pre_tasks:
+    - name: Wait for system to be reachable
+      ansible.builtin.wait_for_connection:
+        timeout: 60
+
+    - name: Gather facts
+      ansible.builtin.setup:
+
+  roles:
+    # Phase 1 — Foundations
+    - role: base
+      tags: [phase1, base]
+
+    - role: storage
+      tags: [phase1, storage]
+
+    - role: security
+      tags: [phase1, security]
+
+    - role: docker
+      tags: [phase1, docker]
+
+    # Phase 2-5 — Services deployment
+    - role: deploy
+      tags: [phase2, phase3, phase4, phase5, deploy]
+
+  post_tasks:
+    - name: Display completion message
+      ansible.builtin.debug:
+        msg: |
+          =============================================
+          Home Lab provisioning complete!
+
+          Services should be accessible at:
+            - https://nextcloud.{{ domain }}
+            - https://vault.{{ domain }}
+            - https://notes.{{ domain }}
+
+          VPN: connect via WireGuard on port 51820
+          Admin panels: accessible via VPN only
+          =============================================

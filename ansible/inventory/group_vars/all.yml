@@ -1,0 +1,41 @@
+# =============================================================================
+# Home Lab — Global Variables
+# =============================================================================
+# Override these values in a local file or via --extra-vars
+
+# --- Connection ---
+homelab_ip: "192.168.1.X"  # TODO: set your Pi's LAN IP
+ssh_port: 2222              # Non-standard SSH port (changed by security role)
+
+# --- System ---
+hostname: homelab
+timezone: Europe/Paris
+locale: fr_FR.UTF-8
+swap_size_mb: 2048
+
+# --- Storage ---
+data_disk_device: /dev/sda1       # HDD 5To partition
+data_mount_point: /mnt/data
+data_filesystem: ext4
+
+# --- Docker ---
+docker_data_root: /mnt/data/docker  # Docker images/layers on HDD
+
+# --- Network ---
+domain: example.com
+traefik_acme_email: ""  # TODO: email for Let's Encrypt notifications
+
+# --- Security ---
+ssh_allowed_users:
+  - pi
+fail2ban_max_retry: 3
+fail2ban_ban_time: 3600
+
+# --- Services data directories ---
+services_data_dir: "{{ data_mount_point }}/services"
+media_dir: "{{ data_mount_point }}/media"
+backup_dir: "{{ data_mount_point }}/backups"
+
+# --- Backup ---
+restic_password: ""  # TODO: set via vault or env var, NEVER in plain text
+backup_schedule: "0 3 * * *"  # Daily at 3 AM

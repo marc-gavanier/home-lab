@@ -1,0 +1,147 @@
+---
+# =============================================================================
+# Role: security — System hardening
+# =============================================================================
+
+# --- SSH Hardening ---
+
+- name: Configure SSH hardening
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    validate: 'sshd -t -f %s'
+  loop:
+    - { regexp: '^#?Port ', line: "Port {{ ssh_port }}" }
+    - { regexp: '^#?PermitRootLogin', line: 'PermitRootLogin no' }
+    - { regexp: '^#?PasswordAuthentication', line: 'PasswordAuthentication no' }
+    - { regexp: '^#?PubkeyAuthentication', line: 'PubkeyAuthentication yes' }
+    - { regexp: '^#?PermitEmptyPasswords', line: 'PermitEmptyPasswords no' }
+    - { regexp: '^#?X11Forwarding', line: 'X11Forwarding no' }
+    - { regexp: '^#?MaxAuthTries', line: 'MaxAuthTries 3' }
+    - { regexp: '^#?ClientAliveInterval', line: 'ClientAliveInterval 300' }
+    - { regexp: '^#?ClientAliveCountMax', line: 'ClientAliveCountMax 2' }
+    - { regexp: '^#?AllowUsers', line: "AllowUsers {{ ssh_allowed_users | join(' ') }}" }
+  notify: Restart SSH
+
+# --- Firewall (UFW) ---
+
+- name: Install UFW
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+
+- name: Set UFW default deny incoming
+  community.general.ufw:
+    direction: incoming
+    policy: deny
+
+- name: Set UFW default allow outgoing
+  community.general.ufw:
+    direction: outgoing
+    policy: allow
+
+- name: Allow SSH through UFW
+  community.general.ufw:
+    rule: allow
+    port: "{{ ssh_port }}"
+    proto: tcp
+    comment: SSH
+
+- name: Allow HTTP through UFW
+  community.general.ufw:
+    rule: allow
+    port: "80"
+    proto: tcp
+    comment: HTTP (Traefik)
+
+- name: Allow HTTPS through UFW
+  community.general.ufw:
+    rule: allow
+    port: "443"
+    proto: tcp
+    comment: HTTPS (Traefik)
+
+- name: Allow WireGuard through UFW
+  community.general.ufw:
+    rule: allow
+    port: "51820"
+    proto: udp
+    comment: WireGuard VPN
+
+- name: Allow DNS from LAN for Pi-hole
+  community.general.ufw:
+    rule: allow
+    port: "53"
+    from_ip: 192.168.1.0/24
+    comment: DNS (Pi-hole, LAN only)
+
+- name: Enable UFW
+  community.general.ufw:
+    state: enabled
+
+# --- fail2ban ---
+
+- name: Install fail2ban
+  ansible.builtin.apt:
+    name: fail2ban
+    state: present
+
+- name: Configure fail2ban for SSH
+  ansible.builtin.copy:
+    dest: /etc/fail2ban/jail.local
+    content: |
+      [DEFAULT]
+      bantime = {{ fail2ban_ban_time }}
+      findtime = 600
+      maxretry = {{ fail2ban_max_retry }}
+      backend = systemd
+
+      [sshd]
+      enabled = true
+      port = {{ ssh_port }}
+      filter = sshd
+      logpath = /var/log/auth.log
+      maxretry = {{ fail2ban_max_retry }}
+    mode: "0644"
+  notify: Restart fail2ban
+
+# --- Automatic security updates ---
+
+- name: Install unattended-upgrades
+  ansible.builtin.apt:
+    name:
+      - unattended-upgrades
+      - apt-listchanges
+    state: present
+
+- name: Enable unattended-upgrades
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+      APT::Periodic::AutocleanInterval "7";
+    mode: "0644"
+
+# --- Security audit tools ---
+
+- name: Install security audit tools
+  ansible.builtin.apt:
+    name:
+      - lynis
+      - rkhunter
+    state: present
+
+# --- Handlers ---
+
+handlers:
+  - name: Restart SSH
+    ansible.builtin.service:
+      name: ssh
+      state: restarted
+
+  - name: Restart fail2ban
+    ansible.builtin.service:
+      name: fail2ban
+      state: restarted

@@ -1,0 +1,94 @@
+---
+# =============================================================================
+# Role: base — System base configuration
+# =============================================================================
+
+- name: Set hostname
+  ansible.builtin.hostname:
+    name: "{{ hostname }}"
+
+- name: Update /etc/hosts
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: '^127\.0\.1\.1'
+    line: "127.0.1.1 {{ hostname }}"
+
+- name: Set timezone
+  community.general.timezone:
+    name: "{{ timezone }}"
+
+- name: Generate locale
+  community.general.locale_gen:
+    name: "{{ locale }}"
+    state: present
+
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Upgrade all packages
+  ansible.builtin.apt:
+    upgrade: dist
+    autoremove: true
+
+- name: Install essential packages
+  ansible.builtin.apt:
+    name:
+      - curl
+      - wget
+      - git
+      - htop
+      - vim
+      - tmux
+      - tree
+      - jq
+      - unzip
+      - net-tools
+      - dnsutils
+      - smartmontools
+      - lsof
+      - ncdu
+      - python3-pip
+    state: present
+
+- name: Configure kernel parameters for Docker and performance
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/99-homelab.conf
+    reload: true
+  loop:
+    - { key: "vm.swappiness", value: "10" }
+    - { key: "vm.vfs_cache_pressure", value: "50" }
+    - { key: "net.core.somaxconn", value: "1024" }
+    - { key: "net.ipv4.ip_forward", value: "1" }
+
+- name: Set GPU memory to minimum (headless server)
+  ansible.builtin.lineinfile:
+    path: /boot/firmware/config.txt
+    regexp: '^gpu_mem='
+    line: 'gpu_mem=16'
+  notify: Reboot required
+
+- name: Add noatime to SD card mount
+  ansible.posix.mount:
+    path: /
+    src: "{{ ansible_mounts | selectattr('mount', 'equalto', '/') | map(attribute='device') | first }}"
+    fstype: ext4
+    opts: defaults,noatime
+    state: mounted
+
+- name: Enable cgroup memory (required for Docker)
+  ansible.builtin.lineinfile:
+    path: /boot/firmware/cmdline.txt
+    backrefs: true
+    regexp: '^(.*?)(\s*)$'
+    line: '\1 cgroup_memory=1 cgroup_enable=memory\2'
+  when: "'cgroup_memory=1' not in lookup('file', '/boot/firmware/cmdline.txt', errors='ignore')"
+  notify: Reboot required
+
+handlers:
+  - name: Reboot required
+    ansible.builtin.debug:
+      msg: "A reboot is required to apply changes. Reboot manually or re-run with --tags reboot."

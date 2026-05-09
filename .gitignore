@@ -1,0 +1,22 @@
+# Secrets
+docker/.env
+*.secret
+*.key
+
+# Ansible
+ansible/*.retry
+ansible/inventory/host_vars/*/vault.yml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Hook artifacts
+.remember/

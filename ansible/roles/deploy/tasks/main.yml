@@ -1,0 +1,50 @@
+---
+# =============================================================================
+# Role: deploy — Deploy Docker Compose stacks
+# =============================================================================
+
+- name: Create deployment directory
+  ansible.builtin.file:
+    path: /opt/homelab
+    state: directory
+    owner: "{{ ansible_user | default('pi') }}"
+    group: docker
+    mode: "0750"
+
+- name: Copy Docker Compose file
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../../docker/compose.yaml"
+    dest: /opt/homelab/compose.yaml
+    owner: "{{ ansible_user | default('pi') }}"
+    group: docker
+    mode: "0640"
+
+- name: Copy environment file
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../../docker/.env"
+    dest: /opt/homelab/.env
+    owner: "{{ ansible_user | default('pi') }}"
+    group: docker
+    mode: "0600"
+  when: lookup('file', playbook_dir + '/../../docker/.env', errors='ignore') | length > 0
+
+- name: Copy service configurations
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../../docker/configs/"
+    dest: /opt/homelab/configs/
+    owner: "{{ ansible_user | default('pi') }}"
+    group: docker
+    mode: "0640"
+    directory_mode: "0750"
+
+- name: Deploy Docker Compose stack
+  community.docker.docker_compose_v2:
+    project_src: /opt/homelab
+    state: present
+    pull: always
+  register: compose_result
+
+- name: Show deployment result
+  ansible.builtin.debug:
+    var: compose_result.actions
+    verbosity: 1
