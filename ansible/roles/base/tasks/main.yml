@@ -74,10 +74,15 @@
 - name: Add noatime to SD card mount
   ansible.posix.mount:
     path: /
-    src: "{{ ansible_mounts | selectattr('mount', 'equalto', '/') | map(attribute='device') | first }}"
+    src: "{{ ansible_facts['mounts'] | selectattr('mount', 'equalto', '/') | map(attribute='device') | first }}"
     fstype: ext4
     opts: defaults,noatime
     state: mounted
+
+- name: Read cmdline.txt
+  ansible.builtin.slurp:
+    src: /boot/firmware/cmdline.txt
+  register: cmdline_content
 
 - name: Enable cgroup memory (required for Docker)
   ansible.builtin.lineinfile:
@@ -85,10 +90,5 @@
     backrefs: true
     regexp: '^(.*?)(\s*)$'
     line: '\1 cgroup_memory=1 cgroup_enable=memory\2'
-  when: "'cgroup_memory=1' not in lookup('file', '/boot/firmware/cmdline.txt', errors='ignore')"
+  when: "'cgroup_memory=1' not in (cmdline_content.content | b64decode)"
   notify: Reboot required
-
-handlers:
-  - name: Reboot required
-    ansible.builtin.debug:
-      msg: "A reboot is required to apply changes. Reboot manually or re-run with --tags reboot."

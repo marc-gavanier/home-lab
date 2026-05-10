@@ -12,7 +12,7 @@
     line: "{{ item.line }}"
     validate: 'sshd -t -f %s'
   loop:
-    - { regexp: '^#?Port ', line: "Port {{ ssh_port }}" }
+    - { regexp: '^#?Port ', line: "Port {{ ssh_port_hardened }}" }
     - { regexp: '^#?PermitRootLogin', line: 'PermitRootLogin no' }
     - { regexp: '^#?PasswordAuthentication', line: 'PasswordAuthentication no' }
     - { regexp: '^#?PubkeyAuthentication', line: 'PubkeyAuthentication yes' }
@@ -44,7 +44,7 @@
 - name: Allow SSH through UFW
   community.general.ufw:
     rule: allow
-    port: "{{ ssh_port }}"
+    port: "{{ ssh_port_hardened }}"
     proto: tcp
     comment: SSH
 
@@ -99,7 +99,7 @@
 
       [sshd]
       enabled = true
-      port = {{ ssh_port }}
+      port = {{ ssh_port_hardened }}
       filter = sshd
       logpath = /var/log/auth.log
       maxretry = {{ fail2ban_max_retry }}
@@ -133,15 +133,3 @@
       - rkhunter
     state: present
 
-# --- Handlers ---
-
-handlers:
-  - name: Restart SSH
-    ansible.builtin.service:
-      name: ssh
-      state: restarted
-
-  - name: Restart fail2ban
-    ansible.builtin.service:
-      name: fail2ban
-      state: restarted

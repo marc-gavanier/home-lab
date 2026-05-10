@@ -1,14 +1,68 @@
 ---
 # =============================================================================
-# Role: storage — HDD mount and directory structure
+# Role: storage — LUKS-encrypted HDD with manual SSH unlock
+# =============================================================================
+# Boot flow:
+#   1. Pi boots normally from SD (unencrypted)
+#   2. SSH is available immediately
+#   3. User SSH in and runs: sudo homelab-unlock
+#   4. LUKS volume opens, /mnt/data mounts, Docker services start
 # =============================================================================
 
-- name: Install filesystem utilities
+- name: Install filesystem and encryption utilities
   ansible.builtin.apt:
     name:
       - e2fsprogs
       - hdparm
+      - cryptsetup
+      - smartmontools
     state: present
+
+# --- LUKS Encryption (first-time setup only) ---
+
+- name: Check if device is already a LUKS volume
+  ansible.builtin.command:
+    cmd: cryptsetup isLuks {{ data_disk_device }}
+  register: is_luks
+  failed_when: false
+  changed_when: false
+
+- name: Format device with LUKS (destructive — only if not already LUKS)
+  ansible.builtin.shell:
+    cmd: echo "{{ luks_passphrase }}" | cryptsetup luksFormat --batch-mode {{ data_disk_device }}
+  when: is_luks.rc != 0
+  no_log: true
+
+- name: Open LUKS volume for initial setup
+  ansible.builtin.shell:
+    cmd: echo "{{ luks_passphrase }}" | cryptsetup open --type luks {{ data_disk_device }} {{ luks_mapper_name }}
+  when: is_luks.rc != 0
+  no_log: true
+
+- name: Check if LUKS volume is already open
+  ansible.builtin.stat:
+    path: "/dev/mapper/{{ luks_mapper_name }}"
+  register: mapper_device
+
+- name: Open LUKS volume (if not open)
+  ansible.builtin.shell:
+    cmd: echo "{{ luks_passphrase }}" | cryptsetup open --type luks {{ data_disk_device }} {{ luks_mapper_name }}
+  when: not mapper_device.stat.exists
+  no_log: true
+
+- name: Check if filesystem exists on LUKS volume
+  ansible.builtin.command:
+    cmd: blkid /dev/mapper/{{ luks_mapper_name }}
+  register: blkid_result
+  failed_when: false
+  changed_when: false
+
+- name: Create ext4 filesystem on LUKS volume
+  ansible.builtin.command:
+    cmd: mkfs.ext4 -L homelab-data /dev/mapper/{{ luks_mapper_name }}
+  when: blkid_result.rc != 0
+
+# --- Mount ---
 
 - name: Create mount point
   ansible.builtin.file:
@@ -18,15 +72,100 @@
     group: root
     mode: "0755"
 
-- name: Mount data disk
+- name: Mount encrypted volume
   ansible.posix.mount:
     path: "{{ data_mount_point }}"
-    src: "{{ data_disk_device }}"
+    src: "/dev/mapper/{{ luks_mapper_name }}"
     fstype: "{{ data_filesystem }}"
-    opts: defaults,noatime,nofail
+    opts: defaults,noatime
     state: mounted
 
-- name: Create data directory structure
+- name: Remove crypttab entry (systemd-cryptsetup-generator ignores noauto)
+  ansible.builtin.file:
+    path: /etc/crypttab
+    state: absent
+
+- name: Remove fstab entry for encrypted volume (homelab-unlock handles mount)
+  ansible.posix.mount:
+    path: "{{ data_mount_point }}"
+    src: "/dev/mapper/{{ luks_mapper_name }}"
+    fstype: "{{ data_filesystem }}"
+    state: absent
+
+# --- Unlock script ---
+
+- name: Install unlock script
+  ansible.builtin.copy:
+    dest: /usr/local/bin/homelab-unlock
+    mode: "0755"
+    content: |
+      #!/usr/bin/env bash
+      # Unlock the encrypted data volume and start services
+      set -euo pipefail
+
+      MAPPER="{{ luks_mapper_name }}"
+      DEVICE="{{ data_disk_device }}"
+      MOUNT="{{ data_mount_point }}"
+
+      if [ -b "/dev/mapper/$MAPPER" ]; then
+        echo "Volume already unlocked."
+      else
+        echo "Unlocking $DEVICE..."
+        cryptsetup open --type luks "$DEVICE" "$MAPPER"
+      fi
+
+      if ! mountpoint -q "$MOUNT"; then
+        echo "Mounting $MOUNT..."
+        mount -t ext4 -o noatime "/dev/mapper/$MAPPER" "$MOUNT"
+      fi
+
+      echo "Starting services..."
+      systemctl start homelab-services.target
+
+      echo "Done. All services are running."
+
+- name: Install lock script
+  ansible.builtin.copy:
+    dest: /usr/local/bin/homelab-lock
+    mode: "0755"
+    content: |
+      #!/usr/bin/env bash
+      # Stop services and lock the encrypted volume
+      set -euo pipefail
+
+      MAPPER="{{ luks_mapper_name }}"
+      MOUNT="{{ data_mount_point }}"
+
+      echo "Stopping services..."
+      systemctl stop homelab-services.target
+
+      echo "Unmounting $MOUNT..."
+      umount "$MOUNT" || true
+
+      echo "Locking volume..."
+      cryptsetup close "$MAPPER"
+
+      echo "Done. Volume is locked."
+
+# --- Systemd target for services that depend on /mnt/data ---
+
+- name: Create homelab-services systemd target
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/homelab-services.target
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Home Lab Services (requires /mnt/data)
+      Requires=mnt-data.mount
+      After=mnt-data.mount
+
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+# --- Directory Structure ---
+
+- name: Create top-level data directories
   ansible.builtin.file:
     path: "{{ item }}"
     state: directory
@@ -34,33 +173,14 @@
     group: "1000"
     mode: "0755"
   loop:
-    # Service data
     - "{{ services_data_dir }}"
-    - "{{ services_data_dir }}/nextcloud"
-    - "{{ services_data_dir }}/nextcloud/data"
-    - "{{ services_data_dir }}/nextcloud/db"
-    - "{{ services_data_dir }}/jellyfin"
-    - "{{ services_data_dir }}/jellyfin/config"
-    - "{{ services_data_dir }}/jellyfin/cache"
-    - "{{ services_data_dir }}/navidrome"
-    - "{{ services_data_dir }}/immich"
-    - "{{ services_data_dir }}/immich/upload"
-    - "{{ services_data_dir }}/immich/db"
-    - "{{ services_data_dir }}/vaultwarden"
-    - "{{ services_data_dir }}/hedgedoc"
-    - "{{ services_data_dir }}/hedgedoc/db"
-    - "{{ services_data_dir }}/pihole"
-    - "{{ services_data_dir }}/wireguard"
-    - "{{ services_data_dir }}/traefik"
-    - "{{ services_data_dir }}/traefik/acme"
-    - "{{ services_data_dir }}/uptime-kuma"
-    # Media
     - "{{ media_dir }}"
     - "{{ media_dir }}/music"
     - "{{ media_dir }}/videos"
     - "{{ media_dir }}/photos"
-    # Backups
     - "{{ backup_dir }}"
+
+# --- Swap ---
 
 - name: Create swap file on HDD
   ansible.builtin.command:
@@ -75,17 +195,21 @@
 - name: Format swap file
   ansible.builtin.command:
     cmd: "mkswap {{ data_mount_point }}/swapfile"
-  when: ansible_swaptotal_mb == 0
+  register: mkswap_result
+  changed_when: mkswap_result.rc == 0
+  failed_when: false
 
 - name: Enable swap file
   ansible.builtin.command:
     cmd: "swapon {{ data_mount_point }}/swapfile"
-  when: ansible_swaptotal_mb == 0
+  register: swapon_result
+  changed_when: swapon_result.rc == 0
+  failed_when: false
 
 - name: Add swap to fstab
   ansible.posix.mount:
     path: none
     src: "{{ data_mount_point }}/swapfile"
     fstype: swap
-    opts: sw
+    opts: sw,nofail
     state: present

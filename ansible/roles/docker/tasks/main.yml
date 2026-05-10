@@ -61,11 +61,10 @@
     groups: docker
     append: true
 
-- name: Enable and start Docker
+- name: Start Docker
   ansible.builtin.service:
     name: docker
     state: started
-    enabled: true
 
 - name: Create Docker networks
   community.docker.docker_network:
@@ -75,8 +74,28 @@
     - proxy
     - internal
 
-handlers:
-  - name: Restart Docker
-    ansible.builtin.service:
-      name: docker
-      state: restarted
+# --- Integrate with homelab-unlock workflow ---
+
+- name: Create Docker service override directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/docker.service.d
+    state: directory
+    mode: "0755"
+
+- name: Configure Docker to start only via homelab-unlock
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/docker.service.d/override.conf
+    mode: "0644"
+    content: |
+      [Unit]
+      PartOf=homelab-services.target
+
+      [Install]
+      WantedBy=homelab-services.target
+
+- name: Disable Docker auto-start at boot
+  ansible.builtin.systemd:
+    name: docker
+    enabled: false
+    daemon_reload: true
+

@@ -4,8 +4,9 @@
 # Override these values in a local file or via --extra-vars
 
 # --- Connection ---
-homelab_ip: "192.168.1.X"  # TODO: set your Pi's LAN IP
-ssh_port: 2222              # Non-standard SSH port (changed by security role)
+homelab_ip: "192.168.1.100"
+ssh_port: 21202             # Hardened SSH port
+ssh_port_hardened: 21202    # Target SSH port after hardening
 
 # --- System ---
 hostname: homelab
@@ -14,9 +15,11 @@ locale: fr_FR.UTF-8
 swap_size_mb: 2048
 
 # --- Storage ---
-data_disk_device: /dev/sda1       # HDD 5To partition
+data_disk_device: /dev/sda1       # HDD 5TB partition
 data_mount_point: /mnt/data
 data_filesystem: ext4
+luks_mapper_name: data_crypt
+# luks_passphrase: set via --extra-vars or ansible-vault, NEVER in plain text
 
 # --- Docker ---
 docker_data_root: /mnt/data/docker  # Docker images/layers on HDD
@@ -27,7 +30,7 @@ traefik_acme_email: ""  # TODO: email for Let's Encrypt notifications
 
 # --- Security ---
 ssh_allowed_users:
-  - pi
+  - marc-gavanier
 fail2ban_max_retry: 3
 fail2ban_ban_time: 3600
 
