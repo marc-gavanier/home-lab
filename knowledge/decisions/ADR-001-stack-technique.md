@@ -2,7 +2,7 @@
 
 **Date**: 2026-05-09
 **Status**: Accepted
-**Deciders**: Marc Gavanier
+**Deciders**: Owner
 
 ## Context
 

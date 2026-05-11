@@ -1,0 +1,37 @@
+# =============================================================================
+# Local overrides — Copy to local.yml and fill in real values
+# =============================================================================
+# cp local.example.yml local.yml
+# local.yml is gitignored — secrets stay local.
+# Generate passwords in your password manager.
+# =============================================================================
+
+# --- Connection ---
+ansible_user: pi
+domain: example.com
+
+# --- Storage ---
+luks_passphrase: ""  # Used once for initial LUKS format, needed for re-provisioning
+
+# --- Traefik ---
+traefik_acme_email: "admin@example.com"
+
+# --- Pi-hole ---
+pihole_password: ""
+
+# --- WireGuard ---
+wg_password: ""  # Max 72 chars (bcrypt limit), will be hashed by Ansible
+
+# --- Nextcloud ---
+nextcloud_admin_password: ""
+nextcloud_db_password: ""
+nextcloud_db_root_password: ""
+
+# --- Vaultwarden ---
+vaultwarden_admin_token: ""
+
+# --- Immich ---
+immich_db_password: ""
+
+# --- HedgeDoc ---
+hedgedoc_db_password: ""

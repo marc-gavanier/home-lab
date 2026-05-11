@@ -4,6 +4,7 @@
 # Override these values in a local file or via --extra-vars
 
 # --- Connection ---
+ansible_user: pi            # Override in local.yml with your real username
 homelab_ip: "192.168.1.100"
 ssh_port: 21202             # Hardened SSH port
 ssh_port_hardened: 21202    # Target SSH port after hardening
@@ -26,11 +27,11 @@ docker_data_root: /mnt/data/docker  # Docker images/layers on HDD
 
 # --- Network ---
 domain: example.com
-traefik_acme_email: ""  # TODO: email for Let's Encrypt notifications
+traefik_acme_email: ""  # Set via --extra-vars (not in repo)
 
 # --- Security ---
 ssh_allowed_users:
-  - marc-gavanier
+  - pi
 fail2ban_max_retry: 3
 fail2ban_ban_time: 3600
 

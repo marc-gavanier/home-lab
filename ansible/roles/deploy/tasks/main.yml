@@ -2,12 +2,36 @@
 # =============================================================================
 # Role: deploy — Deploy Docker Compose stacks
 # =============================================================================
+# All secrets must be set in host_vars/homelab/local.yml (gitignored)
+# or passed via --extra-vars.
+# =============================================================================
+
+# --- Hash WireGuard password (wg-easy needs bcrypt) ---
+
+- name: Install python3-bcrypt on Pi
+  ansible.builtin.apt:
+    name: python3-bcrypt
+    state: present
+
+- name: Generate WireGuard bcrypt hash
+  ansible.builtin.command:
+    cmd: python3 -c "import sys, bcrypt; pwd = sys.stdin.buffer.readline().rstrip(b'\n'); print(bcrypt.hashpw(pwd, bcrypt.gensalt()).decode())"
+    stdin: "{{ wg_password }}"
+  register: wg_hash_result
+  changed_when: false
+  no_log: true
+
+- name: Set WireGuard password hash fact
+  ansible.builtin.set_fact:
+    wg_password_hash: "{{ wg_hash_result.stdout }}"
+
+# --- Deploy ---
 
 - name: Create deployment directory
   ansible.builtin.file:
     path: /opt/homelab
     state: directory
-    owner: "{{ ansible_user | default('pi') }}"
+    owner: "{{ ansible_user }}"
     group: docker
     mode: "0750"
 
@@ -15,36 +39,50 @@
   ansible.builtin.copy:
     src: "{{ playbook_dir }}/../../docker/compose.yaml"
     dest: /opt/homelab/compose.yaml
-    owner: "{{ ansible_user | default('pi') }}"
+    owner: "{{ ansible_user }}"
     group: docker
     mode: "0640"
 
-- name: Copy environment file
-  ansible.builtin.copy:
-    src: "{{ playbook_dir }}/../../docker/.env"
+- name: Template environment file
+  ansible.builtin.template:
+    src: env.j2
     dest: /opt/homelab/.env
-    owner: "{{ ansible_user | default('pi') }}"
+    owner: "{{ ansible_user }}"
     group: docker
     mode: "0600"
-  when: lookup('file', playbook_dir + '/../../docker/.env', errors='ignore') | length > 0
 
 - name: Copy service configurations
   ansible.builtin.copy:
     src: "{{ playbook_dir }}/../../docker/configs/"
     dest: /opt/homelab/configs/
-    owner: "{{ ansible_user | default('pi') }}"
+    owner: "{{ ansible_user }}"
     group: docker
     mode: "0640"
     directory_mode: "0750"
 
-- name: Deploy Docker Compose stack
-  community.docker.docker_compose_v2:
-    project_src: /opt/homelab
-    state: present
-    pull: always
-  register: compose_result
+- name: Template Traefik static config (resolve variables)
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/../../docker/configs/traefik/traefik.yml"
+    dest: /opt/homelab/configs/traefik/traefik.yml
+    owner: "{{ ansible_user }}"
+    group: docker
+    mode: "0640"
 
-- name: Show deployment result
+- name: Ensure Docker networks exist
+  community.docker.docker_network:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - proxy
+    - internal
+
+- name: Deploy services
+  ansible.builtin.command:
+    cmd: docker compose up -d {{ deploy_services | default('') }}
+    chdir: /opt/homelab
+  register: compose_result
+  changed_when: "'Started' in compose_result.stderr or 'Created' in compose_result.stderr"
+
+- name: Show deployment output
   ansible.builtin.debug:
-    var: compose_result.actions
-    verbosity: 1
+    var: compose_result.stderr_lines

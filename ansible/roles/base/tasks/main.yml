@@ -92,3 +92,20 @@
     line: '\1 cgroup_memory=1 cgroup_enable=memory\2'
   when: "'cgroup_memory=1' not in (cmdline_content.content | b64decode)"
   notify: Reboot required
+
+# --- Free port 53 for Pi-hole ---
+
+- name: Disable systemd-resolved stub DNS listener
+  ansible.builtin.lineinfile:
+    path: /etc/systemd/resolved.conf
+    regexp: '^#?DNSStubListener='
+    line: 'DNSStubListener=no'
+  notify: Restart systemd-resolved
+
+- name: Point resolv.conf to upstream DNS temporarily
+  ansible.builtin.copy:
+    dest: /etc/resolv.conf
+    content: |
+      nameserver 1.1.1.1
+      nameserver 8.8.8.8
+    mode: "0644"
