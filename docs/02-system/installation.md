@@ -263,6 +263,30 @@ Create a new client, scan the QR code with the WireGuard mobile app. Install the
 1. Connect to VPN from mobile (4G, not WiFi)
 2. Open `https://dns.example.com/admin/login` — should show Pi-hole login page
 
+### Backup (Restic)
+
+Automated encrypted backups run daily at 3 AM via systemd timer (`homelab-backup.timer`).
+
+What gets backed up:
+- Database dumps (MariaDB for Nextcloud, PostgreSQL for HedgeDoc/Immich)
+- Service data (`/mnt/data/services`)
+- Deployment configs (`/opt/homelab`)
+
+Retention: 7 daily, 4 weekly, 6 monthly snapshots.
+
+Manual backup:
+```bash
+ssh homelab "sudo /opt/homelab/scripts/backup.sh"
+```
+
+Check snapshots:
+```bash
+ssh homelab "sudo restic -r /mnt/data/backups/restic-repo snapshots"
+# Enter restic password when prompted
+```
+
+> **Note**: Backups are on the same HDD as the data. This protects against accidental deletion but not disk failure. Offsite backup planned for later.
+
 ## Decisions Made
 
 - **OS**: Ubuntu Server 24.04 LTS over 26.04 LTS (more mature, 2 years of bug fixes, better ARM64 community support)
@@ -282,3 +306,4 @@ Create a new client, scan the QR code with the WireGuard mobile app. Install the
 - **Split DNS**: Pi-hole resolves homelab subdomains to LAN IP. Required `FTLCONF_misc_etc_dnsmasq_d: "true"` for Pi-hole v6 to read custom dnsmasq configs.
 - **VPN-only middleware**: Traefik ipAllowList includes WireGuard (10.8.0.0/24), LAN (192.168.1.0/24), and Docker networks (172.16.0.0/12). VPN traffic arrives from Docker network IP, not client VPN IP.
 - **wg-easy Web UI**: Bound to localhost:51821 only, accessed via SSH tunnel. Avoids chicken-and-egg problem (can't access VPN admin behind VPN-only middleware without VPN).
+- **Backup**: Restic with AES-256 encryption. Daily at 3 AM via systemd timer. DB dumps before snapshot. Retention: 7d/4w/6m. Local only for now (same HDD), offsite planned with second Pi.

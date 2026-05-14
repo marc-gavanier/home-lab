@@ -94,3 +94,81 @@
 - name: Show deployment output
   ansible.builtin.debug:
     var: compose_result.stderr_lines
+
+# --- Backup setup ---
+
+- name: Install restic
+  ansible.builtin.apt:
+    name: restic
+    state: present
+
+- name: Create scripts directory
+  ansible.builtin.file:
+    path: /opt/homelab/scripts
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Copy backup script
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../../scripts/backup.sh"
+    dest: /opt/homelab/scripts/backup.sh
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Template backup environment file
+  ansible.builtin.template:
+    src: backup.env.j2
+    dest: /opt/homelab/backup.env
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Initialize restic repository
+  ansible.builtin.command:
+    cmd: restic init
+  environment:
+    RESTIC_REPOSITORY: "{{ backup_dir }}/restic-repo"
+    RESTIC_PASSWORD: "{{ restic_password }}"
+  register: restic_init
+  failed_when: false
+  changed_when: "'created restic repository' in restic_init.stdout"
+
+- name: Create backup systemd service
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/homelab-backup.service
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Home Lab Restic Backup
+      Requires=mnt-data.mount
+      After=mnt-data.mount
+
+      [Service]
+      Type=oneshot
+      ExecStart=/opt/homelab/scripts/backup.sh
+      EnvironmentFile=/opt/homelab/backup.env
+
+- name: Create backup systemd timer
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/homelab-backup.timer
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Daily Home Lab Backup at 3 AM
+
+      [Timer]
+      OnCalendar=*-*-* 03:00:00
+      Persistent=true
+
+      [Install]
+      WantedBy=timers.target
+
+- name: Enable backup timer
+  ansible.builtin.systemd:
+    name: homelab-backup.timer
+    enabled: true
+    state: started
+    daemon_reload: true
