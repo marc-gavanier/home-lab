@@ -59,8 +59,8 @@ See the `project-manager` agent for the detailed plan.
 
 | Phase                  | Content                               | Status |
 |------------------------|---------------------------------------|--------|
-| 1 - Foundations        | OS, storage, security, Docker         | To do  |
-| 2 - Network            | Traefik, Pi-hole, WireGuard           | To do  |
-| 3 - Essential services | Nextcloud, Vaultwarden, Backup        | To do  |
-| 4 - Secondary services | Jellyfin, Navidrome, Immich, HedgeDoc | To do  |
-| 5 - Observability      | Netdata, Uptime Kuma, alerting        | To do  |
+| 1 - Foundations        | OS, storage, security, Docker         | Done   |
+| 2 - Network            | Traefik, Pi-hole, WireGuard           | Done   |
+| 3 - Essential services | Nextcloud, Vaultwarden, Backup        | Done   |
+| 4 - Secondary services | Jellyfin, Navidrome, Immich, HedgeDoc | Done   |
+| 5 - Observability      | Netdata, Uptime Kuma, alerting        | Done   |

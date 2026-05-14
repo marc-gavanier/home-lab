@@ -287,6 +287,21 @@ ssh homelab "sudo restic -r /mnt/data/backups/restic-repo snapshots"
 
 > **Note**: Backups are on the same HDD as the data. This protects against accidental deletion but not disk failure. Offsite backup planned for later.
 
+### Services Access Summary
+
+| Service      | URL                            | Access   |
+|--------------|--------------------------------|----------|
+| Nextcloud    | `drive.example.com`            | Public   |
+| Vaultwarden  | `vault.example.com`            | Public   |
+| Jellyfin     | `videos.example.com`           | Public   |
+| Navidrome    | `music.example.com`            | Public   |
+| Immich       | `photos.example.com`           | Public   |
+| HedgeDoc     | `notes.example.com`            | Public   |
+| Pi-hole      | `dns.example.com/admin`        | VPN only |
+| Uptime Kuma  | `services.example.com`         | VPN only |
+| Netdata      | `system.example.com`           | VPN only |
+| WireGuard UI | `localhost:51821` (SSH tunnel) | SSH only |
+
 ## Decisions Made
 
 - **OS**: Ubuntu Server 24.04 LTS over 26.04 LTS (more mature, 2 years of bug fixes, better ARM64 community support)
