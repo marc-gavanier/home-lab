@@ -68,6 +68,14 @@
     group: docker
     mode: "0640"
 
+- name: Template Pi-hole split DNS config (resolve variables)
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/../../docker/configs/pihole/05-homelab.conf"
+    dest: /opt/homelab/configs/pihole/05-homelab.conf
+    owner: "{{ ansible_user }}"
+    group: docker
+    mode: "0640"
+
 - name: Ensure Docker networks exist
   community.docker.docker_network:
     name: "{{ item }}"

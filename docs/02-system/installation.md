@@ -241,6 +241,28 @@ Add individual A records for each service (DNS only, not proxied):
 
 Ubuntu's `systemd-resolved` listens on port 53, conflicting with Pi-hole. The `base` role disables its stub listener automatically.
 
+### Split DNS (Pi-hole)
+
+Pi-hole resolves homelab subdomains to the Pi's LAN IP (192.168.1.100) instead of the public IP. This ensures VPN clients reach services directly without going through the public internet.
+
+Configured via dnsmasq custom config (`docker/configs/pihole/05-homelab.conf`), requires `FTLCONF_misc_etc_dnsmasq_d: "true"` in the Pi-hole environment (Pi-hole v6 ignores `/etc/dnsmasq.d/` by default).
+
+### WireGuard VPN — Initial Setup
+
+The wg-easy web UI (port 51821) is bound to localhost only. Access it via SSH tunnel:
+
+```bash
+ssh -L 51821:127.0.0.1:51821 homelab
+# Then open http://localhost:51821 in your browser
+```
+
+Create a new client, scan the QR code with the WireGuard mobile app. Install the [WireGuard app](https://www.wireguard.com/install/) on your phone first.
+
+### Verify VPN Access
+
+1. Connect to VPN from mobile (4G, not WiFi)
+2. Open `https://dns.example.com/admin/login` — should show Pi-hole login page
+
 ## Decisions Made
 
 - **OS**: Ubuntu Server 24.04 LTS over 26.04 LTS (more mature, 2 years of bug fixes, better ARM64 community support)
@@ -257,3 +279,6 @@ Ubuntu's `systemd-resolved` listens on port 53, conflicting with Pi-hole. The `b
 - **DNS**: Individual A records on Cloudflare (not proxied). No wildcard to preserve existing site and Proton mail config.
 - **Secrets**: All secrets in Ansible Vault-encrypted `local.yml` (gitignored). Passwords generated in Bitwarden, WireGuard password hashed via bcrypt on Pi.
 - **TLS**: Let's Encrypt via HTTP challenge (Traefik ACME). Certificates auto-renewed.
+- **Split DNS**: Pi-hole resolves homelab subdomains to LAN IP. Required `FTLCONF_misc_etc_dnsmasq_d: "true"` for Pi-hole v6 to read custom dnsmasq configs.
+- **VPN-only middleware**: Traefik ipAllowList includes WireGuard (10.8.0.0/24), LAN (192.168.1.0/24), and Docker networks (172.16.0.0/12). VPN traffic arrives from Docker network IP, not client VPN IP.
+- **wg-easy Web UI**: Bound to localhost:51821 only, accessed via SSH tunnel. Avoids chicken-and-egg problem (can't access VPN admin behind VPN-only middleware without VPN).

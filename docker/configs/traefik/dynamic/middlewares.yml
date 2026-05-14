@@ -10,6 +10,7 @@ http:
         sourceRange:
           - "10.8.0.0/24"     # WireGuard subnet
           - "192.168.1.0/24"  # LAN subnet
+          - "172.16.0.0/12"   # Docker internal networks
 
     # Security headers for all services
     secure-headers:
