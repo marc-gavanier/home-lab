@@ -327,7 +327,12 @@ services:
       hedgedoc-db:
         condition: service_healthy
     environment:
-      CMD_DB_URL: postgres://${HEDGEDOC_DB_USER}:${HEDGEDOC_DB_PASSWORD}@hedgedoc-db:5432/${HEDGEDOC_DB_NAME}
+      CMD_DB_HOST: hedgedoc-db
+      CMD_DB_PORT: "5432"
+      CMD_DB_DATABASE: ${HEDGEDOC_DB_NAME}
+      CMD_DB_USERNAME: ${HEDGEDOC_DB_USER}
+      CMD_DB_PASSWORD: ${HEDGEDOC_DB_PASSWORD}
+      CMD_DB_DIALECT: postgres
       CMD_DOMAIN: notes.${DOMAIN}
       CMD_PROTOCOL_USESSL: "true"
       CMD_ALLOW_ANONYMOUS: "false"
