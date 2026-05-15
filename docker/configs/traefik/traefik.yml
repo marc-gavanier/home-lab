@@ -17,6 +17,8 @@ entryPoints:
   websecure:
     address: ":443"
     http:
+      middlewares:
+        - vpn-only@file   # All services require VPN/LAN access by default
       tls:
         certResolver: letsencrypt
 

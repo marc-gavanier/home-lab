@@ -289,18 +289,20 @@ ssh homelab "sudo restic -r /mnt/data/backups/restic-repo snapshots"
 
 ### Services Access Summary
 
-| Service      | URL                            | Access   |
-|--------------|--------------------------------|----------|
-| Nextcloud    | `drive.example.com`            | Public   |
-| Vaultwarden  | `vault.example.com`            | Public   |
-| Jellyfin     | `videos.example.com`           | Public   |
-| Navidrome    | `music.example.com`            | Public   |
-| Immich       | `photos.example.com`           | Public   |
-| HedgeDoc     | `notes.example.com`            | Public   |
-| Pi-hole      | `dns.example.com/admin`        | VPN only |
-| Uptime Kuma  | `services.example.com`         | VPN only |
-| Netdata      | `system.example.com`           | VPN only |
-| WireGuard UI | `localhost:51821` (SSH tunnel) | SSH only |
+All HTTPS services are **VPN/LAN-only** (Traefik `vpn-only` middleware applied globally on the `websecure` entrypoint). Access them from the local network or via WireGuard from anywhere.
+
+| Service      | URL                            | Notes                |
+|--------------|--------------------------------|----------------------|
+| Nextcloud    | `drive.example.com`            | VPN/LAN              |
+| Vaultwarden  | `vault.example.com`            | VPN/LAN              |
+| Jellyfin     | `videos.example.com`           | VPN/LAN              |
+| Navidrome    | `music.example.com`            | VPN/LAN              |
+| Immich       | `photos.example.com`           | VPN/LAN              |
+| HedgeDoc     | `notes.example.com`            | VPN/LAN              |
+| Pi-hole      | `dns.example.com/admin`        | VPN/LAN              |
+| Uptime Kuma  | `services.example.com`         | VPN/LAN              |
+| Netdata      | `system.example.com`           | VPN/LAN              |
+| WireGuard UI | `localhost:51821` (SSH tunnel) | SSH tunnel only      |
 
 ## Decisions Made
 
@@ -319,6 +321,6 @@ ssh homelab "sudo restic -r /mnt/data/backups/restic-repo snapshots"
 - **Secrets**: All secrets in Ansible Vault-encrypted `local.yml` (gitignored). Passwords generated in Bitwarden, WireGuard password hashed via bcrypt on Pi.
 - **TLS**: Let's Encrypt via HTTP challenge (Traefik ACME). Certificates auto-renewed.
 - **Split DNS**: Pi-hole resolves homelab subdomains to LAN IP. Required `FTLCONF_misc_etc_dnsmasq_d: "true"` for Pi-hole v6 to read custom dnsmasq configs.
-- **VPN-only middleware**: Traefik ipAllowList includes WireGuard (10.8.0.0/24), LAN (192.168.1.0/24), and Docker networks (172.16.0.0/12). VPN traffic arrives from Docker network IP, not client VPN IP.
+- **VPN-only by default**: `vpn-only` middleware applied globally on Traefik's `websecure` entrypoint. ipAllowList includes WireGuard (10.8.0.0/24), LAN (192.168.1.0/24), and Docker networks (172.16.0.0/12). All services protected automatically; new services inherit the protection. Trade-off: VPN must be active on mobile for sync (Bitwarden, Nextcloud, Immich), but attack surface is minimized. Internet sees only `403 Forbidden`.
 - **wg-easy Web UI**: Bound to localhost:51821 only, accessed via SSH tunnel. Avoids chicken-and-egg problem (can't access VPN admin behind VPN-only middleware without VPN).
 - **Backup**: Restic with AES-256 encryption. Daily at 3 AM via systemd timer. DB dumps before snapshot. Retention: 7d/4w/6m. Local only for now (same HDD), offsite planned with second Pi.

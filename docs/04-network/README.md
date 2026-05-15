@@ -13,18 +13,20 @@ Internet → ISP Router (IPv4 full stack, port forwarding)
 
 ### Subdomains
 
-| Subdomain              | Service     | Access               |
-|------------------------|-------------|----------------------|
-| `drive.example.com`    | Nextcloud   | Public (via Traefik) |
-| `vault.example.com`    | Vaultwarden | Public (via Traefik) |
-| `notes.example.com`    | HedgeDoc    | Public (via Traefik) |
-| `videos.example.com`   | Jellyfin    | VPN only             |
-| `music.example.com`    | Navidrome   | VPN only             |
-| `photos.example.com`   | Immich      | VPN only             |
-| `dns.example.com`      | Pi-hole     | VPN only             |
-| `services.example.com` | Uptime Kuma | VPN only             |
-| `system.example.com`   | Netdata     | VPN only             |
-| `vpn.example.com`      | WireGuard   | VPN only             |
+All services are **VPN-only**. The `vpn-only` middleware is applied globally on Traefik's `websecure` entrypoint — any request not coming from the LAN (192.168.1.0/24), WireGuard subnet (10.8.0.0/24), or a Docker bridge network (172.16.0.0/12) gets `403 Forbidden`.
+
+| Subdomain              | Service     |
+|------------------------|-------------|
+| `drive.example.com`    | Nextcloud   |
+| `vault.example.com`    | Vaultwarden |
+| `notes.example.com`    | HedgeDoc    |
+| `videos.example.com`   | Jellyfin    |
+| `music.example.com`    | Navidrome   |
+| `photos.example.com`   | Immich      |
+| `dns.example.com`      | Pi-hole     |
+| `services.example.com` | Uptime Kuma |
+| `system.example.com`   | Netdata     |
+| `vpn.example.com`      | WireGuard   |
 
 ### DNS
 
@@ -34,10 +36,20 @@ Internet → ISP Router (IPv4 full stack, port forwarding)
 
 ## Traefik
 
-- Entrypoints: 80 (redirect → 443), 443 (TLS)
-- ACME: Let's Encrypt via HTTP challenge
-- Middlewares: rate limiting, secure headers, VPN-only access for admin panels
-- Dashboard: accessible via VPN only
+- Entrypoints: 80 (redirect → 443 + ACME HTTP challenge), 443 (TLS, vpn-only middleware applied globally)
+- ACME: Let's Encrypt via HTTP challenge (`/.well-known/acme-challenge/*` handled internally before middlewares)
+- Middlewares: vpn-only (default on websecure), rate limiting, secure headers, nextcloud-headers
+- Dashboard: accessible via LAN/VPN only
+
+## Security Model
+
+**Defense in depth via VPN-gated access:**
+
+- Only WireGuard (51820/UDP) and Traefik (80, 443/TCP) are exposed to the internet
+- Traefik returns `403 Forbidden` for all HTTPS traffic that is not from LAN, VPN, or Docker bridge networks
+- Internet bots scanning the public IP see only `403` — no service enumeration possible
+- Any future CVE in a hosted service requires an authenticated VPN client to exploit
+- Adding a new service inherits the protection automatically (default middleware on entrypoint)
 
 ## Docker Networks
 
