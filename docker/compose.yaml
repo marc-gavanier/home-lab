@@ -58,8 +58,7 @@ services:
       - "53:53/udp"
     environment:
       TZ: ${TZ}
-      WEBPASSWORD: ${PIHOLE_PASSWORD}
-      DNSMASQ_LISTENING: all
+      FTLCONF_dns_listeningMode: all
       FTLCONF_misc_etc_dnsmasq_d: "true"
     volumes:
       - ${SERVICES_DATA_DIR}/pihole/etc:/etc/pihole

@@ -95,6 +95,21 @@
   ansible.builtin.debug:
     var: compose_result.stderr_lines
 
+# --- Pi-hole password (v6 ignores env var after first start) ---
+
+- name: Check if Pi-hole is running
+  ansible.builtin.command:
+    cmd: docker ps -q -f name=pihole -f status=running
+  register: pihole_running
+  changed_when: false
+
+- name: Set Pi-hole admin password
+  ansible.builtin.shell:
+    cmd: "docker exec pihole pihole setpassword {{ pihole_password | quote }}"
+  no_log: true
+  changed_when: true
+  when: pihole_running.stdout | length > 0
+
 # --- Backup setup ---
 
 - name: Install restic
