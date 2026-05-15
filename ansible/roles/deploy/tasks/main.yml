@@ -25,6 +25,28 @@
   ansible.builtin.set_fact:
     wg_password_hash: "{{ wg_hash_result.stdout }}"
 
+# --- Hash Vaultwarden admin token (Argon2id, deterministic via fixed salt) ---
+
+- name: Install python3-argon2 on Pi
+  ansible.builtin.apt:
+    name: python3-argon2
+    state: present
+
+- name: Generate Vaultwarden Argon2 hash (deterministic)
+  ansible.builtin.command:
+    cmd: python3 -c "import os,sys; from argon2.low_level import hash_secret, Type; print(hash_secret(os.environ['T'].encode(), bytes.fromhex(os.environ['S']), time_cost=3, memory_cost=65540, parallelism=4, hash_len=32, type=Type.ID).decode())"
+  environment:
+    T: "{{ vaultwarden_admin_token }}"
+    S: "{{ vaultwarden_admin_salt }}"
+  register: vw_hash
+  no_log: true
+  changed_when: false
+
+- name: Set Vaultwarden Argon2 hash fact
+  ansible.builtin.set_fact:
+    vaultwarden_admin_token_hash: "{{ vw_hash.stdout }}"
+  no_log: true
+
 # --- Deploy ---
 
 - name: Create deployment directory

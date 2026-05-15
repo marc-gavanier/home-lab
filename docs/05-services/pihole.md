@@ -43,10 +43,10 @@ The SFR TV decoder breaks when filtered by Pi-hole. Exclude it:
 
 ## Data
 
-| Path | Content |
-|------|---------|
-| `/mnt/data/services/pihole/etc/` | Pi-hole configuration (`pihole.toml`) |
-| `/mnt/data/services/pihole/dnsmasq/` | Custom dnsmasq configs |
+| Path                                 | Content                               |
+|--------------------------------------|---------------------------------------|
+| `/mnt/data/services/pihole/etc/`     | Pi-hole configuration (`pihole.toml`) |
+| `/mnt/data/services/pihole/dnsmasq/` | Custom dnsmasq configs                |
 
 ## Restore
 

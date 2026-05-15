@@ -177,7 +177,7 @@ services:
     environment:
       DOMAIN: https://vault.${DOMAIN}
       SIGNUPS_ALLOWED: ${VAULTWARDEN_SIGNUPS_ALLOWED:-false}
-      ADMIN_TOKEN: ${VAULTWARDEN_ADMIN_TOKEN}
+      ADMIN_TOKEN: ${VAULTWARDEN_ADMIN_TOKEN_HASH}
     volumes:
       - ${SERVICES_DATA_DIR}/vaultwarden:/data
     networks:

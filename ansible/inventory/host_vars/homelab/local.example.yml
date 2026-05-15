@@ -29,6 +29,9 @@ nextcloud_db_root_password: ""
 
 # --- Vaultwarden ---
 vaultwarden_admin_token: ""
+# 16+ random bytes in hex (e.g. `openssl rand -hex 16`). Stable salt for
+# deterministic Argon2 hashing of the admin token. Keep it secret.
+vaultwarden_admin_salt: ""
 
 # --- Immich ---
 immich_db_password: ""
