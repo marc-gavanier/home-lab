@@ -84,6 +84,12 @@
     - proxy
     - internal
 
+- name: Pull latest images
+  ansible.builtin.command:
+    cmd: docker compose pull {{ deploy_services | default('') }}
+    chdir: /opt/homelab
+  changed_when: false
+
 - name: Deploy services
   ansible.builtin.command:
     cmd: docker compose up -d {{ deploy_services | default('') }}
