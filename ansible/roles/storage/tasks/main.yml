@@ -90,7 +90,7 @@
     path: "{{ data_mount_point }}"
     src: "/dev/mapper/{{ luks_mapper_name }}"
     fstype: "{{ data_filesystem }}"
-    state: absent
+    state: absent_from_fstab
 
 # --- Unlock script ---
 
@@ -177,6 +177,10 @@
     - "{{ media_dir }}"
     - "{{ media_dir }}/music"
     - "{{ media_dir }}/videos"
+    - "{{ media_dir }}/videos/movies"
+    - "{{ media_dir }}/videos/shows"
+    - "{{ media_dir }}/videos/home-videos"
+    - "{{ media_dir }}/videos/music-videos"
     - "{{ media_dir }}/photos"
     - "{{ backup_dir }}"
 
