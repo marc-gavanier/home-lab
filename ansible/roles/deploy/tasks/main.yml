@@ -180,6 +180,21 @@
   changed_when: true
   when: nextcloud_running.stdout | length > 0
 
+# Manage trusted_domains via occ: NEXTCLOUD_TRUSTED_DOMAINS only applies on first
+# install, not on an existing instance. localhost = internal healthcheck,
+# nextcloud = notify_push reaching http://nextcloud, drive.<domain> = real access.
+- name: Ensure Nextcloud trusted domains
+  ansible.builtin.command:
+    cmd: "docker exec -u www-data nextcloud php occ config:system:set trusted_domains {{ item.idx }} --value={{ item.val }}"
+  loop:
+    - { idx: 0, val: localhost }
+    - { idx: 1, val: "drive.{{ domain }}" }
+    - { idx: 2, val: nextcloud }
+  loop_control:
+    label: "{{ item.val }}"
+  changed_when: true
+  when: nextcloud_running.stdout | length > 0
+
 - name: Get installed Nextcloud apps
   ansible.builtin.command:
     cmd: docker exec -u www-data nextcloud php occ app:list --output=json
