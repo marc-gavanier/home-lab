@@ -1,6 +1,6 @@
 # Obsidian + Claude Code + Mobile Workflow
 
-**Status**: Researched, deferred (waiting for Nextcloud setup)
+**Status**: Phase A implemented (2026-05-23) — Obsidian + Remotely Save sync on PC and mobile. Phase B (Claude Code on the Pi) pending.
 **Date**: 2026-05-15
 
 ## Goal
@@ -81,6 +81,39 @@ Two viable options:
 - [Claude Code is better on your phone (Harper Reed)](https://harper.blog/2026/01/05/claude-code-is-better-on-your-phone/)
 - [planning-with-files pattern (GitHub)](https://github.com/othmanadi/planning-with-files)
 
-## Decision Pending
+## Decision
 
-Choose between Remotely Save and LiveSync for Obsidian sync — depends on whether real-time collaborative editing matters (it doesn't for solo use, so Remotely Save is likely sufficient).
+**Remotely Save** chosen (over LiveSync): solo use needs no real-time collaborative
+editing, and Remotely Save reuses the existing Nextcloud WebDAV — no extra service
+(CouchDB) to deploy.
+
+## Phase A — Implemented (2026-05-23)
+
+Sync working on PC (Linux) and mobile (/e/OS) via the Remotely Save plugin → Nextcloud WebDAV.
+
+### Setup (per device)
+1. Install Obsidian; create a vault named **`Notes`** (the name must be identical on
+   every device — Remotely Save nests synced content under a folder named after the vault).
+2. Community plugins → install & enable **Remotely Save**.
+3. Configure WebDAV:
+   - Server Address: `https://drive.example.com/remote.php/dav/files/admin`
+     (point at the **account root**, not at `/Notes` — Remotely Save appends the vault
+     name itself; pointing at `.../Notes` produces a doubled `/Notes/Notes`)
+   - Username: `admin`, Password: a Nextcloud **app-password** (Settings → Security)
+4. Mobile: enable **auto-run on startup** + scheduled sync (manual trigger is the
+   ribbon cloud icon or the "Remotely Save: start sync" command).
+
+### Gotchas hit
+- **Doubled folder** `/Notes/Notes`: caused by setting the server address to `.../Notes`
+  while the vault is also named `Notes`. Fix: server address = account root.
+- **"changing file >= 50% not allowed"**: Remotely Save's mass-change guard trips on a
+  near-empty vault. Lower/disable it while the vault is small; restore ~50% once it has
+  many notes.
+- VPN must be on (services are VPN-only, ADR-002). The `.md` files are stored locally on
+  each device, so reading notes works offline; only sync needs the VPN.
+
+### Phase B (pending)
+Claude Code on the Pi. The vault already lands on the Pi at
+`/mnt/data/services/nextcloud/data/admin/files/Notes` (Nextcloud data volume), so Claude
+can read/write there directly. After Claude writes a file, an `occ files:scan` is needed
+for Nextcloud to see it, then notify_push propagates it to clients in real time.
