@@ -20,7 +20,7 @@ Domain: example.com
 | Backup          | Restic (encrypted, incremental)                      |
 | Media           | Jellyfin (video), Navidrome (music), Immich (photos) |
 | Passwords       | Vaultwarden                                          |
-| Notes           | HedgeDoc                                             |
+| Notes           | Obsidian (synced via Nextcloud)                      |
 | Monitoring      | Uptime Kuma + Netdata                                |
 
 ## Project Structure

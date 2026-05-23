@@ -394,55 +394,6 @@ services:
       timeout: 5s
       retries: 3
 
-  # --- HedgeDoc (Notes) ---
-  hedgedoc:
-    image: quay.io/hedgedoc/hedgedoc:latest
-    container_name: hedgedoc
-    restart: unless-stopped
-    depends_on:
-      hedgedoc-db:
-        condition: service_healthy
-    environment:
-      CMD_DB_HOST: hedgedoc-db
-      CMD_DB_PORT: "5432"
-      CMD_DB_DATABASE: ${HEDGEDOC_DB_NAME}
-      CMD_DB_USERNAME: ${HEDGEDOC_DB_USER}
-      CMD_DB_PASSWORD: ${HEDGEDOC_DB_PASSWORD}
-      CMD_DB_DIALECT: postgres
-      CMD_DOMAIN: notes.${DOMAIN}
-      CMD_PROTOCOL_USESSL: "true"
-      CMD_ALLOW_ANONYMOUS: "false"
-      CMD_ALLOW_FREEURL: "true"
-    volumes:
-      - ${SERVICES_DATA_DIR}/hedgedoc/uploads:/hedgedoc/public/uploads
-    networks:
-      - proxy
-      - internal
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.hedgedoc.rule=Host(`notes.${DOMAIN}`)"
-      - "traefik.http.routers.hedgedoc.entrypoints=websecure"
-      - "traefik.http.routers.hedgedoc.tls.certresolver=letsencrypt"
-      - "traefik.http.services.hedgedoc.loadbalancer.server.port=3000"
-
-  hedgedoc-db:
-    image: postgres:16-alpine
-    container_name: hedgedoc-db
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${HEDGEDOC_DB_USER}
-      POSTGRES_PASSWORD: ${HEDGEDOC_DB_PASSWORD}
-      POSTGRES_DB: ${HEDGEDOC_DB_NAME}
-    volumes:
-      - ${SERVICES_DATA_DIR}/hedgedoc/db:/var/lib/postgresql/data
-    networks:
-      - internal
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${HEDGEDOC_DB_USER}"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
   # --- Transmission (BitTorrent) ---
   transmission:
     image: linuxserver/transmission:latest

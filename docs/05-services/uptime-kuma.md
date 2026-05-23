@@ -24,7 +24,6 @@ Uses Pi-hole as DNS (`dns: [${PI_LAN_IP}]` in compose) so that domain lookups fo
 |---------------|----------|-----------------------------------------------|
 | Nextcloud     | HTTP(s)  | `https://drive.example.com/status.php`        |
 | Vaultwarden   | HTTP(s)  | `https://vault.example.com/alive`             |
-| HedgeDoc      | HTTP(s)  | `https://notes.example.com`                   |
 | Jellyfin      | HTTP(s)  | `https://videos.example.com/health`           |
 | Navidrome     | HTTP(s)  | `https://music.example.com/ping`              |
 | Immich        | HTTP(s)  | `https://photos.example.com`                  |

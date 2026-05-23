@@ -32,7 +32,6 @@ Personal home lab on Raspberry Pi 4 — self-hosted services, full automation, h
 | Video             | Jellyfin              | Video library and streaming   |
 | Music             | Navidrome             | Music library and streaming   |
 | Photos            | Immich                | Photo management and backup   |
-| Notes             | HedgeDoc              | Collaborative markdown editor |
 | Reverse proxy     | Traefik               | Automatic TLS, routing        |
 | Backup            | Restic                | Encrypted incremental backup  |
 | Monitoring        | Uptime Kuma + Netdata | Uptime and system monitoring  |

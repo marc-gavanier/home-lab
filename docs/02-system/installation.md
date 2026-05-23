@@ -147,7 +147,7 @@ ansible-playbook playbooks/site.yml --tags deploy --ask-vault-pass --extra-vars 
 ansible-playbook playbooks/site.yml --tags deploy --ask-vault-pass --extra-vars "deploy_services='nextcloud nextcloud-db vaultwarden'"
 
 # Phase 4 — Secondary services
-ansible-playbook playbooks/site.yml --tags deploy --ask-vault-pass --extra-vars "deploy_services='jellyfin navidrome immich-server immich-machine-learning immich-redis immich-db hedgedoc hedgedoc-db'"
+ansible-playbook playbooks/site.yml --tags deploy --ask-vault-pass --extra-vars "deploy_services='jellyfin navidrome immich-server immich-machine-learning immich-redis immich-db'"
 
 # Phase 5 — Observability
 ansible-playbook playbooks/site.yml --tags deploy --ask-vault-pass --extra-vars "deploy_services='uptime-kuma netdata'"
@@ -218,7 +218,6 @@ Add individual A records for each service (DNS only, not proxied):
 |------------|-------------|
 | `drive`    | Nextcloud   |
 | `vault`    | Vaultwarden |
-| `notes`    | HedgeDoc    |
 | `videos`   | Jellyfin    |
 | `music`    | Navidrome   |
 | `photos`   | Immich      |
@@ -268,7 +267,7 @@ Create a new client, scan the QR code with the WireGuard mobile app. Install the
 Automated encrypted backups run daily at 3 AM via systemd timer (`homelab-backup.timer`).
 
 What gets backed up:
-- Database dumps (MariaDB for Nextcloud, PostgreSQL for HedgeDoc/Immich)
+- Database dumps (MariaDB for Nextcloud, PostgreSQL for Immich)
 - Service data (`/mnt/data/services`)
 - Deployment configs (`/opt/homelab`)
 
@@ -298,7 +297,6 @@ All HTTPS services are **VPN/LAN-only** (Traefik `vpn-only` middleware applied g
 | Jellyfin     | `videos.example.com`           | VPN/LAN              |
 | Navidrome    | `music.example.com`            | VPN/LAN              |
 | Immich       | `photos.example.com`           | VPN/LAN              |
-| HedgeDoc     | `notes.example.com`            | VPN/LAN              |
 | Pi-hole      | `dns.example.com/admin`        | VPN/LAN              |
 | Uptime Kuma  | `services.example.com`         | VPN/LAN              |
 | Netdata      | `system.example.com`           | VPN/LAN              |

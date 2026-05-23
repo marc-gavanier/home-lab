@@ -19,7 +19,6 @@ All services are **VPN-only**. The `vpn-only` middleware is applied globally on 
 |------------------------|-------------|
 | `drive.example.com`    | Nextcloud   |
 | `vault.example.com`    | Vaultwarden |
-| `notes.example.com`    | HedgeDoc    |
 | `videos.example.com`   | Jellyfin    |
 | `music.example.com`    | Navidrome   |
 | `photos.example.com`   | Immich      |

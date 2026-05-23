@@ -10,8 +10,6 @@ A markdown-based knowledge system where:
 - AI (Claude Code) can read/create/organize the structure, like in this very CLI workflow
 - The whole thing is accessible from mobile, with the ability to chat with Claude while it reads/writes the homelab's filesystem
 
-> **This will replace HedgeDoc**, which is a flat web-based markdown editor without folder hierarchy and without AI integration — doesn't match the workflow. Once Obsidian is set up, HedgeDoc will be decommissioned (removed from compose, DNS record cleaned up).
-
 ## The Popular 2026 Pattern
 
 **Obsidian (editor) + Nextcloud (sync) + Claude Code (agent)**

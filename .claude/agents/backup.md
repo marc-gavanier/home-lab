@@ -33,7 +33,6 @@ Home lab on Raspberry Pi 4 with a 5TB HDD containing all self-hosted service dat
 | Nextcloud data         | Restic + maintenance mode | Daily     |
 | Nextcloud DB (MariaDB) | SQL dump + Restic         | Daily     |
 | Vaultwarden            | Restic (SQLite)           | Daily     |
-| HedgeDoc DB            | SQL dump + Restic         | Daily     |
 | Immich (DB + media)    | SQL dump + Restic         | Daily     |
 | Pi-hole configs        | Restic                    | Weekly    |
 | WireGuard configs      | Restic                    | Weekly    |

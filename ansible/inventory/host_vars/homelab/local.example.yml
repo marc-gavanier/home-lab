@@ -36,9 +36,6 @@ vaultwarden_admin_salt: ""
 # --- Immich ---
 immich_db_password: ""
 
-# --- HedgeDoc ---
-hedgedoc_db_password: ""
-
 # --- Transmission ---
 transmission_password: ""
 

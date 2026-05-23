@@ -48,15 +48,6 @@ docker exec nextcloud-db mariadb-dump \
     "${NEXTCLOUD_DB_NAME:-nextcloud}" \
     > "$DUMP_DIR/nextcloud.sql" 2>> "$BACKUP_LOG" || log "WARNING: Nextcloud DB dump failed"
 
-# HedgeDoc PostgreSQL (if running)
-if docker ps --format '{{.Names}}' | grep -q hedgedoc-db; then
-    log "Dumping HedgeDoc database..."
-    docker exec hedgedoc-db pg_dump \
-        -U "${HEDGEDOC_DB_USER:-hedgedoc}" \
-        "${HEDGEDOC_DB_NAME:-hedgedoc}" \
-        > "$DUMP_DIR/hedgedoc.sql" 2>> "$BACKUP_LOG" || log "WARNING: HedgeDoc DB dump failed"
-fi
-
 # Immich PostgreSQL (if running)
 if docker ps --format '{{.Names}}' | grep -q immich-db; then
     log "Dumping Immich database..."

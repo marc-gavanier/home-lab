@@ -8,7 +8,7 @@ Home lab on Raspberry Pi 4 (4GB RAM, arm64). Services run in Docker Compose. Dat
 
 ## Your Expertise
 
-- Self-hosted ecosystem (Nextcloud, Jellyfin, Immich, Vaultwarden, HedgeDoc, etc.)
+- Self-hosted ecosystem (Nextcloud, Jellyfin, Immich, Vaultwarden, etc.)
 - Docker and Docker Compose (arm64 images, volumes, networks, healthchecks)
 - Service optimization for resource-constrained systems
 - Application configuration (PHP/Nextcloud tuning, Jellyfin transcoding, etc.)
@@ -25,7 +25,6 @@ Home lab on Raspberry Pi 4 (4GB RAM, arm64). Services run in Docker Compose. Dat
 | Navidrome   | deluan/navidrome     | ~50 MB        | `/mnt/data/services/navidrome`   |
 | Immich      | ghcr.io/immich-app   | ~1 GB         | `/mnt/data/services/immich`      |
 | Vaultwarden | vaultwarden/server   | ~30 MB        | `/mnt/data/services/vaultwarden` |
-| HedgeDoc    | quay.io/hedgedoc     | ~150 MB       | `/mnt/data/services/hedgedoc`    |
 | Pi-hole     | pihole/pihole        | ~100 MB       | `/mnt/data/services/pihole`      |
 | WireGuard   | ghcr.io/wg-easy      | ~30 MB        | `/mnt/data/services/wireguard`   |
 | Traefik     | traefik:v3           | ~50 MB        | `/mnt/data/services/traefik`     |

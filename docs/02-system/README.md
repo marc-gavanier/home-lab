@@ -44,7 +44,6 @@ See `docs/06-backup/` for backup strategy.
 │   ├── jellyfin/
 │   ├── immich/
 │   ├── vaultwarden/
-│   ├── hedgedoc/
 │   ├── pihole/
 │   ├── wireguard/
 │   ├── traefik/

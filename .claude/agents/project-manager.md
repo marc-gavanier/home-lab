@@ -38,12 +38,11 @@ Personal home lab project on Raspberry Pi 4. The goal is to self-host services w
 12. Jellyfin (video)
 13. Navidrome (music)
 14. Immich (photos)
-15. HedgeDoc (notes)
 
 ### Phase 5 — Observability
-16. Netdata (system monitoring)
-17. Uptime Kuma (service monitoring)
-18. Alerting
+15. Netdata (system monitoring)
+16. Uptime Kuma (service monitoring)
+17. Alerting
 
 ## Directives
 

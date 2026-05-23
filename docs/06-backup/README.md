@@ -15,7 +15,6 @@ Chosen for its deduplication, native encryption (AES-256), incremental support, 
 | Nextcloud files       | `/mnt/data/services/nextcloud/`   | Restic (maintenance mode) | Daily     |
 | Nextcloud DB          | MariaDB dump                      | Restic                    | Daily     |
 | Vaultwarden           | `/mnt/data/services/vaultwarden/` | Restic                    | Daily     |
-| HedgeDoc DB           | PostgreSQL dump                   | Restic                    | Daily     |
 | Immich DB + data      | PostgreSQL dump + files           | Restic                    | Daily     |
 | Service configs       | `/mnt/data/services/*/config`     | Restic                    | Daily     |
 | Media                 | `/mnt/data/media/`                | Restic                    | Weekly    |

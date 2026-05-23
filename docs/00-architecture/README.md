@@ -35,7 +35,7 @@ This home lab is built on a Raspberry Pi 4 Model B with the goal of providing a 
 │  ┌──────┴────────────────────┴───────────────┐  │
 │  │           Docker Network (proxy)           │  │
 │  │                                            │  │
-│  │  Nextcloud  Vaultwarden  HedgeDoc         │  │
+│  │  Nextcloud  Vaultwarden                   │  │
 │  │  Jellyfin   Navidrome    Immich           │  │
 │  │  Uptime Kuma                              │  │
 │  └────────────────────────────────────────────┘  │
@@ -62,5 +62,5 @@ See the `project-manager` agent for the detailed plan.
 | 1 - Foundations        | OS, storage, security, Docker         | Done   |
 | 2 - Network            | Traefik, Pi-hole, WireGuard           | Done   |
 | 3 - Essential services | Nextcloud, Vaultwarden, Backup        | Done   |
-| 4 - Secondary services | Jellyfin, Navidrome, Immich, HedgeDoc | Done   |
+| 4 - Secondary services | Jellyfin, Navidrome, Immich           | Done   |
 | 5 - Observability      | Netdata, Uptime Kuma, alerting        | Done   |

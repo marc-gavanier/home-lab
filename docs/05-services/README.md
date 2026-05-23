@@ -16,7 +16,6 @@ All services run as Docker containers, orchestrated by Docker Compose. Persisten
 | [Jellyfin](jellyfin.md)         | Video streaming                | Secondary      | Phase 4 |
 | [Navidrome](navidrome.md)       | Music streaming                | Secondary      | Phase 4 |
 | [Immich](immich.md)             | Photo management               | Secondary      | Phase 4 |
-| [HedgeDoc](hedgedoc.md)         | Markdown notes                 | Secondary      | Phase 4 |
 | [Transmission](transmission.md) | BitTorrent client              | Secondary      | Phase 4 |
 | [Netdata](netdata.md)           | System monitoring              | Observability  | Phase 5 |
 | [Uptime Kuma](uptime-kuma.md)   | Availability monitoring        | Observability  | Phase 5 |
@@ -29,15 +28,14 @@ All services run as Docker containers, orchestrated by Docker Compose. Persisten
 | Traefik               | ~50 MB        |
 | Pi-hole               | ~100 MB       |
 | WireGuard             | ~30 MB        |
-| Nextcloud + MariaDB   | ~400 MB       |
+| Nextcloud + MariaDB   | ~450 MB       |
 | Vaultwarden           | ~30 MB        |
 | Jellyfin              | ~300 MB       |
 | Navidrome             | ~50 MB        |
 | Immich + PostgreSQL   | ~1000 MB      |
-| HedgeDoc + PostgreSQL | ~200 MB       |
 | Transmission          | ~80 MB        |
 | Netdata               | ~150 MB       |
 | Uptime Kuma           | ~80 MB        |
-| **Total**             | **~3.0 GB**   |
+| **Total**             | **~2.8 GB**   |
 
 With 4GB RAM and swap on the HDD, this is feasible but tight. If needed, Immich will be the first to disable.
