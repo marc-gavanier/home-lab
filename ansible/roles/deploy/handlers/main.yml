@@ -1,0 +1,13 @@
+---
+# =============================================================================
+# Handlers: deploy
+# =============================================================================
+# Pi-hole v6's `pihole reloaddns` does not reliably pick up new entries from
+# /etc/dnsmasq.d/*.conf. Full container restart is the reliable way to apply
+# changes to split DNS config.
+# =============================================================================
+
+- name: Restart pihole
+  ansible.builtin.command:
+    cmd: docker restart pihole
+  changed_when: true

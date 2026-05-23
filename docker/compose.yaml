@@ -362,6 +362,41 @@ services:
       timeout: 5s
       retries: 3
 
+  # --- Transmission (BitTorrent) ---
+  transmission:
+    image: linuxserver/transmission:latest
+    container_name: transmission
+    restart: unless-stopped
+    environment:
+      PUID: ${PUID}
+      PGID: ${PGID}
+      TZ: ${TZ}
+      USER: ${TRANSMISSION_USER}
+      PASS: ${TRANSMISSION_PASSWORD}
+      PEERPORT: 51413
+      HOST_WHITELIST: "127.0.0.1,*.lan,*.local,*.localhost,share.${DOMAIN}"
+      WHITELIST: "127.0.0.1,172.*.*.*"
+    volumes:
+      - ${SERVICES_DATA_DIR}/transmission/config:/config
+      - ${SERVICES_DATA_DIR}/transmission/downloads:/downloads
+      - ${SERVICES_DATA_DIR}/transmission/watch:/watch
+    ports:
+      - "51413:51413/tcp"
+      - "51413:51413/udp"
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.transmission.rule=Host(`share.${DOMAIN}`)"
+      - "traefik.http.routers.transmission.entrypoints=websecure"
+      - "traefik.http.routers.transmission.tls.certresolver=letsencrypt"
+      - "traefik.http.services.transmission.loadbalancer.server.port=9091"
+    healthcheck:
+      test: ["CMD", "curl", "-s", "-o", "/dev/null", "--max-time", "5", "http://localhost:9091/transmission/web/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
 # =============================================================================
 # Phase 5 — Observability
 # =============================================================================

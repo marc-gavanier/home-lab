@@ -6,19 +6,20 @@ All services run as Docker containers, orchestrated by Docker Compose. Persisten
 
 ## Deployed Services
 
-| Service                       | Description                    | Priority       | Phase   |
-|-------------------------------|--------------------------------|----------------|---------|
-| [Traefik](traefik.md)         | Reverse proxy, automatic TLS   | Infrastructure | Phase 2 |
-| [Pi-hole](pihole.md)          | Local DNS, ad/tracker blocking | Infrastructure | Phase 2 |
-| [WireGuard](wireguard.md)     | VPN remote access              | Infrastructure | Phase 2 |
-| [Nextcloud](nextcloud.md)     | Cloud files, sync, mobile      | Essential      | Phase 3 |
-| [Vaultwarden](vaultwarden.md) | Password manager               | Essential      | Phase 3 |
-| [Jellyfin](jellyfin.md)       | Video streaming                | Secondary      | Phase 4 |
-| [Navidrome](navidrome.md)     | Music streaming                | Secondary      | Phase 4 |
-| [Immich](immich.md)           | Photo management               | Secondary      | Phase 4 |
-| [HedgeDoc](hedgedoc.md)       | Markdown notes                 | Secondary      | Phase 4 |
-| [Netdata](netdata.md)         | System monitoring              | Observability  | Phase 5 |
-| [Uptime Kuma](uptime-kuma.md) | Availability monitoring        | Observability  | Phase 5 |
+| Service                         | Description                    | Priority       | Phase   |
+|---------------------------------|--------------------------------|----------------|---------|
+| [Traefik](traefik.md)           | Reverse proxy, automatic TLS   | Infrastructure | Phase 2 |
+| [Pi-hole](pihole.md)            | Local DNS, ad/tracker blocking | Infrastructure | Phase 2 |
+| [WireGuard](wireguard.md)       | VPN remote access              | Infrastructure | Phase 2 |
+| [Nextcloud](nextcloud.md)       | Cloud files, sync, mobile      | Essential      | Phase 3 |
+| [Vaultwarden](vaultwarden.md)   | Password manager               | Essential      | Phase 3 |
+| [Jellyfin](jellyfin.md)         | Video streaming                | Secondary      | Phase 4 |
+| [Navidrome](navidrome.md)       | Music streaming                | Secondary      | Phase 4 |
+| [Immich](immich.md)             | Photo management               | Secondary      | Phase 4 |
+| [HedgeDoc](hedgedoc.md)         | Markdown notes                 | Secondary      | Phase 4 |
+| [Transmission](transmission.md) | BitTorrent client              | Secondary      | Phase 4 |
+| [Netdata](netdata.md)           | System monitoring              | Observability  | Phase 5 |
+| [Uptime Kuma](uptime-kuma.md)   | Availability monitoring        | Observability  | Phase 5 |
 
 ## Estimated RAM Budget
 
@@ -34,8 +35,9 @@ All services run as Docker containers, orchestrated by Docker Compose. Persisten
 | Navidrome             | ~50 MB        |
 | Immich + PostgreSQL   | ~1000 MB      |
 | HedgeDoc + PostgreSQL | ~200 MB       |
+| Transmission          | ~80 MB        |
 | Netdata               | ~150 MB       |
 | Uptime Kuma           | ~80 MB        |
-| **Total**             | **~2.9 GB**   |
+| **Total**             | **~3.0 GB**   |
 
 With 4GB RAM and swap on the HDD, this is feasible but tight. If needed, Immich will be the first to disable.

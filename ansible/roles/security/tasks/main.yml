@@ -69,6 +69,20 @@
     proto: udp
     comment: WireGuard VPN
 
+- name: Allow BitTorrent (TCP) through UFW
+  community.general.ufw:
+    rule: allow
+    port: "51413"
+    proto: tcp
+    comment: BitTorrent peer (Transmission)
+
+- name: Allow BitTorrent (UDP) through UFW
+  community.general.ufw:
+    rule: allow
+    port: "51413"
+    proto: udp
+    comment: BitTorrent peer (Transmission, µTP/DHT)
+
 - name: Allow DNS from LAN for Pi-hole
   community.general.ufw:
     rule: allow

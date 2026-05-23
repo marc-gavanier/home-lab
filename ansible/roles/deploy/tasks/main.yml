@@ -6,6 +6,13 @@
 # or passed via --extra-vars.
 # =============================================================================
 
+# --- Host facts ---
+
+- name: Lookup UID/GID of ansible_user
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ ansible_user }}"
+
 # --- Hash WireGuard password (wg-easy needs bcrypt) ---
 
 - name: Install python3-bcrypt on Pi
@@ -97,6 +104,7 @@
     owner: "{{ ansible_user }}"
     group: docker
     mode: "0640"
+  notify: Restart pihole
 
 - name: Ensure Docker networks exist
   community.docker.docker_network:
