@@ -119,6 +119,8 @@ services:
     depends_on:
       nextcloud-db:
         condition: service_healthy
+      nextcloud-redis:
+        condition: service_started
     environment:
       MYSQL_HOST: nextcloud-db
       MYSQL_DATABASE: ${NEXTCLOUD_DB_NAME}
@@ -126,10 +128,27 @@ services:
       MYSQL_PASSWORD: ${NEXTCLOUD_DB_PASSWORD}
       NEXTCLOUD_ADMIN_USER: ${NEXTCLOUD_ADMIN_USER}
       NEXTCLOUD_ADMIN_PASSWORD: ${NEXTCLOUD_ADMIN_PASSWORD}
-      NEXTCLOUD_TRUSTED_DOMAINS: drive.${DOMAIN}
+      # "nextcloud" is needed so the notify_push service can reach NEXTCLOUD_URL=http://nextcloud
+      NEXTCLOUD_TRUSTED_DOMAINS: drive.${DOMAIN} nextcloud
       OVERWRITEPROTOCOL: https
+      # /12 covers all Docker subnets (Traefik on proxy + notify_push on internal)
+      TRUSTED_PROXIES: 172.16.0.0/12
+      OVERWRITECLIURL: https://drive.${DOMAIN}
+      REDIS_HOST: nextcloud-redis
+      NEXTCLOUD_MAINTENANCE_WINDOW_START: "4"
     volumes:
       - ${SERVICES_DATA_DIR}/nextcloud/data:/var/www/html
+      # Media libraries mounted read-only for browsing via External Storage
+      # (no copy, no sync — Immich/Jellyfin/Navidrome stay the players)
+      - ${MEDIA_DIR}/photos:/external/photos:ro
+      - ${MEDIA_DIR}/music:/external/music:ro
+      - ${MEDIA_DIR}/videos:/external/videos:ro
+    # Pin drive.<domain> to the Pi's LAN IP so internal requests (notify_push
+    # self-test) reach Traefik over TCP/443 instead of hairpinning to the public
+    # IP. (A dns: Pi-hole entry doesn't work here — UDP/53 hairpin to the host
+    # fails from this container, while TCP/443 to the LAN IP works.)
+    extra_hosts:
+      - "drive.${DOMAIN}:${PI_LAN_IP}"
     networks:
       - proxy
       - internal
@@ -164,6 +183,68 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+
+  nextcloud-redis:
+    image: redis:7-alpine
+    container_name: nextcloud-redis
+    restart: unless-stopped
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Companion container running Nextcloud background jobs every 5 min
+  # (system cron, more reliable than AJAX). Shares the data volume.
+  nextcloud-cron:
+    image: nextcloud:apache
+    container_name: nextcloud-cron
+    restart: unless-stopped
+    entrypoint: /cron.sh
+    depends_on:
+      nextcloud-db:
+        condition: service_healthy
+      nextcloud-redis:
+        condition: service_started
+    volumes:
+      - ${SERVICES_DATA_DIR}/nextcloud/data:/var/www/html
+    networks:
+      - internal
+
+  # Real-time update push to sync clients (websocket). Runs the notify_push
+  # binary shipped by the app; the until-loop waits for it to be installed.
+  nextcloud-notify-push:
+    image: nextcloud:apache
+    container_name: nextcloud-notify-push
+    restart: unless-stopped
+    depends_on:
+      nextcloud-db:
+        condition: service_healthy
+      nextcloud-redis:
+        condition: service_started
+    environment:
+      PORT: "7867"
+      NEXTCLOUD_URL: http://nextcloud
+    entrypoint:
+      - /bin/sh
+      - -c
+      - "until [ -x /var/www/html/custom_apps/notify_push/bin/aarch64/notify_push ]; do echo 'waiting for notify_push binary'; sleep 5; done; exec /var/www/html/custom_apps/notify_push/bin/aarch64/notify_push /var/www/html/config/config.php"
+    volumes:
+      - ${SERVICES_DATA_DIR}/nextcloud/data:/var/www/html
+    networks:
+      - proxy
+      - internal
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.notify-push.rule=Host(`drive.${DOMAIN}`) && PathPrefix(`/push`)"
+      - "traefik.http.routers.notify-push.priority=100"
+      - "traefik.http.routers.notify-push.entrypoints=websecure"
+      - "traefik.http.routers.notify-push.tls.certresolver=letsencrypt"
+      - "traefik.http.middlewares.notify-push-strip.stripprefix.prefixes=/push"
+      - "traefik.http.routers.notify-push.middlewares=notify-push-strip"
+      - "traefik.http.services.notify-push.loadbalancer.server.port=7867"
 
   # --- Vaultwarden ---
   vaultwarden:

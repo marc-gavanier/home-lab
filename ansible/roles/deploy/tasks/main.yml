@@ -146,6 +146,134 @@
   changed_when: true
   when: pihole_running.stdout | length > 0
 
+# --- Nextcloud post-config (cron mode, system settings, apps) ---
+
+- name: Check if Nextcloud is running
+  ansible.builtin.command:
+    cmd: docker ps -q -f name=nextcloud -f status=running
+  register: nextcloud_running
+  changed_when: false
+
+- name: Wait for Nextcloud to be ready
+  ansible.builtin.command:
+    cmd: docker exec -u www-data nextcloud php occ status --output=json
+  register: nc_status
+  until: nc_status.rc == 0 and (nc_status.stdout | from_json).installed | default(false)
+  retries: 30
+  delay: 5
+  changed_when: false
+  when: nextcloud_running.stdout | length > 0
+
+- name: Set Nextcloud background jobs to cron mode
+  ansible.builtin.command:
+    cmd: docker exec -u www-data nextcloud php occ background:cron
+  register: nc_cron
+  changed_when: "'set to cron' in nc_cron.stdout"
+  when: nextcloud_running.stdout | length > 0
+
+- name: Configure Nextcloud system settings
+  ansible.builtin.command:
+    cmd: "docker exec -u www-data nextcloud php occ config:system:set {{ item.key }} --type={{ item.type }} --value={{ item.value }}"
+  loop:
+    - { key: default_phone_region, type: string, value: FR }
+    - { key: maintenance_window_start, type: integer, value: "4" }
+  changed_when: true
+  when: nextcloud_running.stdout | length > 0
+
+- name: Get installed Nextcloud apps
+  ansible.builtin.command:
+    cmd: docker exec -u www-data nextcloud php occ app:list --output=json
+  register: nc_app_list
+  changed_when: false
+  when: nextcloud_running.stdout | length > 0
+
+- name: Install Nextcloud productivity apps
+  ansible.builtin.command:
+    cmd: "docker exec -u www-data nextcloud php occ app:install {{ item }}"
+  loop: [calendar, contacts, tasks, bookmarks, gpxpod, external, notify_push]
+  when:
+    - nextcloud_running.stdout | length > 0
+    - item not in (nc_app_list.stdout | default('{}') | from_json).enabled
+    - item not in (nc_app_list.stdout | default('{}') | from_json).disabled
+  register: nc_app_install
+  changed_when: nc_app_install.rc == 0
+  failed_when:
+    - nc_app_install.rc is defined
+    - nc_app_install.rc != 0
+    - "'not compatible' not in nc_app_install.stdout"
+
+# notify_push reads config.php (trusted_proxies, binary path) at startup, so it
+# must be restarted after the app is installed and after any Nextcloud config
+# change for the self-test to pass.
+- name: Restart notify_push to reload Nextcloud config
+  ansible.builtin.command:
+    cmd: docker restart nextcloud-notify-push
+  changed_when: true
+  when: nextcloud_running.stdout | length > 0
+
+- name: Set up notify_push (client real-time updates)
+  ansible.builtin.command:
+    cmd: "docker exec -u www-data nextcloud php occ notify_push:setup https://drive.{{ domain }}/push"
+  register: nc_notify_push
+  until: nc_notify_push.rc == 0
+  retries: 6
+  delay: 10
+  changed_when: "'configuration saved' in nc_notify_push.stdout or 'success' in nc_notify_push.stdout"
+  failed_when: false
+  when: nextcloud_running.stdout | length > 0
+
+# Mount media libraries (photos/music/videos) as read-only External Storage
+# so Nextcloud can browse them without duplicating players or syncing files.
+
+- name: Ensure files_external app is enabled
+  ansible.builtin.command:
+    cmd: docker exec -u www-data nextcloud php occ app:enable files_external
+  register: nc_files_external
+  changed_when: "'already enabled' not in nc_files_external.stdout"
+  when: nextcloud_running.stdout | length > 0
+
+- name: List existing Nextcloud external storages
+  ansible.builtin.command:
+    cmd: docker exec -u www-data nextcloud php occ files_external:list --output=json
+  register: nc_ext_list
+  changed_when: false
+  when: nextcloud_running.stdout | length > 0
+
+- name: Create media external storages
+  ansible.builtin.command:
+    cmd: >
+      docker exec -u www-data nextcloud php occ files_external:create
+      "{{ item.name }}" local null::null -c datadir={{ item.path }}
+  loop:
+    - { name: Photos, path: /external/photos }
+    - { name: Music, path: /external/music }
+    - { name: Videos, path: /external/videos }
+  when:
+    - nextcloud_running.stdout | length > 0
+    - item.path not in (nc_ext_list.stdout | default('[]') | from_json | map(attribute='configuration.datadir') | list)
+  changed_when: true
+
+- name: Re-list external storages after creation
+  ansible.builtin.command:
+    cmd: docker exec -u www-data nextcloud php occ files_external:list --output=json
+  register: nc_ext_list2
+  changed_when: false
+  when: nextcloud_running.stdout | length > 0
+
+- name: Enforce read-only on media external storages
+  ansible.builtin.command:
+    cmd: >
+      docker exec -u www-data nextcloud php occ files_external:option
+      {{ item.mount_id }} readonly true
+  loop: "{{ (nc_ext_list2.stdout | from_json) if (nc_ext_list2.stdout | default('')) else [] }}"
+  loop_control:
+    label: "{{ item.mount_point | default('?') }}"
+  when:
+    - nextcloud_running.stdout | length > 0
+    - item.configuration.datadir is defined
+    - item.configuration.datadir.startswith('/external/')
+  changed_when: false
+
 # --- Backup setup ---
 
 - name: Install restic
