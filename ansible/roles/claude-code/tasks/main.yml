@@ -1,0 +1,198 @@
+---
+# =============================================================================
+# Role: claude-code — Claude Code on the Pi, hardened (dedicated user + sandbox)
+# =============================================================================
+# Threat model: Remote Control exposes a Claude session to the mobile app. A
+# stolen/unlocked phone could drive it. To contain the blast radius:
+#   - runs as a DEDICATED unprivileged user `claude` (NO sudo, NO docker)
+#   - Claude only sees the notes vault (rclone WebDAV mount), nothing else of the host
+#   - Claude Code's built-in /sandbox (bubblewrap) confines the Bash tool to the
+#     vault, denies reading credentials, and restricts network egress
+# So a compromised session is confined to the vault (recoverable from backup),
+# NOT the system, secrets, Docker, or other data.
+#
+# Secrets (host_vars/homelab/local.yml): rclone_webdav_pass (Nextcloud app-password)
+#
+# MANUAL one-time setup (interactive, as the claude user). These are deliberate
+# security confirmations — NOT automated on purpose (we don't want Ansible to
+# silently enable remote access). Run them once; they persist in ~/.claude:
+#   1. Login:  sudo -u claude -H /home/claude/.local/bin/claude   → /login → claude.ai
+#   2. Trust + enable Remote Control, in the vault:
+#        sudo -u claude -H bash -lc 'cd ~/vault && /home/claude/.local/bin/claude remote-control --name Homelab'
+#        → accept "Do you trust this folder?" → answer "Enable Remote Control? y" → wait
+#          for "Connected" → Ctrl+C
+#   Then the systemd service runs headless. Re-run the playbook to start it.
+# =============================================================================
+
+- name: Create the dedicated unprivileged 'claude' user
+  ansible.builtin.user:
+    name: claude
+    shell: /bin/bash
+    create_home: true
+    # Deliberately NOT added to sudo or docker — least privilege.
+
+- name: Install sandbox deps (bubblewrap + socat) and rclone
+  ansible.builtin.apt:
+    name:
+      - bubblewrap   # filesystem isolation for /sandbox
+      - socat        # network isolation for /sandbox
+      - rclone
+    state: present
+
+# Ubuntu 24.04 restricts unprivileged user namespaces (AppArmor), which blocks
+# bubblewrap — and thus Claude Code's /sandbox. Allow ONLY bwrap to use userns,
+# keeping the global restriction in place for everything else.
+- name: Allow bubblewrap user namespaces (AppArmor profile)
+  ansible.builtin.copy:
+    dest: /etc/apparmor.d/bwrap
+    mode: "0644"
+    content: |
+      abi <abi/4.0>,
+      include <tunables/global>
+
+      profile bwrap /usr/bin/bwrap flags=(unconfined) {
+        userns,
+        include if exists <local/bwrap>
+      }
+  register: bwrap_apparmor
+
+- name: Reload the bwrap AppArmor profile
+  ansible.builtin.command: apparmor_parser -r /etc/apparmor.d/bwrap
+  when: bwrap_apparmor.changed
+  changed_when: true
+
+- name: Install Claude Code for the claude user
+  ansible.builtin.shell:
+    cmd: curl -fsSL https://claude.ai/install.sh | bash
+  args:
+    creates: /home/claude/.local/bin/claude
+  become: true
+  become_user: claude
+
+- name: Pin drive domain to the Pi in /etc/hosts (avoid DNS hairpin)
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    line: "{{ homelab_ip }} drive.{{ domain }}"
+    state: present
+
+- name: Configure rclone WebDAV remote for the claude user
+  ansible.builtin.command:
+    cmd: >
+      rclone config create nextcloud webdav
+      url=https://drive.{{ domain }}/remote.php/dav/files/admin/
+      vendor=nextcloud user=admin pass={{ rclone_webdav_pass }}
+  become: true
+  become_user: claude
+  no_log: true
+  changed_when: true
+
+# A FUSE rclone mount owned by `claude` (no allow_other) is unreadable by root,
+# so `mountpoint`/`stat` fail. Detect it via /proc/mounts instead, and only
+# create the directory when it is NOT mounted (the module can't touch a live mount).
+- name: Check if the vault is already mounted
+  ansible.builtin.shell: grep -q ' /home/claude/vault ' /proc/mounts
+  register: vault_mounted
+  failed_when: false
+  changed_when: false
+
+- name: Create the vault mount point (claude-only)
+  ansible.builtin.file:
+    path: /home/claude/vault
+    state: directory
+    owner: claude
+    group: claude
+    mode: "0700"
+  when: vault_mounted.rc != 0
+
+- name: Deploy Claude Code sandbox settings
+  ansible.builtin.copy:
+    dest: /home/claude/.claude/settings.json
+    owner: claude
+    group: claude
+    mode: "0644"
+    content: |
+      {
+        "sandbox": {
+          "enabled": true,
+          "failIfUnavailable": true,
+          "filesystem": {
+            "allowWrite": ["/home/claude/vault"],
+            "denyRead": ["/home/claude/.claude/.credentials.json"]
+          },
+          "network": {
+            "allowedDomains": ["api.anthropic.com"]
+          }
+        }
+      }
+
+- name: Create the rclone vault mount systemd service
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/vault-mount.service
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=rclone mount of the Nextcloud Notes vault
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=notify
+      User=claude
+      Group=claude
+      ExecStart=/usr/bin/rclone mount nextcloud:Notes /home/claude/vault \
+        --vfs-cache-mode writes --vfs-write-back 2s --dir-cache-time 30s
+      ExecStop=/bin/fusermount -u /home/claude/vault
+      Restart=on-failure
+      RestartSec=10
+
+      [Install]
+      WantedBy=multi-user.target
+
+- name: Enable and start the vault mount
+  ansible.builtin.systemd:
+    name: vault-mount.service
+    enabled: true
+    state: started
+    daemon_reload: true
+
+# --- Claude Code Remote Control (always-on, sandboxed, dedicated user) ---
+# Requires the one-time `claude auth login` as the claude user (see header).
+# Pairing URL: journalctl -u claude-remote-control | grep claude.ai/code
+
+- name: Create the Claude Code Remote Control systemd service
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/claude-remote-control.service
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Claude Code Remote Control (sandboxed, dedicated user)
+      After=network-online.target vault-mount.service
+      Wants=network-online.target
+      Requires=vault-mount.service
+
+      [Service]
+      Type=simple
+      User=claude
+      Group=claude
+      WorkingDirectory=/home/claude/vault
+      Environment=HOME=/home/claude
+      ExecStart=/home/claude/.local/bin/claude remote-control --name Homelab
+      Restart=on-failure
+      RestartSec=15
+      StandardOutput=journal
+      StandardError=journal
+
+      [Install]
+      WantedBy=multi-user.target
+
+- name: Check whether the claude user is authenticated
+  ansible.builtin.stat:
+    path: /home/claude/.claude/.credentials.json
+  register: claude_creds
+
+- name: Enable Remote Control (started only once claude.ai login is done)
+  ansible.builtin.systemd:
+    name: claude-remote-control.service
+    enabled: true
+    state: "{{ 'started' if claude_creds.stat.exists else 'stopped' }}"
+    daemon_reload: true

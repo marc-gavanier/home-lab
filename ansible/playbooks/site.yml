@@ -42,6 +42,10 @@
     - role: deploy
       tags: [phase2, phase3, phase4, phase5, deploy]
 
+    # Phase 5 — Claude Code on the Pi (vault access via rclone WebDAV)
+    - role: claude-code
+      tags: [phase5, claude-code]
+
   post_tasks:
     - name: Display completion message
       ansible.builtin.debug:
@@ -50,9 +54,9 @@
           Home Lab provisioning complete!
 
           Services should be accessible at:
-            - https://nextcloud.{{ domain }}
+            - https://drive.{{ domain }}
             - https://vault.{{ domain }}
-            - https://notes.{{ domain }}
+            - https://photos.{{ domain }}
 
           VPN: connect via WireGuard on port 51820
           Admin panels: accessible via VPN only

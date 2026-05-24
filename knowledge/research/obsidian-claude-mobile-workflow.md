@@ -1,6 +1,6 @@
 # Obsidian + Claude Code + Mobile Workflow
 
-**Status**: Phase A implemented (2026-05-23) — Obsidian + Remotely Save sync on PC and mobile. Phase B (Claude Code on the Pi) pending.
+**Status**: Implemented (2026-05-24) — Phase A: Obsidian + Remotely Save sync on PC and mobile. Phase B: Claude Code on the Pi (rclone WebDAV vault mount + always-on Remote Control), automated via the `claude-code` Ansible role.
 **Date**: 2026-05-15
 
 ## Goal
@@ -110,8 +110,34 @@ Sync working on PC (Linux) and mobile (/e/OS) via the Remotely Save plugin → N
 - VPN must be on (services are VPN-only, ADR-002). The `.md` files are stored locally on
   each device, so reading notes works offline; only sync needs the VPN.
 
-### Phase B (pending)
-Claude Code on the Pi. The vault already lands on the Pi at
-`/mnt/data/services/nextcloud/data/admin/files/Notes` (Nextcloud data volume), so Claude
-can read/write there directly. After Claude writes a file, an `occ files:scan` is needed
-for Nextcloud to see it, then notify_push propagates it to clients in real time.
+## Phase B — Implemented (2026-05-24)
+
+Claude Code runs on the Pi, reads/writes the vault, and is pilotable from mobile.
+
+### How it works
+- Claude Code installed natively on the Pi (~316 MB while working — viable on the 4GB Pi).
+- The vault is **not** edited in Nextcloud's datadir directly (the datadir is `www-data`,
+  and external writes need an `occ files:scan`). Instead, rclone mounts `nextcloud:Notes`
+  (WebDAV, admin app-password) at `~/vault` via a systemd service (`vault-mount`). Claude
+  works there as a **Nextcloud client** → writes go through WebDAV → Nextcloud indexes them
+  (no scan) → notify_push pushes to clients in real time.
+- Mobile control via **Remote Control** as a systemd service (`claude-remote-control`,
+  always-on). Pairing URL: `journalctl -u claude-remote-control | grep claude.ai/code`.
+
+### Key findings
+- **Auth**: Remote Control requires `claude auth login` (claude.ai; creds in `~/.claude`).
+  A `setup-token` / `CLAUDE_CODE_OAUTH_TOKEN` is **inference-only and cannot do Remote
+  Control** — must NOT be set in the service env.
+- **Headless**: `claude remote-control` runs fine without a TTY under systemd; it just
+  re-renders the QR prompt into the journal (noisy but harmless).
+- **Stable pairing**: the `environment` ID survives a service restart → the mobile app
+  reconnects without re-scanning after a reboot.
+- **DNS hairpin (host side)**: `drive.<domain>` resolves to the public IP from the Pi too,
+  so `/etc/hosts` pins it to the Pi's LAN IP for rclone (same issue as the nextcloud
+  container's `extra_hosts`).
+
+### Automated by Ansible
+Role `claude-code`: installs Claude Code + rclone, pins `/etc/hosts`, configures the rclone
+WebDAV remote (pass from `local.yml`), mounts the vault (systemd `vault-mount`), and runs
+Remote Control (systemd `claude-remote-control`). The single manual step is
+`claude auth login` on the Pi (not automatable).

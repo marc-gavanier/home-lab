@@ -39,5 +39,10 @@ immich_db_password: ""
 # --- Transmission ---
 transmission_password: ""
 
+# --- Claude Code (on the Pi) ---
+# Auth is manual: `claude auth login` (claude.ai) on the Pi — credentials persist
+# in ~/.claude. No token here (inference-only tokens can't do Remote Control).
+rclone_webdav_pass: ""  # A Nextcloud app-password for rclone WebDAV access
+
 # --- Backup ---
 restic_password: ""
