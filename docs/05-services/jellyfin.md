@@ -60,4 +60,4 @@ restic restore latest --target / --include /mnt/data/services/jellyfin
 docker start jellyfin
 ```
 
-Media files in `/mnt/data/media/videos/` are backed up separately (weekly).
+Media files in `/mnt/data/media/videos/` are backed up daily with the rest of `/mnt/data/media`.

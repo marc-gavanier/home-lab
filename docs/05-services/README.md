@@ -19,6 +19,10 @@ All services run as Docker containers, orchestrated by Docker Compose. Persisten
 | [Transmission](transmission.md) | BitTorrent client              | Secondary      | Phase 4 |
 | [Netdata](netdata.md)           | System monitoring              | Observability  | Phase 5 |
 | [Uptime Kuma](uptime-kuma.md)   | Availability monitoring        | Observability  | Phase 5 |
+| [Claude Code](claude-code.md)   | AI agent for the notes vault   | Productivity   | Phase 5 |
+
+> Notes live in **Obsidian** (a client app on PC/mobile, synced via Nextcloud), managed by
+> Claude Code on the Pi — see [ADR-005](../../knowledge/decisions/ADR-005-obsidian-notes-system.md).
 
 ## Estimated RAM Budget
 
@@ -36,6 +40,7 @@ All services run as Docker containers, orchestrated by Docker Compose. Persisten
 | Transmission          | ~80 MB        |
 | Netdata               | ~150 MB       |
 | Uptime Kuma           | ~80 MB        |
-| **Total**             | **~2.8 GB**   |
+| Claude Code           | ~300 MB       |
+| **Total**             | **~3.1 GB**   |
 
 With 4GB RAM and swap on the HDD, this is feasible but tight. If needed, Immich will be the first to disable.

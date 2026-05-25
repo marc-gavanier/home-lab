@@ -59,4 +59,4 @@ restic restore latest --target / --include /mnt/data/services/navidrome
 docker start navidrome
 ```
 
-Music files in `/mnt/data/media/music/` are backed up separately (weekly).
+Music files in `/mnt/data/media/music/` are backed up daily with the rest of `/mnt/data/media`.
