@@ -136,6 +136,32 @@ Claude Code runs on the Pi, reads/writes the vault, and is pilotable from mobile
   so `/etc/hosts` pins it to the Pi's LAN IP for rclone (same issue as the nextcloud
   container's `extra_hosts`).
 
+### Gotcha — stale duplicate environments (the "mobile spins forever" trap)
+
+**Symptom**: a session created from the mobile app appears in the session list (relay
+metadata syncs both ways) but spins forever with no reply; on the Pi **no worker process
+spawns** and `claude remote-control` sits idle in `epoll_wait`.
+
+**Cause**: the relay listed **two** "Homelab" environments — only one is backed by the
+live `claude remote-control` process; the other is a **stale registration** left over
+after the environment ID changed (it changes on re-auth / re-login, not on a plain
+service restart). The app happily lets you create a session on the **dead** one → no host
+to spawn a worker → infinite spin. The journal makes it obvious:
+
+```bash
+journalctl -u claude-remote-control | grep -oE 'env_[A-Za-z0-9]+' | sort | uniq -c
+# the env still logged by the RUNNING process is the LIVE one; any other env_… is a ghost.
+```
+
+**Fix**: keep only the live environment and remove the ghost from the app's environment
+list. Creating a brand-new session **directly from the app does work** on the live
+self-hosted environment (verified: real reply received) — the app's "+" button is fine,
+it was just pointed at a dead environment.
+
+**Also ruled out** during diagnosis: inference under the sandbox is healthy
+(`claude --print` replies instantly), and the network/auth path is fine — the failure was
+purely the dead duplicate environment.
+
 ### Automated by Ansible
 Role `claude-code`: installs Claude Code + rclone, pins `/etc/hosts`, configures the rclone
 WebDAV remote (pass from `local.yml`), mounts the vault (systemd `vault-mount`), and runs
