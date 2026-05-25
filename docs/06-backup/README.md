@@ -8,16 +8,16 @@ Chosen for its deduplication, native encryption (AES-256), incremental support, 
 
 ### What to Back Up
 
-| Data                  | Source                            | Method                    | Frequency |
-|-----------------------|-----------------------------------|---------------------------|-----------|
-| System configs        | `/etc/` (selective)               | Restic                    | Daily     |
-| Docker Compose + .env | `docker/`                         | Restic                    | Daily     |
-| Nextcloud files       | `/mnt/data/services/nextcloud/`   | Restic (maintenance mode) | Daily     |
-| Nextcloud DB          | MariaDB dump                      | Restic                    | Daily     |
-| Vaultwarden           | `/mnt/data/services/vaultwarden/` | Restic                    | Daily     |
-| Immich DB + data      | PostgreSQL dump + files           | Restic                    | Daily     |
-| Service configs       | `/mnt/data/services/*/config`     | Restic                    | Daily     |
-| Media                 | `/mnt/data/media/`                | Restic                    | Weekly    |
+Mirrors exactly what `scripts/backup.sh` does (keep this table and the script in sync).
+
+| Data                   | Source (host path)                                                                              | Method        | Frequency |
+|------------------------|-------------------------------------------------------------------------------------------------|---------------|-----------|
+| Service data & configs | `/mnt/data/services` (Nextcloud files, Vaultwarden, Immich uploads, Jellyfin/Navidrome config…) | Restic        | Daily     |
+| **Media originals**    | `/mnt/data/media` (photos, music, videos)                                                       | Restic        | Daily     |
+| Databases              | Nextcloud (MariaDB) + Immich (PostgreSQL) dumps → `/mnt/data/backups/dumps`                      | dump → Restic | Daily     |
+| Stack config           | `/opt/homelab` (compose, `.env`, scripts)                                                        | Restic        | Daily     |
+
+> The OS itself is **not** backed up — it is reproducible from scratch via Ansible (IaC).
 
 ### Retention
 
@@ -25,10 +25,16 @@ Chosen for its deduplication, native encryption (AES-256), incremental support, 
 - **4** weekly snapshots
 - **6** monthly snapshots
 
-### Destination
+### Destination (3-2-1)
 
-- **Local**: `/mnt/data/backups/` (same HDD, separate directory)
-- **Offsite** (future): to be planned — options: encrypted cloud (Backblaze B2), second drive at a relative's
+- **Local**: `/mnt/data/backups/restic-repo` (same HDD, separate directory) — automated
+  daily; guards against accidental deletion, corruption and bad edits.
+- **Offsite** (planned): a second Restic repository on a remote node joined to the home
+  WireGuard network (REST server / SFTP), for an automated, always-current copy that
+  survives disk failure, theft or fire.
+
+> A backup that shares the originals' physical disk only covers deletion/corruption, not
+> physical loss — hence the offsite repository (3-2-1 rule).
 
 ## Restoration
 
@@ -37,5 +43,7 @@ Service-by-service restoration procedures will be documented in `knowledge/runbo
 ## Automation
 
 - Script: `scripts/backup.sh`
-- Scheduling: systemd timer or cron, daily execution at 3 AM
-- Monitoring: failure notification via Uptime Kuma
+- Scheduling: systemd timer (`homelab-backup.timer`), daily at 03:00
+- Monitoring: Uptime Kuma **Push** monitor (dead-man's switch) — `backup.sh` pings it on
+  success/failure, and missed pings turn it red (catches "didn't run at all"). Setup:
+  `knowledge/runbooks/backup-monitoring.md`

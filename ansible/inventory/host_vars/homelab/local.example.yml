@@ -46,3 +46,8 @@ rclone_webdav_pass: ""  # A Nextcloud app-password for rclone WebDAV access
 
 # --- Backup ---
 restic_password: ""
+# Uptime Kuma "Push" monitor URL for backup monitoring — base form:
+# https://<uptime-kuma>/api/push/<token>  (leave empty to disable monitoring).
+# Create the push monitor + attach a notification: see
+# knowledge/runbooks/backup-monitoring.md
+backup_kuma_push_url: ""

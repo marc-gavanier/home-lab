@@ -320,6 +320,15 @@
     group: root
     mode: "0600"
 
+# backup.sh pings Uptime Kuma at services.<domain>, which resolves to the public IP from
+# the Pi (DNS hairpin) and is rejected (403) through Traefik. Pin it to the Pi's LAN IP so
+# the push reaches Kuma directly over the LAN (same pattern as the claude-code role's pin).
+- name: Pin services domain to the Pi in /etc/hosts (Kuma push, avoid DNS hairpin)
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    line: "{{ homelab_ip }} services.{{ domain }}"
+    state: present
+
 - name: Initialize restic repository
   ansible.builtin.command:
     cmd: restic init
