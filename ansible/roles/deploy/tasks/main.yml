@@ -330,6 +330,9 @@
   failed_when: false
   changed_when: "'created restic repository' in restic_init.stdout"
 
+# HOME is unset for systemd services, so restic can't locate its cache
+# ("neither $XDG_CACHE_HOME nor $HOME are defined") and runs cache-less — slower
+# and re-reads more from the repo. Set HOME so it caches under /root/.cache/restic.
 - name: Create backup systemd service
   ansible.builtin.copy:
     dest: /etc/systemd/system/homelab-backup.service
@@ -344,6 +347,7 @@
       Type=oneshot
       ExecStart=/opt/homelab/scripts/backup.sh
       EnvironmentFile=/opt/homelab/backup.env
+      Environment=HOME=/root
 
 - name: Create backup systemd timer
   ansible.builtin.copy:
