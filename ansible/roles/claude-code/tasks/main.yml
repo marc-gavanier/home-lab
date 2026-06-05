@@ -141,6 +141,61 @@
         }
       }
 
+# --- Custom slash commands & subagents (authoritative mirror) ---
+# Source of truth lives in this role's files/{commands,agents}/. We MIRROR them
+# into the claude user's ~/.claude so the mobile Remote Control sessions expose
+# /conf-curate, /talk-add, etc. Authoritative: a file deleted from the repo is
+# also purged from the Pi (find + remove below), so the host can't silently
+# drift from version control. New sessions pick up changes; no service restart.
+
+- name: Install custom slash commands for the claude user
+  ansible.builtin.copy:
+    src: commands/
+    dest: /home/claude/.claude/commands/
+    owner: claude
+    group: claude
+    mode: "0644"
+    directory_mode: "0755"
+
+- name: Install custom subagents for the claude user
+  ansible.builtin.copy:
+    src: agents/
+    dest: /home/claude/.claude/agents/
+    owner: claude
+    group: claude
+    mode: "0644"
+    directory_mode: "0755"
+
+- name: List slash commands currently on the host
+  ansible.builtin.find:
+    paths: /home/claude/.claude/commands
+    patterns: "*.md"
+  register: host_commands
+
+- name: Purge slash commands no longer in the repo
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ host_commands.files }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+  when: item.path | basename not in (query('ansible.builtin.fileglob', 'commands/*.md') | map('basename') | list)
+
+- name: List subagents currently on the host
+  ansible.builtin.find:
+    paths: /home/claude/.claude/agents
+    patterns: "*.md"
+  register: host_agents
+
+- name: Purge subagents no longer in the repo
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ host_agents.files }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+  when: item.path | basename not in (query('ansible.builtin.fileglob', 'agents/*.md') | map('basename') | list)
+
 - name: Create the rclone vault mount systemd service
   ansible.builtin.copy:
     dest: /etc/systemd/system/vault-mount.service
@@ -183,8 +238,15 @@
       [Unit]
       Description=Claude Code Remote Control (sandboxed, dedicated user)
       After=network-online.target vault-mount.service
-      Wants=network-online.target
-      Requires=vault-mount.service
+      Wants=network-online.target vault-mount.service
+      # Deliberately NOT Requires=vault-mount.service: at boot the rclone mount
+      # depends on Traefik/Nextcloud, which take a while to come up. A hard
+      # Requires= makes this unit fail with 'dependency' the instant the mount
+      # isn't ready yet — and a dependency-job failure stays dead forever (it is
+      # NOT covered by Restart=). Instead we soft-want the mount, gate startup on
+      # it being present (ExecStartPre), and let Restart=on-failure retry until
+      # the mount appears — self-healing across a slow boot.
+      StartLimitIntervalSec=0
 
       [Service]
       Type=simple
@@ -192,6 +254,9 @@
       Group=claude
       WorkingDirectory=/home/claude/vault
       Environment=HOME=/home/claude
+      # Wait for the vault to actually be mounted before launching; fail (and let
+      # systemd retry) if it isn't there yet.
+      ExecStartPre=/bin/sh -c 'grep -q " /home/claude/vault " /proc/mounts'
       ExecStart=/home/claude/.local/bin/claude remote-control --name Homelab
       Restart=on-failure
       RestartSec=15
