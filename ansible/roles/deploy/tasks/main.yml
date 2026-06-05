@@ -323,7 +323,17 @@
 # backup.sh pings Uptime Kuma at services.<domain>, which resolves to the public IP from
 # the Pi (DNS hairpin) and is rejected (403) through Traefik. Pin it to the Pi's LAN IP so
 # the push reaches Kuma directly over the LAN (same pattern as the claude-code role's pin).
-- name: Pin services domain to the Pi in /etc/hosts (Kuma push, avoid DNS hairpin)
+#
+# This host is cloud-init managed (manage_etc_hosts: True): cloud-init regenerates /etc/hosts
+# from a template on every boot, wiping a plain lineinfile pin (which silently breaks the Kuma
+# push after a reboot). Pin in the template (survives reboots) AND /etc/hosts (immediate).
+- name: Pin services domain in the cloud-init hosts template (persists across reboots)
+  ansible.builtin.lineinfile:
+    path: /etc/cloud/templates/hosts.debian.tmpl
+    line: "{{ homelab_ip }} services.{{ domain }}"
+    state: present
+
+- name: Pin services domain in /etc/hosts now (immediate, until next cloud-init run)
   ansible.builtin.lineinfile:
     path: /etc/hosts
     line: "{{ homelab_ip }} services.{{ domain }}"

@@ -69,7 +69,23 @@
   become: true
   become_user: claude
 
-- name: Pin drive domain to the Pi in /etc/hosts (avoid DNS hairpin)
+# rclone runs on the HOST as `claude`; it must resolve drive.<domain> to the Pi's
+# LAN IP, NOT the public IP. Resolving to the public IP hairpins through NAT and
+# arrives at Traefik with an EXTERNAL source IP, which the global `vpn-only`
+# ipAllowList rejects with 403 — breaking the mount and thus Remote Control.
+#
+# This host is cloud-init managed (manage_etc_hosts: True), so cloud-init
+# REGENERATES /etc/hosts from a template on every boot, wiping a plain lineinfile
+# pin. We therefore pin in TWO places:
+#   1. the cloud-init template  -> survives reboots (cloud-init rewrites from it)
+#   2. /etc/hosts directly       -> takes effect immediately, without a reboot
+- name: Pin drive domain in the cloud-init hosts template (persists across reboots)
+  ansible.builtin.lineinfile:
+    path: /etc/cloud/templates/hosts.debian.tmpl
+    line: "{{ homelab_ip }} drive.{{ domain }}"
+    state: present
+
+- name: Pin drive domain in /etc/hosts now (immediate, until next cloud-init run)
   ansible.builtin.lineinfile:
     path: /etc/hosts
     line: "{{ homelab_ip }} drive.{{ domain }}"
