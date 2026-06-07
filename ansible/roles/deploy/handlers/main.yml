@@ -11,3 +11,12 @@
   ansible.builtin.command:
     cmd: docker restart pihole
   changed_when: true
+
+# Traefik reads its static config (entryPoints, ping, ACME) ONLY at startup.
+# `docker compose up -d` won't recreate the container when only the mounted
+# traefik.yml changes (the compose config hash is unchanged), so a config edit
+# never takes effect without an explicit restart.
+- name: Restart traefik
+  ansible.builtin.command:
+    cmd: docker restart traefik
+  changed_when: true

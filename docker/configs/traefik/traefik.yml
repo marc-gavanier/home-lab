@@ -21,6 +21,13 @@ entryPoints:
         - vpn-only@file   # All services require VPN/LAN access by default
       tls:
         certResolver: letsencrypt
+  ping:
+    address: ":8082"      # internal only (not published) — for the container healthcheck
+
+# Health endpoint used by the container healthcheck (`traefik healthcheck`).
+# Bound to the internal ping entryPoint above — no TLS, no vpn-only middleware.
+ping:
+  entryPoint: ping
 
 certificatesResolvers:
   letsencrypt:

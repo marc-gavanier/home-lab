@@ -96,6 +96,7 @@
     owner: "{{ ansible_user }}"
     group: docker
     mode: "0640"
+  notify: Restart traefik
 
 - name: Template Pi-hole split DNS config (resolve variables)
   ansible.builtin.template:
