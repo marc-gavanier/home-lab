@@ -225,6 +225,7 @@ Add individual A records for each service (DNS only, not proxied):
 | `dns`      | Pi-hole     |
 | `services` | Uptime Kuma |
 | `system`   | Netdata     |
+| `search`   | SearXNG     |
 
 > **Important**: Do NOT use a wildcard record — other subdomains (personal site, mail/Proton) must not be affected. Do NOT use Cloudflare proxy (orange cloud) — it breaks Let's Encrypt HTTP challenge and WireGuard.
 

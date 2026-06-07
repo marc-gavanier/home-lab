@@ -44,6 +44,9 @@ transmission_password: ""
 # in ~/.claude. No token here (inference-only tokens can't do Remote Control).
 rclone_webdav_pass: ""  # A Nextcloud app-password for rclone WebDAV access
 
+# --- SearXNG (private metasearch) ---
+searxng_secret_key: ""  # openssl rand -hex 32
+
 # --- Backup ---
 restic_password: ""
 # Uptime Kuma "Push" monitor URL for backup monitoring — base form:

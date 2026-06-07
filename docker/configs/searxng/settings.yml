@@ -1,0 +1,16 @@
+# SearXNG — private metasearch (rendered by Ansible: deploy role)
+# Single-user, VPN-only instance: no Redis/Valkey (limiter disabled).
+use_default_settings: true
+
+server:
+  secret_key: "{{ searxng_secret_key }}"
+  base_url: "https://search.{{ domain }}/"
+  limiter: false
+  image_proxy: true
+
+search:
+  safe_search: 0
+  autocomplete: "duckduckgo"
+
+ui:
+  default_locale: "fr"

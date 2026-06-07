@@ -451,6 +451,24 @@ services:
       - "traefik.http.routers.uptime.tls.certresolver=letsencrypt"
       - "traefik.http.services.uptime.loadbalancer.server.port=3001"
 
+  # --- SearXNG (private metasearch) ---
+  searxng:
+    image: searxng/searxng:latest
+    container_name: searxng
+    restart: unless-stopped
+    volumes:
+      - ./configs/searxng:/etc/searxng
+    environment:
+      SEARXNG_BASE_URL: https://search.${DOMAIN}/
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.searxng.rule=Host(`search.${DOMAIN}`)"
+      - "traefik.http.routers.searxng.entrypoints=websecure"
+      - "traefik.http.routers.searxng.tls.certresolver=letsencrypt"
+      - "traefik.http.services.searxng.loadbalancer.server.port=8080"
+
   # --- Netdata ---
   netdata:
     image: netdata/netdata:latest

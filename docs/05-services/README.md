@@ -20,6 +20,7 @@ All services run as Docker containers, orchestrated by Docker Compose. Persisten
 | [Netdata](netdata.md)           | System monitoring              | Observability  | Phase 5 |
 | [Uptime Kuma](uptime-kuma.md)   | Availability monitoring        | Observability  | Phase 5 |
 | [Claude Code](claude-code.md)   | AI agent for the notes vault   | Productivity   | Phase 5 |
+| [SearXNG](searxng.md)           | Private metasearch engine      | Productivity   | Phase 5 |
 
 > Notes live in **Obsidian** (a client app on PC/mobile, synced via Nextcloud), managed by
 > Claude Code on the Pi — see [ADR-005](../../knowledge/decisions/ADR-005-obsidian-notes-system.md).
@@ -41,6 +42,7 @@ All services run as Docker containers, orchestrated by Docker Compose. Persisten
 | Netdata               | ~150 MB       |
 | Uptime Kuma           | ~80 MB        |
 | Claude Code           | ~300 MB       |
-| **Total**             | **~3.1 GB**   |
+| SearXNG               | ~200 MB       |
+| **Total**             | **~3.3 GB**   |
 
 With 4GB RAM and swap on the HDD, this is feasible but tight. If needed, Immich will be the first to disable.

@@ -106,6 +106,14 @@
     mode: "0640"
   notify: Restart pihole
 
+- name: Template SearXNG settings (resolve secret_key + base_url)
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/../../docker/configs/searxng/settings.yml"
+    dest: /opt/homelab/configs/searxng/settings.yml
+    owner: "{{ ansible_user }}"
+    group: docker
+    mode: "0640"
+
 - name: Ensure Docker networks exist
   community.docker.docker_network:
     name: "{{ item }}"
