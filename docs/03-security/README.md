@@ -38,6 +38,25 @@ Defense in depth — each layer is secured independently. If one layer falls, th
 - Sensitive data encrypted at rest
 - Periodic secret rotation
 
+## Remote Kill Switch
+
+An anti-theft / "panic" control to power the Pi off from anywhere — without
+opening an inbound port. A root systemd service (`killswitch.service`)
+**subscribes outbound** to a secret `ntfy.sh` topic and runs `systemctl poweroff`
+when it receives a message whose body exactly matches a secret keyword.
+
+- **Outbound only**: a long-lived `curl` stream — no listener, nothing for UFW to
+  allow, no attack surface added.
+- **Two secrets** (both vault-encrypted in `local.yml`, never in the repo):
+  the **topic** (`killswitch_ntfy_topic`, high-entropy — it gatekeeps who can
+  subscribe) and the **keyword** (`killswitch_keyword`, exact-match trigger).
+- **Trigger**: `curl -d '<keyword>' https://ntfy.sh/<topic>`
+- **Recovery is manual and physical** (no remote power-on): restore power, then
+  unlock the encrypted data volume as on any boot.
+
+Rationale and alternatives in [ADR-006](../../knowledge/decisions/ADR-006-remote-kill-switch.md);
+trigger + recovery steps in [the kill-switch runbook](../../knowledge/runbooks/kill-switch.md).
+
 ## Hardening Checklist
 
 To be completed during implementation — see Ansible `security` role.
