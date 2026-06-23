@@ -47,6 +47,10 @@ rclone_webdav_pass: ""  # A Nextcloud app-password for rclone WebDAV access
 # --- SearXNG (private metasearch) ---
 searxng_secret_key: ""  # openssl rand -hex 32
 
+# --- Kill switch (remote poweroff via ntfy) ---
+killswitch_ntfy_topic: ""  # long random topic, e.g. `openssl rand -hex 16` (acts as a secret)
+killswitch_keyword: ""     # secret keyword; poweroff fires only on an exact match
+
 # --- Backup ---
 restic_password: ""
 # Uptime Kuma "Push" monitor URL for backup monitoring — base form:

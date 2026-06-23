@@ -1,0 +1,14 @@
+---
+# =============================================================================
+# Handlers: killswitch
+# =============================================================================
+# systemd reads EnvironmentFile only at service start, and copying a new script
+# does not restart a running service. Any change to the script, env file, or
+# unit must therefore trigger an explicit restart for it to take effect.
+# =============================================================================
+
+- name: Restart killswitch
+  ansible.builtin.systemd:
+    name: killswitch.service
+    state: restarted
+    daemon_reload: true

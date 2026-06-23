@@ -46,6 +46,10 @@
     - role: claude-code
       tags: [phase5, claude-code]
 
+    # Phase 5 — Remote kill switch (poweroff via secret ntfy message)
+    - role: killswitch
+      tags: [phase5, killswitch]
+
   post_tasks:
     - name: Display completion message
       ansible.builtin.debug:

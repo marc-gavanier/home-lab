@@ -1,0 +1,65 @@
+---
+# =============================================================================
+# Role: killswitch — remote poweroff via a secret ntfy message
+# =============================================================================
+# A root systemd service subscribes (outbound) to a secret ntfy.sh topic and
+# powers the machine off when it receives the secret keyword. No inbound port.
+#
+#   Trigger:   curl -d '<keyword>' https://ntfy.sh/<topic>   (or the ntfy app)
+#   Recovery:  no remote power-on (no smart plug) → restore power physically,
+#              then SSH in and enter the LUKS passphrase (as on any boot).
+#
+# Secrets (host_vars/homelab/local.yml): killswitch_ntfy_topic, killswitch_keyword
+# =============================================================================
+
+- name: Ensure curl is installed
+  ansible.builtin.apt:
+    name: curl
+    state: present
+
+- name: Deploy the kill switch script
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../../scripts/killswitch.sh"
+    dest: /usr/local/sbin/killswitch.sh
+    owner: root
+    group: root
+    mode: "0750"
+  notify: Restart killswitch
+
+- name: Template the kill switch env (ntfy topic + keyword)
+  ansible.builtin.template:
+    src: killswitch.env.j2
+    dest: /etc/killswitch.env
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  notify: Restart killswitch
+
+- name: Create the kill switch systemd service
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/killswitch.service
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=ntfy kill switch (poweroff on secret message)
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=simple
+      EnvironmentFile=/etc/killswitch.env
+      ExecStart=/usr/local/sbin/killswitch.sh
+      Restart=always
+      RestartSec=10
+
+      [Install]
+      WantedBy=multi-user.target
+  notify: Restart killswitch
+
+- name: Enable and start the kill switch
+  ansible.builtin.systemd:
+    name: killswitch.service
+    enabled: true
+    state: started
+    daemon_reload: true
