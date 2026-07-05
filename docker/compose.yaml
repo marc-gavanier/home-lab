@@ -328,7 +328,8 @@ services:
 
   # --- Immich (Photos) ---
   immich-server:
-    image: ghcr.io/immich-app/immich-server:release
+    # Pinned to v2: v3 drops pgvecto.rs support (DB must migrate to VectorChord first)
+    image: ghcr.io/immich-app/immich-server:v2.7.5
     container_name: immich-server
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     depends_on:
@@ -356,7 +357,8 @@ services:
       - "traefik.http.services.immich.loadbalancer.server.port=2283"
 
   immich-machine-learning:
-    image: ghcr.io/immich-app/immich-machine-learning:release
+    # Pinned to v2: must match immich-server (see above)
+    image: ghcr.io/immich-app/immich-machine-learning:v2.7.5
     container_name: immich-ml
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     volumes:
