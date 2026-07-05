@@ -69,8 +69,9 @@ encrypted disk, and stage the containers behind it — all automated by the
 - **Swap actually on the HDD**, ending silent SD-card wear.
 
 ### Cons
-- **`homelab-unlock` blocks ~8 min** (the target waits for the orchestrator's
-  waves). Progress is visible via `journalctl -t homelab-startup -b -f`.
+- **Startup is asynchronous**: `homelab-unlock` returns immediately
+  (`--no-block`) while the waves run ~5–8 min in the background; the only
+  progress surface is `journalctl -t homelab-startup -b -f`.
 - **Manual stops get healed**: the heal timer cannot tell a crash (exit 137)
   from `docker stop` (often 137/143 too). Maintenance must use
   `docker compose down <svc>` or stop the timer.

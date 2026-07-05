@@ -140,10 +140,13 @@
         systemctl start mnt-data.mount
       fi
 
-      echo "Starting services..."
-      systemctl start homelab-services.target
+      echo "Starting services (staged, in the background)..."
+      # --no-block: the target waits for the orchestrator's health-gated waves
+      # (~5-8 min); don't hold the operator's shell hostage for that.
+      systemctl start --no-block homelab-services.target
 
-      echo "Done. All services are running."
+      echo "Done. DNS returns in ~1-3 min, full stack in ~8 min."
+      echo "Follow progress with: journalctl -t homelab-startup -b -f"
 
 - name: Install lock script
   ansible.builtin.copy:

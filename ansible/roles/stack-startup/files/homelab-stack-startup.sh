@@ -79,8 +79,10 @@ up() {
 log "staged startup begin"
 
 # Tier 0 (pihole/traefik/wg-easy) is auto-started by Docker. Block on DNS first —
-# nothing else matters until the LAN can resolve names again.
-wait_healthy pihole 120
+# nothing else matters until the LAN can resolve names again. Generous timeout:
+# at a cold start FTL reloads gravity and can take >2 min to pass its
+# healthcheck; waiting here IS the point (DNS before the herd).
+wait_healthy pihole 300
 
 # Wave 1 — light services
 up vaultwarden uptime-kuma searxng navidrome

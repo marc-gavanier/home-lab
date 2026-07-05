@@ -27,9 +27,8 @@ What to expect and do when the Pi comes back up. Design rationale in
    sudo homelab-unlock     # asks for the LUKS passphrase
    ```
 
-   The shell **blocks on "Starting services..." for ~5–8 min** — that is the
-   orchestrator running its health-gated waves, not a hang. Follow along from
-   a second terminal:
+   The command returns immediately; the orchestrator keeps running its
+   health-gated waves in the background (~5–8 min). Follow along:
 
    ```bash
    journalctl -t homelab-startup -b -f
