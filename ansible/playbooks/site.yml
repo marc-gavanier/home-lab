@@ -50,6 +50,11 @@
     - role: killswitch
       tags: [phase5, killswitch]
 
+    # Phase 5 — Staged container startup at boot (DNS first; needs /opt/homelab
+    # from the deploy role, so it must run after it)
+    - role: stack-startup
+      tags: [phase5, stack-startup]
+
   post_tasks:
     - name: Display completion message
       ansible.builtin.debug:

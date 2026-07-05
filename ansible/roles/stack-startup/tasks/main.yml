@@ -1,0 +1,111 @@
+---
+# =============================================================================
+# Role: stack-startup — staged container startup, triggered by homelab-unlock
+# =============================================================================
+# Docker's data-root lives on the LUKS-encrypted /mnt/data, unlocked manually
+# via `homelab-unlock` (it mounts the disk, then starts homelab-services.target).
+# Docker and this orchestrator are BOTH pulled by that target, so they run only
+# AFTER the disk is mounted — never at boot, which would start Docker against an
+# empty data-root (the ghost-store failure).
+#
+# Once triggered: Docker auto-starts Tier 0 (pihole/traefik/wg-easy,
+# `unless-stopped`) so the LAN regains DNS immediately; the orchestrator then
+# brings the `restart: "no"` services up in health-gated waves, and a timer
+# restarts any that later crash (see homelab-stack-heal.sh).
+# =============================================================================
+
+- name: Deploy the staged-startup orchestrator script
+  ansible.builtin.copy:
+    src: homelab-stack-startup.sh
+    dest: /usr/local/sbin/homelab-stack-startup.sh
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Install the staged-startup systemd service
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/homelab-stack-startup.service
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Homelab staged container startup (DNS first)
+      PartOf=homelab-services.target
+      Requires=docker.service
+      After=mnt-data.mount docker.service
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      TimeoutStartSec=600
+      ExecStart=/usr/local/sbin/homelab-stack-startup.sh
+
+      [Install]
+      WantedBy=homelab-services.target
+
+# An earlier version wired this WantedBy=multi-user.target, which pulled Docker
+# at boot — before homelab-unlock mounted /mnt/data — and produced a ghost store.
+# Remove that stale symlink so the regression cannot resurface on the next boot.
+- name: Remove stale boot-time wiring of the orchestrator
+  ansible.builtin.file:
+    path: /etc/systemd/system/multi-user.target.wants/homelab-stack-startup.service
+    state: absent
+
+# Enable wires it into homelab-services.target.wants — pulled by homelab-unlock,
+# not at boot. Not started here: the stack is already up after a deploy.
+- name: Wire the orchestrator into homelab-services.target
+  ansible.builtin.systemd:
+    name: homelab-stack-startup.service
+    enabled: true
+    daemon_reload: true
+
+# --- Crash recovery -----------------------------------------------------------
+# Non-Tier-0 services are `restart: "no"` (see the heal script header for why),
+# so Docker no longer restarts crashed containers; this timer does, every 2 min
+# while the stack is unlocked.
+
+- name: Deploy the crash-recovery script
+  ansible.builtin.copy:
+    src: homelab-stack-heal.sh
+    dest: /usr/local/sbin/homelab-stack-heal.sh
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Install the crash-recovery systemd service
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/homelab-stack-heal.service
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Homelab crash recovery (restart crashed containers)
+      PartOf=homelab-services.target
+      After=docker.service
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/sbin/homelab-stack-heal.sh
+
+- name: Install the crash-recovery systemd timer
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/homelab-stack-heal.timer
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Homelab crash recovery timer
+      # Runs only while the stack is up: pulled in by homelab-services.target,
+      # stopped with it by homelab-lock.
+      PartOf=homelab-services.target
+
+      [Timer]
+      OnActiveSec=2min
+      OnUnitActiveSec=2min
+
+      [Install]
+      WantedBy=homelab-services.target
+
+- name: Wire the crash-recovery timer into homelab-services.target
+  ansible.builtin.systemd:
+    name: homelab-stack-heal.timer
+    enabled: true
+    state: started
+    daemon_reload: true

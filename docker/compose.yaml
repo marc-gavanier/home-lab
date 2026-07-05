@@ -21,7 +21,7 @@ services:
   traefik:
     image: traefik:v3
     container_name: traefik
-    restart: unless-stopped
+    restart: unless-stopped   # Tier 0: auto-start at boot (see stack-startup role)
     security_opt:
       - no-new-privileges:true
     ports:
@@ -50,7 +50,7 @@ services:
   pihole:
     image: pihole/pihole:latest
     container_name: pihole
-    restart: unless-stopped
+    restart: unless-stopped   # Tier 0: auto-start at boot (see stack-startup role)
     ports:
       - "53:53/tcp"
       - "53:53/udp"
@@ -81,7 +81,7 @@ services:
   wg-easy:
     image: ghcr.io/wg-easy/wg-easy:latest
     container_name: wg-easy
-    restart: unless-stopped
+    restart: unless-stopped   # Tier 0: auto-start at boot (see stack-startup role)
     cap_add:
       - NET_ADMIN
       - SYS_MODULE
@@ -115,7 +115,7 @@ services:
   nextcloud:
     image: nextcloud:apache
     container_name: nextcloud
-    restart: unless-stopped
+    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     depends_on:
       nextcloud-db:
         condition: service_healthy
@@ -168,7 +168,7 @@ services:
   nextcloud-db:
     image: mariadb:11
     container_name: nextcloud-db
-    restart: unless-stopped
+    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     environment:
       MYSQL_ROOT_PASSWORD: ${NEXTCLOUD_DB_ROOT_PASSWORD}
       MYSQL_DATABASE: ${NEXTCLOUD_DB_NAME}
@@ -187,7 +187,7 @@ services:
   nextcloud-redis:
     image: redis:7-alpine
     container_name: nextcloud-redis
-    restart: unless-stopped
+    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     networks:
       - internal
     healthcheck:
@@ -201,7 +201,7 @@ services:
   nextcloud-cron:
     image: nextcloud:apache
     container_name: nextcloud-cron
-    restart: unless-stopped
+    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     entrypoint: /cron.sh
     depends_on:
       nextcloud-db:
@@ -218,7 +218,7 @@ services:
   nextcloud-notify-push:
     image: nextcloud:apache
     container_name: nextcloud-notify-push
-    restart: unless-stopped
+    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     depends_on:
       nextcloud-db:
         condition: service_healthy
@@ -250,7 +250,7 @@ services:
   vaultwarden:
     image: vaultwarden/server:latest
     container_name: vaultwarden
-    restart: unless-stopped
+    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     environment:
       DOMAIN: https://vault.${DOMAIN}
       SIGNUPS_ALLOWED: ${VAULTWARDEN_SIGNUPS_ALLOWED:-false}
@@ -278,7 +278,7 @@ services:
   jellyfin:
     image: jellyfin/jellyfin:latest
     container_name: jellyfin
-    restart: unless-stopped
+    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     environment:
       JELLYFIN_PublishedServerUrl: https://videos.${DOMAIN}
     volumes:
@@ -304,7 +304,7 @@ services:
   navidrome:
     image: deluan/navidrome:latest
     container_name: navidrome
-    restart: unless-stopped
+    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     environment:
       ND_SCANSCHEDULE: 1h
       ND_LOGLEVEL: info
@@ -330,7 +330,7 @@ services:
   immich-server:
     image: ghcr.io/immich-app/immich-server:release
     container_name: immich-server
-    restart: unless-stopped
+    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     depends_on:
       immich-db:
         condition: service_healthy
@@ -358,7 +358,7 @@ services:
   immich-machine-learning:
     image: ghcr.io/immich-app/immich-machine-learning:release
     container_name: immich-ml
-    restart: unless-stopped
+    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     volumes:
       - ${SERVICES_DATA_DIR}/immich/ml-cache:/cache
     networks:
@@ -367,7 +367,7 @@ services:
   immich-redis:
     image: redis:7-alpine
     container_name: immich-redis
-    restart: unless-stopped
+    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     networks:
       - internal
     healthcheck:
@@ -379,7 +379,7 @@ services:
   immich-db:
     image: tensorchord/pgvecto-rs:pg16-v0.2.0
     container_name: immich-db
-    restart: unless-stopped
+    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     environment:
       POSTGRES_USER: ${IMMICH_DB_USER}
       POSTGRES_PASSWORD: ${IMMICH_DB_PASSWORD}
@@ -398,7 +398,7 @@ services:
   transmission:
     image: linuxserver/transmission:latest
     container_name: transmission
-    restart: unless-stopped
+    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     environment:
       PUID: ${PUID}
       PGID: ${PGID}
@@ -437,7 +437,7 @@ services:
   uptime-kuma:
     image: louislam/uptime-kuma:2
     container_name: uptime-kuma
-    restart: unless-stopped
+    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     dns:
       - ${PI_LAN_IP}
     volumes:
@@ -455,7 +455,7 @@ services:
   searxng:
     image: searxng/searxng:latest
     container_name: searxng
-    restart: unless-stopped
+    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     volumes:
       - ./configs/searxng:/etc/searxng
     environment:
@@ -473,7 +473,7 @@ services:
   netdata:
     image: netdata/netdata:latest
     container_name: netdata
-    restart: unless-stopped
+    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     cap_add:
       - SYS_PTRACE
       - SYS_ADMIN
