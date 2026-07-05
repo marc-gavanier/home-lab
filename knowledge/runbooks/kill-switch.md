@@ -33,7 +33,8 @@ There is **no remote power-on** by design. Recovery requires physical presence:
 1. Restore power to the Pi (plug it back / flip the smart plug).
 2. Let it boot. Unlock the encrypted data volume (`/mnt/data`) as on any boot —
    LUKS passphrase.
-3. The Docker stack restarts on its own (`restart: unless-stopped`).
+3. The unlock triggers the staged startup: DNS back in ~1–3 min, full stack in
+   ~8 min. Details in the [boot & unlock runbook](boot-and-unlock.md).
 
 ## Verify the service is armed
 
@@ -67,6 +68,6 @@ The `Restart killswitch` handler picks up the new env on a running service
 ## Related
 
 - [ADR-006](../decisions/ADR-006-remote-kill-switch.md) — design & alternatives.
-- Reboot caveat: cutting the Pi takes LAN DNS down ~15 min while the full stack
-  restarts; don't `docker restart`/reboot to "fix" a slow boot (it self-heals).
-  Workaround during the outage: point the client DNS at `1.1.1.1`.
+- [Boot & unlock runbook](boot-and-unlock.md) — what to expect after the power
+  comes back (staged startup, DNS in ~1–3 min after unlock). Until the unlock,
+  the LAN has no DNS — point the client at `1.1.1.1` meanwhile.
