@@ -88,6 +88,10 @@
     mode: "0644"
     content: |
       [Unit]
+      # Docker's data-root is on {{ data_mount_point }} (LUKS, unlocked manually).
+      # This makes the daemon refuse to start until that disk is mounted — so it
+      # can never initialise an empty ghost store on the bare mount point.
+      RequiresMountsFor={{ data_mount_point }}
       PartOf=homelab-services.target
 
       [Install]
@@ -98,4 +102,13 @@
     name: docker
     enabled: false
     daemon_reload: true
+
+# Socket activation starts dockerd on the first `docker` CLI call — including
+# before the unlock, which is how the ghost store got initialised on 2026-07-04
+# (a `docker ps` was enough). Disabled at boot; docker.service still pulls the
+# socket in itself when homelab-services.target starts it.
+- name: Disable Docker socket activation at boot
+  ansible.builtin.systemd:
+    name: docker.socket
+    enabled: false
 
