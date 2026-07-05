@@ -54,6 +54,30 @@ the Pi:
    exact commands in the header of `ansible/roles/claude-code/tasks/main.yml`.
 2. Re-run the `claude-code` Ansible role to start the systemd services.
 
+## Troubleshooting: "no vault" in the app → Remote Control 401
+
+**Symptom** (seen 2026-07-04): the Claude app/web shows the *Homelab* environment but
+sessions never start or the vault seems gone. The vault mount is usually fine — the real
+cause is `claude-remote-control.service` crash-looping because the `claude` user's
+claude.ai auth expired:
+
+```bash
+systemctl status claude-remote-control      # activating (auto-restart), high restart counter
+journalctl -u claude-remote-control -n 20   # "Authentication failed (401): Invalid authentication credentials"
+```
+
+**Fix — re-login the `claude` user** (interactive, like the first-time setup):
+
+```bash
+sudo systemctl stop claude-remote-control && sudo systemctl reset-failed claude-remote-control
+sudo -u claude -H /home/claude/.local/bin/claude   # in the TUI: /login, then exit
+sudo systemctl start claude-remote-control
+journalctl -u claude-remote-control -f             # expect "Connected · vault" then "Ready"
+```
+
+Then in the app, pick the environment the service just logged — and remove any stale
+duplicate (see the ghost-environments warning above).
+
 ## Data
 
 | Path                                                | Content                                              |
