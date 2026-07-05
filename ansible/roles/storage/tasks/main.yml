@@ -72,13 +72,34 @@
     group: root
     mode: "0755"
 
-- name: Mount encrypted volume
-  ansible.posix.mount:
-    path: "{{ data_mount_point }}"
-    src: "/dev/mapper/{{ luks_mapper_name }}"
-    fstype: "{{ data_filesystem }}"
-    opts: defaults,noatime
-    state: mounted
+# The mount is a static systemd unit, NOT an fstab entry: it gives
+# RequiresMountsFor= a real unit to bind to. Without it, systemd resolves
+# RequiresMountsFor={{ data_mount_point }} against the parent mounts only (/),
+# so nothing actually stopped Docker from starting before the LUKS volume was
+# mounted — it then initialised a ghost store on the SD card *under* the mount
+# point (incident of 2026-07-04).
+- name: Install mnt-data.mount unit
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/mnt-data.mount
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Home Lab encrypted data volume
+      # No [Install] section: never started at boot — the LUKS mapping only
+      # exists after a manual unlock (homelab-unlock starts this unit, or
+      # homelab-services.target pulls it in via Requires=).
+
+      [Mount]
+      What=/dev/mapper/{{ luks_mapper_name }}
+      Where={{ data_mount_point }}
+      Type={{ data_filesystem }}
+      Options=defaults,noatime
+
+- name: Mount encrypted volume (via the systemd unit)
+  ansible.builtin.systemd:
+    name: mnt-data.mount
+    state: started
+    daemon_reload: true
 
 - name: Remove crypttab entry (systemd-cryptsetup-generator ignores noauto)
   ansible.builtin.file:
@@ -116,7 +137,7 @@
 
       if ! mountpoint -q "$MOUNT"; then
         echo "Mounting $MOUNT..."
-        mount -t ext4 -o noatime "/dev/mapper/$MAPPER" "$MOUNT"
+        systemctl start mnt-data.mount
       fi
 
       echo "Starting services..."
@@ -140,7 +161,7 @@
       systemctl stop homelab-services.target
 
       echo "Unmounting $MOUNT..."
-      umount "$MOUNT" || true
+      systemctl stop mnt-data.mount || true
 
       echo "Locking volume..."
       cryptsetup close "$MAPPER"
@@ -157,7 +178,12 @@
       [Unit]
       Description=Home Lab Services (requires /mnt/data)
       Requires=mnt-data.mount
-      After=mnt-data.mount
+      # Pull Docker directly (it is disabled at boot, so its WantedBy symlink is
+      # stripped — Wants= starts it regardless). Ordered after the mount so it
+      # never starts against an empty data-root. The swap lives on the HDD too,
+      # so it is activated here as well (see the swap unit).
+      Wants=docker.service mnt-data-swapfile.swap
+      After=mnt-data.mount docker.service
 
 - name: Reload systemd
   ansible.builtin.systemd:
@@ -203,17 +229,32 @@
   changed_when: mkswap_result.rc == 0
   failed_when: false
 
-- name: Enable swap file
-  ansible.builtin.command:
-    cmd: "swapon {{ data_mount_point }}/swapfile"
-  register: swapon_result
-  changed_when: swapon_result.rc == 0
-  failed_when: false
+# Swap is a systemd unit bound to the data mount, NOT an fstab entry: the
+# fstab entry (sw,nofail) was activated at boot, when {{ data_mount_point }} is
+# still the bare SD directory — so the system silently created and swapped on a
+# ghost swapfile on the SD card (wear + slow) instead of the HDD one.
+- name: Install swap unit (activates only once the HDD is mounted)
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/mnt-data-swapfile.swap
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Home Lab swap on encrypted HDD
+      RequiresMountsFor={{ data_mount_point }}
 
-- name: Add swap to fstab
+      [Swap]
+      What={{ data_mount_point }}/swapfile
+
+- name: Remove swap from fstab (activated by the swap unit instead)
   ansible.posix.mount:
     path: none
     src: "{{ data_mount_point }}/swapfile"
     fstype: swap
     opts: sw,nofail
-    state: present
+    state: absent
+
+- name: Activate swap unit
+  ansible.builtin.systemd:
+    name: mnt-data-swapfile.swap
+    state: started
+    daemon_reload: true
