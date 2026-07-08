@@ -15,7 +15,7 @@ Personal home lab on Raspberry Pi 4 — self-hosted services, full automation, h
 |--------------|-----------------------------|
 | Machine      | Raspberry Pi 4 Model B      |
 | CPU          | Quad-core Cortex-A72 64-bit |
-| RAM          | 4 GB LPDDR4                 |
+| RAM          | 8 GB LPDDR4                 |
 | OS storage   | 64 GB SD card               |
 | Data storage | 5 TB external HDD           |
 | Network      | Gigabit Ethernet            |
