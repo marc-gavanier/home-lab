@@ -24,6 +24,17 @@
     - { regexp: '^#?AllowUsers', line: "AllowUsers {{ ssh_allowed_users | join(' ') }}" }
   notify: Restart SSH
 
+# --- Account password lockdown ---
+# SSH is key-only and sudo is NOPASSWD, so the account password's only reachable
+# use was a local console login — and its hash sat on the unencrypted SD card,
+# crackable offline by anyone who reads the card. Lock it: `!` prefix on the
+# hash disables password auth everywhere without touching the SSH keys.
+
+- name: Lock the admin account password (no legitimate use, offline-crackable)
+  ansible.builtin.user:
+    name: "{{ ansible_user }}"
+    password_lock: true
+
 # --- Firewall (UFW) ---
 
 - name: Install UFW

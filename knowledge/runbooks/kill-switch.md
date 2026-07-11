@@ -68,6 +68,10 @@ The `Restart killswitch` handler picks up the new env on a running service
 ## Related
 
 - [ADR-006](../decisions/ADR-006-remote-kill-switch.md) — design & alternatives.
+- [usb-tamper runbook](usb-tamper.md) — the local sibling: poweroff on any USB
+  plug/unplug while the volume is unlocked ([ADR-008](../decisions/ADR-008-usb-tamper-poweroff.md)).
+- [SSH lockout recovery](ssh-lockout-recovery.md) — the kill switch doubles as
+  the remote *clean-shutdown* tool when the SD card needs offline surgery.
 - [Boot & unlock runbook](boot-and-unlock.md) — what to expect after the power
   comes back (staged startup, DNS in ~1–3 min after unlock). Until the unlock,
   the LAN has no DNS — point the client at `1.1.1.1` meanwhile.

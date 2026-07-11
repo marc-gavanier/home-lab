@@ -30,8 +30,10 @@ domain: example.com
 traefik_acme_email: ""  # Set via --extra-vars (not in repo)
 
 # --- Security ---
+# Follows the admin user from local.yml — a hardcoded placeholder here once
+# shipped "AllowUsers pi" to sshd and locked the real admin out (2026-07-11).
 ssh_allowed_users:
-  - pi
+  - "{{ ansible_user }}"
 fail2ban_max_retry: 3
 fail2ban_ban_time: 3600
 
