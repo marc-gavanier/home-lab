@@ -1,5 +1,9 @@
 # Runbook — Restore from backup (Restic)
 
+> **Last tested: 2026-07-11** — full drill on the Pi: `restic check` (incl. `--read-data-subset=2%`),
+> Vaultwarden restore to scratch (SQLite integrity OK), Nextcloud dump imported into a throwaway
+> MariaDB container (156 tables). Immich dump header-checked only (PostgreSQL import not drilled).
+
 Backups are made by `scripts/backup.sh` (daily `homelab-backup.timer`) into the Restic repo
 at `/mnt/data/backups/restic-repo`. They cover `/mnt/data/services` (service data),
 `/mnt/data/media` (photos/music/videos), the DB dumps, and `/opt/homelab`. See
