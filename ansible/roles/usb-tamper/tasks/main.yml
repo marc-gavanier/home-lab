@@ -1,0 +1,86 @@
+---
+# =============================================================================
+# Role: usb-tamper — poweroff on any USB plug/unplug while armed
+# =============================================================================
+# Physical-intrusion response (ADR-008): while the LUKS volume is unlocked, the
+# volume key sits in RAM. Any USB event — add (BadUSB keyboard injecting on the
+# console) or remove (data disk pulled to substitute hardware) — powers the Pi
+# off immediately, wiping the key. No device whitelist: USB vendor/product IDs
+# are trivially spoofable.
+#
+#   Armed:    by homelab-unlock (flag /run/homelab/tamper-armed — tmpfs, so it
+#             never exists during the boot-time udev coldplug replay)
+#   Disarmed: by homelab-lock, or homelab-tamper-disarm before touching cables
+#   Recovery: same as the kill switch — physical presence + LUKS passphrase
+# =============================================================================
+
+- name: Deploy the udev trigger script
+  ansible.builtin.copy:
+    src: usb-tamper-trigger.sh
+    dest: /usr/local/sbin/usb-tamper-trigger.sh
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Install the udev rule (any usb_device add/remove)
+  ansible.builtin.copy:
+    dest: /etc/udev/rules.d/99-usb-tamper.rules
+    mode: "0644"
+    content: |
+      # Home Lab USB tamper response (ADR-008). DEVTYPE==usb_device gives one
+      # event per physical device instead of one per interface. The script must
+      # exit fast; the armed check and the poweroff are in usb-tamper.service.
+      SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ACTION=="add|remove", RUN+="/usr/local/sbin/usb-tamper-trigger.sh"
+  notify: Reload udev rules
+
+- name: Install usb-tamper.service (armed check + poweroff)
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/usb-tamper.service
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=USB tamper response — poweroff while armed (ADR-008)
+      # The armed flag lives on tmpfs: absent at boot (coldplug replay is
+      # inert), created by homelab-unlock, removed by homelab-lock/-disarm.
+      ConditionPathExists=/run/homelab/tamper-armed
+      # The boot coldplug replay starts this unit once per USB device within a
+      # second; default start-rate limiting would then refuse a start for 10 s.
+      # A tamper response must never be refused — disable the limiter.
+      StartLimitIntervalSec=0
+      # No [Install] section: started only by the udev trigger script.
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/bin/logger -t usb-tamper "TRIGGER while armed — powering off NOW"
+      ExecStart=/usr/bin/systemctl poweroff
+
+- name: Reload systemd for usb-tamper.service
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Install the arm command
+  ansible.builtin.copy:
+    dest: /usr/local/bin/homelab-tamper-arm
+    mode: "0755"
+    content: |
+      #!/usr/bin/env bash
+      # Arm the USB tamper response: any USB plug/unplug now powers the Pi off.
+      # Called automatically by homelab-unlock; see ADR-008.
+      set -euo pipefail
+      mkdir -p /run/homelab
+      touch /run/homelab/tamper-armed
+      logger -t usb-tamper "armed"
+      echo "USB tamper response ARMED — any USB plug/unplug powers the Pi off."
+
+- name: Install the disarm command
+  ansible.builtin.copy:
+    dest: /usr/local/bin/homelab-tamper-disarm
+    mode: "0755"
+    content: |
+      #!/usr/bin/env bash
+      # Disarm the USB tamper response (physical maintenance: cables, disk).
+      # Re-arm with homelab-tamper-arm, or automatically at the next unlock.
+      set -euo pipefail
+      rm -f /run/homelab/tamper-armed
+      logger -t usb-tamper "disarmed"
+      echo "USB tamper response DISARMED — re-arm with: homelab-tamper-arm"

@@ -21,11 +21,25 @@ What to expect and do when the Pi comes back up. Design rationale in
    > A **responding** `docker ps` before the unlock means the guards have
    > regressed — do NOT unlock; investigate first (see ghost store below).
 
-2. **Unlock:**
+2. **Before unlocking — was this poweroff expected?** The SD card is
+   unencrypted: anyone who can pull it can backdoor the unlock path and capture
+   the passphrase you are about to type (evil maid). Pulling the SD requires
+   the Pi to be off — so an **unexplained poweroff is the tamper signal**.
+   Expected causes: your own shutdown, a power cut, a [kill-switch](kill-switch.md)
+   or [usb-tamper](usb-tamper.md) trigger *that you remember* — the journal
+   lives on the SD, so it proves nothing. If you cannot account for the
+   downtime, do **not** unlock: reflash the SD and re-provision with Ansible
+   first (~1 h; all service state lives on the encrypted HDD, nothing is lost).
+
+3. **Unlock:**
 
    ```bash
    sudo homelab-unlock     # asks for the LUKS passphrase
    ```
+
+   The unlock also **arms the USB tamper response** ([ADR-008](../decisions/ADR-008-usb-tamper-poweroff.md)):
+   from this point, any USB plug/unplug powers the Pi off — disarm before
+   touching cables (see the [usb-tamper runbook](usb-tamper.md)).
 
    The command returns immediately; the orchestrator keeps running its
    health-gated waves in the background (~5–8 min). Follow along:
@@ -34,11 +48,11 @@ What to expect and do when the Pi comes back up. Design rationale in
    journalctl -t homelab-startup -b -f
    ```
 
-3. **DNS is back ~1–3 min in** (Tier 0: traefik/pihole/wg-easy start with the
+4. **DNS is back ~1–3 min in** (Tier 0: traefik/pihole/wg-easy start with the
    daemon). The waves then bring up light services → Nextcloud stack → heavy
    tier, ending with `staged startup complete — all waves dispatched`.
 
-4. **Verify** (optional):
+5. **Verify** (optional):
 
    ```bash
    docker ps --format '{{.Names}}\t{{.Status}}' | sort   # 19 containers, healthy
@@ -79,5 +93,6 @@ systemctl stop homelab-stack-heal.timer     # or pause healing (restart after)
 
 - [ADR-007](../decisions/ADR-007-staged-container-startup.md) — design & alternatives.
 - [kill-switch runbook](kill-switch.md) — the remote poweroff lands on this boot path.
+- [usb-tamper runbook](usb-tamper.md) — the local poweroff (USB events) lands here too.
 - `homelab-lock` — stops the target (containers, heal timer, swap), unmounts and
   relocks the volume.

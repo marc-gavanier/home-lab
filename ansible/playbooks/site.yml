@@ -50,6 +50,11 @@
     - role: killswitch
       tags: [phase5, killswitch]
 
+    # Phase 5 — USB tamper response (poweroff on any USB plug/unplug while
+    # armed; armed by homelab-unlock, so it must run after the storage role)
+    - role: usb-tamper
+      tags: [phase5, usb-tamper]
+
     # Phase 5 — Staged container startup at boot (DNS first; needs /opt/homelab
     # from the deploy role, so it must run after it)
     - role: stack-startup

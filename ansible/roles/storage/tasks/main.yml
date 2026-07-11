@@ -140,6 +140,13 @@
         systemctl start mnt-data.mount
       fi
 
+      # Arm the USB tamper response (ADR-008) as soon as the volume key is in
+      # RAM — that key is exactly what the tamper poweroff protects. Guarded:
+      # the arm command ships with the usb-tamper role, deployed after storage.
+      if [ -x /usr/local/bin/homelab-tamper-arm ]; then
+        /usr/local/bin/homelab-tamper-arm
+      fi
+
       echo "Starting services (staged, in the background)..."
       # --no-block: the target waits for the orchestrator's health-gated waves
       # (~5-8 min); don't hold the operator's shell hostage for that.
@@ -159,6 +166,13 @@
 
       MAPPER="{{ luks_mapper_name }}"
       MOUNT="{{ data_mount_point }}"
+
+      # Disarm the USB tamper response (ADR-008) first: locking usually means
+      # going hands-on, and once the volume is closed there is no key in RAM
+      # left to protect anyway.
+      if [ -x /usr/local/bin/homelab-tamper-disarm ]; then
+        /usr/local/bin/homelab-tamper-disarm
+      fi
 
       echo "Stopping services..."
       systemctl stop homelab-services.target
