@@ -71,6 +71,34 @@
     line: 'gpu_mem=16'
   notify: Reboot required
 
+# --- Physical/radio attack-surface reduction ---
+# Unused on this headless, Ethernet-only box. Killed in firmware rather than
+# software: a dtoverlay cannot be re-enabled at runtime even by root — undoing
+# it takes a config.txt edit plus a reboot, which wipes the LUKS key from RAM.
+
+- name: Disable unused GPIO buses (I2C, SPI)
+  ansible.builtin.lineinfile:
+    path: /boot/firmware/config.txt
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+  loop:
+    - { regexp: '^dtparam=i2c_arm=', line: 'dtparam=i2c_arm=off' }
+    - { regexp: '^dtparam=spi=', line: 'dtparam=spi=off' }
+  notify: Reboot required
+
+# blockinfile appends at EOF, which lands inside the LAST conditional section
+# of config.txt ([pi4]/[cm4]/...) — the [all] header makes the overlays apply
+# unconditionally wherever the block ends up.
+- name: Disable Wi-Fi and Bluetooth radios in firmware
+  ansible.builtin.blockinfile:
+    path: /boot/firmware/config.txt
+    marker: "# {mark} ANSIBLE MANAGED — radio kill (base role)"
+    block: |
+      [all]
+      dtoverlay=disable-wifi
+      dtoverlay=disable-bt
+  notify: Reboot required
+
 - name: Add noatime to SD card mount
   ansible.posix.mount:
     path: /
@@ -92,6 +120,36 @@
     line: '\1 cgroup_memory=1 cgroup_enable=memory\2'
   when: "'cgroup_memory=1' not in (cmdline_content.content | b64decode)"
   notify: Reboot required
+
+# --- Disable the UART serial console ---
+# The GPIO header (pins 8/10) exposed a login getty where PASSWORD auth works —
+# bypassing the SSH key-only rule with a 2€ USB-TTL adapter — plus kernel boot
+# logs and SysRq over serial. Physical console attack surface, complementary to
+# the USB tamper response (ADR-008): serial emits no udev event, so the tamper
+# poweroff never sees it. Trade-off (accepted 2026-07-08): no emergency serial
+# console anymore — if SSH is lost, recovery means pulling the SD card.
+
+- name: Disable the UART hardware (takes effect at next boot)
+  ansible.builtin.lineinfile:
+    path: /boot/firmware/config.txt
+    regexp: '^enable_uart='
+    line: 'enable_uart=0'
+  notify: Reboot required
+
+- name: Remove the serial console from the kernel command line
+  ansible.builtin.replace:
+    path: /boot/firmware/cmdline.txt
+    regexp: 'console=serial0,115200 ?'
+    replace: ''
+  notify: Reboot required
+
+# Masked, not just disabled: nothing (device hotplug, another unit) can bring a
+# login prompt back on the serial line. Immediate — no reboot needed for this.
+- name: Mask the serial login getty
+  ansible.builtin.systemd:
+    name: serial-getty@ttyS0.service
+    state: stopped
+    masked: true
 
 # --- Free port 53 for Pi-hole ---
 

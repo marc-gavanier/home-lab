@@ -38,6 +38,30 @@ Defense in depth — each layer is secured independently. If one layer falls, th
 - Sensitive data encrypted at rest
 - Periodic secret rotation
 
+### 6. Physical
+While the LUKS volume is unlocked, its key lives in RAM — the physical layer
+defends that window. Every port of the Pi 4 is either dead, booby-trapped, or
+covered by another layer:
+
+| Access                  | Defense                                                            |
+|-------------------------|--------------------------------------------------------------------|
+| USB-A ×4, USB-C (OTG)   | Tamper response: any plug/unplug while armed → immediate poweroff  |
+| UART (GPIO 8/10)        | Dead in firmware (`enable_uart=0`), serial console removed, getty masked |
+| JTAG (GPIO)             | Off by default; enabling needs an SD edit + reboot, which wipes the key |
+| I2C / SPI (GPIO)        | Off in firmware (unused)                                           |
+| Wi-Fi / Bluetooth       | Off in firmware — not re-enablable at runtime, even by root        |
+| HDMI ×2, AV jack, CSI/DSI | Output-only / dedicated buses, no input path to the OS           |
+| Ethernet                | Not a console — plugging in = being on the LAN (layer 1's job)     |
+| SD card slot            | Not coverable (pulling it kills the rootfs the response runs from); offline tampering handled by policy: **unexplained poweroff → reflash before unlocking** |
+| Local login             | Account password locked — key-based SSH is the only authentication path |
+
+Rationale: [ADR-008](../../knowledge/decisions/ADR-008-usb-tamper-poweroff.md)
+(USB tamper response) and [ADR-009](../../knowledge/decisions/ADR-009-physical-attack-surface.md)
+(firmware kills, password lock). Operations: [usb-tamper runbook](../../knowledge/runbooks/usb-tamper.md)
+(arm/disarm — **disarm before touching any cable**), [boot & unlock runbook](../../knowledge/runbooks/boot-and-unlock.md)
+(evil-maid policy), [SSH lockout recovery](../../knowledge/runbooks/ssh-lockout-recovery.md)
+(no console fallback exists — this is the trade-off's escape hatch).
+
 ## Remote Kill Switch
 
 An anti-theft / "panic" control to power the Pi off from anywhere — without
