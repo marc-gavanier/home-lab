@@ -1,0 +1,6 @@
+[Unit]
+Description=Offsite backup disk health report (df + SMART to Uptime Kuma)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/offsite-health.sh

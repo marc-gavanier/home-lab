@@ -1,0 +1,10 @@
+[Unit]
+Description=Weekly offsite backup disk health report
+
+[Timer]
+OnCalendar=Sun 08:00
+Persistent=true
+RandomizedDelaySec=15m
+
+[Install]
+WantedBy=timers.target

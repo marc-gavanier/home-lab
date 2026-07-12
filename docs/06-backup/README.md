@@ -29,9 +29,11 @@ Mirrors exactly what `scripts/backup.sh` does (keep this table and the script in
 
 - **Local**: `/mnt/data/backups/restic-repo` (same HDD, separate directory) — automated
   daily; guards against accidental deletion, corruption and bad edits.
-- **Offsite** (planned): a second Restic repository on a remote node joined to the home
-  WireGuard network (REST server / SFTP), for an automated, always-current copy that
-  survives disk failure, theft or fire.
+- **Offsite** (ADR-010): second Restic repo on the offsite Pi (Pi 4 4GB + 2TB SSD,
+  WireGuard client, rest-server **append-only**), fed by a nightly `restic copy` of the
+  latest snapshot. Distinct repo password, never stored on the offsite host. Weekly
+  `restic check` from the homelab + weekly disk-health self-report. Runbook:
+  `knowledge/runbooks/offsite-backup.md`.
 
 > A backup that shares the originals' physical disk only covers deletion/corruption, not
 > physical loss — hence the offsite repository (3-2-1 rule).

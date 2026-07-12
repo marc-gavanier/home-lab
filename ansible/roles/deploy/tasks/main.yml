@@ -441,3 +441,84 @@
     enabled: true
     state: started
     daemon_reload: true
+
+# --- Host WireGuard client (backup path to the offsite Pi, ADR-010) ---
+# wg0 lives inside the wg-easy container, so the host cannot reach VPN peers
+# directly. The host runs its own WireGuard client ("homelab-host") against
+# wg-easy over loopback; restic then reaches the offsite rest-server at its
+# VPN address — the same path before and after the Pi moves offsite.
+
+- name: Install WireGuard (host client for offsite backup)
+  ansible.builtin.apt:
+    name: wireguard
+    state: present
+  when: homelab_wg_conf is defined
+
+- name: Write host WireGuard client configuration
+  ansible.builtin.copy:
+    content: "{{ homelab_wg_conf }}"
+    dest: /etc/wireguard/wg0.conf
+    owner: root
+    group: root
+    mode: "0600"
+  register: homelab_wg_conf_file
+  when: homelab_wg_conf is defined
+
+- name: Enable and start host WireGuard tunnel
+  ansible.builtin.systemd:
+    name: wg-quick@wg0
+    enabled: true
+    state: "{{ homelab_wg_conf_file is changed | ternary('restarted', 'started') }}"
+  when: homelab_wg_conf is defined
+
+# --- Offsite repo weekly check (ADR-010) ---
+# The homelab holds the offsite repo password, so integrity checks of the
+# offsite repo run from here, through the WireGuard tunnel. Sunday 06:00:
+# well clear of the 03:00 backup+copy window (restic check takes an
+# exclusive lock — an overlap would fail one of the two).
+
+- name: Copy offsite check script
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../../scripts/offsite-check.sh"
+    dest: /opt/homelab/scripts/offsite-check.sh
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Create offsite check systemd service
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/homelab-offsite-check.service
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Weekly offsite restic repo check
+      Wants=network-online.target
+      After=network-online.target
+
+      [Service]
+      Type=oneshot
+      ExecStart=/opt/homelab/scripts/offsite-check.sh
+      EnvironmentFile=/opt/homelab/backup.env
+      Environment=HOME=/root
+
+- name: Create offsite check systemd timer
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/homelab-offsite-check.timer
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Weekly offsite restic repo check (Sunday 06:00)
+
+      [Timer]
+      OnCalendar=Sun *-*-* 06:00:00
+      Persistent=true
+
+      [Install]
+      WantedBy=timers.target
+
+- name: Enable offsite check timer
+  ansible.builtin.systemd:
+    name: homelab-offsite-check.timer
+    enabled: true
+    state: started
+    daemon_reload: true

@@ -46,6 +46,28 @@ The monitor should go up within seconds of the `=== Backup completed ===` log li
 exercise the down path, point `RESTIC_REPOSITORY` at a bad path temporarily and run — the
 monitor goes red and the notification fires.
 
+## Offsite monitors (ADR-010)
+
+Three more push monitors follow the same pattern:
+
+| Monitor | Pinged by | Interval | Vault variable |
+|------------------|--------------------------------------------|--------------|-------------------------------------------------------|
+| Offsite copy | `backup.sh` copy step (homelab, nightly) | 90000 s (25 h) | `offsite_copy_kuma_push_url` (homelab local.yml) |
+| Offsite check | `offsite-check.sh` (homelab, Sunday 06:00) | 700000 s (8 d) | `offsite_check_kuma_push_url` (homelab local.yml) |
+| Offsite health | `offsite-health.sh` (offsite Pi, Sunday 08:00) | 700000 s (8 d) | `offsite_health_kuma_push_url` (offsite local.yml) |
+
+Deploy after filling the vault variables: same `--start-at-task "Copy backup
+script"` command for the homelab ones; for the offsite Pi:
+`ansible-playbook playbooks/offsite.yml --tags offsite-backup --ask-vault-pass`.
+
+Note: the offsite Pi reaches Kuma through the WireGuard tunnel:
+`services.<domain>` is pinned to the homelab host's VPN address (10.8.0.5,
+where Traefik also listens) in its cloud-init hosts template (deployed by
+the `offsite-backup` role). Do NOT route the homelab LAN IP through the
+tunnel instead — that breaks direct-LAN traffic while the Pi is prepared at
+home. Use the exact same `https://services.<domain>/api/push/<token>` URL
+form as the homelab monitors.
+
 ## Notes
 
 - Interval 25 h: a missed daily run turns the monitor red ~1 h after the expected time.

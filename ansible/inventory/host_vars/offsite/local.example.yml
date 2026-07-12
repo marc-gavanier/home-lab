@@ -1,0 +1,27 @@
+# =============================================================================
+# Offsite Pi — local overrides. Copy to local.yml, fill in, then encrypt:
+#   ansible-vault encrypt inventory/host_vars/offsite/local.yml
+# local.yml is gitignored — secrets stay local.
+# =============================================================================
+
+# --- Connection ---
+ansible_user: pi # The admin user created at flash time
+
+# --- rest-server ---
+# HTTP basic-auth password the homelab uses to reach rest-server.
+# Generate: openssl rand -base64 24
+rest_server_auth_password: ""
+
+# --- WireGuard ---
+# Full client configuration downloaded from wg-easy (client "offsite-backup").
+# Contains the client private key — treat like any password.
+offsite_wg_conf: |
+  [Interface]
+  PrivateKey = ...
+  Address = 10.8.0.x/24
+  ...
+
+# --- Monitoring ---
+# Uptime Kuma "Push" monitor URL for the weekly disk-health report
+# (df + SMART). Empty = disabled.
+offsite_health_kuma_push_url: ""

@@ -90,6 +90,39 @@ restic backup \
     /opt/homelab \
     2>> "$BACKUP_LOG" || { log "ERROR: Restic backup failed"; exit 1; }
 
+# --- Offsite replication (restic copy over WireGuard, ADR-010) ---
+# Runs BEFORE local retention so the snapshot just taken is always copied.
+# An offsite failure (link down, parents' outage) never fails the local
+# backup — it only trips the dedicated Kuma monitor.
+
+notify_offsite() {
+    [ -n "${KUMA_OFFSITE_PUSH_URL:-}" ] || return 0
+    curl -fsS -m 10 --retry 2 -G "$KUMA_OFFSITE_PUSH_URL" \
+        --data-urlencode "status=$1" --data-urlencode "msg=$2" >/dev/null 2>&1 || true
+}
+
+# flock: two concurrent copies to the append-only repo re-upload each other's
+# packs as permanent duplicates (only a manual prune reclaims them — learned
+# the hard way during the 2026-07-12 seed). Same lock file must be used by
+# any manual copy/seed: flock /var/lock/offsite-copy.lock restic copy ...
+if [ -n "${OFFSITE_RESTIC_REPOSITORY:-}" ]; then
+    log "Copying latest snapshot to offsite repo..."
+    if flock -n /var/lock/offsite-copy.lock \
+       env RESTIC_FROM_REPOSITORY="$RESTIC_REPOSITORY" \
+       RESTIC_FROM_PASSWORD="$RESTIC_PASSWORD" \
+       RESTIC_REPOSITORY="$OFFSITE_RESTIC_REPOSITORY" \
+       RESTIC_PASSWORD="$OFFSITE_RESTIC_PASSWORD" \
+       RESTIC_REST_USERNAME="$OFFSITE_REST_USER" \
+       RESTIC_REST_PASSWORD="$OFFSITE_REST_PASSWORD" \
+       restic copy latest 2>> "$BACKUP_LOG"; then
+        log "Offsite copy completed"
+        notify_offsite up "offsite copy completed"
+    else
+        log "WARNING: offsite copy failed (local backup unaffected)"
+        notify_offsite down "offsite copy FAILED — see $BACKUP_LOG"
+    fi
+fi
+
 # --- Retention ---
 
 log "Applying retention policy..."

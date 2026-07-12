@@ -1,0 +1,49 @@
+---
+# =============================================================================
+# Home Lab — Offsite Backup Pi Playbook
+# =============================================================================
+# Provisions the offsite backup target (Pi 4 + SSD): same base hardening as
+# the homelab, plus WireGuard client and rest-server (append-only).
+#
+# Usage:
+#   ansible-playbook playbooks/offsite.yml --limit offsite
+#
+# First run on a fresh flash (SSH still on port 22):
+#   ansible-playbook playbooks/offsite.yml --limit offsite -e offsite_ssh_port=22
+# =============================================================================
+
+- name: Provision Offsite Backup Pi
+  hosts: offsite
+  become: true
+
+  pre_tasks:
+    - name: Wait for system to be reachable
+      ansible.builtin.wait_for_connection:
+        timeout: 60
+
+    - name: Gather facts
+      ansible.builtin.setup:
+
+  roles:
+    - role: base
+      tags: [base]
+
+    - role: security
+      tags: [security]
+
+    - role: offsite-backup
+      tags: [offsite-backup]
+
+  post_tasks:
+    - name: Display completion message
+      ansible.builtin.debug:
+        msg: |
+          =============================================
+          Offsite backup Pi provisioned!
+
+          rest-server: {{ offsite_wg_ip }}:{{ rest_server_port }} (append-only,
+          reachable from the homelab WireGuard IP only)
+
+          Next: init the repo from the homelab —
+          see knowledge/runbooks/offsite-backup.md
+          =============================================
