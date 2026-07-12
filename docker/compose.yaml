@@ -471,6 +471,11 @@ services:
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     volumes:
       - ./configs/searxng:/etc/searxng
+      # Gerbier branding: recoloured stylesheet (+ optional logo) overlaid on the
+      # stock theme, built by the deploy role (docker/branding/searxng). Read-only.
+      - ./branding/searxng/out/sxng-ltr.min.css:/usr/local/searxng/searx/static/themes/simple/sxng-ltr.min.css:ro
+      - ./branding/searxng/out/sxng-ltr.min.css.br:/usr/local/searxng/searx/static/themes/simple/sxng-ltr.min.css.br:ro
+      - ./branding/searxng/out/sxng-ltr.min.css.gz:/usr/local/searxng/searx/static/themes/simple/sxng-ltr.min.css.gz:ro
     environment:
       SEARXNG_BASE_URL: https://search.${DOMAIN}/
     networks:

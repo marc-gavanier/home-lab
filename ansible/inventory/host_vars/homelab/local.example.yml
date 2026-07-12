@@ -46,6 +46,12 @@ rclone_webdav_pass: ""  # A Nextcloud app-password for rclone WebDAV access
 
 # --- SearXNG (private metasearch) ---
 searxng_secret_key: ""  # openssl rand -hex 32
+# Opt-in Gerbier theme. false (default) = stock SearXNG; true = apply the dark
+# colour overrides (see docker/branding/searxng).
+searxng_branding: false
+# Optional path (on the control node) to a logo file (.svg or .png), used only
+# when searxng_branding is true. Empty = keep the stock logo.
+searxng_logo: ""
 
 # --- Kill switch (remote poweroff via ntfy) ---
 killswitch_ntfy_topic: ""  # long random topic, e.g. `openssl rand -hex 16` (acts as a secret)
