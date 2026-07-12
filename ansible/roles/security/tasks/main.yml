@@ -59,47 +59,15 @@
     proto: tcp
     comment: SSH
 
-- name: Allow HTTP through UFW
+# Per-host service ports — defined in host_vars/<host>/main.yml
+- name: Allow service ports through UFW
   community.general.ufw:
     rule: allow
-    port: "80"
-    proto: tcp
-    comment: HTTP (Traefik)
-
-- name: Allow HTTPS through UFW
-  community.general.ufw:
-    rule: allow
-    port: "443"
-    proto: tcp
-    comment: HTTPS (Traefik)
-
-- name: Allow WireGuard through UFW
-  community.general.ufw:
-    rule: allow
-    port: "51820"
-    proto: udp
-    comment: WireGuard VPN
-
-- name: Allow BitTorrent (TCP) through UFW
-  community.general.ufw:
-    rule: allow
-    port: "51413"
-    proto: tcp
-    comment: BitTorrent peer (Transmission)
-
-- name: Allow BitTorrent (UDP) through UFW
-  community.general.ufw:
-    rule: allow
-    port: "51413"
-    proto: udp
-    comment: BitTorrent peer (Transmission, µTP/DHT)
-
-- name: Allow DNS from LAN for Pi-hole
-  community.general.ufw:
-    rule: allow
-    port: "53"
-    from_ip: 192.168.1.0/24
-    comment: DNS (Pi-hole, LAN only)
+    port: "{{ item.port }}"
+    proto: "{{ item.proto | default('tcp') }}"
+    from_ip: "{{ item.from_ip | default('any') }}"
+    comment: "{{ item.comment | default(omit) }}"
+  loop: "{{ ufw_service_rules | default([]) }}"
 
 - name: Enable UFW
   community.general.ufw:
@@ -157,4 +125,10 @@
       - lynis
       - rkhunter
     state: present
+
+# Apply the SSH port change NOW, not at end of play: if a later role fails,
+# handlers never run and the box is left with sshd on the old port behind a
+# UFW that only allows the new one — a guaranteed lockout (bitten 2026-07-12).
+- name: Flush handlers so sshd matches UFW before later roles run
+  ansible.builtin.meta: flush_handlers
 

@@ -121,6 +121,20 @@
   when: "'cgroup_memory=1' not in (cmdline_content.content | b64decode)"
   notify: Reboot required
 
+# --- Thermostatic case fan (kernel gpio-fan overlay) ---
+# Same mechanism raspi-config uses on Raspberry Pi OS: the kernel switches
+# the fan GPIO at the temperature threshold (hysteresis ~5°C). No daemon,
+# no userspace. Set gpio_fan_pin/gpio_fan_temp in host_vars (52Pi ICE Tower
+# NAS case: pin 14, 60°C per the vendor wiki).
+
+- name: Configure thermostatic fan control
+  ansible.builtin.lineinfile:
+    path: /boot/firmware/config.txt
+    regexp: '^dtoverlay=gpio-fan'
+    line: "dtoverlay=gpio-fan,gpiopin={{ gpio_fan_pin }},temp={{ gpio_fan_temp | default(60) * 1000 }}"
+  when: gpio_fan_pin is defined
+  notify: Reboot required
+
 # --- Disable the UART serial console ---
 # The GPIO header (pins 8/10) exposed a login getty where PASSWORD auth works —
 # bypassing the SSH key-only rule with a 2€ USB-TTL adapter — plus kernel boot
@@ -152,6 +166,8 @@
     masked: true
 
 # --- Free port 53 for Pi-hole ---
+# Only on hosts that run Pi-hole (free_port_53: false on the offsite host,
+# which keeps the stock systemd-resolved setup).
 
 - name: Disable systemd-resolved stub DNS listener
   ansible.builtin.lineinfile:
@@ -159,6 +175,7 @@
     regexp: '^#?DNSStubListener='
     line: 'DNSStubListener=no'
   notify: Restart systemd-resolved
+  when: free_port_53 | default(true)
 
 - name: Point resolv.conf to upstream DNS temporarily
   ansible.builtin.copy:
@@ -167,3 +184,4 @@
       nameserver 1.1.1.1
       nameserver 8.8.8.8
     mode: "0644"
+  when: free_port_53 | default(true)

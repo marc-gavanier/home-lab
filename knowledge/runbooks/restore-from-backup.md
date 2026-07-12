@@ -65,7 +65,8 @@ docker exec -i immich-db psql -U immich immich \
 1. **Re-provision the OS** with Ansible (the OS isn't backed up — it's reproducible): flash
    Ubuntu, then `ansible-playbook playbooks/site.yml`. The LUKS disk is passphrase-based and
    hardware-independent.
-2. **Point Restic at the repo** (local on `/mnt/data`, or the offsite repo) and restore data:
+2. **Point Restic at the repo** (local on `/mnt/data`, or the offsite repo — see
+   `offsite-backup.md` when the homelab itself is lost) and restore data:
    ```bash
    restic restore latest --target / --include /mnt/data/services --include /mnt/data/media
    ```

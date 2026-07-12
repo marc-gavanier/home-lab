@@ -64,3 +64,13 @@ restic_password: ""
 # Create the push monitor + attach a notification: see
 # knowledge/runbooks/backup-monitoring.md
 backup_kuma_push_url: ""
+
+# --- Offsite backup (ADR-010) ---
+# Password of the OFFSITE restic repo — distinct from restic_password.
+# CRITICAL: keep a copy OUTSIDE the homelab (paper / offline), it is the key
+# to disaster recovery when the homelab itself is lost. Empty = offsite
+# replication disabled.
+offsite_restic_password: ""
+# Dedicated Kuma push monitors (empty = disabled):
+offsite_copy_kuma_push_url: ""   # nightly restic copy (dead-man's switch)
+offsite_check_kuma_push_url: ""  # weekly offsite repo check

@@ -1,0 +1,213 @@
+---
+# =============================================================================
+# Role: offsite-backup — Restic rest-server target on the offsite Pi
+# =============================================================================
+# Design (ADR-010):
+#   - rest-server runs append-only: the homelab can write but never delete.
+#   - No LUKS and NO repo password on this host — restic encryption protects
+#     the data at rest; a stolen Pi/SSD yields only ciphertext.
+#   - Retention/prune is a documented manual procedure; the weekly deep
+#     `restic check` runs FROM the homelab (which holds the repo password).
+
+# --- USB-SATA bridge quirk ---
+# Some bridges (ASMedia ASM1153 in the 52Pi tower) corrupt writes in UAS
+# mode on the Pi. usb_storage_quirks (host_vars) forces plain usb-storage.
+
+- name: Read cmdline.txt
+  ansible.builtin.slurp:
+    src: /boot/firmware/cmdline.txt
+  register: offsite_cmdline
+  when: usb_storage_quirks is defined
+
+- name: Disable UAS for the USB-SATA bridge
+  ansible.builtin.lineinfile:
+    path: /boot/firmware/cmdline.txt
+    backrefs: true
+    regexp: '^(.*?)(\s*)$'
+    line: '\1 usb-storage.quirks={{ usb_storage_quirks }}\2'
+  when:
+    - usb_storage_quirks is defined
+    - "('usb-storage.quirks=' ~ usb_storage_quirks) not in (offsite_cmdline.content | b64decode)"
+  register: offsite_quirk_added
+
+- name: Reboot to apply the storage quirk (must precede any disk write)
+  ansible.builtin.reboot:
+    reboot_timeout: 300
+  when: offsite_quirk_added is changed
+
+# --- Backup disk (ext4, no LUKS) ---
+
+- name: Read current filesystem type on the backup disk
+  ansible.builtin.command: blkid -o value -s TYPE {{ backup_disk_device }}
+  register: backup_disk_fstype
+  changed_when: false
+  failed_when: false # rc=2 when the partition has no filesystem yet
+
+- name: Refuse to overwrite an unexpected filesystem
+  ansible.builtin.fail:
+    msg: >-
+      {{ backup_disk_device }} carries a '{{ backup_disk_fstype.stdout }}'
+      filesystem. Set offsite_disk_force_format=true (one run) to format it.
+  when:
+    - backup_disk_fstype.stdout not in ['', 'ext4']
+    - not offsite_disk_force_format
+
+- name: Create ext4 filesystem on the backup disk
+  community.general.filesystem:
+    fstype: ext4
+    dev: "{{ backup_disk_device }}"
+    force: "{{ offsite_disk_force_format }}"
+
+- name: Read backup disk UUID
+  ansible.builtin.command: blkid -o value -s UUID {{ backup_disk_device }}
+  register: backup_disk_uuid
+  changed_when: false
+
+- name: Mount backup disk
+  ansible.posix.mount:
+    path: "{{ backup_mount_point }}"
+    src: "UUID={{ backup_disk_uuid.stdout }}"
+    fstype: ext4
+    opts: defaults,noatime,nofail
+    state: mounted
+
+# --- rest-server ---
+
+- name: Create rest-server system user
+  ansible.builtin.user:
+    name: rest-server
+    system: true
+    shell: /usr/sbin/nologin
+    create_home: false
+
+- name: Create restic data directory
+  ansible.builtin.file:
+    path: "{{ rest_server_data_dir }}"
+    state: directory
+    owner: rest-server
+    group: rest-server
+    mode: "0750"
+
+- name: Check installed rest-server version
+  ansible.builtin.command: /usr/local/bin/rest-server --version
+  register: rest_server_installed
+  changed_when: false
+  failed_when: false
+
+- name: Download and extract rest-server {{ rest_server_version }}
+  ansible.builtin.unarchive:
+    src: "https://github.com/restic/rest-server/releases/download/v{{ rest_server_version }}/rest-server_{{ rest_server_version }}_linux_arm64.tar.gz"
+    dest: /tmp
+    remote_src: true
+  when: rest_server_version not in (rest_server_installed.stdout | default(''))
+
+- name: Install rest-server binary
+  ansible.builtin.copy:
+    src: "/tmp/rest-server_{{ rest_server_version }}_linux_arm64/rest-server"
+    dest: /usr/local/bin/rest-server
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0755"
+  when: rest_server_version not in (rest_server_installed.stdout | default(''))
+  notify: Restart rest-server
+
+- name: Install passlib for htpasswd management
+  ansible.builtin.apt:
+    name: python3-passlib
+    state: present
+
+- name: Configure rest-server basic-auth credentials
+  community.general.htpasswd:
+    path: "{{ rest_server_data_dir }}/.htpasswd"
+    name: "{{ rest_server_auth_user }}"
+    password: "{{ rest_server_auth_password }}"
+    hash_scheme: bcrypt
+    owner: rest-server
+    group: rest-server
+    mode: "0600"
+  notify: Restart rest-server
+
+- name: Install rest-server systemd unit
+  ansible.builtin.template:
+    src: rest-server.service.j2
+    dest: /etc/systemd/system/rest-server.service
+    mode: "0644"
+  notify: Restart rest-server
+
+- name: Enable and start rest-server
+  ansible.builtin.systemd:
+    name: rest-server
+    enabled: true
+    state: started
+    daemon_reload: true
+
+# --- WireGuard client (outbound tunnel to the homelab wg-easy) ---
+
+- name: Install WireGuard
+  ansible.builtin.apt:
+    name: wireguard
+    state: present
+
+- name: Write WireGuard client configuration
+  ansible.builtin.copy:
+    content: "{{ offsite_wg_conf }}"
+    dest: /etc/wireguard/wg0.conf
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart WireGuard
+
+- name: Enable and start WireGuard tunnel
+  ansible.builtin.systemd:
+    name: wg-quick@wg0
+    enabled: true
+    state: started
+
+# --- Reach Uptime Kuma through the tunnel ---
+# Once offsite, services.<domain> resolves publicly and Traefik rejects
+# non-VPN sources — the Kuma push would 403. Pin it to the homelab host's
+# VPN address (Traefik listens on all host interfaces), NOT its LAN IP:
+# routing the homelab LAN IP into the tunnel breaks any direct-LAN traffic
+# while the Pi is prepared at home (bitten during the seed, 2026-07-12).
+# Same cloud-init-template pattern as the homelab's own pin.
+
+- name: Pin services domain in the cloud-init hosts template (persists across reboots)
+  ansible.builtin.lineinfile:
+    path: /etc/cloud/templates/hosts.debian.tmpl
+    regexp: ' services\.{{ domain | regex_escape }}$'
+    line: "{{ homelab_wg_ip }} services.{{ domain }}"
+    state: present
+
+- name: Pin services domain in /etc/hosts now (immediate, until next cloud-init run)
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: ' services\.{{ domain | regex_escape }}$'
+    line: "{{ homelab_wg_ip }} services.{{ domain }}"
+    state: present
+
+# --- Weekly disk-health report (df + SMART → Uptime Kuma push) ---
+# The repo password never lives here, so restic checks run from the homelab;
+# this host only reports what it can see without the password.
+
+- name: Install disk-health report script
+  ansible.builtin.template:
+    src: offsite-health.sh.j2
+    dest: /usr/local/bin/offsite-health.sh
+    mode: "0750"
+
+- name: Install disk-health service and timer
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: /etc/systemd/system/{{ item }}
+    mode: "0644"
+  loop:
+    - offsite-health.service
+    - offsite-health.timer
+
+- name: Enable disk-health timer
+  ansible.builtin.systemd:
+    name: offsite-health.timer
+    enabled: true
+    state: started
+    daemon_reload: true

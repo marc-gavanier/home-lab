@@ -1,0 +1,13 @@
+# =============================================================================
+# Homelab host variables (non-secret — secrets live in local.yml)
+# =============================================================================
+
+# --- Firewall ---
+# Service ports opened by the security role (SSH is always allowed separately).
+ufw_service_rules:
+  - { port: "80", proto: tcp, comment: "HTTP (Traefik)" }
+  - { port: "443", proto: tcp, comment: "HTTPS (Traefik)" }
+  - { port: "51820", proto: udp, comment: "WireGuard VPN" }
+  - { port: "51413", proto: tcp, comment: "BitTorrent peer (Transmission)" }
+  - { port: "51413", proto: udp, comment: "BitTorrent peer (Transmission, µTP/DHT)" }
+  - { port: "53", from_ip: "192.168.1.0/24", comment: "DNS (Pi-hole, LAN only)" }

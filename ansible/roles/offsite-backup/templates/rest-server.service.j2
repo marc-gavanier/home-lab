@@ -1,0 +1,32 @@
+[Unit]
+Description=Restic REST server (append-only backup target)
+After=network-online.target
+Wants=network-online.target
+RequiresMountsFor={{ backup_mount_point }}
+
+[Service]
+User=rest-server
+Group=rest-server
+# Append-only: the homelab can create snapshots but never delete data
+# (lock files excepted). Prune is a manual, on-site procedure — see
+# knowledge/runbooks/offsite-backup.md.
+ExecStart=/usr/local/bin/rest-server \
+    --listen :{{ rest_server_port }} \
+    --path {{ rest_server_data_dir }} \
+    --htpasswd-file {{ rest_server_data_dir }}/.htpasswd \
+    --append-only
+Restart=on-failure
+RestartSec=10
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths={{ rest_server_data_dir }}
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target
