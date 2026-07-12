@@ -22,3 +22,7 @@ Thumbs.db
 
 # Hook artifacts
 .remember/
+
+# SearXNG branding — generated assets and the brand logo stay out of the (public) repo
+docker/branding/searxng/out/
+docker/branding/searxng/logo.*

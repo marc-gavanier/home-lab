@@ -1,0 +1,210 @@
+/* ==========================================================================
+   SearXNG — Gerbier branding (dark, single look)
+   --------------------------------------------------------------------------
+   Appended to the stock compiled `sxng-ltr.min.css` by build-branding.sh.
+   RECOLOR ONLY: we reassign the theme's --color-* custom properties, we do
+   NOT target structural classes — so an upstream upgrade can, at worst, leave
+   a colour slightly off (cosmetic), never break the layout.
+
+   Values come from the Gerbier design system (dark semantic + search roles):
+     Storage/Notes/Ressources/Thème Gerbier
+   Overridden on every theme scope (:root + .theme-auto/dark/black) so the
+   Gerbier dark look shows regardless of the user's style/system preference —
+   which also guarantees the white logo always sits on a dark background.
+   ========================================================================== */
+
+:root,
+:root.theme-auto,
+:root.theme-dark,
+:root.theme-black {
+  /* --- base ------------------------------------------------------------- */
+  --color-base-font: #ffffff;                 /* text            neutral-white */
+  --color-base-font-rgb: 255, 255, 255;
+  --color-base-background: #111111;           /* search.bg       black-900  */
+  --color-base-background-mobile: #111111;
+
+  /* --- links / urls ----------------------------------------------------- */
+  --color-url-font: #e8c273;                  /* search.url      yellow-500 */
+  --color-url-visited-font: #6f6fae;          /* search.visited  indigo-700 */
+
+  /* --- header / footer / sidebar --------------------------------------- */
+  --color-header-background: #1f1f1f;          /* search.header  black-800  */
+  --color-header-border: #4b4b4b;             /* border         black-500  */
+  --color-footer-background: #1f1f1f;
+  --color-footer-border: #4b4b4b;
+  --color-sidebar-border: #4b4b4b;
+  --color-sidebar-font: #f8f8f8;
+  --color-sidebar-background: #1f1f1f;
+  --color-backtotop-font: #f8f8f8;
+  --color-backtotop-border: #4b4b4b;
+  --color-backtotop-background: #1f1f1f;
+
+  /* --- buttons ---------------------------------------------------------- */
+  --color-btn-background: #2e2e2e;            /* neutral        black-700 (was violet) */
+  --color-btn-font: #ffffff;
+  --color-show-btn-background: #2e2e2e;       /* surface        black-700   */
+  --color-show-btn-font: #f8f8f8;
+
+  /* --- search box ------------------------------------------------------- */
+  --color-search-border: #4b4b4b;
+  --color-search-shadow: #111111;
+  --color-search-background: #2e2e2e;         /* distinct from header  black-700 */
+  --color-search-font: #f8f8f8;
+  --color-search-background-hover: #3c3c3c;
+
+  /* --- states ----------------------------------------------------------- */
+  --color-error: #df7e7e;                     /* danger         red-300     */
+  --color-error-background: #2e2e2e;
+  --color-warning: #efd69f;                   /* warning        yellow-300  */
+  --color-warning-background: #2e2e2e;
+  --color-success: #97b882;                   /* success        green-300   */
+  --color-success-background: #2e2e2e;
+
+  /* --- categories / autocomplete --------------------------------------- */
+  --color-categories-item-selected-font: #ffffff;   /* white text, no violet */
+  --color-categories-item-border-selected: #ffffff; /* white underline        */
+  --color-autocomplete-font: #f8f8f8;
+  --color-autocomplete-border: #4b4b4b;
+  --color-autocomplete-shadow: #111111;
+  --color-autocomplete-background: #1f1f1f;
+  --color-autocomplete-background-hover: #2e2e2e;
+
+  /* --- answers ---------------------------------------------------------- */
+  --color-answer-font: #f8f8f8;
+  --color-answer-background: #1f1f1f;
+
+  /* --- results ---------------------------------------------------------- */
+  --color-result-keyvalue-col-table: #4b4b4b;
+  --color-result-keyvalue-odd: #1f1f1f;
+  --color-result-keyvalue-even: #111111;
+  --color-result-background: #111111;
+  --color-result-border: #2e2e2e;
+  --color-result-url-font: #e8c273;           /* search.url      yellow-500 */
+  --color-result-vim-selected: #2e2e2e;
+  --color-result-vim-arrow: #858585;                 /* neutral grey, was violet */
+  --color-result-description-highlight-font: #ffffff;/* white, was yellow        */
+  --color-result-link-font: #6fa0c6;          /* search.title    blue-500   */
+  --color-result-link-font-highlight: #95b9d5;/* blue-300                   */
+  --color-result-link-visited-font: #6f6fae;  /* search.visited  indigo-700 */
+  --color-result-publishdate-font: #a2a2a2;   /* text-muted      white-700  */
+  --color-result-engines-font: #a2a2a2;
+  --color-result-search-url-border: #4b4b4b;
+  --color-result-search-url-font: #e8c273;
+  --color-result-image-span-font: #f8f8f8;
+  --color-result-image-span-font-selected: #ffffff;
+  --color-result-image-background: #1f1f1f;
+
+  /* --- result detail (media/answers panel) ----------------------------- */
+  --color-result-detail-font: #f8f8f8;
+  --color-result-detail-label-font: #a2a2a2;
+  --color-result-detail-background: #1f1f1f;
+  --color-result-detail-hr: #4b4b4b;
+  --color-result-detail-link: #6fa0c6;
+  --color-result-detail-loader-border: #4b4b4b;
+  --color-result-detail-loader-borderleft: #6fa0c6;
+
+  /* --- settings --------------------------------------------------------- */
+  --color-settings-tr-hover: #2e2e2e;
+  --color-settings-engine-description-font: #a2a2a2;
+  --color-settings-table-group-background: #1f1f1f;
+
+  /* --- toolkit (badges, kbd, dialogs, selects, checkboxes, tooltips) ---- */
+  --color-toolkit-badge-font: #ffffff;
+  --color-toolkit-badge-background: #2e2e2e;
+  --color-toolkit-kbd-font: #f8f8f8;
+  --color-toolkit-kbd-background: #2e2e2e;
+  --color-toolkit-dialog-border: #4b4b4b;
+  --color-toolkit-dialog-background: #1f1f1f;
+  --color-toolkit-tabs-label-border: #4b4b4b;
+  --color-toolkit-tabs-section-border: #4b4b4b;
+  --color-toolkit-select-background: #1f1f1f;
+  --color-toolkit-select-border: #4b4b4b;
+  --color-toolkit-select-background-hover: #2e2e2e;
+  --color-toolkit-input-text-font: #f8f8f8;
+  --color-toolkit-checkbox-onoff-off-background: #4b4b4b;
+  --color-toolkit-checkbox-onoff-on-background: #6fa0c6;
+  --color-toolkit-checkbox-onoff-on-mark-background: #ffffff;
+  --color-toolkit-checkbox-onoff-on-mark-color: #6fa0c6;
+  --color-toolkit-checkbox-onoff-off-mark-background: #ffffff;
+  --color-toolkit-checkbox-onoff-off-mark-color: #4b4b4b;
+  --color-toolkit-checkbox-label-background: #1f1f1f;
+  --color-toolkit-checkbox-label-border: #4b4b4b;
+  --color-toolkit-checkbox-input-border: #4b4b4b;
+  --color-toolkit-engine-tooltip-border: #4b4b4b;
+  --color-toolkit-engine-tooltip-background: #1f1f1f;
+  --color-toolkit-loader-border: #4b4b4b;
+  --color-toolkit-loader-borderleft: #6fa0c6;
+
+  /* --- misc (code, charts, images, loader, favicons) ------------------- */
+  --color-doc-code: #e8c273;
+  --color-doc-code-background: #1f1f1f;
+  --color-bar-chart-primary: #6fa0c6;
+  --color-bar-chart-secondary: #95b9d5;
+  --color-image-resolution-background: #1f1f1f;
+  --color-image-resolution-font: #f8f8f8;
+  --color-loading-indicator: #6fa0c6;
+  --color-loading-indicator-gap: #2e2e2e;
+  --color-line-number: #a2a2a2;
+  --color-favicon-background-color: #1f1f1f;
+  --color-favicon-border-color: #4b4b4b;
+}
+
+/* --- structural tweaks (beyond recolor) -----------------------------------
+   Icon-only top nav: hide the "About" / "Preferences" text labels, keep the
+   icons. Targets stable ids/classes — if a future theme renames them the labels
+   simply reappear (cosmetic), nothing breaks. */
+#links_on_top a span { display: none; }
+
+/* Hide the small logo in the results-page header. */
+#search_logo { display: none; }
+
+/* search_filters selects: keep appearance:none and draw our own chevron so we
+   control its spacing (the native arrow ignores padding-right). Distinct dark
+   background + border, with a right gap and matching padding-right for the arrow. */
+/* More breathing room under the category buttons. The theme sets
+   `.category_button{padding:1rem!important}`, so we need !important + a more
+   specific selector (button.category_button) to win. */
+button.category_button { padding-bottom: 0.75rem !important; }
+
+.search_filters select {
+  appearance: none;
+  background-color: #111111;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-origin: border-box;
+  background-position: right 0.6rem center;
+  background-size: 0.75rem;
+  border: 1px solid #2e2e2e;
+  border-radius: 5px;
+  padding: 0.2rem 1.75rem 0.2rem 0.75rem !important; /* beat the theme's select{padding:.2rem!important} */
+}
+
+/* sidebar collapsibles: swap the ugly native <summary> triangle for a clean
+   custom chevron (consistent with the filter selects), rotating when open. */
+#sidebar .sidebar-collapsible summary.title {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+#sidebar .sidebar-collapsible summary.title::-webkit-details-marker { display: none; }
+#sidebar .sidebar-collapsible summary.title::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 0.7rem;
+  height: 0.7rem;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 6l6 6-6 6'/%3E%3C/svg%3E") no-repeat center / contain;
+  transition: transform 0.15s ease;
+}
+#sidebar .sidebar-collapsible[open] summary.title::before { transform: rotate(90deg); }
+
+/* Hide the footer (powered-by / links) on every page. */
+footer { display: none; }
+
+/* With the footer gone, give the content some breathing room at the bottom. */
+main { padding-bottom: 3rem; }
+
+/* The optional logo override (an `.index .title` rule with a data-URI background)
+   is appended after this block by build-branding.sh, and ONLY when a logo path is
+   provided. With no logo configured, nothing is added and the stock SearXNG
+   logo is kept untouched. */

@@ -14,3 +14,7 @@ search:
 
 ui:
   default_locale: "fr"
+  # Force the dark style so theme-dependent assets (e.g. select arrows) match the
+  # Gerbier dark branding applied via docker/branding/searxng.
+  theme_args:
+    simple_style: dark
