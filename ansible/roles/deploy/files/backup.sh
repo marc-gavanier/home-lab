@@ -81,12 +81,16 @@ fi
 # --- Restic backup ---
 
 log "Running restic backup..."
+# /mnt/data/secrets holds the credential files (.env, backup.env, wg0.conf…)
+# whose /opt/homelab entries are now symlinks — restic stores symlinks as
+# links, so the real directory must be listed for DR to restore the secrets.
 restic backup \
     --verbose \
     --tag auto \
     /mnt/data/services \
     /mnt/data/media \
     /mnt/data/backups/dumps \
+    /mnt/data/secrets \
     /opt/homelab \
     2>> "$BACKUP_LOG" || { log "ERROR: Restic backup failed"; exit 1; }
 

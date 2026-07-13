@@ -15,7 +15,8 @@ Mirrors exactly what `ansible/roles/deploy/files/backup.sh` does (keep this tabl
 | Service data & configs | `/mnt/data/services` (Nextcloud files, Vaultwarden, Immich uploads, Jellyfin/Navidrome config…) | Restic        | Daily     |
 | **Media originals**    | `/mnt/data/media` (photos, music, videos)                                                       | Restic        | Daily     |
 | Databases              | Nextcloud (MariaDB) + Immich (PostgreSQL) dumps → `/mnt/data/backups/dumps`                     | dump → Restic | Daily     |
-| Stack config           | `/opt/homelab` (compose, `.env`, scripts)                                                       | Restic        | Daily     |
+| Stack config           | `/opt/homelab` (compose, scripts)                                                               | Restic        | Daily     |
+| Secrets (ADR-011)      | `/mnt/data/secrets` (`.env`, `backup.env`, `wg0.conf`… — `/opt/homelab` entries are symlinks)   | Restic        | Daily     |
 
 > The OS itself is **not** backed up — it is reproducible from scratch via Ansible (IaC).
 

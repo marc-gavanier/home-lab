@@ -14,16 +14,32 @@
     key: "{{ ansible_user }}"
 
 # --- Hash WireGuard password (wg-easy needs bcrypt) ---
+# bcrypt salts are random: rehashing every run would rewrite .env every run.
+# Keep the deployed hash when it still matches the vault password.
 
 - name: Install python3-bcrypt on Pi
   ansible.builtin.apt:
     name: python3-bcrypt
     state: present
 
-- name: Generate WireGuard bcrypt hash
+- name: Read deployed WireGuard password hash (idempotence)
+  ansible.builtin.shell: >-
+    grep -oP '(?<=^WG_PASSWORD_HASH=).*' /mnt/data/secrets/homelab.env
+    2>/dev/null | sed 's/\$\$/$/g' || true
+  register: wg_hash_current
+  changed_when: false
+  no_log: true
+
+- name: Generate WireGuard bcrypt hash (stable while the password is unchanged)
   ansible.builtin.command:
-    cmd: python3 -c "import sys, bcrypt; pwd = sys.stdin.buffer.readline().rstrip(b'\n'); print(bcrypt.hashpw(pwd, bcrypt.gensalt()).decode())"
-    stdin: "{{ wg_password }}"
+    cmd: >-
+      python3 -c "import os, bcrypt;
+      pwd = os.environ['P'].encode(); cur = os.environ['C'].encode();
+      ok = cur.startswith(b'$2') and len(cur) == 60 and bcrypt.checkpw(pwd, cur);
+      print(cur.decode() if ok else bcrypt.hashpw(pwd, bcrypt.gensalt()).decode())"
+  environment:
+    P: "{{ wg_password }}"
+    C: "{{ wg_hash_current.stdout | default('') }}"
   register: wg_hash_result
   changed_when: false
   no_log: true
@@ -64,6 +80,38 @@
     group: docker
     mode: "0750"
 
+# --- Secrets directory (encrypted volume) ---
+# Credential-bearing files live on /mnt/data (LUKS), never on the SD card: a
+# stolen or copied SD must yield no secrets. The historical paths under
+# /opt/homelab become symlinks, so scripts, systemd units and docs are
+# unchanged — and everything consuming them only runs after homelab-unlock
+# mounts /mnt/data anyway. Mode 0711: traverse-only, per-file ownership.
+
+- name: Create secrets directory on the encrypted volume
+  ansible.builtin.file:
+    path: /mnt/data/secrets
+    state: directory
+    owner: root
+    group: root
+    mode: "0711"
+
+# The operator's personal rclone remote (Nextcloud WebDAV) also keeps its
+# config off the SD card; the conf itself is user data, only its location is
+# managed here.
+- name: Create operator secrets directory on the encrypted volume
+  ansible.builtin.file:
+    path: /mnt/data/secrets/{{ ansible_user }}
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0700"
+
+- name: Point the operator rclone config at the encrypted volume
+  ansible.builtin.lineinfile:
+    path: /home/{{ ansible_user }}/.bashrc
+    regexp: '^export RCLONE_CONFIG='
+    line: export RCLONE_CONFIG=/mnt/data/secrets/{{ ansible_user }}/rclone.conf
+
 - name: Copy Docker Compose file
   ansible.builtin.copy:
     src: "{{ playbook_dir }}/../../docker/compose.yaml"
@@ -72,22 +120,49 @@
     group: docker
     mode: "0640"
 
-- name: Template environment file
+- name: Template environment file (encrypted volume)
   ansible.builtin.template:
     src: env.j2
-    dest: /opt/homelab/.env
+    dest: /mnt/data/secrets/homelab.env
     owner: "{{ ansible_user }}"
     group: docker
     mode: "0600"
 
-- name: Copy service configurations
+- name: Link /opt/homelab/.env to the encrypted volume
+  ansible.builtin.file:
+    src: /mnt/data/secrets/homelab.env
+    dest: /opt/homelab/.env
+    state: link
+
+# Only Traefik's dynamic configs are copied verbatim — every other file under
+# docker/configs/ is rendered by a dedicated template task below. Copying the
+# raw tree over the rendered files made every deploy report changes (and
+# fought the SearXNG settings symlink).
+- name: Create service configuration directories
+  ansible.builtin.file:
+    path: /opt/homelab/configs/{{ item }}
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: docker
+    mode: "0750"
+  loop:
+    - traefik/dynamic
+    - pihole
+
+# No ownership managed: the SearXNG container chowns this directory to its
+# own UID at startup — forcing it back would flap on every run.
+- name: Create SearXNG configuration directory
+  ansible.builtin.file:
+    path: /opt/homelab/configs/searxng
+    state: directory
+
+- name: Copy Traefik dynamic configuration
   ansible.builtin.copy:
-    src: "{{ playbook_dir }}/../../docker/configs/"
-    dest: /opt/homelab/configs/
+    src: "{{ playbook_dir }}/../../docker/configs/traefik/dynamic/"
+    dest: /opt/homelab/configs/traefik/dynamic/
     owner: "{{ ansible_user }}"
     group: docker
     mode: "0640"
-    directory_mode: "0750"
 
 - name: Template Traefik static config (resolve variables)
   ansible.builtin.template:
@@ -107,13 +182,22 @@
     mode: "0640"
   notify: Restart pihole
 
+# settings.yml embeds secret_key → encrypted volume + symlink (the compose
+# bind-mount resolves the symlink when the container is created)
 - name: Template SearXNG settings (resolve secret_key + base_url)
   ansible.builtin.template:
     src: "{{ playbook_dir }}/../../docker/configs/searxng/settings.yml"
-    dest: /opt/homelab/configs/searxng/settings.yml
+    dest: /mnt/data/secrets/searxng-settings.yml
     owner: "{{ ansible_user }}"
     group: docker
     mode: "0640"
+
+- name: Link SearXNG settings to the encrypted volume
+  ansible.builtin.file:
+    src: /mnt/data/secrets/searxng-settings.yml
+    dest: /opt/homelab/configs/searxng/settings.yml
+    state: link
+    force: true
 
 - name: Ensure Docker networks exist
   community.docker.docker_network:
@@ -364,13 +448,20 @@
     group: root
     mode: "0750"
 
-- name: Template backup environment file
+- name: Template backup environment file (encrypted volume)
   ansible.builtin.template:
     src: backup.env.j2
-    dest: /opt/homelab/backup.env
+    dest: /mnt/data/secrets/backup.env
     owner: root
     group: root
     mode: "0600"
+
+- name: Link /opt/homelab/backup.env to the encrypted volume
+  ansible.builtin.file:
+    src: /mnt/data/secrets/backup.env
+    dest: /opt/homelab/backup.env
+    state: link
+    force: true
 
 # backup.sh pings Uptime Kuma at services.<domain>, which resolves to the public IP from
 # the Pi (DNS hairpin) and is rejected (403) through Traefik. Pin it to the Pi's LAN IP so
@@ -454,21 +545,59 @@
     state: present
   when: homelab_wg_conf is defined
 
-- name: Write host WireGuard client configuration
+# The private key lives on the encrypted volume; /etc/wireguard/wg0.conf is a
+# symlink so wg-quick@wg0 keeps its standard name. The tunnel therefore cannot
+# start before homelab-unlock — mnt-data.mount pulls it in (add-wants) and the
+# drop-in orders it after the mount. It only serves the 03:00 offsite copy, so
+# a post-unlock start loses nothing.
+- name: Write host WireGuard client configuration (encrypted volume)
   ansible.builtin.copy:
     content: "{{ homelab_wg_conf }}"
-    dest: /etc/wireguard/wg0.conf
+    dest: /mnt/data/secrets/wg0.conf
     owner: root
     group: root
     mode: "0600"
   register: homelab_wg_conf_file
   when: homelab_wg_conf is defined
 
-- name: Enable and start host WireGuard tunnel
+- name: Link /etc/wireguard/wg0.conf to the encrypted volume
+  ansible.builtin.file:
+    src: /mnt/data/secrets/wg0.conf
+    dest: /etc/wireguard/wg0.conf
+    state: link
+    force: true
+  when: homelab_wg_conf is defined
+
+- name: Create drop-in directory for the tunnel unit
+  ansible.builtin.file:
+    path: /etc/systemd/system/wg-quick@wg0.service.d
+    state: directory
+    mode: "0755"
+  when: homelab_wg_conf is defined
+
+- name: Order the host tunnel after the encrypted volume mount
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/wg-quick@wg0.service.d/luks.conf
+    mode: "0644"
+    content: |
+      # Config on /mnt/data (secrets never on the SD card) — see deploy role.
+      [Unit]
+      RequiresMountsFor=/mnt/data
+  when: homelab_wg_conf is defined
+
+# No `enabled:` here — the wants-link below makes is-enabled report "enabled",
+# so enabled:false would wipe that very link on every run (bitten 2026-07-13).
+# Nothing enables this unit at boot; only mnt-data.mount pulls it in.
+- name: Start host WireGuard tunnel (boot-time start comes from mnt-data.mount)
   ansible.builtin.systemd:
     name: wg-quick@wg0
-    enabled: true
     state: "{{ homelab_wg_conf_file is changed | ternary('restarted', 'started') }}"
+    daemon_reload: true
+  when: homelab_wg_conf is defined
+- name: Start the tunnel whenever the encrypted volume mounts
+  ansible.builtin.command: systemctl add-wants mnt-data.mount wg-quick@wg0.service
+  args:
+    creates: /etc/systemd/system/mnt-data.mount.wants/wg-quick@wg0.service
   when: homelab_wg_conf is defined
 
 # --- Offsite repo weekly check (ADR-010) ---
@@ -493,7 +622,8 @@
       [Unit]
       Description=Weekly offsite restic repo check
       Wants=network-online.target
-      After=network-online.target
+      Requires=mnt-data.mount
+      After=network-online.target mnt-data.mount
 
       [Service]
       Type=oneshot

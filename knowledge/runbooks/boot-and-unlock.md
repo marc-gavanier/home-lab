@@ -41,6 +41,11 @@ What to expect and do when the Pi comes back up. Design rationale in
    from this point, any USB plug/unplug powers the Pi off — disarm before
    touching cables (see the [usb-tamper runbook](usb-tamper.md)).
 
+   Mounting `/mnt/data` also pulls in the units whose secrets live on the
+   encrypted volume ([ADR-011](../decisions/ADR-011-secrets-off-sd.md)):
+   `wg-quick@wg0` (host tunnel to the offsite Pi) and `vault-mount` (claude's
+   rclone mount). Neither runs before the unlock — that is by design.
+
    The command returns immediately; the orchestrator keeps running its
    health-gated waves in the background (~5–8 min). Follow along:
 
