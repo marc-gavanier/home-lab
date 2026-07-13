@@ -28,7 +28,7 @@ Domain: example.com
 - `docs/` — Structured documentation by domain (markdown)
 - `ansible/` — Ansible playbooks and roles for full provisioning
 - `docker/` — Docker Compose stacks and service configurations
-- `scripts/` — Utility scripts (bootstrap, backup)
+- `ops/` — Operator tools run from the workstation (bootstrap, kuma-dump)
 - `knowledge/` — Knowledge base (ADRs, research, runbooks)
 - `.claude/agents/` — Specialized agents by domain
 

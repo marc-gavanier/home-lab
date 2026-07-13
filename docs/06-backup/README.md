@@ -8,7 +8,7 @@ Chosen for its deduplication, native encryption (AES-256), incremental support, 
 
 ### What to Back Up
 
-Mirrors exactly what `scripts/backup.sh` does (keep this table and the script in sync).
+Mirrors exactly what `ansible/roles/deploy/files/backup.sh` does (keep this table and the script in sync).
 
 | Data                   | Source (host path)                                                                              | Method        | Frequency |
 |------------------------|-------------------------------------------------------------------------------------------------|---------------|-----------|
@@ -44,7 +44,7 @@ Service-by-service restoration procedures will be documented in `knowledge/runbo
 
 ## Automation
 
-- Script: `scripts/backup.sh`
+- Script: `ansible/roles/deploy/files/backup.sh`
 - Scheduling: systemd timer (`homelab-backup.timer`), daily at 03:00
 - Monitoring: Uptime Kuma **Push** monitor (dead-man's switch) — `backup.sh` pings it on
   success/failure, and missed pings turn it red (catches "didn't run at all"). Setup:

@@ -4,7 +4,7 @@
 > Vaultwarden restore to scratch (SQLite integrity OK), Nextcloud dump imported into a throwaway
 > MariaDB container (156 tables). Immich dump header-checked only (PostgreSQL import not drilled).
 
-Backups are made by `scripts/backup.sh` (daily `homelab-backup.timer`) into the Restic repo
+Backups are made by `ansible/roles/deploy/files/backup.sh` (daily `homelab-backup.timer`) into the Restic repo
 at `/mnt/data/backups/restic-repo`. They cover `/mnt/data/services` (service data),
 `/mnt/data/media` (photos/music/videos), the DB dumps, and `/opt/homelab`. See
 `docs/06-backup/README.md`.

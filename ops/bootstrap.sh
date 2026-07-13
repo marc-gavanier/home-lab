@@ -2,7 +2,7 @@
 # =============================================================================
 # bootstrap.sh — Prepare a fresh Ubuntu Server Pi for Ansible
 # =============================================================================
-# Usage: ./scripts/bootstrap.sh <PI_IP> [SSH_USER]
+# Usage: ./ops/bootstrap.sh <PI_IP> [SSH_USER]
 #
 # What this script does:
 #   1. Copies your SSH public key to the Pi

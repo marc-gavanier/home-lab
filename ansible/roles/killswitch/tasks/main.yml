@@ -19,7 +19,7 @@
 
 - name: Deploy the kill switch script
   ansible.builtin.copy:
-    src: "{{ playbook_dir }}/../../scripts/killswitch.sh"
+    src: killswitch.sh
     dest: /usr/local/sbin/killswitch.sh
     owner: root
     group: root

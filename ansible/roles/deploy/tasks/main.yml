@@ -358,7 +358,7 @@
 
 - name: Copy backup script
   ansible.builtin.copy:
-    src: "{{ playbook_dir }}/../../scripts/backup.sh"
+    src: backup.sh
     dest: /opt/homelab/scripts/backup.sh
     owner: root
     group: root
@@ -479,7 +479,7 @@
 
 - name: Copy offsite check script
   ansible.builtin.copy:
-    src: "{{ playbook_dir }}/../../scripts/offsite-check.sh"
+    src: offsite-check.sh
     dest: /opt/homelab/scripts/offsite-check.sh
     owner: root
     group: root
