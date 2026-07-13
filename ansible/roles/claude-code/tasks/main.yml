@@ -91,6 +91,16 @@
     line: "{{ homelab_ip }} drive.{{ domain }}"
     state: present
 
+# The rclone config holds the (reversibly obscured) WebDAV app-password —
+# it lives on the encrypted volume, never on the SD card.
+- name: Create claude secrets directory on the encrypted volume
+  ansible.builtin.file:
+    path: /mnt/data/secrets/claude
+    state: directory
+    owner: claude
+    group: claude
+    mode: "0700"
+
 - name: Configure rclone WebDAV remote for the claude user
   ansible.builtin.command:
     cmd: >
@@ -99,8 +109,15 @@
       vendor=nextcloud user=admin pass={{ rclone_webdav_pass }}
   become: true
   become_user: claude
+  environment:
+    RCLONE_CONFIG: /mnt/data/secrets/claude/rclone.conf
   no_log: true
   changed_when: true
+
+- name: Remove legacy rclone config from the SD card
+  ansible.builtin.file:
+    path: /home/claude/.config/rclone/rclone.conf
+    state: absent
 
 # A FUSE rclone mount owned by `claude` (no allow_other) is unreadable by root,
 # so `mountpoint`/`stat` fail. Detect it via /proc/mounts instead, and only
@@ -203,26 +220,31 @@
     content: |
       [Unit]
       Description=rclone mount of the Nextcloud Notes vault
-      After=network-online.target
+      After=network-online.target mnt-data.mount
       Wants=network-online.target
+      # Config on /mnt/data (secrets never on the SD card): started by
+      # mnt-data.mount (add-wants below), not at boot.
+      RequiresMountsFor=/mnt/data
 
       [Service]
       Type=notify
       User=claude
       Group=claude
+      Environment=RCLONE_CONFIG=/mnt/data/secrets/claude/rclone.conf
       ExecStart=/usr/bin/rclone mount nextcloud:Notes /home/claude/vault \
         --vfs-cache-mode writes --vfs-write-back 2s --dir-cache-time 30s
       ExecStop=/bin/fusermount -u /home/claude/vault
       Restart=on-failure
       RestartSec=10
 
-      [Install]
-      WantedBy=multi-user.target
+- name: Start the vault mount whenever the encrypted volume mounts
+  ansible.builtin.command: systemctl add-wants mnt-data.mount vault-mount.service
+  args:
+    creates: /etc/systemd/system/mnt-data.mount.wants/vault-mount.service
 
-- name: Enable and start the vault mount
+- name: Start the vault mount (boot-time start comes from mnt-data.mount)
   ansible.builtin.systemd:
     name: vault-mount.service
-    enabled: true
     state: started
     daemon_reload: true
 
