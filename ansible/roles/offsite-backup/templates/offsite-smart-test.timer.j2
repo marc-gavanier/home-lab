@@ -1,0 +1,12 @@
+[Unit]
+Description=Monthly SMART long self-test on the backup disk
+
+[Timer]
+# 1st of the month, well after the 03:00 nightly copy; the Sunday 08:00
+# health report picks up the result.
+OnCalendar=*-*-01 04:00
+Persistent=true
+RandomizedDelaySec=15m
+
+[Install]
+WantedBy=timers.target

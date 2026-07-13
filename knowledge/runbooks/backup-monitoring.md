@@ -60,6 +60,12 @@ Deploy after filling the vault variables: same `--start-at-task "Copy backup
 script"` command for the homelab ones; for the offsite Pi:
 `ansible-playbook playbooks/offsite.yml --tags offsite-backup --ask-vault-pass`.
 
+"Offsite health" watches the SMART early-warning counters individually (the
+overall `smartctl -H` verdict stays PASSED until a drive is nearly dead) and
+the result of the monthly long self-test (`offsite-smart-test.timer`, 1st at
+04:00), plus SSD/CPU temperature and Pi undervoltage. See the offsite runbook
+for the exact DOWN conditions.
+
 Note: the offsite Pi reaches Kuma through the WireGuard tunnel:
 `services.<domain>` is pinned to the homelab host's VPN address (10.8.0.5,
 where Traefik also listens) in its cloud-init hosts template (deployed by
