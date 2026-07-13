@@ -82,6 +82,15 @@ if [ -n "$smart_out" ]; then
     selftest=$(awk '/^# 1/ { $1=""; $2=""; print; exit }' <<<"$smart_out" | xargs)
     if [ -n "$selftest" ]; then
         grep -qiE 'fail|aborted' <<<"$selftest" && problems+=("self-test: $selftest")
+        # Dead-man's check on the monthly timer itself: the log stamps each
+        # test in drive power-on hours — compare with attribute 9 so a
+        # silently dead timer surfaces here instead of leaving an eternally
+        # green "Completed without error" from months ago.
+        now_h=$(raw 9)
+        test_h=$(awk '/^# 1/ { for (i = 1; i <= NF; i++) if ($i ~ /%$/) { print $(i + 1); exit } }' <<<"$smart_out")
+        if [ -n "$now_h" ] && [ -n "$test_h" ] && [ $((now_h - test_h)) -gt 840 ]; then
+            problems+=("self-test stale ($(((now_h - test_h) / 24))d ago)")
+        fi
     else
         report+=("no self-test yet")
     fi
