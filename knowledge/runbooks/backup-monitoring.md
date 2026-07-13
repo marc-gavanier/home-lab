@@ -50,10 +50,10 @@ monitor goes red and the notification fires.
 
 Three more push monitors follow the same pattern:
 
-| Monitor | Pinged by | Interval | Vault variable |
-|------------------|--------------------------------------------|--------------|-------------------------------------------------------|
-| Offsite copy | `backup.sh` copy step (homelab, nightly) | 90000 s (25 h) | `offsite_copy_kuma_push_url` (homelab local.yml) |
-| Offsite check | `offsite-check.sh` (homelab, Sunday 06:00) | 700000 s (8 d) | `offsite_check_kuma_push_url` (homelab local.yml) |
+| Monitor        | Pinged by                                      | Interval       | Vault variable                                     |
+|----------------|------------------------------------------------|----------------|----------------------------------------------------|
+| Offsite copy   | `backup.sh` copy step (homelab, nightly)       | 90000 s (25 h) | `offsite_copy_kuma_push_url` (homelab local.yml)   |
+| Offsite check  | `offsite-check.sh` (homelab, Sunday 06:00)     | 700000 s (8 d) | `offsite_check_kuma_push_url` (homelab local.yml)  |
 | Offsite health | `offsite-health.sh` (offsite Pi, Sunday 08:00) | 700000 s (8 d) | `offsite_health_kuma_push_url` (offsite local.yml) |
 
 Deploy after filling the vault variables: same `--start-at-task "Copy backup
