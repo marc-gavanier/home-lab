@@ -164,7 +164,7 @@ cat > ~/.ssh/config << 'EOF'
 Host homelab
     HostName 192.168.1.100
     User pi
-    Port 21202
+    Port <ssh_port_hardened>   # the port set in your vaulted local.yml
     IdentityFile ~/.ssh/id_ed25519
 EOF
 chmod 600 ~/.ssh/config
@@ -310,8 +310,8 @@ All HTTPS services are **VPN/LAN-only** (Traefik `vpn-only` middleware applied g
 - **Encryption**: LUKS on HDD (data) only, not on SD card (OS). No keyfile stored anywhere — passphrase required via SSH after each reboot. Trade-off: requires manual intervention after power loss, but no key material on disk. No crypttab/fstab entries — `systemd-cryptsetup-generator` ignores `noauto` on Ubuntu, so `homelab-unlock` handles everything explicitly.
 - **Fan**: Connected to 5V/GND (pins 4/6), runs at full speed. No software control possible without rewiring to a GPIO pin with transistor.
 - **Telemetry**: Disabled (Canonical telemetry opt-out)
-- **SSH**: Public-key only (ed25519), non-standard port 21202. Not exposed to internet — remote access via WireGuard VPN only.
-- **SSH port**: 21202 (avoids bot noise on 22; classic alternatives like 2222 are also scanned). Real security comes from key-only auth + fail2ban, not the port.
+- **SSH**: Public-key only (ed25519), non-standard port (`ssh_port_hardened`, vaulted). Not exposed to internet — remote access via WireGuard VPN only.
+- **SSH port**: non-standard, kept out of the public repo (avoids bot noise on 22; classic alternatives like 2222 are also scanned; a published port would cancel the obscurity it buys). Real security comes from key-only auth + fail2ban, not the port.
 - **IP assignment**: Static DHCP lease on router (192.168.1.100)
 - **Docker**: Does not auto-start at boot. Started by `homelab-unlock` after LUKS volume is opened.
 - **Remote access**: All remote access goes through WireGuard VPN (port 51820/udp). SSH is LAN/VPN only, never directly exposed to internet.

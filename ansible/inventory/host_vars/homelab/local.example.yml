@@ -9,6 +9,9 @@
 # --- Connection ---
 ansible_user: pi
 domain: example.com
+# Real hardened SSH port — kept out of the public repo (the port is obscurity,
+# not security, but publishing it would cancel the one thing it buys).
+ssh_port_hardened: 22
 
 # --- Storage ---
 luks_passphrase: ""  # Used once for initial LUKS format, needed for re-provisioning
