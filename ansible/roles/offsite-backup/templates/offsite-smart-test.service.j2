@@ -1,0 +1,9 @@
+[Unit]
+Description=Start a SMART long self-test on the backup disk
+
+[Service]
+Type=oneshot
+# The drive scans its own surface in the background (no host I/O, no repo
+# password needed); the weekly health report reads the result from the
+# self-test log and alerts on failure.
+ExecStart=/usr/sbin/smartctl -t long {{ backup_disk_device | regex_replace('[0-9]+$', '') }}

@@ -32,8 +32,8 @@ Mirrors exactly what `ansible/roles/deploy/files/backup.sh` does (keep this tabl
 - **Offsite** (ADR-010): second Restic repo on the offsite Pi (Pi 4 4GB + 2TB SSD,
   WireGuard client, rest-server **append-only**), fed by a nightly `restic copy` of the
   latest snapshot. Distinct repo password, never stored on the offsite host. Weekly
-  `restic check` from the homelab + weekly disk-health self-report. Runbook:
-  `knowledge/runbooks/offsite-backup.md`.
+  `restic check` from the homelab + weekly disk/SMART/power self-report and a
+  monthly SMART long self-test. Runbook: `knowledge/runbooks/offsite-backup.md`.
 
 > A backup that shares the originals' physical disk only covers deletion/corruption, not
 > physical loss — hence the offsite repository (3-2-1 rule).
