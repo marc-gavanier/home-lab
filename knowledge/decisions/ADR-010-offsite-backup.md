@@ -16,17 +16,17 @@ destroys both the data and every backup. The retired Pi 4 (4GB) and a WD Blue
 A second Pi ("backup", inventory host `offsite`) receives a nightly
 `restic copy` of the latest snapshot from the homelab:
 
-| Aspect | Choice | Rationale |
-|--------------------|----------------------------------|-----------------------------------------------------------------------|
-| Transport | WireGuard client → home wg-easy | Outbound-only from the relative's LAN: no port forwarding, CGNAT-safe |
-| Protocol | rest-server 0.14 `--append-only` | A compromised homelab can write but never delete offsite history |
-| Replication | `restic copy` (nightly) | Independent snapshot chains; local corruption does not propagate |
-| Offsite repo init | `--copy-chunker-params` | Preserves dedup across repos |
-| Disk encryption | None (ext4) | Restic already encrypts; the Pi reboots unattended after power cuts |
-| Repo password | NOT stored on the offsite Pi | A stolen Pi/SSD yields ciphertext only — this replaces LUKS |
-| Repo passwords | Distinct per repo | Homelab repo password is useless against the offsite repo, and vice versa |
-| rest-server deploy | systemd binary, not Docker | Minimal surface: no Docker daemon at all on the offsite Pi |
-| Homelab → peer path | Host is its own wg-easy client | wg0 lives in the wg-easy container; the host peers via loopback ("homelab-host", 10.8.0.5) so the path is identical before/after the move |
+| Aspect              | Choice                           | Rationale                                                                                                                                 |
+|---------------------|----------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| Transport           | WireGuard client → home wg-easy  | Outbound-only from the relative's LAN: no port forwarding, CGNAT-safe                                                                     |
+| Protocol            | rest-server 0.14 `--append-only` | A compromised homelab can write but never delete offsite history                                                                          |
+| Replication         | `restic copy` (nightly)          | Independent snapshot chains; local corruption does not propagate                                                                          |
+| Offsite repo init   | `--copy-chunker-params`          | Preserves dedup across repos                                                                                                              |
+| Disk encryption     | None (ext4)                      | Restic already encrypts; the Pi reboots unattended after power cuts                                                                       |
+| Repo password       | NOT stored on the offsite Pi     | A stolen Pi/SSD yields ciphertext only — this replaces LUKS                                                                               |
+| Repo passwords      | Distinct per repo                | Homelab repo password is useless against the offsite repo, and vice versa                                                                 |
+| rest-server deploy  | systemd binary, not Docker       | Minimal surface: no Docker daemon at all on the offsite Pi                                                                                |
+| Homelab → peer path | Host is its own wg-easy client   | wg0 lives in the wg-easy container; the host peers via loopback ("homelab-host", 10.8.0.5) so the path is identical before/after the move |
 
 Consequences of the no-password-on-offsite rule:
 
