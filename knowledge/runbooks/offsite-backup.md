@@ -38,7 +38,9 @@ client key. The WG key is the only live credential:
 1. wg-easy UI → delete/disable client `offsite-backup` (revokes VPN access).
 2. Rotate `rest_server_auth_password` (vault) — it only guards bandwidth, not
    data confidentiality.
-3. The repo password was never on the Pi: backups remain confidential.
+3. Recreate the Kuma "offsite health" push monitor (its token is in the
+   health script — a thief could forge green pings with it).
+4. The repo password was never on the Pi: backups remain confidential.
 
 ## Never run two copies at once
 

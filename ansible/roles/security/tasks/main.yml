@@ -126,6 +126,25 @@
       - rkhunter
     state: present
 
+# --- Cloud-init artifacts (flash-time password hash) ---
+# The Imager-written user-data carries the account password hash; useless
+# after provisioning (the account is password-locked above) but offline-
+# crackable from the unencrypted SD. Blank it in every copy cloud-init keeps.
+# Per-instance semaphores mean the users module never re-runs — and even a
+# re-run would only set the unusable string "REDACTED" on a locked account.
+
+- name: Redact flash-time password hash from cloud-init artifacts
+  ansible.builtin.replace:
+    path: "{{ item }}"
+    regexp: '(?i)^(\s*)passwd:\s*\S.*$'
+    replace: '\1passwd: REDACTED'
+  loop:
+    - /boot/firmware/user-data
+    - /var/lib/cloud/instance/user-data.txt
+    - /var/lib/cloud/instance/user-data.txt.i
+    - /var/lib/cloud/instance/cloud-config.txt
+  failed_when: false # a future image may not ship every copy
+
 # Apply the SSH port change NOW, not at end of play: if a later role fails,
 # handlers never run and the box is left with sshd on the old port behind a
 # UFW that only allows the new one — a guaranteed lockout (bitten 2026-07-12).
