@@ -6,6 +6,9 @@
 
 # --- Connection ---
 ansible_user: pi # The admin user created at flash time
+# Real hardened SSH port — kept out of the public repo (the port is obscurity,
+# not security, but publishing it would cancel the one thing it buys).
+ssh_port_hardened: 22
 
 # --- rest-server ---
 # HTTP basic-auth password the homelab uses to reach rest-server.

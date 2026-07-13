@@ -6,8 +6,10 @@
 # --- Connection ---
 ansible_user: pi            # Override in local.yml with your real username
 homelab_ip: "192.168.1.100"
-ssh_port: 21202             # Hardened SSH port
-ssh_port_hardened: 21202    # Target SSH port after hardening
+# Target SSH port after hardening. The port is obscurity, not security (real
+# protection is key-only auth + fail2ban) — but publishing it would cancel the
+# one thing it buys. Set the real value in each host's vaulted local.yml.
+ssh_port_hardened: 22
 
 # --- System ---
 hostname: homelab

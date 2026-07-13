@@ -15,7 +15,7 @@ append-only mode. The repo password is deliberately NOT stored on it.
 
 ## Moving day checklist (installing at the relative's home)
 
-1. Shut down cleanly: `ssh -p 21202 backup sudo poweroff` (no USB tamper on
+1. Shut down cleanly: `ssh -p <ssh_port_hardened> backup sudo poweroff` (no USB tamper on
    this host; unplugging is safe once halted).
 2. At the relative's home: plug ethernet + power. Nothing to configure — the
    WireGuard client dials out to vpn.<domain>:51820 from any network.
