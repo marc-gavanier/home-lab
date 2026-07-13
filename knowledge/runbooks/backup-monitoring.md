@@ -1,6 +1,6 @@
 # Runbook — Backup monitoring (Uptime Kuma push)
 
-The daily Restic backup (`scripts/backup.sh`, run by `homelab-backup.timer`) reports its
+The daily Restic backup (`ansible/roles/deploy/files/backup.sh`, run by `homelab-backup.timer`) reports its
 outcome to an Uptime Kuma **Push** monitor — a dead-man's switch that goes red both on
 failure *and* when no backup ran at all (Pi down, timer broken, repo unreachable).
 

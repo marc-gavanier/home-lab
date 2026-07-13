@@ -16,7 +16,7 @@
 #     ansible-vault encrypt .secrets/kuma-dump.json
 #
 # Usage:
-#     scripts/kuma-dump.sh [output.json]
+#     ops/kuma-dump.sh [output.json]
 #
 # Environment overrides:
 #     KUMA_SSH_HOST   SSH alias/host of the Kuma server   (default: homelab)

@@ -57,7 +57,7 @@ Internet → ISP Router (ports 80, 443, 51820)
 # 1. Flash Ubuntu Server 24.04 LTS arm64 to the SD card
 # 2. First boot, note the Pi's IP address
 # 3. Bootstrap (from your workstation)
-./scripts/bootstrap.sh <PI_IP>
+./ops/bootstrap.sh <PI_IP>
 
 # 4. Provision the entire system
 cd ansible && ansible-playbook playbooks/site.yml
@@ -69,7 +69,7 @@ cd ansible && ansible-playbook playbooks/site.yml
 ├── docs/           # Documentation by domain
 ├── ansible/        # Full provisioning (Ansible)
 ├── docker/         # Containerized services (Docker Compose)
-├── scripts/        # Utility scripts
+├── ops/            # Operator tools (run from the workstation)
 ├── knowledge/      # ADRs, research, runbooks
 └── .claude/agents/ # Specialized AI agents
 ```

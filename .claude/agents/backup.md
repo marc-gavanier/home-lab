@@ -49,13 +49,13 @@ Home lab on Raspberry Pi 4 with a 5TB HDD containing all self-hosted service dat
 - Every backup must be encrypted (Restic does this natively)
 - Test restoration regularly — an untested backup is not a backup
 - Document restoration procedures in `knowledge/runbooks/`
-- Backup script goes in `scripts/backup.sh`
+- Backup script goes in `ansible/roles/deploy/files/backup.sh`
 - Backup logs must be monitored (Uptime Kuma integration)
 - Gracefully stop services before backing up their data (consistency)
 
 ## Project Resources
 
 - Backup documentation: `docs/06-backup/`
-- Backup script: `scripts/backup.sh`
+- Backup script: `ansible/roles/deploy/files/backup.sh`
 - Restoration runbooks: `knowledge/runbooks/`
 - Architecture decisions: `knowledge/decisions/`
