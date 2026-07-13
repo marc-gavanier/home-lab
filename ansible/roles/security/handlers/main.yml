@@ -1,8 +1,20 @@
 ---
+# Ubuntu 24.04 uses systemd socket activation for SSH: the listening port
+# comes from ssh.socket, regenerated from sshd_config only at daemon-reload
+# (sshd-socket-generator). Restarting ssh.service alone keeps the OLD port
+# (bitten 2026-07-13) — reload systemd and restart the socket as well.
 - name: Restart SSH
-  ansible.builtin.service:
+  ansible.builtin.systemd:
     name: ssh
     state: restarted
+    daemon_reload: true
+
+- name: Restart SSH socket
+  ansible.builtin.systemd:
+    name: ssh.socket
+    state: restarted
+    daemon_reload: true
+  listen: Restart SSH
 
 - name: Restart fail2ban
   ansible.builtin.service:
