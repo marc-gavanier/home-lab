@@ -3,10 +3,19 @@
 Instrument: `playbooks/cis-audit.yml` (ansible-lockdown UBUNTU24-CIS 1.6.0,
 `--check` only — the playbook refuses enforce runs).
 
-| Run        | Result                                                     |
-|------------|------------------------------------------------------------|
-| 2026-07-14 | Baseline: 279 controls, ~100 rules flagged, 425 skipped    |
-| 2026-07-15 | After batches 1-2: count ~flat (see measurement caveat §4) |
+| Run        | Flagged | Note                                                     |
+|------------|---------|----------------------------------------------------------|
+| 2026-07-14 | 135     | Baseline (279 controls, 425 skipped)                     |
+| 2026-07-15 | 134     | After batches 1-2 — count ~flat, effective (caveat §4)    |
+| 2026-07-15 | 120     | After batches 3-4 — real drops + role-vs-state residue   |
+
+The 135→120 move: batch-3/4 rules that check *real system files* cleared
+(cron perms 2.4.x, avahi 2.1.2, and the binary-valued sshd rules 5.1.9/11/13/
+18/21). What still flags despite proven-correct state: the sshd crypto lists
+(5.1.6/12/15 — `sshd -T` shows our hardened Ciphers/MACs/Kex, the role compares
+against ITS own list) and shadow perms (7.1.5-8 — we use Ubuntu's `root:shadow
+0640`, the role wants `root:root`; ours is the OS-correct choice). Both are the
+§4 caveat again: the count scores the role's expectation, not effective state.
 
 Reading grid: a CIS gap is not a defect — it is a question. Three answers:
 **assumed** (our architecture answers it differently, documented), **worth
