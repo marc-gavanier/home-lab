@@ -1,12 +1,16 @@
-# CIS Ubuntu 24.04 audit — homelab, 2026-07-14
+# CIS Ubuntu 24.04 audit — homelab, July 2026
 
-Run: `playbooks/cis-audit.yml` (ansible-lockdown UBUNTU24-CIS 1.6.0, `--check`
-only). Result: 279 controls evaluated, ~100 rules flagged, 425 skipped
-(level-2, disabled sections, check-mode exclusions documented in the playbook).
+Instrument: `playbooks/cis-audit.yml` (ansible-lockdown UBUNTU24-CIS 1.6.0,
+`--check` only — the playbook refuses enforce runs).
 
-Reading grid: a CIS gap is not a defect — it is a question. Three answers
-below: **assumed** (our architecture answers it differently, documented),
-**worth fixing** (real quick wins), **noise** (not applicable here).
+| Run        | Result                                                     |
+|------------|------------------------------------------------------------|
+| 2026-07-14 | Baseline: 279 controls, ~100 rules flagged, 425 skipped    |
+| 2026-07-15 | After batches 1-2: count ~flat (see measurement caveat §4) |
+
+Reading grid: a CIS gap is not a defect — it is a question. Three answers:
+**assumed** (our architecture answers it differently, documented), **worth
+fixing** (real quick wins), **noise** (not applicable here).
 
 ## 1. Assumed deviations — do NOT "fix"
 
@@ -21,27 +25,37 @@ below: **assumed** (our architecture answers it differently, documented),
 | Section 6                   | auditd installed + rules       | Accepted absence so far: single-operator host, systemd journal present, SD wear budget. Revisit if threat model changes      |
 | Bootloader (1.3.1.2, 1.4.x) | GRUB hardening                 | No GRUB on a Pi (firmware + cmdline.txt); boot integrity addressed by ADR-008/009 instead                                    |
 
-## 2. Worth fixing — proposed batches
+The full rule-by-rule list (with check-mode exclusions) lives as commented
+vars in `playbooks/cis-audit.yml`.
 
-**Batch 1 — network sysctl hardening (base role, zero risk):**
-3.3.2-3.3.11: no redirects (send/accept/secure), no source routing, rp_filter,
-syn cookies, bogus ICMP ignored, martians logged, no IPv6 RA. All compatible
-with Docker/WireGuard (only 3.3.1 forwarding is ours to keep).
-Plus 1.5.1 ASLR, 1.5.2 ptrace_scope, 1.5.3 core dumps off, 1.5.5 apport off.
+## 2. Remediation batches
 
-**Batch 2 — kernel module blacklist (attack-surface.yml pattern):**
-Rare filesystems 1.1.1.1-.8 (cramfs, freevxfs, hfs, hfsplus, jffs2, udf —
-NOT overlayfs) and exotic network protocols 3.2.x (dccp, tipc, rds, sctp).
+**Batch 1 — network sysctl + kernel hardening — SHIPPED 2026-07-15**
+(`base/tasks/system.yml`.) 3.3.2-3.3.11: no ICMP redirects in or out, no
+source routing, strict rp_filter, syn cookies, bogus-ICMP/broadcast-echo
+ignored, martians logged, no IPv6 RA. Plus 1.5.1 ASLR, 1.5.2 ptrace_scope,
+1.5.3 suid core dumps off, 1.5.5 apport purged.
+Verified: converged `changed=0` on both Pis; effective state read directly
+(`log_martians=1`, `tcp_syncookies=1`, `ptrace_scope=1`, `accept_redirects=0`);
+WireGuard tunnel healthy under strict rp_filter (ping 10.8.0.4 + offsite check
+green on Kuma).
 
-**Batch 3 — sshd polish (security role ssh.yml):**
+**Batch 2 — kernel module blacklist — SHIPPED 2026-07-15**
+(`base/tasks/attack-surface.yml`, `/etc/modprobe.d/cis-blacklist.conf`.)
+Unused filesystems 1.1.1.1-.8 (cramfs, freevxfs, hfs, hfsplus, jffs2, udf)
+and network protocols 3.2.x (dccp, tipc, rds, sctp), `install /bin/false` +
+blacklist. overlayfs and usb-storage deliberately kept (see §1).
+
+**Batch 3 — sshd polish — TODO** (security role `ssh.yml`)
 Explicit strong Ciphers/MACs/KexAlgorithms (5.1.6/12/15), LogLevel VERBOSE,
 LoginGraceTime 60, MaxSessions/MaxStartups, PermitUserEnvironment no,
-IgnoreRhosts, GSSAPI off. Skip DisableForwarding (assumed above).
+IgnoreRhosts, GSSAPI off. Skip DisableForwarding (assumed, §1).
 
-**Batch 4 — files & packages:**
+**Batch 4 — files & packages — TODO**
 - cron perms 0600/0700 + cron.allow/at.allow (2.4.x)
 - /etc/shadow(-)/gshadow(-) perms (7.1.5-8)
-- remove avahi-daemon, telnet & ftp clients, rsync package (2.1.x/2.2.x)
+- remove avahi-daemon, telnet & ftp clients, rsync package (2.1.x/2.2.x —
+  check whether rsync is used anywhere first)
 - world-writable media files found by 7.1.11 before its FUSE crash:
   `chmod -R o-w /mnt/data/media` (probably Transmission umask — fix at source too)
 
@@ -56,24 +70,22 @@ PRELIM/apt update, handlers flushes, the role's fact files, UFW sysctl.conf
 switch (OPTIONAL), and everything check-mode-skipped that a real lockdown run
 would install first (documented rule by rule in the playbook vars).
 
-## Follow-up
+## 4. Lessons learned
 
-- **Batches 1-2: DONE with this audit** (same branch) — sysctl hardening +
-  apport removal in `base/tasks/system.yml`, module blacklist in
-  `base/tasks/attack-surface.yml`.
-- Batch 3 (sshd polish) and batch 4 (file perms, package removals — check
-  whether rsync is used anywhere first) remain follow-up PRs.
-- **Measurement caveat (learned 2026-07-15):** the check-mode diff does NOT
-  measure effective state — it measures "would the role write ITS files".
-  Batches 1-2 were verified effective by direct reads on the host
-  (`sysctl net.ipv4.conf.all.log_martians` = 1, `tcp_syncookies` = 1,
-  `ptrace_scope` = 1, `accept_redirects` = 0, blacklist file in place), yet
-  the flagged count barely moved (135 → 134) because our sysctl/modprobe
-  layout (99-homelab.conf, cis-blacklist.conf) differs from the role's own
-  file naming. Verify remediations with direct state reads; treat the
-  check-mode count as a coarse discovery tool only. For true effective-state
-  scoring, the role's goss audit engine (`run_audit: true`) is the option —
-  it installs tooling on the host, left out for now.
-- Related fix while validating: /etc/ufw/sysctl.conf (IPT_SYSCTL) silently
-  overrode log_martians on every ufw reload — now aligned by the firewall
-  tasks. Any sysctl key managed here must not conflict with UFW's file.
+- **The check-mode count does NOT measure effective state** — it measures
+  "would the role write ITS files". Batches 1-2 are provably effective
+  (direct kernel reads above) yet the flagged count stayed ~flat (135 → 134):
+  our sysctl/modprobe layout (`99-homelab.conf`, `cis-blacklist.conf`)
+  differs from the role's own file naming, so its tasks always want to write.
+  Verify remediations with direct state reads; treat the check-mode count as
+  a coarse discovery tool only. For true effective-state scoring, the role's
+  goss audit engine (`run_audit: true`) is the option — it installs tooling
+  on the host, left out for now.
+- **UFW owns a competing sysctl file**: `/etc/ufw/sysctl.conf` (IPT_SYSCTL)
+  is re-applied on every ufw reload and silently overrode `log_martians` —
+  caught by the changed=0 discipline, fixed by aligning UFW's file from the
+  firewall tasks. Any sysctl key managed by the base role must not conflict
+  with UFW's file.
+
+See also: ADR-008 (usb tamper), ADR-009, ADR-011 (secrets off SD),
+`docs/03-security/`.
