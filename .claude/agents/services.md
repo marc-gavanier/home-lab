@@ -49,5 +49,5 @@ Home lab on Raspberry Pi 4 (4GB RAM, arm64). Services run in Docker Compose. Dat
 - Services documentation: `docs/05-services/`
 - Docker Compose: `docker/compose.yaml`
 - Environment variables: `docker/.env.example`
-- Configurations: `docker/configs/`
+- Configurations: `docker/configs/` (verbatim) + `ansible/roles/deploy/templates/` (rendered)
 - Architecture decisions: `knowledge/decisions/`

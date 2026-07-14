@@ -15,7 +15,7 @@ Reverse proxy with automatic TLS certificate management.
 
 ## Configuration
 
-- Static config: `docker/configs/traefik/traefik.yml` (templated by Ansible)
+- Static config: `ansible/roles/deploy/templates/traefik.yml.j2` (templated by Ansible)
 - Dynamic config: `docker/configs/traefik/dynamic/middlewares.yml`
 - Routing: defined via Docker labels in `docker/compose.yaml`
 - ACME storage: `/mnt/data/services/traefik/acme/acme.json`

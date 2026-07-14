@@ -12,7 +12,7 @@ DNS server with ad/tracker blocking and split DNS for the home lab.
 
 - Blocks ads and trackers at the DNS level for all devices using it as DNS
 - Split DNS: resolves homelab subdomains to LAN IP so traffic stays local
-- Custom dnsmasq config: `docker/configs/pihole/05-homelab.conf`
+- Custom dnsmasq config: `ansible/roles/deploy/templates/pihole-05-homelab.conf.j2`
 
 ## Network-wide Setup
 
