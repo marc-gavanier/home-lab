@@ -11,6 +11,8 @@ repos:
         args: [--markdown-linebreak-ext=md]
       - id: check-merge-conflict
       - id: check-added-large-files
+      - id: no-commit-to-branch
+        args: [--branch, main]  # main only moves via PR
 
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.30.0
