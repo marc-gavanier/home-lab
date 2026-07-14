@@ -14,5 +14,9 @@ skip_list:
   # the rename would also touch the Jinja templates consuming the facts.
   - var-naming[no-role-prefix]
 
+# Never lint third-party roles, wherever they get installed.
+exclude_paths:
+  - ansible/roles/UBUNTU24-CIS/
+
 # Treat these as errors, not warnings (lock the current clean state).
 strict: true

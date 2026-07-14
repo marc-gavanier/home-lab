@@ -3,6 +3,10 @@
 # profile so the two tools never disagree.
 extends: default
 
+# Never lint third-party roles, wherever they get installed.
+ignore: |
+  ansible/roles/UBUNTU24-CIS/
+
 rules:
   line-length:
     max: 160
