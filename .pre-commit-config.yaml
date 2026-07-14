@@ -3,6 +3,15 @@
 #   pre-commit install
 # Then every `git commit` runs: secret scan, YAML lint, Ansible lint.
 repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: check-merge-conflict
+      - id: check-added-large-files
+
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.30.0
     hooks:

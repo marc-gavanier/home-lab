@@ -21,7 +21,7 @@ URL du talk : `$ARGUMENTS`
    > **Abstract** : {abstract — recopier l'abstract officiel, en respectant le ton}.
    > **Source** : [Programme — {slug}]({URL du talk})
 
-   - 
+   -
    ```
 4. **La puce vide** signale que la capture va commencer. Confirme à l'utilisateur que la section est prête et invite-le à dicter.
 
