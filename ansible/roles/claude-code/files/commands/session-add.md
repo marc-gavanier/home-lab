@@ -24,7 +24,7 @@ Arguments : `$ARGUMENTS` — le **sujet** de la session, éventuellement suivi d
    > **Proposé par** : {nom ou collectif, sinon « non précisé »}.
    > **Format** : {horaire et salle si fournis, sinon « non précisé »}.
 
-   - 
+   -
    ```
 4. **Confirme** que la section est prête et invite l'utilisateur à dicter.
 
