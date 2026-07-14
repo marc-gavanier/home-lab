@@ -1,0 +1,146 @@
+---
+# Input contract — validated automatically at run time (ansible-core >= 2.11).
+argument_specs:
+  main:
+    short_description: Deploy the Docker Compose stack (secrets on LUKS, ADR-011)
+    options:
+      domain:
+        type: str
+        required: true
+        description: Public domain of the lab.
+      homelab_ip:
+        type: str
+        required: true
+        description: LAN IP of the Pi (DNS pins, hairpin workarounds).
+      traefik_acme_email:
+        type: str
+        required: true
+        description: Let's Encrypt account email.
+      services_data_dir:
+        type: path
+        required: true
+        description: Root of the service data tree.
+      media_dir:
+        type: path
+        required: true
+        description: Root of the media tree.
+      backup_dir:
+        type: path
+        required: true
+        description: Root of the local backup tree (restic repo lives under it).
+      deploy_services:
+        type: str
+        required: false
+        description: Space-separated compose services to target (-e deploy_services="a b"). Absent = whole stack.
+      wg_password:
+        type: str
+        required: true
+        no_log: true
+        description: wg-easy UI password (bcrypt-hashed at deploy time).
+      vaultwarden_admin_token:
+        type: str
+        required: true
+        no_log: true
+        description: Vaultwarden admin token (Argon2id-hashed at deploy time).
+      vaultwarden_admin_salt:
+        type: str
+        required: true
+        no_log: true
+        description: Fixed hex salt making the Argon2 hash deterministic (idempotence).
+      pihole_password:
+        type: str
+        required: true
+        no_log: true
+        description: Pi-hole admin password (enforced via the v6 API probe).
+      nextcloud_admin_user:
+        type: str
+        required: true
+        description: Nextcloud admin account name.
+      nextcloud_admin_password:
+        type: str
+        required: true
+        no_log: true
+        description: Nextcloud admin password (first install only).
+      nextcloud_db_name:
+        type: str
+        required: true
+        description: Nextcloud MariaDB database name.
+      nextcloud_db_user:
+        type: str
+        required: true
+        description: Nextcloud MariaDB user.
+      nextcloud_db_password:
+        type: str
+        required: true
+        no_log: true
+        description: Nextcloud MariaDB password.
+      nextcloud_db_root_password:
+        type: str
+        required: true
+        no_log: true
+        description: MariaDB root password.
+      immich_db_name:
+        type: str
+        required: true
+        description: Immich Postgres database name.
+      immich_db_user:
+        type: str
+        required: true
+        description: Immich Postgres user.
+      immich_db_password:
+        type: str
+        required: true
+        no_log: true
+        description: Immich Postgres password.
+      transmission_user:
+        type: str
+        required: true
+        description: Transmission web UI user.
+      transmission_password:
+        type: str
+        required: true
+        no_log: true
+        description: Transmission web UI password.
+      searxng_secret_key:
+        type: str
+        required: true
+        no_log: true
+        description: SearXNG server secret (settings.yml on the encrypted volume).
+      searxng_branding:
+        type: bool
+        required: false
+        description: Apply the Gerbier theme (inline default false = stock CSS).
+      searxng_logo:
+        type: str
+        required: false
+        description: Control-node path to a logo (.svg/.png); only used when searxng_branding is true.
+      restic_password:
+        type: str
+        required: true
+        no_log: true
+        description: Local restic repository password.
+      offsite_restic_password:
+        type: str
+        required: true
+        no_log: true
+        description: Offsite restic repository password (never stored on the offsite Pi).
+      backup_kuma_push_url:
+        type: str
+        required: true
+        no_log: true
+        description: Uptime Kuma push URL for the nightly backup (token = secret).
+      offsite_copy_kuma_push_url:
+        type: str
+        required: true
+        no_log: true
+        description: Uptime Kuma push URL for the offsite copy step.
+      offsite_check_kuma_push_url:
+        type: str
+        required: true
+        no_log: true
+        description: Uptime Kuma push URL for the weekly offsite check.
+      homelab_wg_conf:
+        type: str
+        required: false
+        no_log: true
+        description: Host WireGuard client config (contains the private key). Absent = no host tunnel (offsite backup path disabled).

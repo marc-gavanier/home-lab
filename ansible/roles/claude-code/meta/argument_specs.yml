@@ -1,0 +1,19 @@
+---
+# Input contract — validated automatically at run time (ansible-core >= 2.11).
+argument_specs:
+  main:
+    short_description: Claude Code on the Pi (dedicated user, sandbox, Remote Control)
+    options:
+      domain:
+        type: str
+        required: true
+        description: Public domain (rclone WebDAV endpoint drive.<domain>).
+      homelab_ip:
+        type: str
+        required: true
+        description: LAN IP used to pin drive.<domain> (hairpin workaround).
+      rclone_webdav_pass:
+        type: str
+        required: true
+        no_log: true
+        description: Nextcloud app-password for the rclone WebDAV remote (stored obscured on the encrypted volume).

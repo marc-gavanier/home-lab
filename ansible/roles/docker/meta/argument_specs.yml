@@ -1,0 +1,14 @@
+---
+# Input contract — validated automatically at run time (ansible-core >= 2.11).
+argument_specs:
+  main:
+    short_description: Docker Engine + Compose, data-root on the encrypted HDD
+    options:
+      docker_data_root:
+        type: path
+        required: true
+        description: Docker data-root, on the encrypted volume (/mnt/data/docker).
+      data_mount_point:
+        type: path
+        required: true
+        description: Encrypted volume mount point — Docker is gated behind it (RequiresMountsFor).

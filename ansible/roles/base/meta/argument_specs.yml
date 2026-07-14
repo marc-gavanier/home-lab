@@ -1,0 +1,32 @@
+---
+# Input contract — validated automatically at run time (ansible-core >= 2.11).
+# Convention (all roles): the spec documents and validates but sets NO
+# defaults; runtime defaults stay inline (`| default()`) in the tasks.
+argument_specs:
+  main:
+    short_description: System base configuration (identity, packages, boot, fan, DNS port)
+    options:
+      hostname:
+        type: str
+        required: true
+        description: System hostname (also pinned in /etc/hosts).
+      timezone:
+        type: str
+        required: true
+        description: IANA timezone, e.g. Europe/Paris.
+      locale:
+        type: str
+        required: true
+        description: Locale to generate, e.g. fr_FR.UTF-8.
+      gpio_fan_pin:
+        type: int
+        required: false
+        description: GPIO pin of the thermostatic case fan. Absent = no fan overlay (hardwired or no fan).
+      gpio_fan_temp:
+        type: int
+        required: false
+        description: Fan trigger temperature in °C (inline default 60).
+      free_port_53:
+        type: bool
+        required: false
+        description: Disable the systemd-resolved stub listener to free port 53 for Pi-hole (inline default true; set false on hosts without Pi-hole).
