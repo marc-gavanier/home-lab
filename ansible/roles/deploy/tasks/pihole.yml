@@ -1,11 +1,14 @@
 ---
 # Pi-hole password (v6 ignores the env var after first start).
 
-- name: pihole | Check if Pi-hole is running
-  ansible.builtin.command:
-    cmd: docker ps -q -f name=pihole -f status=running
-  register: pihole_running
-  changed_when: false
+- name: pihole | Inspect the Pi-hole container
+  community.docker.docker_container_info:
+    name: pihole
+  register: pihole_info
+
+- name: pihole | Determine whether Pi-hole is running
+  ansible.builtin.set_fact:
+    pihole_up: "{{ pihole_info.exists and (pihole_info.container.State.Running | default(false)) }}"
 
 # Idempotence: try the v6 auth API with the vault password (JSON-encoded via
 # python so special characters survive). 200 = already set, anything else =
@@ -24,7 +27,7 @@
   changed_when: false
   failed_when: false
   no_log: true
-  when: pihole_running.stdout | length > 0
+  when: pihole_up
 
 - name: pihole | Set Pi-hole admin password
   ansible.builtin.command:
@@ -32,5 +35,5 @@
   no_log: true
   changed_when: true
   when:
-    - pihole_running.stdout | length > 0
+    - pihole_up
     - pihole_pw_check.stdout | default('') != '200'
