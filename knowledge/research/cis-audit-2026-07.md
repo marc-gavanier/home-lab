@@ -10,16 +10,16 @@ below: **assumed** (our architecture answers it differently, documented),
 
 ## 1. Assumed deviations — do NOT "fix"
 
-| CIS | Wants | Why we deviate |
-|-----|-------|----------------|
-| 3.3.1 | IP forwarding disabled | Required by Docker networking and WireGuard routing — the lab IS a router |
-| 1.1.1.6 | overlayfs module blacklisted | Docker's storage driver |
-| 1.1.1.9 | usb-storage blacklisted | The 5TB data disk is USB; physical USB surface covered by ADR-008 (tamper poweroff) |
-| 5.2.4 | sudo requires password | Deliberate: account password locked (`password_lock`), SSH key-only — a sudo password would resurrect a crackable credential |
-| 5.1.8 | sshd DisableForwarding | SSH tunnel is the only admin path to the wg-easy UI (127.0.0.1:51821) |
-| 5.4.1.x, 5.3.x PAM | password aging/quality/lockout | No active local passwords exist (locked); rules are moot |
-| Section 6 | auditd installed + rules | Accepted absence so far: single-operator host, systemd journal present, SD wear budget. Revisit if threat model changes |
-| Bootloader (1.3.1.2, 1.4.x) | GRUB hardening | No GRUB on a Pi (firmware + cmdline.txt); boot integrity addressed by ADR-008/009 instead |
+| CIS                         | Wants                          | Why we deviate                                                                                                               |
+|-----------------------------|--------------------------------|------------------------------------------------------------------------------------------------------------------------------|
+| 3.3.1                       | IP forwarding disabled         | Required by Docker networking and WireGuard routing — the lab IS a router                                                    |
+| 1.1.1.6                     | overlayfs module blacklisted   | Docker's storage driver                                                                                                      |
+| 1.1.1.9                     | usb-storage blacklisted        | The 5TB data disk is USB; physical USB surface covered by ADR-008 (tamper poweroff)                                          |
+| 5.2.4                       | sudo requires password         | Deliberate: account password locked (`password_lock`), SSH key-only — a sudo password would resurrect a crackable credential |
+| 5.1.8                       | sshd DisableForwarding         | SSH tunnel is the only admin path to the wg-easy UI (127.0.0.1:51821)                                                        |
+| 5.4.1.x, 5.3.x PAM          | password aging/quality/lockout | No active local passwords exist (locked); rules are moot                                                                     |
+| Section 6                   | auditd installed + rules       | Accepted absence so far: single-operator host, systemd journal present, SD wear budget. Revisit if threat model changes      |
+| Bootloader (1.3.1.2, 1.4.x) | GRUB hardening                 | No GRUB on a Pi (firmware + cmdline.txt); boot integrity addressed by ADR-008/009 instead                                    |
 
 ## 2. Worth fixing — proposed batches
 

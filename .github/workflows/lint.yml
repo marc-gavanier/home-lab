@@ -33,9 +33,12 @@ jobs:
       - name: Install linters
         run: pip install ansible-lint yamllint
       - name: Install pinned collections and roles
+        # -p keeps external roles OUT of the repo tree (the relative
+        # roles_path in ansible.cfg would land them in ansible/roles/,
+        # where the linters would scan third-party code)
         run: |
           ansible-galaxy collection install -r ansible/requirements.yml
-          ansible-galaxy role install -r ansible/requirements.yml
+          ansible-galaxy role install -r ansible/requirements.yml -p ~/.ansible/roles
       - name: yamllint
         run: yamllint -c .yamllint.yml .
       - name: ansible-lint
