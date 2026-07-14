@@ -19,6 +19,12 @@
 - name: Install security audit tools
   ansible.builtin.import_tasks: audit.yml
 
+- name: Restrict sensitive file permissions (CIS)
+  ansible.builtin.import_tasks: permissions.yml
+
+- name: Remove unused network services and clients (CIS)
+  ansible.builtin.import_tasks: packages.yml
+
 - name: Redact the flash-time password hash from cloud-init artifacts
   ansible.builtin.import_tasks: cloud-init.yml
 

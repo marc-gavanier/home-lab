@@ -420,6 +420,8 @@ services:
       PUID: ${PUID}
       PGID: ${PGID}
       TZ: ${TZ}
+      # Downloads were landing world-writable (CIS 7.1.11 finding, 2026-07)
+      UMASK: "022"
       USER: ${TRANSMISSION_USER}
       PASS: ${TRANSMISSION_PASSWORD}
       PEERPORT: 51413
