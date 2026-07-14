@@ -54,8 +54,8 @@ argument_specs:
         description: Pi-hole admin password (enforced via the v6 API probe).
       nextcloud_admin_user:
         type: str
-        required: true
-        description: Nextcloud admin account name.
+        required: false
+        description: Nextcloud admin account name (inline default admin).
       nextcloud_admin_password:
         type: str
         required: true
@@ -63,12 +63,12 @@ argument_specs:
         description: Nextcloud admin password (first install only).
       nextcloud_db_name:
         type: str
-        required: true
-        description: Nextcloud MariaDB database name.
+        required: false
+        description: Nextcloud MariaDB database name (inline default nextcloud).
       nextcloud_db_user:
         type: str
-        required: true
-        description: Nextcloud MariaDB user.
+        required: false
+        description: Nextcloud MariaDB user (inline default nextcloud).
       nextcloud_db_password:
         type: str
         required: true
@@ -81,12 +81,12 @@ argument_specs:
         description: MariaDB root password.
       immich_db_name:
         type: str
-        required: true
-        description: Immich Postgres database name.
+        required: false
+        description: Immich Postgres database name (inline default immich).
       immich_db_user:
         type: str
-        required: true
-        description: Immich Postgres user.
+        required: false
+        description: Immich Postgres user (inline default immich).
       immich_db_password:
         type: str
         required: true
@@ -94,8 +94,8 @@ argument_specs:
         description: Immich Postgres password.
       transmission_user:
         type: str
-        required: true
-        description: Transmission web UI user.
+        required: false
+        description: Transmission web UI user (inline default admin).
       transmission_password:
         type: str
         required: true
