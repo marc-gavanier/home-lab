@@ -1,6 +1,6 @@
 ---
-# Collections used by the playbooks/roles — install with:
-#   ansible-galaxy collection install -r requirements.yml
+# Collections and external roles — install with:
+#   ansible-galaxy install -r requirements.yml
 # Versions pinned for reproducible control nodes (bump deliberately).
 collections:
   - name: ansible.posix
@@ -11,3 +11,9 @@ collections:
     version: 12.6.0
   - name: community.docker
     version: 5.2.0
+
+roles:
+  # CIS Ubuntu 24.04 benchmark (audit use only here — see playbooks/cis-audit.yml)
+  - name: UBUNTU24-CIS
+    src: https://github.com/ansible-lockdown/UBUNTU24-CIS
+    version: "1.6.0"
