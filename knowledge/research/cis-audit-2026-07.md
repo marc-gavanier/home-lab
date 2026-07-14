@@ -63,5 +63,17 @@ would install first (documented rule by rule in the playbook vars).
   `base/tasks/attack-surface.yml`.
 - Batch 3 (sshd polish) and batch 4 (file perms, package removals — check
   whether rsync is used anywhere first) remain follow-up PRs.
-- Re-run the audit after each batch and watch the flagged count drop
-  (baseline 2026-07-14: 135 flagged).
+- **Measurement caveat (learned 2026-07-15):** the check-mode diff does NOT
+  measure effective state — it measures "would the role write ITS files".
+  Batches 1-2 were verified effective by direct reads on the host
+  (`sysctl net.ipv4.conf.all.log_martians` = 1, `tcp_syncookies` = 1,
+  `ptrace_scope` = 1, `accept_redirects` = 0, blacklist file in place), yet
+  the flagged count barely moved (135 → 134) because our sysctl/modprobe
+  layout (99-homelab.conf, cis-blacklist.conf) differs from the role's own
+  file naming. Verify remediations with direct state reads; treat the
+  check-mode count as a coarse discovery tool only. For true effective-state
+  scoring, the role's goss audit engine (`run_audit: true`) is the option —
+  it installs tooling on the host, left out for now.
+- Related fix while validating: /etc/ufw/sysctl.conf (IPT_SYSCTL) silently
+  overrode log_martians on every ufw reload — now aligned by the firewall
+  tasks. Any sysctl key managed here must not conflict with UFW's file.
