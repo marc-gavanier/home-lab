@@ -7,9 +7,30 @@
   register: pihole_running
   changed_when: false
 
-- name: pihole | Set Pi-hole admin password
+# Idempotence: try the v6 auth API with the vault password (JSON-encoded via
+# python so special characters survive). 200 = already set, anything else =
+# needs (re)setting. The throwaway session expires on its own.
+- name: pihole | Check the admin password against the auth API
   ansible.builtin.shell:
+    cmd: >-
+      set -o pipefail;
+      python3 -c 'import json,os; print(json.dumps({"password": os.environ["P"]}))'
+      | docker exec -i pihole curl -s -o /dev/null -w '%{http_code}'
+      -X POST --data-binary @- http://localhost/api/auth
+    executable: /bin/bash
+  environment:
+    P: "{{ pihole_password }}"
+  register: pihole_pw_check
+  changed_when: false
+  failed_when: false
+  no_log: true
+  when: pihole_running.stdout | length > 0
+
+- name: pihole | Set Pi-hole admin password
+  ansible.builtin.command:
     cmd: "docker exec pihole pihole setpassword {{ pihole_password | quote }}"
   no_log: true
   changed_when: true
-  when: pihole_running.stdout | length > 0
+  when:
+    - pihole_running.stdout | length > 0
+    - pihole_pw_check.stdout | default('') != '200'
