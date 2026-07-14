@@ -10,13 +10,32 @@
 # assets `compose up` bind-mounts, pihole/nextcloud post-configure running
 # containers, and the wireguard tunnel carries the offsite check.
 
-- ansible.builtin.import_tasks: hashes.yml     # WG bcrypt + Vaultwarden Argon2 facts
-- ansible.builtin.import_tasks: secrets.yml    # /mnt/data/secrets + env + symlinks (ADR-011)
-- ansible.builtin.import_tasks: configs.yml    # traefik/pihole/searxng configurations
-- ansible.builtin.import_tasks: branding.yml   # SearXNG Gerbier assets (before compose up)
-- ansible.builtin.import_tasks: compose.yml    # compose file, networks, pull, up
-- ansible.builtin.import_tasks: pihole.yml     # admin password (v6 quirk)
-- ansible.builtin.import_tasks: nextcloud.yml  # occ post-config, apps, external storage
-- ansible.builtin.import_tasks: backup.yml     # local restic + nightly timer
-- ansible.builtin.import_tasks: wireguard.yml  # host tunnel to the offsite Pi (ADR-010)
-- ansible.builtin.import_tasks: offsite.yml    # weekly offsite repo check
+- name: Compute WireGuard bcrypt and Vaultwarden Argon2 facts
+  ansible.builtin.import_tasks: hashes.yml
+
+- name: Deploy secrets on the encrypted volume (ADR-011)
+  ansible.builtin.import_tasks: secrets.yml
+
+- name: Deploy traefik/pihole/searxng configurations
+  ansible.builtin.import_tasks: configs.yml
+
+- name: Build the SearXNG Gerbier assets (before compose up)
+  ansible.builtin.import_tasks: branding.yml
+
+- name: Run Docker Compose (file, networks, pull, up)
+  ansible.builtin.import_tasks: compose.yml
+
+- name: Enforce the Pi-hole admin password (v6 quirk)
+  ansible.builtin.import_tasks: pihole.yml
+
+- name: Post-configure Nextcloud (occ, apps, external storage)
+  ansible.builtin.import_tasks: nextcloud.yml
+
+- name: Set up the local restic backup and nightly timer
+  ansible.builtin.import_tasks: backup.yml
+
+- name: Set up the host tunnel to the offsite Pi (ADR-010)
+  ansible.builtin.import_tasks: wireguard.yml
+
+- name: Set up the weekly offsite repo check
+  ansible.builtin.import_tasks: offsite.yml

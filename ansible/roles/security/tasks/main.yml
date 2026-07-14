@@ -4,12 +4,23 @@
 # =============================================================================
 # Thin orchestrator: one file per concern, task names prefixed with the file.
 
-- ansible.builtin.import_tasks: ssh.yml         # key-only, hardened port, account lock
-- ansible.builtin.import_tasks: firewall.yml    # UFW deny-by-default + per-host rules
-- ansible.builtin.import_tasks: fail2ban.yml
-- ansible.builtin.import_tasks: updates.yml     # unattended-upgrades
-- ansible.builtin.import_tasks: audit.yml       # lynis, rkhunter
-- ansible.builtin.import_tasks: cloud-init.yml  # redact flash-time password hash
+- name: Harden SSH and lock the admin account password
+  ansible.builtin.import_tasks: ssh.yml
+
+- name: Configure UFW (deny-by-default + per-host rules)
+  ansible.builtin.import_tasks: firewall.yml
+
+- name: Configure fail2ban on SSH
+  ansible.builtin.import_tasks: fail2ban.yml
+
+- name: Enable unattended security updates
+  ansible.builtin.import_tasks: updates.yml
+
+- name: Install security audit tools
+  ansible.builtin.import_tasks: audit.yml
+
+- name: Redact the flash-time password hash from cloud-init artifacts
+  ansible.builtin.import_tasks: cloud-init.yml
 
 # Apply the SSH port change NOW, not at end of play: if a later role fails,
 # handlers never run and the box is left with sshd on the old port behind a

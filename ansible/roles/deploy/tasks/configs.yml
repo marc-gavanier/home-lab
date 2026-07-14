@@ -22,6 +22,7 @@
   ansible.builtin.file:
     path: /opt/homelab/configs/searxng
     state: directory
+    mode: "0755"
 
 - name: configs | Copy Traefik dynamic configuration
   ansible.builtin.copy:

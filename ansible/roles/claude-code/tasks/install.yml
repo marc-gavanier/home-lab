@@ -31,16 +31,13 @@
         userns,
         include if exists <local/bwrap>
       }
-  register: bwrap_apparmor
+  notify: Reload bwrap AppArmor profile
 
-- name: install | Reload the bwrap AppArmor profile
-  ansible.builtin.command: apparmor_parser -r /etc/apparmor.d/bwrap
-  when: bwrap_apparmor.changed
-  changed_when: true
-
-- name: install | Install Claude Code for the claude user
+# Official installer pattern; guarded by `creates` so it runs once.
+- name: install | Install Claude Code for the claude user  # noqa: command-instead-of-module
   ansible.builtin.shell:
-    cmd: curl -fsSL https://claude.ai/install.sh | bash
+    cmd: set -o pipefail; curl -fsSL https://claude.ai/install.sh | bash
+    executable: /bin/bash
   args:
     creates: /home/claude/.local/bin/claude
   become: true

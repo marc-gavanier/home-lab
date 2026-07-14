@@ -4,7 +4,14 @@
 # =============================================================================
 # Thin orchestrator: one file per concern, task names prefixed with the file.
 
-- ansible.builtin.import_tasks: system.yml          # identity, packages, kernel/boot params
-- ansible.builtin.import_tasks: attack-surface.yml  # radios, GPIO buses, UART console
-- ansible.builtin.import_tasks: fan.yml             # thermostatic gpio-fan (opt-in via gpio_fan_pin)
-- ansible.builtin.import_tasks: port53.yml          # free port 53 for Pi-hole (opt-out via free_port_53)
+- name: Configure system identity, packages and boot parameters
+  ansible.builtin.import_tasks: system.yml
+
+- name: Reduce the physical/radio attack surface
+  ansible.builtin.import_tasks: attack-surface.yml
+
+- name: Configure the thermostatic fan (opt-in via gpio_fan_pin)
+  ansible.builtin.import_tasks: fan.yml
+
+- name: Free port 53 for Pi-hole (opt-out via free_port_53)
+  ansible.builtin.import_tasks: port53.yml

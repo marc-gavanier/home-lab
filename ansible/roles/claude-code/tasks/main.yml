@@ -25,7 +25,14 @@
 # =============================================================================
 # Thin orchestrator: one file per concern, task names prefixed with the file.
 
-- ansible.builtin.import_tasks: install.yml         # claude user, bwrap/AppArmor, binary
-- ansible.builtin.import_tasks: vault.yml           # rclone remote (LUKS), mount unit, sandbox
-- ansible.builtin.import_tasks: commands.yml        # authoritative mirror of commands/agents
-- ansible.builtin.import_tasks: remote-control.yml  # always-on sandboxed service
+- name: Install the claude user, sandbox deps and Claude Code
+  ansible.builtin.import_tasks: install.yml
+
+- name: Set up the notes vault (rclone on LUKS, mount unit, sandbox)
+  ansible.builtin.import_tasks: vault.yml
+
+- name: Mirror custom slash commands and subagents
+  ansible.builtin.import_tasks: commands.yml
+
+- name: Install the Remote Control service
+  ansible.builtin.import_tasks: remote-control.yml

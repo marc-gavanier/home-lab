@@ -10,9 +10,20 @@
 # =============================================================================
 # Thin orchestrator: one file per concern, task names prefixed with the file.
 
-- ansible.builtin.import_tasks: luks.yml         # first-time format/open (probe-guarded)
-- ansible.builtin.import_tasks: mount.yml        # mnt-data.mount unit, no fstab/crypttab
-- ansible.builtin.import_tasks: unlock.yml       # homelab-unlock / homelab-lock scripts
-- ansible.builtin.import_tasks: target.yml       # homelab-services.target
-- ansible.builtin.import_tasks: directories.yml  # data tree on /mnt/data
-- ansible.builtin.import_tasks: swap.yml         # HDD swapfile via systemd swap unit
+- name: Set up LUKS on the data disk (first-time only, probe-guarded)
+  ansible.builtin.import_tasks: luks.yml
+
+- name: Install the mnt-data.mount unit (no fstab/crypttab)
+  ansible.builtin.import_tasks: mount.yml
+
+- name: Install the homelab-unlock / homelab-lock scripts
+  ansible.builtin.import_tasks: unlock.yml
+
+- name: Install the homelab-services systemd target
+  ansible.builtin.import_tasks: target.yml
+
+- name: Create the data tree on /mnt/data
+  ansible.builtin.import_tasks: directories.yml
+
+- name: Set up the HDD swapfile via a systemd swap unit
+  ansible.builtin.import_tasks: swap.yml

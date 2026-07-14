@@ -111,9 +111,9 @@ services:
       - "traefik.http.routers.wireguard.tls.certresolver=letsencrypt"
       - "traefik.http.services.wireguard.loadbalancer.server.port=51821"
 
-# =============================================================================
-# Phase 3 — Essential services
-# =============================================================================
+  # =============================================================================
+  # Phase 3 — Essential services
+  # =============================================================================
 
   # --- Nextcloud ---
   nextcloud:
@@ -234,7 +234,11 @@ services:
     entrypoint:
       - /bin/sh
       - -c
-      - "until [ -x /var/www/html/custom_apps/notify_push/bin/aarch64/notify_push ]; do echo 'waiting for notify_push binary'; sleep 5; done; exec /var/www/html/custom_apps/notify_push/bin/aarch64/notify_push /var/www/html/config/config.php"
+      - >-
+        until [ -x /var/www/html/custom_apps/notify_push/bin/aarch64/notify_push ];
+        do echo 'waiting for notify_push binary'; sleep 5; done;
+        exec /var/www/html/custom_apps/notify_push/bin/aarch64/notify_push
+        /var/www/html/config/config.php
     volumes:
       - ${SERVICES_DATA_DIR}/nextcloud/data:/var/www/html
     networks:
@@ -274,9 +278,9 @@ services:
       timeout: 5s
       retries: 3
 
-# =============================================================================
-# Phase 4 — Secondary services
-# =============================================================================
+  # =============================================================================
+  # Phase 4 — Secondary services
+  # =============================================================================
 
   # --- Jellyfin (Video) ---
   jellyfin:
@@ -442,9 +446,9 @@ services:
       timeout: 5s
       retries: 3
 
-# =============================================================================
-# Phase 5 — Observability
-# =============================================================================
+  # =============================================================================
+  # Phase 5 — Observability
+  # =============================================================================
 
   # --- Uptime Kuma ---
   uptime-kuma:
