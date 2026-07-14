@@ -58,7 +58,10 @@ would install first (documented rule by rule in the playbook vars).
 
 ## Follow-up
 
-Batches 1-2 are one small PR (sysctl + blacklist, both roles already have the
-right files). Batch 3 is a second PR (ssh.yml loop entries). Batch 4 file
-perms are trivial; package removals need a quick "is rsync used anywhere?"
-check first. Re-run the audit after each batch and watch the flagged count drop.
+- **Batches 1-2: DONE with this audit** (same branch) — sysctl hardening +
+  apport removal in `base/tasks/system.yml`, module blacklist in
+  `base/tasks/attack-surface.yml`.
+- Batch 3 (sshd polish) and batch 4 (file perms, package removals — check
+  whether rsync is used anywhere first) remain follow-up PRs.
+- Re-run the audit after each batch and watch the flagged count drop
+  (baseline 2026-07-14: 135 flagged).
