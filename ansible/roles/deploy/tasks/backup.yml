@@ -1,0 +1,108 @@
+---
+# Local restic backup: script, env on LUKS, Kuma DNS pin, repo init, timer.
+
+- name: backup | Install restic
+  ansible.builtin.apt:
+    name: restic
+    state: present
+
+- name: backup | Create scripts directory
+  ansible.builtin.file:
+    path: /opt/homelab/scripts
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: backup | Copy backup script
+  ansible.builtin.copy:
+    src: backup.sh
+    dest: /opt/homelab/scripts/backup.sh
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: backup | Template backup environment file (encrypted volume)
+  ansible.builtin.template:
+    src: backup.env.j2
+    dest: /mnt/data/secrets/backup.env
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: backup | Link /opt/homelab/backup.env to the encrypted volume
+  ansible.builtin.file:
+    src: /mnt/data/secrets/backup.env
+    dest: /opt/homelab/backup.env
+    state: link
+    force: true
+
+# backup.sh pings Uptime Kuma at services.<domain>, which resolves to the public IP from
+# the Pi (DNS hairpin) and is rejected (403) through Traefik. Pin it to the Pi's LAN IP so
+# the push reaches Kuma directly over the LAN (same pattern as the claude-code role's pin).
+#
+# This host is cloud-init managed (manage_etc_hosts: True): cloud-init regenerates /etc/hosts
+# from a template on every boot, wiping a plain lineinfile pin (which silently breaks the Kuma
+# push after a reboot). Pin in the template (survives reboots) AND /etc/hosts (immediate).
+- name: backup | Pin services domain in the cloud-init hosts template (persists across reboots)
+  ansible.builtin.lineinfile:
+    path: /etc/cloud/templates/hosts.debian.tmpl
+    line: "{{ homelab_ip }} services.{{ domain }}"
+    state: present
+
+- name: backup | Pin services domain in /etc/hosts now (immediate, until next cloud-init run)
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    line: "{{ homelab_ip }} services.{{ domain }}"
+    state: present
+
+- name: backup | Initialize restic repository
+  ansible.builtin.command:
+    cmd: restic init
+  environment:
+    RESTIC_REPOSITORY: "{{ backup_dir }}/restic-repo"
+    RESTIC_PASSWORD: "{{ restic_password }}"
+  register: restic_init
+  failed_when: false
+  changed_when: "'created restic repository' in restic_init.stdout"
+
+# HOME is unset for systemd services, so restic can't locate its cache
+# ("neither $XDG_CACHE_HOME nor $HOME are defined") and runs cache-less — slower
+# and re-reads more from the repo. Set HOME so it caches under /root/.cache/restic.
+- name: backup | Create backup systemd service
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/homelab-backup.service
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Home Lab Restic Backup
+      Requires=mnt-data.mount
+      After=mnt-data.mount
+
+      [Service]
+      Type=oneshot
+      ExecStart=/opt/homelab/scripts/backup.sh
+      EnvironmentFile=/opt/homelab/backup.env
+      Environment=HOME=/root
+
+- name: backup | Create backup systemd timer
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/homelab-backup.timer
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Daily Home Lab Backup at 3 AM
+
+      [Timer]
+      OnCalendar=*-*-* 03:00:00
+      Persistent=true
+
+      [Install]
+      WantedBy=timers.target
+
+- name: backup | Enable backup timer
+  ansible.builtin.systemd:
+    name: homelab-backup.timer
+    enabled: true
+    state: started
+    daemon_reload: true

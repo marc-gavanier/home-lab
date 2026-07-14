@@ -1,0 +1,55 @@
+---
+# Custom slash commands & subagents (authoritative mirror).
+# Source of truth lives in this role's files/{commands,agents}/. We MIRROR them
+# into the claude user's ~/.claude so the mobile Remote Control sessions expose
+# /conf-curate, /talk-add, etc. Authoritative: a file deleted from the repo is
+# also purged from the Pi (find + remove below), so the host can't silently
+# drift from version control. New sessions pick up changes; no service restart.
+
+- name: commands | Install custom slash commands for the claude user
+  ansible.builtin.copy:
+    src: commands/
+    dest: /home/claude/.claude/commands/
+    owner: claude
+    group: claude
+    mode: "0644"
+    directory_mode: "0755"
+
+- name: commands | Install custom subagents for the claude user
+  ansible.builtin.copy:
+    src: agents/
+    dest: /home/claude/.claude/agents/
+    owner: claude
+    group: claude
+    mode: "0644"
+    directory_mode: "0755"
+
+- name: commands | List slash commands currently on the host
+  ansible.builtin.find:
+    paths: /home/claude/.claude/commands
+    patterns: "*.md"
+  register: host_commands
+
+- name: commands | Purge slash commands no longer in the repo
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ host_commands.files }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+  when: item.path | basename not in (query('ansible.builtin.fileglob', 'commands/*.md') | map('basename') | list)
+
+- name: commands | List subagents currently on the host
+  ansible.builtin.find:
+    paths: /home/claude/.claude/agents
+    patterns: "*.md"
+  register: host_agents
+
+- name: commands | Purge subagents no longer in the repo
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ host_agents.files }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+  when: item.path | basename not in (query('ansible.builtin.fileglob', 'agents/*.md') | map('basename') | list)

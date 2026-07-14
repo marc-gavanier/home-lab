@@ -1,0 +1,44 @@
+---
+# WireGuard client (outbound tunnel to the homelab wg-easy) + Kuma reachability.
+
+- name: wireguard | Install WireGuard
+  ansible.builtin.apt:
+    name: wireguard
+    state: present
+
+- name: wireguard | Write WireGuard client configuration
+  ansible.builtin.copy:
+    content: "{{ offsite_wg_conf }}"
+    dest: /etc/wireguard/wg0.conf
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart WireGuard
+
+- name: wireguard | Enable and start WireGuard tunnel
+  ansible.builtin.systemd:
+    name: wg-quick@wg0
+    enabled: true
+    state: started
+
+# --- Reach Uptime Kuma through the tunnel ---
+# Once offsite, services.<domain> resolves publicly and Traefik rejects
+# non-VPN sources — the Kuma push would 403. Pin it to the homelab host's
+# VPN address (Traefik listens on all host interfaces), NOT its LAN IP:
+# routing the homelab LAN IP into the tunnel breaks any direct-LAN traffic
+# while the Pi is prepared at home (bitten during the seed, 2026-07-12).
+# Same cloud-init-template pattern as the homelab's own pin.
+
+- name: wireguard | Pin services domain in the cloud-init hosts template (persists across reboots)
+  ansible.builtin.lineinfile:
+    path: /etc/cloud/templates/hosts.debian.tmpl
+    regexp: ' services\.{{ domain | regex_escape }}$'
+    line: "{{ homelab_wg_ip }} services.{{ domain }}"
+    state: present
+
+- name: wireguard | Pin services domain in /etc/hosts now (immediate, until next cloud-init run)
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: ' services\.{{ domain | regex_escape }}$'
+    line: "{{ homelab_wg_ip }} services.{{ domain }}"
+    state: present

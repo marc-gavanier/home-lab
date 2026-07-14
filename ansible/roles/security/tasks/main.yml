@@ -2,152 +2,17 @@
 # =============================================================================
 # Role: security — System hardening
 # =============================================================================
+# Thin orchestrator: one file per concern, task names prefixed with the file.
 
-# --- SSH Hardening ---
-
-- name: Configure SSH hardening
-  ansible.builtin.lineinfile:
-    path: /etc/ssh/sshd_config
-    regexp: "{{ item.regexp }}"
-    line: "{{ item.line }}"
-    validate: 'sshd -t -f %s'
-  loop:
-    - { regexp: '^#?Port ', line: "Port {{ ssh_port_hardened }}" }
-    - { regexp: '^#?PermitRootLogin', line: 'PermitRootLogin no' }
-    - { regexp: '^#?PasswordAuthentication', line: 'PasswordAuthentication no' }
-    - { regexp: '^#?PubkeyAuthentication', line: 'PubkeyAuthentication yes' }
-    - { regexp: '^#?PermitEmptyPasswords', line: 'PermitEmptyPasswords no' }
-    - { regexp: '^#?X11Forwarding', line: 'X11Forwarding no' }
-    - { regexp: '^#?MaxAuthTries', line: 'MaxAuthTries 3' }
-    - { regexp: '^#?ClientAliveInterval', line: 'ClientAliveInterval 300' }
-    - { regexp: '^#?ClientAliveCountMax', line: 'ClientAliveCountMax 2' }
-    - { regexp: '^#?AllowUsers', line: "AllowUsers {{ ssh_allowed_users | join(' ') }}" }
-  notify: Restart SSH
-
-# --- Account password lockdown ---
-# SSH is key-only and sudo is NOPASSWD, so the account password's only reachable
-# use was a local console login — and its hash sat on the unencrypted SD card,
-# crackable offline by anyone who reads the card. Lock it: `!` prefix on the
-# hash disables password auth everywhere without touching the SSH keys.
-
-- name: Lock the admin account password (no legitimate use, offline-crackable)
-  ansible.builtin.user:
-    name: "{{ ansible_user }}"
-    password_lock: true
-
-# --- Firewall (UFW) ---
-
-- name: Install UFW
-  ansible.builtin.apt:
-    name: ufw
-    state: present
-
-- name: Set UFW default deny incoming
-  community.general.ufw:
-    direction: incoming
-    policy: deny
-
-- name: Set UFW default allow outgoing
-  community.general.ufw:
-    direction: outgoing
-    policy: allow
-
-- name: Allow SSH through UFW
-  community.general.ufw:
-    rule: allow
-    port: "{{ ssh_port_hardened }}"
-    proto: tcp
-    comment: SSH
-
-# Per-host service ports — defined in host_vars/<host>/main.yml
-- name: Allow service ports through UFW
-  community.general.ufw:
-    rule: allow
-    port: "{{ item.port }}"
-    proto: "{{ item.proto | default('tcp') }}"
-    from_ip: "{{ item.from_ip | default('any') }}"
-    comment: "{{ item.comment | default(omit) }}"
-  loop: "{{ ufw_service_rules | default([]) }}"
-
-- name: Enable UFW
-  community.general.ufw:
-    state: enabled
-
-# --- fail2ban ---
-
-- name: Install fail2ban
-  ansible.builtin.apt:
-    name: fail2ban
-    state: present
-
-- name: Configure fail2ban for SSH
-  ansible.builtin.copy:
-    dest: /etc/fail2ban/jail.local
-    content: |
-      [DEFAULT]
-      bantime = {{ fail2ban_ban_time }}
-      findtime = 600
-      maxretry = {{ fail2ban_max_retry }}
-      backend = systemd
-
-      [sshd]
-      enabled = true
-      port = {{ ssh_port_hardened }}
-      filter = sshd
-      logpath = /var/log/auth.log
-      maxretry = {{ fail2ban_max_retry }}
-    mode: "0644"
-  notify: Restart fail2ban
-
-# --- Automatic security updates ---
-
-- name: Install unattended-upgrades
-  ansible.builtin.apt:
-    name:
-      - unattended-upgrades
-      - apt-listchanges
-    state: present
-
-- name: Enable unattended-upgrades
-  ansible.builtin.copy:
-    dest: /etc/apt/apt.conf.d/20auto-upgrades
-    content: |
-      APT::Periodic::Update-Package-Lists "1";
-      APT::Periodic::Unattended-Upgrade "1";
-      APT::Periodic::AutocleanInterval "7";
-    mode: "0644"
-
-# --- Security audit tools ---
-
-- name: Install security audit tools
-  ansible.builtin.apt:
-    name:
-      - lynis
-      - rkhunter
-    state: present
-
-# --- Cloud-init artifacts (flash-time password hash) ---
-# The Imager-written user-data carries the account password hash; useless
-# after provisioning (the account is password-locked above) but offline-
-# crackable from the unencrypted SD. Blank it in every copy cloud-init keeps.
-# Per-instance semaphores mean the users module never re-runs — and even a
-# re-run would only set the unusable string "REDACTED" on a locked account.
-
-- name: Redact flash-time password hash from cloud-init artifacts
-  ansible.builtin.replace:
-    path: "{{ item }}"
-    regexp: '(?i)^(\s*)passwd:\s*\S.*$'
-    replace: '\1passwd: REDACTED'
-  loop:
-    - /boot/firmware/user-data
-    - /var/lib/cloud/instance/user-data.txt
-    - /var/lib/cloud/instance/user-data.txt.i
-    - /var/lib/cloud/instance/cloud-config.txt
-  failed_when: false # a future image may not ship every copy
+- ansible.builtin.import_tasks: ssh.yml         # key-only, hardened port, account lock
+- ansible.builtin.import_tasks: firewall.yml    # UFW deny-by-default + per-host rules
+- ansible.builtin.import_tasks: fail2ban.yml
+- ansible.builtin.import_tasks: updates.yml     # unattended-upgrades
+- ansible.builtin.import_tasks: audit.yml       # lynis, rkhunter
+- ansible.builtin.import_tasks: cloud-init.yml  # redact flash-time password hash
 
 # Apply the SSH port change NOW, not at end of play: if a later role fails,
 # handlers never run and the box is left with sshd on the old port behind a
 # UFW that only allows the new one — a guaranteed lockout (bitten 2026-07-12).
 - name: Flush handlers so sshd matches UFW before later roles run
   ansible.builtin.meta: flush_handlers
-

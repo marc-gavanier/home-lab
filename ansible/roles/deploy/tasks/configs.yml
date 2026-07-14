@@ -1,0 +1,67 @@
+---
+# Service configurations under /opt/homelab/configs.
+# docker/configs/ holds ONLY verbatim files (traefik/dynamic); anything
+# needing variables lives in this role's templates/ as .j2. Keep it that way:
+# copying unrendered Jinja over rendered files made every deploy report
+# changes (and fought the SearXNG settings symlink).
+
+- name: configs | Create service configuration directories
+  ansible.builtin.file:
+    path: /opt/homelab/configs/{{ item }}
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: docker
+    mode: "0750"
+  loop:
+    - traefik/dynamic
+    - pihole
+
+# No ownership managed: the SearXNG container chowns this directory to its
+# own UID at startup — forcing it back would flap on every run.
+- name: configs | Create SearXNG configuration directory
+  ansible.builtin.file:
+    path: /opt/homelab/configs/searxng
+    state: directory
+
+- name: configs | Copy Traefik dynamic configuration
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../../docker/configs/traefik/dynamic/"
+    dest: /opt/homelab/configs/traefik/dynamic/
+    owner: "{{ ansible_user }}"
+    group: docker
+    mode: "0640"
+
+- name: configs | Template Traefik static config (resolve variables)
+  ansible.builtin.template:
+    src: traefik.yml.j2
+    dest: /opt/homelab/configs/traefik/traefik.yml
+    owner: "{{ ansible_user }}"
+    group: docker
+    mode: "0640"
+  notify: Restart traefik
+
+- name: configs | Template Pi-hole split DNS config (resolve variables)
+  ansible.builtin.template:
+    src: pihole-05-homelab.conf.j2
+    dest: /opt/homelab/configs/pihole/05-homelab.conf
+    owner: "{{ ansible_user }}"
+    group: docker
+    mode: "0640"
+  notify: Restart pihole
+
+# settings.yml embeds secret_key → encrypted volume + symlink (the compose
+# bind-mount resolves the symlink when the container is created)
+- name: configs | Template SearXNG settings (resolve secret_key + base_url)
+  ansible.builtin.template:
+    src: searxng-settings.yml.j2
+    dest: /mnt/data/secrets/searxng-settings.yml
+    owner: "{{ ansible_user }}"
+    group: docker
+    mode: "0640"
+
+- name: configs | Link SearXNG settings to the encrypted volume
+  ansible.builtin.file:
+    src: /mnt/data/secrets/searxng-settings.yml
+    dest: /opt/homelab/configs/searxng/settings.yml
+    state: link
+    force: true

@@ -1,0 +1,38 @@
+---
+# UFW: deny by default, explicit whitelist.
+
+- name: firewall | Install UFW
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+
+- name: firewall | Set UFW default deny incoming
+  community.general.ufw:
+    direction: incoming
+    policy: deny
+
+- name: firewall | Set UFW default allow outgoing
+  community.general.ufw:
+    direction: outgoing
+    policy: allow
+
+- name: firewall | Allow SSH through UFW
+  community.general.ufw:
+    rule: allow
+    port: "{{ ssh_port_hardened }}"
+    proto: tcp
+    comment: SSH
+
+# Per-host service ports — defined in host_vars/<host>/main.yml
+- name: firewall | Allow service ports through UFW
+  community.general.ufw:
+    rule: allow
+    port: "{{ item.port }}"
+    proto: "{{ item.proto | default('tcp') }}"
+    from_ip: "{{ item.from_ip | default('any') }}"
+    comment: "{{ item.comment | default(omit) }}"
+  loop: "{{ ufw_service_rules | default([]) }}"
+
+- name: firewall | Enable UFW
+  community.general.ufw:
+    state: enabled

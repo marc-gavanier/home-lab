@@ -1,0 +1,53 @@
+---
+# LUKS encryption — first-time setup only (guarded by isLuks/blkid probes).
+
+- name: luks | Install filesystem and encryption utilities
+  ansible.builtin.apt:
+    name:
+      - e2fsprogs
+      - hdparm
+      - cryptsetup
+      - smartmontools
+    state: present
+
+- name: luks | Check if device is already a LUKS volume
+  ansible.builtin.command:
+    cmd: cryptsetup isLuks {{ data_disk_device }}
+  register: is_luks
+  failed_when: false
+  changed_when: false
+
+- name: luks | Format device with LUKS (destructive — only if not already LUKS)
+  ansible.builtin.shell:
+    cmd: echo "{{ luks_passphrase }}" | cryptsetup luksFormat --batch-mode {{ data_disk_device }}
+  when: is_luks.rc != 0
+  no_log: true
+
+- name: luks | Open LUKS volume for initial setup
+  ansible.builtin.shell:
+    cmd: echo "{{ luks_passphrase }}" | cryptsetup open --type luks {{ data_disk_device }} {{ luks_mapper_name }}
+  when: is_luks.rc != 0
+  no_log: true
+
+- name: luks | Check if LUKS volume is already open
+  ansible.builtin.stat:
+    path: "/dev/mapper/{{ luks_mapper_name }}"
+  register: mapper_device
+
+- name: luks | Open LUKS volume (if not open)
+  ansible.builtin.shell:
+    cmd: echo "{{ luks_passphrase }}" | cryptsetup open --type luks {{ data_disk_device }} {{ luks_mapper_name }}
+  when: not mapper_device.stat.exists
+  no_log: true
+
+- name: luks | Check if filesystem exists on LUKS volume
+  ansible.builtin.command:
+    cmd: blkid /dev/mapper/{{ luks_mapper_name }}
+  register: blkid_result
+  failed_when: false
+  changed_when: false
+
+- name: luks | Create ext4 filesystem on LUKS volume
+  ansible.builtin.command:
+    cmd: mkfs.ext4 -L homelab-data /dev/mapper/{{ luks_mapper_name }}
+  when: blkid_result.rc != 0

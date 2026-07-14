@@ -1,0 +1,51 @@
+---
+# Mount as a static systemd unit — never via fstab.
+
+- name: mount | Create mount point
+  ansible.builtin.file:
+    path: "{{ data_mount_point }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+# The mount is a static systemd unit, NOT an fstab entry: it gives
+# RequiresMountsFor= a real unit to bind to. Without it, systemd resolves
+# RequiresMountsFor={{ data_mount_point }} against the parent mounts only (/),
+# so nothing actually stopped Docker from starting before the LUKS volume was
+# mounted — it then initialised a ghost store on the SD card *under* the mount
+# point (incident of 2026-07-04).
+- name: mount | Install mnt-data.mount unit
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/mnt-data.mount
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Home Lab encrypted data volume
+      # No [Install] section: never started at boot — the LUKS mapping only
+      # exists after a manual unlock (homelab-unlock starts this unit, or
+      # homelab-services.target pulls it in via Requires=).
+
+      [Mount]
+      What=/dev/mapper/{{ luks_mapper_name }}
+      Where={{ data_mount_point }}
+      Type={{ data_filesystem }}
+      Options=defaults,noatime
+
+- name: mount | Mount encrypted volume (via the systemd unit)
+  ansible.builtin.systemd:
+    name: mnt-data.mount
+    state: started
+    daemon_reload: true
+
+- name: mount | Remove crypttab entry (systemd-cryptsetup-generator ignores noauto)
+  ansible.builtin.file:
+    path: /etc/crypttab
+    state: absent
+
+- name: mount | Remove fstab entry for encrypted volume (homelab-unlock handles mount)
+  ansible.posix.mount:
+    path: "{{ data_mount_point }}"
+    src: "/dev/mapper/{{ luks_mapper_name }}"
+    fstype: "{{ data_filesystem }}"
+    state: absent_from_fstab

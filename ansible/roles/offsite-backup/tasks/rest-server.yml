@@ -1,0 +1,71 @@
+---
+# rest-server: append-only restic target, basic-auth, systemd unit.
+
+- name: rest-server | Create rest-server system user
+  ansible.builtin.user:
+    name: rest-server
+    system: true
+    shell: /usr/sbin/nologin
+    create_home: false
+
+- name: rest-server | Create restic data directory
+  ansible.builtin.file:
+    path: "{{ rest_server_data_dir }}"
+    state: directory
+    owner: rest-server
+    group: rest-server
+    mode: "0750"
+
+- name: rest-server | Check installed rest-server version
+  ansible.builtin.command: /usr/local/bin/rest-server --version
+  register: rest_server_installed
+  changed_when: false
+  failed_when: false
+
+- name: rest-server | Download and extract rest-server {{ rest_server_version }}
+  ansible.builtin.unarchive:
+    src: "https://github.com/restic/rest-server/releases/download/v{{ rest_server_version }}/rest-server_{{ rest_server_version }}_linux_arm64.tar.gz"
+    dest: /tmp
+    remote_src: true
+  when: rest_server_version not in (rest_server_installed.stdout | default(''))
+
+- name: rest-server | Install rest-server binary
+  ansible.builtin.copy:
+    src: "/tmp/rest-server_{{ rest_server_version }}_linux_arm64/rest-server"
+    dest: /usr/local/bin/rest-server
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0755"
+  when: rest_server_version not in (rest_server_installed.stdout | default(''))
+  notify: Restart rest-server
+
+- name: rest-server | Install passlib for htpasswd management
+  ansible.builtin.apt:
+    name: python3-passlib
+    state: present
+
+- name: rest-server | Configure rest-server basic-auth credentials
+  community.general.htpasswd:
+    path: "{{ rest_server_data_dir }}/.htpasswd"
+    name: "{{ rest_server_auth_user }}"
+    password: "{{ rest_server_auth_password }}"
+    hash_scheme: bcrypt
+    owner: rest-server
+    group: rest-server
+    mode: "0600"
+  notify: Restart rest-server
+
+- name: rest-server | Install rest-server systemd unit
+  ansible.builtin.template:
+    src: rest-server.service.j2
+    dest: /etc/systemd/system/rest-server.service
+    mode: "0644"
+  notify: Restart rest-server
+
+- name: rest-server | Enable and start rest-server
+  ansible.builtin.systemd:
+    name: rest-server
+    enabled: true
+    state: started
+    daemon_reload: true

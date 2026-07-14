@@ -1,0 +1,31 @@
+---
+# Weekly disk-health report (df + SMART → Uptime Kuma push) + monthly self-test.
+# The repo password never lives here, so restic checks run from the homelab;
+# this host only reports what it can see without the password.
+
+- name: health | Install disk-health report script
+  ansible.builtin.template:
+    src: offsite-health.sh.j2
+    dest: /usr/local/bin/offsite-health.sh
+    mode: "0750"
+
+- name: health | Install disk-health and SMART self-test units
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: /etc/systemd/system/{{ item }}
+    mode: "0644"
+  loop:
+    - offsite-health.service
+    - offsite-health.timer
+    - offsite-smart-test.service
+    - offsite-smart-test.timer
+
+- name: health | Enable disk-health and SMART self-test timers
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+  loop:
+    - offsite-health.timer
+    - offsite-smart-test.timer

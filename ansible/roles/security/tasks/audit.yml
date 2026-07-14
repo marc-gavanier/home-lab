@@ -1,0 +1,9 @@
+---
+# Security audit tools.
+
+- name: audit | Install security audit tools
+  ansible.builtin.apt:
+    name:
+      - lynis
+      - rkhunter
+    state: present

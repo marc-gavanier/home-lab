@@ -1,0 +1,39 @@
+---
+# Integrate with the homelab-unlock workflow: Docker must never start before
+# the LUKS volume is mounted (ghost-store failure, 2026-07-04).
+
+- name: unlock-integration | Create Docker service override directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/docker.service.d
+    state: directory
+    mode: "0755"
+
+- name: unlock-integration | Configure Docker to start only via homelab-unlock
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/docker.service.d/override.conf
+    mode: "0644"
+    content: |
+      [Unit]
+      # Docker's data-root is on {{ data_mount_point }} (LUKS, unlocked manually).
+      # This makes the daemon refuse to start until that disk is mounted — so it
+      # can never initialise an empty ghost store on the bare mount point.
+      RequiresMountsFor={{ data_mount_point }}
+      PartOf=homelab-services.target
+
+      [Install]
+      WantedBy=homelab-services.target
+
+- name: unlock-integration | Disable Docker auto-start at boot
+  ansible.builtin.systemd:
+    name: docker
+    enabled: false
+    daemon_reload: true
+
+# Socket activation starts dockerd on the first `docker` CLI call — including
+# before the unlock, which is how the ghost store got initialised on 2026-07-04
+# (a `docker ps` was enough). Disabled at boot; docker.service still pulls the
+# socket in itself when homelab-services.target starts it.
+- name: unlock-integration | Disable Docker socket activation at boot
+  ansible.builtin.systemd:
+    name: docker.socket
+    enabled: false

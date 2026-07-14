@@ -1,0 +1,52 @@
+---
+# Crash recovery.
+# Non-Tier-0 services are `restart: "no"` (see the heal script header for why),
+# so Docker no longer restarts crashed containers; this timer does, every 2 min
+# while the stack is unlocked.
+
+- name: heal | Deploy the crash-recovery script
+  ansible.builtin.copy:
+    src: homelab-stack-heal.sh
+    dest: /usr/local/sbin/homelab-stack-heal.sh
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: heal | Install the crash-recovery systemd service
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/homelab-stack-heal.service
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Homelab crash recovery (restart crashed containers)
+      PartOf=homelab-services.target
+      After=docker.service
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/sbin/homelab-stack-heal.sh
+
+- name: heal | Install the crash-recovery systemd timer
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/homelab-stack-heal.timer
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Homelab crash recovery timer
+      # Runs only while the stack is up: pulled in by homelab-services.target,
+      # stopped with it by homelab-lock.
+      PartOf=homelab-services.target
+
+      [Timer]
+      OnActiveSec=2min
+      OnUnitActiveSec=2min
+
+      [Install]
+      WantedBy=homelab-services.target
+
+- name: heal | Wire the crash-recovery timer into homelab-services.target
+  ansible.builtin.systemd:
+    name: homelab-stack-heal.timer
+    enabled: true
+    state: started
+    daemon_reload: true

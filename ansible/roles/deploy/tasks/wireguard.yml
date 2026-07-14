@@ -1,0 +1,68 @@
+---
+# Host WireGuard client (backup path to the offsite Pi, ADR-010).
+# wg0 lives inside the wg-easy container, so the host cannot reach VPN peers
+# directly. The host runs its own WireGuard client ("homelab-host") against
+# wg-easy over loopback; restic then reaches the offsite rest-server at its
+# VPN address — the same path before and after the Pi moves offsite.
+
+- name: wireguard | Install WireGuard (host client for offsite backup)
+  ansible.builtin.apt:
+    name: wireguard
+    state: present
+  when: homelab_wg_conf is defined
+
+# The private key lives on the encrypted volume; /etc/wireguard/wg0.conf is a
+# symlink so wg-quick@wg0 keeps its standard name. The tunnel therefore cannot
+# start before homelab-unlock — mnt-data.mount pulls it in (add-wants) and the
+# drop-in orders it after the mount. It only serves the 03:00 offsite copy, so
+# a post-unlock start loses nothing.
+- name: wireguard | Write host WireGuard client configuration (encrypted volume)
+  ansible.builtin.copy:
+    content: "{{ homelab_wg_conf }}"
+    dest: /mnt/data/secrets/wg0.conf
+    owner: root
+    group: root
+    mode: "0600"
+  register: homelab_wg_conf_file
+  when: homelab_wg_conf is defined
+
+- name: wireguard | Link /etc/wireguard/wg0.conf to the encrypted volume
+  ansible.builtin.file:
+    src: /mnt/data/secrets/wg0.conf
+    dest: /etc/wireguard/wg0.conf
+    state: link
+    force: true
+  when: homelab_wg_conf is defined
+
+- name: wireguard | Create drop-in directory for the tunnel unit
+  ansible.builtin.file:
+    path: /etc/systemd/system/wg-quick@wg0.service.d
+    state: directory
+    mode: "0755"
+  when: homelab_wg_conf is defined
+
+- name: wireguard | Order the host tunnel after the encrypted volume mount
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/wg-quick@wg0.service.d/luks.conf
+    mode: "0644"
+    content: |
+      # Config on /mnt/data (secrets never on the SD card) — see deploy role.
+      [Unit]
+      RequiresMountsFor=/mnt/data
+  when: homelab_wg_conf is defined
+
+# No `enabled:` here — the wants-link below makes is-enabled report "enabled",
+# so enabled:false would wipe that very link on every run (bitten 2026-07-13).
+# Nothing enables this unit at boot; only mnt-data.mount pulls it in.
+- name: wireguard | Start host WireGuard tunnel (boot-time start comes from mnt-data.mount)
+  ansible.builtin.systemd:
+    name: wg-quick@wg0
+    state: "{{ homelab_wg_conf_file is changed | ternary('restarted', 'started') }}"
+    daemon_reload: true
+  when: homelab_wg_conf is defined
+
+- name: wireguard | Start the tunnel whenever the encrypted volume mounts
+  ansible.builtin.command: systemctl add-wants mnt-data.mount wg-quick@wg0.service
+  args:
+    creates: /etc/systemd/system/mnt-data.mount.wants/wg-quick@wg0.service
+  when: homelab_wg_conf is defined

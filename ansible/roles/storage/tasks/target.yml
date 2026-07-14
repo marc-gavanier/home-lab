@@ -1,0 +1,21 @@
+---
+# Systemd target for services that depend on /mnt/data.
+
+- name: target | Create homelab-services systemd target
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/homelab-services.target
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Home Lab Services (requires /mnt/data)
+      Requires=mnt-data.mount
+      # Pull Docker directly (it is disabled at boot, so its WantedBy symlink is
+      # stripped — Wants= starts it regardless). Ordered after the mount so it
+      # never starts against an empty data-root. The swap lives on the HDD too,
+      # so it is activated here as well (see the swap unit).
+      Wants=docker.service mnt-data-swapfile.swap
+      After=mnt-data.mount docker.service
+
+- name: target | Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true

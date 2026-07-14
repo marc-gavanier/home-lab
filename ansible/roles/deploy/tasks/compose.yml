@@ -1,0 +1,35 @@
+---
+# Docker Compose: file, networks, pull, up.
+
+- name: compose | Copy Docker Compose file
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../../docker/compose.yaml"
+    dest: /opt/homelab/compose.yaml
+    owner: "{{ ansible_user }}"
+    group: docker
+    mode: "0640"
+
+- name: compose | Ensure Docker networks exist
+  community.docker.docker_network:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - proxy
+    - internal
+
+- name: compose | Pull latest images
+  ansible.builtin.command:
+    cmd: docker compose pull {{ deploy_services | default('') }}
+    chdir: /opt/homelab
+  changed_when: false
+
+- name: compose | Deploy services
+  ansible.builtin.command:
+    cmd: docker compose up -d {{ deploy_services | default('') }}
+    chdir: /opt/homelab
+  register: compose_result
+  changed_when: "'Started' in compose_result.stderr or 'Created' in compose_result.stderr"
+
+- name: compose | Show deployment output
+  ansible.builtin.debug:
+    var: compose_result.stderr_lines

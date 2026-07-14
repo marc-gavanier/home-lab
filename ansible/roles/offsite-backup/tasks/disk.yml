@@ -1,0 +1,64 @@
+---
+# Backup disk: USB-SATA quirk, ext4 (no LUKS — ADR-010), mount.
+
+# --- USB-SATA bridge quirk ---
+# Some bridges (ASMedia ASM1153 in the 52Pi tower) corrupt writes in UAS
+# mode on the Pi. usb_storage_quirks (host_vars) forces plain usb-storage.
+
+- name: disk | Read cmdline.txt
+  ansible.builtin.slurp:
+    src: /boot/firmware/cmdline.txt
+  register: offsite_cmdline
+  when: usb_storage_quirks is defined
+
+- name: disk | Disable UAS for the USB-SATA bridge
+  ansible.builtin.lineinfile:
+    path: /boot/firmware/cmdline.txt
+    backrefs: true
+    regexp: '^(.*?)(\s*)$'
+    line: '\1 usb-storage.quirks={{ usb_storage_quirks }}\2'
+  when:
+    - usb_storage_quirks is defined
+    - "('usb-storage.quirks=' ~ usb_storage_quirks) not in (offsite_cmdline.content | b64decode)"
+  register: offsite_quirk_added
+
+- name: disk | Reboot to apply the storage quirk (must precede any disk write)
+  ansible.builtin.reboot:
+    reboot_timeout: 300
+  when: offsite_quirk_added is changed
+
+# --- Backup disk (ext4, no LUKS) ---
+
+- name: disk | Read current filesystem type on the backup disk
+  ansible.builtin.command: blkid -o value -s TYPE {{ backup_disk_device }}
+  register: backup_disk_fstype
+  changed_when: false
+  failed_when: false # rc=2 when the partition has no filesystem yet
+
+- name: disk | Refuse to overwrite an unexpected filesystem
+  ansible.builtin.fail:
+    msg: >-
+      {{ backup_disk_device }} carries a '{{ backup_disk_fstype.stdout }}'
+      filesystem. Set offsite_disk_force_format=true (one run) to format it.
+  when:
+    - backup_disk_fstype.stdout not in ['', 'ext4']
+    - not offsite_disk_force_format
+
+- name: disk | Create ext4 filesystem on the backup disk
+  community.general.filesystem:
+    fstype: ext4
+    dev: "{{ backup_disk_device }}"
+    force: "{{ offsite_disk_force_format }}"
+
+- name: disk | Read backup disk UUID
+  ansible.builtin.command: blkid -o value -s UUID {{ backup_disk_device }}
+  register: backup_disk_uuid
+  changed_when: false
+
+- name: disk | Mount backup disk
+  ansible.posix.mount:
+    path: "{{ backup_mount_point }}"
+    src: "UUID={{ backup_disk_uuid.stdout }}"
+    fstype: ext4
+    opts: defaults,noatime,nofail
+    state: mounted

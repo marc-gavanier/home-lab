@@ -1,0 +1,52 @@
+---
+# Claude Code Remote Control (always-on, sandboxed, dedicated user).
+# Requires the one-time `claude auth login` as the claude user (see main.yml).
+# Pairing URL: journalctl -u claude-remote-control | grep claude.ai/code
+
+- name: remote-control | Create the Claude Code Remote Control systemd service
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/claude-remote-control.service
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Claude Code Remote Control (sandboxed, dedicated user)
+      After=network-online.target vault-mount.service
+      Wants=network-online.target vault-mount.service
+      # Deliberately NOT Requires=vault-mount.service: at boot the rclone mount
+      # depends on Traefik/Nextcloud, which take a while to come up. A hard
+      # Requires= makes this unit fail with 'dependency' the instant the mount
+      # isn't ready yet — and a dependency-job failure stays dead forever (it is
+      # NOT covered by Restart=). Instead we soft-want the mount, gate startup on
+      # it being present (ExecStartPre), and let Restart=on-failure retry until
+      # the mount appears — self-healing across a slow boot.
+      StartLimitIntervalSec=0
+
+      [Service]
+      Type=simple
+      User=claude
+      Group=claude
+      WorkingDirectory=/home/claude/vault
+      Environment=HOME=/home/claude
+      # Wait for the vault to actually be mounted before launching; fail (and let
+      # systemd retry) if it isn't there yet.
+      ExecStartPre=/bin/sh -c 'grep -q " /home/claude/vault " /proc/mounts'
+      ExecStart=/home/claude/.local/bin/claude remote-control --name Homelab
+      Restart=on-failure
+      RestartSec=15
+      StandardOutput=journal
+      StandardError=journal
+
+      [Install]
+      WantedBy=multi-user.target
+
+- name: remote-control | Check whether the claude user is authenticated
+  ansible.builtin.stat:
+    path: /home/claude/.claude/.credentials.json
+  register: claude_creds
+
+- name: remote-control | Enable Remote Control (started only once claude.ai login is done)
+  ansible.builtin.systemd:
+    name: claude-remote-control.service
+    enabled: true
+    state: "{{ 'started' if claude_creds.stat.exists else 'stopped' }}"
+    daemon_reload: true

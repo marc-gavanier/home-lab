@@ -1,0 +1,49 @@
+---
+# Swap on the HDD, activated by a systemd unit bound to the data mount.
+
+- name: swap | Create swap file on HDD
+  ansible.builtin.command:
+    cmd: "dd if=/dev/zero of={{ data_mount_point }}/swapfile bs=1M count={{ swap_size_mb }}"
+    creates: "{{ data_mount_point }}/swapfile"
+
+- name: swap | Set swap file permissions
+  ansible.builtin.file:
+    path: "{{ data_mount_point }}/swapfile"
+    mode: "0600"
+
+- name: swap | Format swap file
+  ansible.builtin.command:
+    cmd: "mkswap {{ data_mount_point }}/swapfile"
+  register: mkswap_result
+  changed_when: mkswap_result.rc == 0
+  failed_when: false
+
+# Swap is a systemd unit bound to the data mount, NOT an fstab entry: the
+# fstab entry (sw,nofail) was activated at boot, when {{ data_mount_point }} is
+# still the bare SD directory — so the system silently created and swapped on a
+# ghost swapfile on the SD card (wear + slow) instead of the HDD one.
+- name: swap | Install swap unit (activates only once the HDD is mounted)
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/mnt-data-swapfile.swap
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Home Lab swap on encrypted HDD
+      RequiresMountsFor={{ data_mount_point }}
+
+      [Swap]
+      What={{ data_mount_point }}/swapfile
+
+- name: swap | Remove swap from fstab (activated by the swap unit instead)
+  ansible.posix.mount:
+    path: none
+    src: "{{ data_mount_point }}/swapfile"
+    fstype: swap
+    opts: sw,nofail
+    state: absent
+
+- name: swap | Activate swap unit
+  ansible.builtin.systemd:
+    name: mnt-data-swapfile.swap
+    state: started
+    daemon_reload: true

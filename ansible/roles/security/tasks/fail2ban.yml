@@ -1,0 +1,26 @@
+---
+# fail2ban on SSH.
+
+- name: fail2ban | Install fail2ban
+  ansible.builtin.apt:
+    name: fail2ban
+    state: present
+
+- name: fail2ban | Configure fail2ban for SSH
+  ansible.builtin.copy:
+    dest: /etc/fail2ban/jail.local
+    content: |
+      [DEFAULT]
+      bantime = {{ fail2ban_ban_time }}
+      findtime = 600
+      maxretry = {{ fail2ban_max_retry }}
+      backend = systemd
+
+      [sshd]
+      enabled = true
+      port = {{ ssh_port_hardened }}
+      filter = sshd
+      logpath = /var/log/auth.log
+      maxretry = {{ fail2ban_max_retry }}
+    mode: "0644"
+  notify: Restart fail2ban

@@ -1,0 +1,21 @@
+---
+# Free port 53 for Pi-hole.
+# Only on hosts that run Pi-hole (free_port_53: false on the offsite host,
+# which keeps the stock systemd-resolved setup).
+
+- name: port53 | Disable systemd-resolved stub DNS listener
+  ansible.builtin.lineinfile:
+    path: /etc/systemd/resolved.conf
+    regexp: '^#?DNSStubListener='
+    line: 'DNSStubListener=no'
+  notify: Restart systemd-resolved
+  when: free_port_53 | default(true)
+
+- name: port53 | Point resolv.conf to upstream DNS temporarily
+  ansible.builtin.copy:
+    dest: /etc/resolv.conf
+    content: |
+      nameserver 1.1.1.1
+      nameserver 8.8.8.8
+    mode: "0644"
+  when: free_port_53 | default(true)

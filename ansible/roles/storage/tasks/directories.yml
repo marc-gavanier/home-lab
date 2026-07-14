@@ -1,0 +1,21 @@
+---
+# Directory structure on the encrypted volume.
+
+- name: directories | Create top-level data directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "1000"
+    group: "1000"
+    mode: "0755"
+  loop:
+    - "{{ services_data_dir }}"
+    - "{{ media_dir }}"
+    - "{{ media_dir }}/music"
+    - "{{ media_dir }}/videos"
+    - "{{ media_dir }}/videos/movies"
+    - "{{ media_dir }}/videos/shows"
+    - "{{ media_dir }}/videos/home-videos"
+    - "{{ media_dir }}/videos/music-videos"
+    - "{{ media_dir }}/photos"
+    - "{{ backup_dir }}"

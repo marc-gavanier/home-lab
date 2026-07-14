@@ -1,0 +1,43 @@
+---
+# SearXNG branding (Gerbier theme).
+# Opt-in via `searxng_branding` (default false). The build ALWAYS runs so the
+# (static) bind-mount always has a file: with branding off it emits the stock
+# CSS (mount is a no-op, SearXNG stays vanilla); with branding on it appends the
+# Gerbier overrides (+ optional logo). Runs BEFORE `compose up` so the mounted
+# files exist — otherwise Docker would create empty directories over them.
+
+- name: branding | Install brotli (to regenerate SearXNG precompressed assets)
+  ansible.builtin.apt:
+    name: brotli
+    state: present
+
+- name: branding | Copy SearXNG branding sources
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../../docker/branding/"
+    dest: /opt/homelab/branding/
+    owner: "{{ ansible_user }}"
+    group: docker
+    mode: "0750"
+    directory_mode: "0750"
+
+- name: branding | Copy SearXNG logo (when configured)
+  ansible.builtin.copy:
+    src: "{{ searxng_logo }}"
+    dest: "/opt/homelab/branding/searxng/logo.{{ searxng_logo.split('.') | last }}"
+    owner: "{{ ansible_user }}"
+    group: docker
+    mode: "0640"
+  when:
+    - searxng_branding | default(false)
+    - searxng_logo | default('') | length > 0
+
+- name: branding | Build SearXNG branded assets (before compose up)
+  ansible.builtin.command:
+    cmd: ./build-branding.sh
+    chdir: /opt/homelab/branding/searxng
+  environment:
+    SEARXNG_BRANDING: "{{ searxng_branding | default(false) | ternary('true', 'false') }}"
+    SEARXNG_IMAGE: searxng/searxng:latest
+    SEARXNG_LOGO: "{{ ('/opt/homelab/branding/searxng/logo.' + (searxng_logo.split('.') | last)) if ((searxng_branding | default(false)) and (searxng_logo | default('') | length > 0)) else '' }}"
+    OUT_DIR: /opt/homelab/branding/searxng/out
+  changed_when: true

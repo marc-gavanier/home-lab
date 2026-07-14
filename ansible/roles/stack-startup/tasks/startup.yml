@@ -1,0 +1,46 @@
+---
+# Staged-startup orchestrator: DNS first, then health-gated waves.
+
+- name: startup | Deploy the staged-startup orchestrator script
+  ansible.builtin.copy:
+    src: homelab-stack-startup.sh
+    dest: /usr/local/sbin/homelab-stack-startup.sh
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: startup | Install the staged-startup systemd service
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/homelab-stack-startup.service
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Homelab staged container startup (DNS first)
+      PartOf=homelab-services.target
+      Requires=docker.service
+      After=mnt-data.mount docker.service
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      TimeoutStartSec=600
+      ExecStart=/usr/local/sbin/homelab-stack-startup.sh
+
+      [Install]
+      WantedBy=homelab-services.target
+
+# An earlier version wired this WantedBy=multi-user.target, which pulled Docker
+# at boot — before homelab-unlock mounted /mnt/data — and produced a ghost store.
+# Remove that stale symlink so the regression cannot resurface on the next boot.
+- name: startup | Remove stale boot-time wiring of the orchestrator
+  ansible.builtin.file:
+    path: /etc/systemd/system/multi-user.target.wants/homelab-stack-startup.service
+    state: absent
+
+# Enable wires it into homelab-services.target.wants — pulled by homelab-unlock,
+# not at boot. Not started here: the stack is already up after a deploy.
+- name: startup | Wire the orchestrator into homelab-services.target
+  ansible.builtin.systemd:
+    name: homelab-stack-startup.service
+    enabled: true
+    daemon_reload: true
