@@ -1,0 +1,14 @@
+---
+# CIS batch 4 (audit 2026-07): remove unused network services and clients.
+# rsync is deliberately KEPT: it is the operator's media-transfer tool
+# (docs/05-services/nextcloud.md) and the binary must exist server-side.
+
+- name: packages | Remove unused network services and legacy clients (CIS 2.1.x, 2.2.x)
+  ansible.builtin.apt:
+    name:
+      - avahi-daemon  # mDNS broadcaster — nothing discovers services this way here
+      - telnet        # legacy cleartext client
+      - ftp           # legacy cleartext client
+    state: absent
+    purge: true
+    autoremove: true

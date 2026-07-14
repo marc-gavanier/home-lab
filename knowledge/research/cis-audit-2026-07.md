@@ -24,6 +24,7 @@ fixing** (real quick wins), **noise** (not applicable here).
 | 5.4.1.x, 5.3.x PAM          | password aging/quality/lockout | No active local passwords exist (locked); rules are moot                                                                     |
 | Section 6                   | auditd installed + rules       | Accepted absence so far: single-operator host, systemd journal present, SD wear budget. Revisit if threat model changes      |
 | Bootloader (1.3.1.2, 1.4.x) | GRUB hardening                 | No GRUB on a Pi (firmware + cmdline.txt); boot integrity addressed by ADR-008/009 instead                                    |
+| 2.1.13                      | rsync package removed          | Operator's media-transfer tool (docs/05-services/nextcloud.md) — the binary must exist server-side                           |
 
 The full rule-by-rule list (with check-mode exclusions) lives as commented
 vars in `playbooks/cis-audit.yml`.
@@ -46,18 +47,20 @@ Unused filesystems 1.1.1.1-.8 (cramfs, freevxfs, hfs, hfsplus, jffs2, udf)
 and network protocols 3.2.x (dccp, tipc, rds, sctp), `install /bin/false` +
 blacklist. overlayfs and usb-storage deliberately kept (see §1).
 
-**Batch 3 — sshd polish — TODO** (security role `ssh.yml`)
+**Batch 3 — sshd polish — SHIPPED 2026-07-15** (security role `ssh.yml`)
 Explicit strong Ciphers/MACs/KexAlgorithms (5.1.6/12/15), LogLevel VERBOSE,
 LoginGraceTime 60, MaxSessions/MaxStartups, PermitUserEnvironment no,
-IgnoreRhosts, GSSAPI off. Skip DisableForwarding (assumed, §1).
+IgnoreRhosts, HostbasedAuthentication/GSSAPI off. DisableForwarding skipped
+(assumed, §1). All entries go through `sshd -t` validation before restart.
 
-**Batch 4 — files & packages — TODO**
-- cron perms 0600/0700 + cron.allow/at.allow (2.4.x)
-- /etc/shadow(-)/gshadow(-) perms (7.1.5-8)
-- remove avahi-daemon, telnet & ftp clients, rsync package (2.1.x/2.2.x —
-  check whether rsync is used anywhere first)
-- world-writable media files found by 7.1.11 before its FUSE crash:
-  `chmod -R o-w /mnt/data/media` (probably Transmission umask — fix at source too)
+**Batch 4 — files & packages — SHIPPED 2026-07-15**
+- `security/tasks/permissions.yml`: shadow/gshadow(-) 0640 root:shadow,
+  crontab 0600, cron dirs 0700, cron.allow/at.allow root-only (2.4.x, 7.1.5-8)
+- `security/tasks/packages.yml`: avahi-daemon, telnet, ftp purged; rsync
+  KEPT (deviation, see §1)
+- Transmission now runs with UMASK 022 (compose) — root cause of the
+  world-writable media. Existing files need a ONE-SHOT (not idempotent-worthy):
+  `ansible homelab -m command -a "chmod -R o-w /mnt/data/media" -b`
 
 **To arbitrate (usability trade-offs, not done by default):**
 umask 027 (5.4.3.3), shell TMOUT (5.4.3.2), login banners (1.6.x),

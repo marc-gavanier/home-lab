@@ -1,0 +1,45 @@
+---
+# CIS batch 4 (audit 2026-07): sensitive file permissions.
+
+# Shadow files: 0640 root:shadow (Ubuntu convention, CIS-compliant) — the
+# backups (-) sometimes regress to looser modes after package operations.
+- name: permissions | Restrict shadow and gshadow files (CIS 7.1.5-8)
+  ansible.builtin.file:
+    path: "{{ item }}"
+    owner: root
+    group: shadow
+    mode: "0640"
+  loop:
+    - /etc/shadow
+    - /etc/shadow-
+    - /etc/gshadow
+    - /etc/gshadow-
+
+- name: permissions | Restrict crontab and cron directories (CIS 2.4.1.x)
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: /etc/crontab, mode: "0600" }
+    - { path: /etc/cron.hourly, mode: "0700" }
+    - { path: /etc/cron.daily, mode: "0700" }
+    - { path: /etc/cron.weekly, mode: "0700" }
+    - { path: /etc/cron.monthly, mode: "0700" }
+    - { path: /etc/cron.d, mode: "0700" }
+
+# Allow-lists: when cron.allow/at.allow exist, only listed users may schedule
+# jobs. Nothing on this host uses user crontabs (everything is systemd timers)
+# — root only.
+- name: permissions | Restrict cron and at to root (CIS 2.4.1.8, 2.4.2.1)
+  ansible.builtin.copy:
+    dest: "{{ item }}"
+    content: |
+      root
+    owner: root
+    group: root
+    mode: "0640"
+  loop:
+    - /etc/cron.allow
+    - /etc/at.allow

@@ -18,6 +18,34 @@
     - { regexp: '^#?ClientAliveInterval', line: 'ClientAliveInterval 300' }
     - { regexp: '^#?ClientAliveCountMax', line: 'ClientAliveCountMax 2' }
     - { regexp: '^#?AllowUsers', line: "AllowUsers {{ ssh_allowed_users | join(' ') }}" }
+    # CIS batch 3 (audit 2026-07). DisableForwarding deliberately NOT set:
+    # the SSH tunnel is the only admin path to the wg-easy UI (deviation §1).
+    - { regexp: '^#?LogLevel', line: 'LogLevel VERBOSE' }
+    - { regexp: '^#?LoginGraceTime', line: 'LoginGraceTime 60' }
+    - { regexp: '^#?MaxSessions', line: 'MaxSessions 10' }
+    - { regexp: '^#?MaxStartups', line: 'MaxStartups 10:30:60' }
+    - { regexp: '^#?PermitUserEnvironment', line: 'PermitUserEnvironment no' }
+    - { regexp: '^#?IgnoreRhosts', line: 'IgnoreRhosts yes' }
+    - { regexp: '^#?HostbasedAuthentication', line: 'HostbasedAuthentication no' }
+    - { regexp: '^#?GSSAPIAuthentication', line: 'GSSAPIAuthentication no' }
+    - regexp: '^#?Ciphers'
+      line: >-
+        Ciphers
+        {{ ['chacha20-poly1305@openssh.com', 'aes256-gcm@openssh.com',
+            'aes128-gcm@openssh.com', 'aes256-ctr', 'aes192-ctr',
+            'aes128-ctr'] | join(',') }}
+    - regexp: '^#?MACs'
+      line: >-
+        MACs
+        {{ ['hmac-sha2-512-etm@openssh.com', 'hmac-sha2-256-etm@openssh.com',
+            'hmac-sha2-512', 'hmac-sha2-256'] | join(',') }}
+    - regexp: '^#?KexAlgorithms'
+      line: >-
+        KexAlgorithms
+        {{ ['sntrup761x25519-sha512@openssh.com', 'curve25519-sha256',
+            'curve25519-sha256@libssh.org', 'diffie-hellman-group16-sha512',
+            'diffie-hellman-group18-sha512', 'diffie-hellman-group14-sha256']
+           | join(',') }}
   notify: Restart SSH
 
 # SSH is key-only and sudo is NOPASSWD, so the account password's only reachable
