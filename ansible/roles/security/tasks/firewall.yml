@@ -6,6 +6,17 @@
     name: ufw
     state: present
 
+# UFW applies its own sysctl file (IPT_SYSCTL=/etc/ufw/sysctl.conf) on every
+# reload, OVERRIDING /etc/sysctl.d — its shipped log_martians=0 was silently
+# undoing the CIS hardening on each run (flip-flop caught by the convergence
+# runs). Align UFW's copy with the base role's value.
+- name: firewall | Align UFW sysctl overrides with the CIS hardening (log martians)
+  ansible.builtin.lineinfile:
+    path: /etc/ufw/sysctl.conf
+    regexp: '^#?net/ipv4/conf/{{ item }}/log_martians='
+    line: 'net/ipv4/conf/{{ item }}/log_martians=1'
+  loop: [all, default]
+
 - name: firewall | Set UFW default deny incoming
   community.general.ufw:
     direction: incoming
