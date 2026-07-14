@@ -1,0 +1,99 @@
+---
+# =============================================================================
+# CIS Ubuntu 24.04 audit — READ-ONLY by design: ALWAYS run with --check
+# =============================================================================
+#   ansible-galaxy install -r requirements.yml        # once (role v1.6.0)
+#   ansible-playbook playbooks/cis-audit.yml --check --diff --ask-vault-pass
+#
+# Purpose: confront the homelab's own hardening (security role, ADRs) with
+# the CIS benchmark and read the gap — NOT to enforce it. The lockdown role
+# in enforce mode would break this setup (SSH config, mounts, Docker
+# forwarding, ...). The assert below refuses to run outside check mode.
+# =============================================================================
+
+- name: CIS Ubuntu 24.04 audit (read-only)
+  hosts: homelab
+  become: true
+
+  pre_tasks:
+    - name: Refuse to run outside check mode (audit only — enforce would break the lab)
+      ansible.builtin.assert:
+        that: ansible_check_mode
+        fail_msg: >-
+          This playbook is audit-only. Re-run with --check. Enforcing the full
+          CIS benchmark would break the homelab (SSH, mounts, IP forwarding).
+
+  vars:
+    # Report only — never let the role touch the system even if check mode
+    # were bypassed on individual tasks.
+    ubtu24cis_section1: true
+    ubtu24cis_section2: true
+    ubtu24cis_section3: true
+    ubtu24cis_section4: true
+    ubtu24cis_section5: true
+    # Section 6 (logging & auditing) disabled: auditd is not installed, which
+    # IS the section-6 finding — and its prelim tasks crash in check mode when
+    # /etc/audit/auditd.conf is absent (install is only simulated). The 6.2.4.x
+    # rule vars gate a prelim task with `tags: always`, so they must be off too.
+    ubtu24cis_section6: false
+    ubtu24cis_rule_6_2_4_1: false
+    ubtu24cis_rule_6_2_4_2: false
+    ubtu24cis_rule_6_2_4_3: false
+    ubtu24cis_rule_6_2_4_4: false
+    # Deliberate deviation: the 5TB data disk IS usb-storage — disabling the
+    # module (CIS 1.1.1.9) is incompatible with this hardware. Physical USB
+    # attack surface is covered differently: ADR-008 usb-tamper poweroff.
+    ubtu24cis_rule_1_1_1_9: false
+    # Check-mode incompatible: 1.1.1.10 deploys its own discovery script then
+    # runs it — the copy is only simulated, the run fails. Covered manually:
+    # `lsmod` review; unused fs modules are already blacklisted in firmware
+    # (base role kills i2c/spi/radios; overlayfs & friends are needed).
+    ubtu24cis_rule_1_1_1_10: false
+    # No GRUB on a Raspberry Pi (firmware boot + cmdline.txt): the bootloader
+    # AppArmor flag check reads /etc/default/grub and crashes. AppArmor being
+    # enabled at boot is verified by 1.3.1.1/3/4 (kept) and aa-status.
+    ubtu24cis_rule_1_3_1_2: false
+    # Check-mode cascade: /etc/motd does not exist on Ubuntu 24.04 (update-motd.d
+    # instead) and the rule creating it (1.6.2) is only simulated — the perms
+    # rule then dies on the absent file.
+    ubtu24cis_rule_1_6_4: false
+    # This host uses systemd-timesyncd (Ubuntu default), not chrony — tell the
+    # role so it audits the right tool instead of crashing on absent chrony.conf.
+    ubtu24cis_time_sync_tool: systemd-timesyncd
+    # Check-mode cascade: libpam-pwquality is not installed (its install is
+    # only simulated), so every 5.3.3.2.x rule dies editing the absent
+    # /etc/security/pwquality.conf. Real finding to arbitrate: password
+    # QUALITY rules are moot here (account password locked, SSH key-only,
+    # sudo NOPASSWD) — noted as a deliberate deviation.
+    ubtu24cis_rule_5_3_3_2_1: false
+    ubtu24cis_rule_5_3_3_2_2: false
+    ubtu24cis_rule_5_3_3_2_3: false
+    ubtu24cis_rule_5_3_3_2_4: false
+    ubtu24cis_rule_5_3_3_2_5: false
+    ubtu24cis_rule_5_3_3_2_6: false
+    ubtu24cis_rule_5_3_3_2_7: false
+    ubtu24cis_rule_5_3_3_2_8: false
+    # Same cascade and same rationale for password HISTORY (pam_pwhistory
+    # profile absent): no active local passwords on this host.
+    ubtu24cis_rule_5_3_3_3_1: false
+    ubtu24cis_rule_5_3_3_3_2: false
+    ubtu24cis_rule_5_3_3_3_3: false
+    # The claude vault is a FUSE mount unreadable by root BY DESIGN (sandbox,
+    # no allow_other): every root-wide `find` sweep stats it and exits non-zero,
+    # which these rules' failed_when reject. Manual equivalent when needed:
+    #   find / -xdev ! -path '/home/claude/vault*' -type f -perm -0002
+    # NOTE: the 7.1.11 sweep DID surface a real finding before dying — the
+    # media tree is world-writable (see audit synthesis).
+    ubtu24cis_rule_7_1_11: false
+    ubtu24cis_rule_7_1_12: false
+    ubtu24cis_rule_7_1_13: false
+    # Check-mode cascade: setfacl (acl package) is absent, its install only
+    # simulated. Home-dir perms are sane (0750/0700, single operator).
+    ubtu24cis_rule_7_2_9: false
+    ubtu24cis_section7: true
+    # Known deliberate deviations (documented so the report is read with them
+    # in mind): IP forwarding is required (Docker/WireGuard), SSH port is
+    # non-standard on purpose, /mnt/data layout is LUKS-managed by this repo.
+
+  roles:
+    - role: UBUNTU24-CIS
