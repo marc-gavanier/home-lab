@@ -1,0 +1,46 @@
+---
+# Input contract — validated automatically at run time (ansible-core >= 2.11).
+argument_specs:
+  main:
+    short_description: System hardening (SSH, UFW, fail2ban, updates, cloud-init redaction)
+    options:
+      ssh_port_hardened:
+        type: int
+        required: true
+        no_log: true
+        description: Non-standard SSH port (vault — the port is deliberately not published).
+      ssh_allowed_users:
+        type: list
+        elements: str
+        required: true
+        description: AllowUsers whitelist for sshd.
+      fail2ban_ban_time:
+        type: int
+        required: true
+        description: Ban duration in seconds.
+      fail2ban_max_retry:
+        type: int
+        required: true
+        description: Failed attempts before a ban.
+      ufw_service_rules:
+        type: list
+        elements: dict
+        required: false
+        description: Per-host allow rules (inline default []).
+        options:
+          port:
+            type: str
+            required: true
+            description: Port (number as string).
+          proto:
+            type: str
+            required: false
+            description: Protocol (inline default tcp).
+          from_ip:
+            type: str
+            required: false
+            description: Source restriction (inline default any).
+          comment:
+            type: str
+            required: false
+            description: UFW rule comment.

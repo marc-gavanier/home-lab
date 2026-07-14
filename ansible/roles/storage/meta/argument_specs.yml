@@ -1,0 +1,43 @@
+---
+# Input contract — validated automatically at run time (ansible-core >= 2.11).
+argument_specs:
+  main:
+    short_description: LUKS-encrypted data disk with manual SSH unlock
+    options:
+      data_disk_device:
+        type: str
+        required: true
+        description: Partition holding the LUKS container, e.g. /dev/sda1.
+      data_filesystem:
+        type: str
+        required: true
+        description: Filesystem inside the LUKS volume (ext4).
+      data_mount_point:
+        type: path
+        required: true
+        description: Mount point of the decrypted volume (/mnt/data).
+      luks_mapper_name:
+        type: str
+        required: true
+        description: Device-mapper name of the opened volume.
+      luks_passphrase:
+        type: str
+        required: true
+        no_log: true
+        description: LUKS passphrase (vault). Used only for first-time format/open.
+      services_data_dir:
+        type: path
+        required: true
+        description: Root of the service data tree.
+      media_dir:
+        type: path
+        required: true
+        description: Root of the media tree.
+      backup_dir:
+        type: path
+        required: true
+        description: Root of the local backup tree.
+      swap_size_mb:
+        type: int
+        required: true
+        description: Size of the HDD swapfile in MiB.

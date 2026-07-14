@@ -1,0 +1,61 @@
+---
+# Input contract — validated automatically at run time (ansible-core >= 2.11).
+argument_specs:
+  main:
+    short_description: Append-only restic rest-server on the offsite Pi (ADR-010)
+    options:
+      backup_disk_device:
+        type: str
+        required: true
+        description: Partition of the backup SSD, e.g. /dev/sda1.
+      backup_mount_point:
+        type: path
+        required: true
+        description: Mount point of the backup disk (/mnt/backup).
+      offsite_disk_force_format:
+        type: bool
+        required: true
+        description: Safety latch — set true (one run) to allow formatting a disk that carries a non-ext4 filesystem.
+      usb_storage_quirks:
+        type: str
+        required: false
+        description: usb-storage.quirks value forcing plain usb-storage over UAS (ASMedia bridges corrupt writes). Absent = no quirk.
+      rest_server_version:
+        type: str
+        required: true
+        description: rest-server release to install (github release, no v prefix).
+      rest_server_port:
+        type: int
+        required: true
+        description: Listen port of rest-server.
+      rest_server_data_dir:
+        type: path
+        required: true
+        description: Restic repository directory served by rest-server.
+      rest_server_auth_user:
+        type: str
+        required: true
+        description: Basic-auth user for the homelab client.
+      rest_server_auth_password:
+        type: str
+        required: true
+        no_log: true
+        description: Basic-auth password (guards bandwidth, not confidentiality — repo is encrypted).
+      offsite_wg_conf:
+        type: str
+        required: true
+        no_log: true
+        description: WireGuard client config (contains the private key) dialing back to the homelab.
+      domain:
+        type: str
+        required: true
+        description: Public domain (services.<domain> pinned into the tunnel).
+      homelab_wg_ip:
+        type: str
+        required: true
+        description: Homelab host VPN address (Kuma push route once offsite).
+      offsite_health_kuma_push_url:
+        type: str
+        required: true
+        no_log: true
+        description: Uptime Kuma push URL of the weekly disk-health report (token = secret).
