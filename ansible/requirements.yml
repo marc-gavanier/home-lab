@@ -1,0 +1,11 @@
+---
+# Collections used by the playbooks/roles — install with:
+#   ansible-galaxy collection install -r requirements.yml
+# Versions pinned for reproducible control nodes (bump deliberately).
+collections:
+  - name: ansible.posix
+    version: 2.1.0
+  - name: community.general
+    version: 12.6.0
+  - name: community.docker
+    version: 5.2.0

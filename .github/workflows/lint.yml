@@ -1,0 +1,40 @@
+---
+# Lint gate — mirrors the local pre-commit hooks so a bypassed hook
+# (git commit --no-verify, GitHub web edits) still gets caught on the PR.
+name: Lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  gitleaks:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # scan the full history of the push/PR range
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  ansible:
+    name: yamllint + ansible-lint
+    runs-on: ubuntu-latest
+    env:
+      ANSIBLE_CONFIG: ansible/ansible.cfg
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install linters
+        run: pip install ansible-lint yamllint
+      - name: Install pinned collections
+        run: ansible-galaxy collection install -r ansible/requirements.yml
+      - name: yamllint
+        run: yamllint -c .yamllint.yml .
+      - name: ansible-lint
+        run: ansible-lint ansible/
