@@ -39,16 +39,18 @@ THEME="/usr/local/searxng/searx/static/themes/simple"
 command -v brotli >/dev/null 2>&1 || { echo "✗ brotli is required (apt install brotli)"; exit 1; }
 
 mkdir -p "$OUT"
+TMP="$OUT/.sxng-ltr.min.css.new"
+trap 'rm -f "$TMP"' EXIT
 
 echo "→ Extracting base CSS from ${IMAGE}"
-docker run --rm --entrypoint cat "$IMAGE" "${THEME}/sxng-ltr.min.css" > "$OUT/sxng-ltr.min.css"
+docker run --rm --entrypoint cat "$IMAGE" "${THEME}/sxng-ltr.min.css" > "$TMP"
 
 if [ "$BRANDING" != "true" ]; then
     echo "→ SEARXNG_BRANDING != true — emitting stock CSS (no overrides, mount is a no-op)"
 else
     echo "→ Appending Gerbier colour overrides"
-    printf '\n' >> "$OUT/sxng-ltr.min.css"
-    cat "$SRC/overrides.css" >> "$OUT/sxng-ltr.min.css"
+    printf '\n' >> "$TMP"
+    cat "$SRC/overrides.css" >> "$TMP"
 
     if [ -n "$LOGO" ]; then
         [ -f "$LOGO" ] || { echo "✗ SEARXNG_LOGO set but file not found: $LOGO"; exit 1; }
@@ -62,15 +64,27 @@ else
         # Match the stock homepage selector `.index .title` (specificity 0,2,0) so we
         # override it and don't leak the logo onto other `.title` elements. min-height
         # drives the logo size (background-size:contain fits the box height).
-        printf '\n.index .title{min-height:8rem;background-image:url("data:%s;base64,%s")}\n' "$mime" "$b64" >> "$OUT/sxng-ltr.min.css"
+        printf '\n.index .title{min-height:8rem;background-image:url("data:%s;base64,%s")}\n' "$mime" "$b64" >> "$TMP"
     else
         echo "→ No logo configured (SEARXNG_LOGO empty) — keeping the stock logo"
     fi
 fi
 
-echo "→ Regenerating precompressed variants (.br/.gz)"
-brotli -f -q 11 -k "$OUT/sxng-ltr.min.css"
-gzip  -f -9 -k "$OUT/sxng-ltr.min.css"
+# Idempotence: leave the deployed files alone when the build output is
+# byte-identical. Ansible keys its changed status on BRANDING_RESULT.
+if [ -f "$OUT/sxng-ltr.min.css" ] && cmp -s "$TMP" "$OUT/sxng-ltr.min.css"; then
+    echo "✓ CSS identical to the deployed build — nothing to rewrite"
+    echo "BRANDING_RESULT=unchanged"
+    exit 0
+fi
+
+# In-place refresh (cat >, never mv): keeps the inodes stable so the running
+# container's file bind-mounts see the new content without a recreate.
+echo "→ Refreshing CSS + precompressed variants (.br/.gz)"
+cat "$TMP" > "$OUT/sxng-ltr.min.css"
+brotli -q 11 -c "$OUT/sxng-ltr.min.css" > "$TMP" && cat "$TMP" > "$OUT/sxng-ltr.min.css.br"
+gzip -9 -n -c "$OUT/sxng-ltr.min.css" > "$TMP" && cat "$TMP" > "$OUT/sxng-ltr.min.css.gz"
 
 echo "✓ Branded CSS ready in ${OUT}"
+echo "BRANDING_RESULT=updated"
 ls -la "$OUT"

@@ -34,6 +34,32 @@
     group: claude
     mode: "0700"
 
+# Idempotence: `rclone config create` re-obscures the password with a fresh
+# nonce on every run (file changes even when nothing did). Reveal the deployed
+# password and compare before recreating.
+- name: vault | Check the deployed rclone remote against the vault
+  ansible.builtin.shell:
+    cmd: >-
+      set -o pipefail;
+      cur=$(rclone config dump 2>/dev/null | python3 -c
+      'import json,sys; r=json.load(sys.stdin).get("nextcloud",{});
+      print(r.get("url","")); print(r.get("pass",""))');
+      url=$(echo "$cur" | sed -n 1p); obscured=$(echo "$cur" | sed -n 2p);
+      [ "$url" = "$U" ] || { echo REMOTE_DIFF; exit 0; };
+      [ -n "$obscured" ] && [ "$(rclone reveal "$obscured" 2>/dev/null)" = "$P" ]
+      && echo REMOTE_MATCH || echo REMOTE_DIFF
+    executable: /bin/bash
+  become: true
+  become_user: claude
+  environment:
+    RCLONE_CONFIG: /mnt/data/secrets/claude/rclone.conf
+    U: "https://drive.{{ domain }}/remote.php/dav/files/admin/"
+    P: "{{ rclone_webdav_pass }}"
+  register: rclone_remote_check
+  changed_when: false
+  failed_when: false
+  no_log: true
+
 - name: vault | Configure rclone WebDAV remote for the claude user
   ansible.builtin.command:
     cmd: >
@@ -46,6 +72,7 @@
     RCLONE_CONFIG: /mnt/data/secrets/claude/rclone.conf
   no_log: true
   changed_when: true
+  when: "'REMOTE_MATCH' not in rclone_remote_check.stdout | default('')"
 
 - name: vault | Remove legacy rclone config from the SD card
   ansible.builtin.file:
@@ -56,7 +83,7 @@
 # so `mountpoint`/`stat` fail. Detect it via /proc/mounts instead, and only
 # create the directory when it is NOT mounted (the module can't touch a live mount).
 - name: vault | Check if the vault is already mounted
-  ansible.builtin.shell: grep -q ' /home/claude/vault ' /proc/mounts
+  ansible.builtin.command: grep -q ' /home/claude/vault ' /proc/mounts
   register: vault_mounted
   failed_when: false
   changed_when: false
@@ -115,7 +142,8 @@
       Restart=on-failure
       RestartSec=10
 
-- name: vault | Start the vault mount whenever the encrypted volume mounts
+# noqa command-instead-of-module: the systemd module cannot manage add-wants links.
+- name: vault | Start the vault mount whenever the encrypted volume mounts  # noqa: command-instead-of-module
   ansible.builtin.command: systemctl add-wants mnt-data.mount vault-mount.service
   args:
     creates: /etc/systemd/system/mnt-data.mount.wants/vault-mount.service

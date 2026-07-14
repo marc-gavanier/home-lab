@@ -38,6 +38,10 @@
   environment:
     SEARXNG_BRANDING: "{{ searxng_branding | default(false) | ternary('true', 'false') }}"
     SEARXNG_IMAGE: searxng/searxng:latest
-    SEARXNG_LOGO: "{{ ('/opt/homelab/branding/searxng/logo.' + (searxng_logo.split('.') | last)) if ((searxng_branding | default(false)) and (searxng_logo | default('') | length > 0)) else '' }}"
+    SEARXNG_LOGO: >-
+      {{ ('/opt/homelab/branding/searxng/logo.' + (searxng_logo.split('.') | last))
+      if ((searxng_branding | default(false)) and (searxng_logo | default('') | length > 0))
+      else '' }}
     OUT_DIR: /opt/homelab/branding/searxng/out
-  changed_when: true
+  register: branding_build
+  changed_when: "'BRANDING_RESULT=updated' in branding_build.stdout"
