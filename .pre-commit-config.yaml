@@ -1,0 +1,27 @@
+---
+# Pre-commit hooks — install once with:
+#   pre-commit install
+# Then every `git commit` runs: secret scan, YAML lint, Ansible lint.
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.0
+    hooks:
+      - id: gitleaks
+
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.38.0
+    hooks:
+      - id: yamllint
+        args: [-c=.yamllint.yml]
+
+  # Local system hook (not the upstream one): ansible-lint must see the repo's
+  # ansible.cfg (roles_path) and the Galaxy collections installed from
+  # ansible/requirements.yml — the upstream hook's isolated venv sees neither.
+  - repo: local
+    hooks:
+      - id: ansible-lint
+        name: ansible-lint
+        entry: env ANSIBLE_CONFIG=ansible/ansible.cfg ansible-lint ansible/
+        language: system
+        files: ^ansible/
+        pass_filenames: false

@@ -1,0 +1,18 @@
+---
+# ansible-lint configuration — run from the repo root:
+#   ANSIBLE_CONFIG=ansible/ansible.cfg ansible-lint ansible/
+# (the env var lets the linter resolve roles_path from ansible/ansible.cfg)
+
+# Rules deliberately skipped, with rationale — these exist for roles shared on
+# Ansible Galaxy; this repo's roles are private and self-contained.
+skip_list:
+  # Renaming 4 role directories (usb-tamper, claude-code, ...) would churn the
+  # whole repo/docs for a Galaxy-metadata naming rule with no local benefit.
+  - role-name
+  # Prefixing all registered vars (storage_is_luks, deploy_nc_status, ...)
+  # guards against collisions between third-party roles — impossible here, and
+  # the rename would also touch the Jinja templates consuming the facts.
+  - var-naming[no-role-prefix]
+
+# Treat these as errors, not warnings (lock the current clean state).
+strict: true

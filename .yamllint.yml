@@ -1,0 +1,18 @@
+---
+# yamllint configuration — aligned with ansible-lint's internal yamllint
+# profile so the two tools never disagree.
+extends: default
+
+rules:
+  line-length:
+    max: 160
+  # Ansible idiom: inline dicts in loops — `{ key: value }` with padding.
+  braces:
+    max-spaces-inside: 1
+  # `on:` in GitHub workflow files is a key, not a boolean.
+  truthy:
+    check-keys: false
+  # Markdown-embedded and generated YAML (compose) don't all start with ---.
+  document-start: disable
+  comments:
+    min-spaces-from-content: 1
