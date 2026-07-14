@@ -32,8 +32,10 @@ jobs:
           python-version: "3.12"
       - name: Install linters
         run: pip install ansible-lint yamllint
-      - name: Install pinned collections
-        run: ansible-galaxy collection install -r ansible/requirements.yml
+      - name: Install pinned collections and roles
+        run: |
+          ansible-galaxy collection install -r ansible/requirements.yml
+          ansible-galaxy role install -r ansible/requirements.yml
       - name: yamllint
         run: yamllint -c .yamllint.yml .
       - name: ansible-lint

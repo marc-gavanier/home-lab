@@ -16,3 +16,9 @@ rules:
   document-start: disable
   comments:
     min-spaces-from-content: 1
+  # Required by ansible-lint for its yaml rule to stay compatible
+  # (https://docs.ansible.com/projects/lint/rules/yaml/).
+  comments-indentation: false
+  octal-values:
+    forbid-implicit-octal: true
+    forbid-explicit-octal: true
