@@ -48,5 +48,5 @@ You secure a home lab on Raspberry Pi 4 (Ubuntu Server 24.04 LTS) partially expo
 
 - Security documentation: `docs/03-security/`
 - Ansible security role: `ansible/roles/security/`
-- Traefik configuration: `docker/configs/traefik/`
+- Traefik configuration: `ansible/roles/deploy/templates/traefik.yml.j2` + `docker/configs/traefik/dynamic/`
 - Architecture decisions: `knowledge/decisions/`

@@ -134,10 +134,10 @@
     dest: /opt/homelab/.env
     state: link
 
-# Only Traefik's dynamic configs are copied verbatim — every other file under
-# docker/configs/ is rendered by a dedicated template task below. Copying the
-# raw tree over the rendered files made every deploy report changes (and
-# fought the SearXNG settings symlink).
+# docker/configs/ now holds ONLY verbatim files (traefik/dynamic); anything
+# needing variables lives in this role's templates/ as .j2. Keep it that way:
+# copying unrendered Jinja over rendered files made every deploy report
+# changes (and fought the SearXNG settings symlink).
 - name: Create service configuration directories
   ansible.builtin.file:
     path: /opt/homelab/configs/{{ item }}
@@ -166,7 +166,7 @@
 
 - name: Template Traefik static config (resolve variables)
   ansible.builtin.template:
-    src: "{{ playbook_dir }}/../../docker/configs/traefik/traefik.yml"
+    src: traefik.yml.j2
     dest: /opt/homelab/configs/traefik/traefik.yml
     owner: "{{ ansible_user }}"
     group: docker
@@ -175,7 +175,7 @@
 
 - name: Template Pi-hole split DNS config (resolve variables)
   ansible.builtin.template:
-    src: "{{ playbook_dir }}/../../docker/configs/pihole/05-homelab.conf"
+    src: pihole-05-homelab.conf.j2
     dest: /opt/homelab/configs/pihole/05-homelab.conf
     owner: "{{ ansible_user }}"
     group: docker
@@ -186,7 +186,7 @@
 # bind-mount resolves the symlink when the container is created)
 - name: Template SearXNG settings (resolve secret_key + base_url)
   ansible.builtin.template:
-    src: "{{ playbook_dir }}/../../docker/configs/searxng/settings.yml"
+    src: searxng-settings.yml.j2
     dest: /mnt/data/secrets/searxng-settings.yml
     owner: "{{ ansible_user }}"
     group: docker

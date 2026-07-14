@@ -245,7 +245,7 @@ Ubuntu's `systemd-resolved` listens on port 53, conflicting with Pi-hole. The `b
 
 Pi-hole resolves homelab subdomains to the Pi's LAN IP (192.168.1.100) instead of the public IP. This ensures VPN clients reach services directly without going through the public internet.
 
-Configured via dnsmasq custom config (`docker/configs/pihole/05-homelab.conf`), requires `FTLCONF_misc_etc_dnsmasq_d: "true"` in the Pi-hole environment (Pi-hole v6 ignores `/etc/dnsmasq.d/` by default).
+Configured via dnsmasq custom config (`ansible/roles/deploy/templates/pihole-05-homelab.conf.j2`), requires `FTLCONF_misc_etc_dnsmasq_d: "true"` in the Pi-hole environment (Pi-hole v6 ignores `/etc/dnsmasq.d/` by default).
 
 ### WireGuard VPN — Initial Setup
 

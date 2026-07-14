@@ -52,7 +52,7 @@ Internet → ISP Router (SFR)
 ## Project Resources
 
 - Network documentation: `docs/04-network/`
-- Traefik configuration: `docker/configs/traefik/`
-- Pi-hole configuration: `docker/configs/pihole/`
+- Traefik configuration: `ansible/roles/deploy/templates/traefik.yml.j2` + `docker/configs/traefik/dynamic/`
+- Pi-hole configuration: `ansible/roles/deploy/templates/pihole-05-homelab.conf.j2`
 - Docker Compose: `docker/compose.yaml`
 - Architecture decisions: `knowledge/decisions/`
