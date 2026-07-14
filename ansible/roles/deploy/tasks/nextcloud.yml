@@ -1,11 +1,14 @@
 ---
 # Nextcloud post-config (cron mode, system settings, apps, external storage).
 
-- name: nextcloud | Check if Nextcloud is running
-  ansible.builtin.command:
-    cmd: docker ps -q -f name=nextcloud -f status=running
-  register: nextcloud_running
-  changed_when: false
+- name: nextcloud | Inspect the Nextcloud container
+  community.docker.docker_container_info:
+    name: nextcloud
+  register: nextcloud_info
+
+- name: nextcloud | Determine whether Nextcloud is running
+  ansible.builtin.set_fact:
+    nextcloud_up: "{{ nextcloud_info.exists and (nextcloud_info.container.State.Running | default(false)) }}"
 
 - name: nextcloud | Wait for Nextcloud to be ready
   ansible.builtin.command:
@@ -15,14 +18,14 @@
   retries: 30
   delay: 5
   changed_when: false
-  when: nextcloud_running.stdout | length > 0
+  when: nextcloud_up
 
 - name: nextcloud | Set Nextcloud background jobs to cron mode
   ansible.builtin.command:
     cmd: docker exec -u www-data nextcloud php occ background:cron
   register: nc_cron
   changed_when: "'set to cron' in nc_cron.stdout"
-  when: nextcloud_running.stdout | length > 0
+  when: nextcloud_up
 
 # Idempotence: read the live system config once, then only set what differs.
 - name: nextcloud | Read Nextcloud system configuration
@@ -30,7 +33,7 @@
     cmd: docker exec -u www-data nextcloud php occ config:list system --output=json
   register: nc_sysconf
   changed_when: false
-  when: nextcloud_running.stdout | length > 0
+  when: nextcloud_up
 
 - name: nextcloud | Configure Nextcloud system settings
   ansible.builtin.command:
@@ -41,7 +44,7 @@
   register: nc_sys_set
   changed_when: true
   when:
-    - nextcloud_running.stdout | length > 0
+    - nextcloud_up
     - (nc_sysconf.stdout | from_json).system[item.key] | default('') | string != item.value | string
 
 # Manage trusted_domains via occ: NEXTCLOUD_TRUSTED_DOMAINS only applies on first
@@ -59,7 +62,7 @@
   register: nc_trusted
   changed_when: true
   when:
-    - nextcloud_running.stdout | length > 0
+    - nextcloud_up
     - ((nc_sysconf.stdout | from_json).system.trusted_domains | default([]))[item.idx] | default('') != item.val
 
 - name: nextcloud | Get installed Nextcloud apps
@@ -67,14 +70,14 @@
     cmd: docker exec -u www-data nextcloud php occ app:list --output=json
   register: nc_app_list
   changed_when: false
-  when: nextcloud_running.stdout | length > 0
+  when: nextcloud_up
 
 - name: nextcloud | Install Nextcloud productivity apps
   ansible.builtin.command:
     cmd: "docker exec -u www-data nextcloud php occ app:install {{ item }}"
   loop: [calendar, contacts, tasks, bookmarks, gpxpod, external, notify_push]
   when:
-    - nextcloud_running.stdout | length > 0
+    - nextcloud_up
     - item not in (nc_app_list.stdout | default('{}') | from_json).enabled
     - item not in (nc_app_list.stdout | default('{}') | from_json).disabled
   register: nc_app_install
@@ -94,7 +97,7 @@
     cmd: docker restart nextcloud-notify-push
   changed_when: true
   when:
-    - nextcloud_running.stdout | length > 0
+    - nextcloud_up
     - nc_app_install is changed or nc_sys_set is changed or nc_trusted is changed
 
 # The self-test verifies the whole chain (config, proxy route, binary); a pass
@@ -105,7 +108,7 @@
   register: nc_push_test
   changed_when: false
   failed_when: false
-  when: nextcloud_running.stdout | length > 0
+  when: nextcloud_up
 
 - name: nextcloud | Set up notify_push (client real-time updates)
   ansible.builtin.command:
@@ -117,7 +120,7 @@
   changed_when: true
   failed_when: false
   when:
-    - nextcloud_running.stdout | length > 0
+    - nextcloud_up
     - nc_push_test.rc | default(0) != 0
 
 # Mount media libraries (photos/music/videos) as read-only External Storage
@@ -128,14 +131,14 @@
     cmd: docker exec -u www-data nextcloud php occ app:enable files_external
   register: nc_files_external
   changed_when: "'already enabled' not in nc_files_external.stdout"
-  when: nextcloud_running.stdout | length > 0
+  when: nextcloud_up
 
 - name: nextcloud | List existing Nextcloud external storages
   ansible.builtin.command:
     cmd: docker exec -u www-data nextcloud php occ files_external:list --output=json
   register: nc_ext_list
   changed_when: false
-  when: nextcloud_running.stdout | length > 0
+  when: nextcloud_up
 
 - name: nextcloud | Create media external storages
   ansible.builtin.command:
@@ -147,7 +150,7 @@
     - { name: Music, path: /external/music }
     - { name: Videos, path: /external/videos }
   when:
-    - nextcloud_running.stdout | length > 0
+    - nextcloud_up
     - item.path not in (nc_ext_list.stdout | default('[]') | from_json | map(attribute='configuration.datadir') | list)
   changed_when: true
 
@@ -156,7 +159,7 @@
     cmd: docker exec -u www-data nextcloud php occ files_external:list --output=json
   register: nc_ext_list2
   changed_when: false
-  when: nextcloud_running.stdout | length > 0
+  when: nextcloud_up
 
 - name: nextcloud | Enforce read-only on media external storages
   ansible.builtin.command:
@@ -167,7 +170,7 @@
   loop_control:
     label: "{{ item.mount_point | default('?') }}"
   when:
-    - nextcloud_running.stdout | length > 0
+    - nextcloud_up
     - item.configuration.datadir is defined
     - item.configuration.datadir.startswith('/external/')
   changed_when: false

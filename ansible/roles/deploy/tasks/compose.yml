@@ -1,5 +1,7 @@
 ---
-# Docker Compose: file, networks, pull, up.
+# Docker Compose: file, networks, pull, up — via the native compose module
+# (real changed detection per container, no stderr grepping). Optional
+# targeting: -e deploy_services="svc1 svc2" limits pull/up to those services.
 
 - name: compose | Copy Docker Compose file
   ansible.builtin.copy:
@@ -17,19 +19,19 @@
     - proxy
     - internal
 
-- name: compose | Pull latest images
-  ansible.builtin.command:
-    cmd: docker compose pull {{ deploy_services | default('') }}
-    chdir: /opt/homelab
-  changed_when: false
+- name: compose | Pull images
+  community.docker.docker_compose_v2_pull:
+    project_src: /opt/homelab
+    services: "{{ deploy_services.split() if deploy_services is defined else omit }}"
 
 - name: compose | Deploy services
-  ansible.builtin.command:
-    cmd: docker compose up -d {{ deploy_services | default('') }}
-    chdir: /opt/homelab
+  community.docker.docker_compose_v2:
+    project_src: /opt/homelab
+    state: present
+    services: "{{ deploy_services.split() if deploy_services is defined else omit }}"
   register: compose_result
-  changed_when: "'Started' in compose_result.stderr or 'Created' in compose_result.stderr"
 
-- name: compose | Show deployment output
+- name: compose | Show deployment actions
   ansible.builtin.debug:
-    var: compose_result.stderr_lines
+    var: compose_result.actions
+  when: compose_result.actions | default([]) | length > 0
