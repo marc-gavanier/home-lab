@@ -1,0 +1,40 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":timezone(Europe/Paris)"
+  ],
+  "description": "Docker images (compose), GitHub Actions, and version variables. PRs are batched weekly to keep the noise down; the lint workflow gates every PR.",
+  "schedule": ["before 8am on saturday"],
+  "prConcurrentLimit": 5,
+  "packageRules": [
+    {
+      "description": "Group patch/minor updates into a single weekly PR; majors stay individual",
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "minor & patch updates"
+    },
+    {
+      "description": "Immich pins are managed manually (one-way DB migrations, server & ML must move together — see feedback 2026-07)",
+      "matchPackageNames": ["ghcr.io/immich-app/immich-server", "ghcr.io/immich-app/immich-machine-learning", "ghcr.io/immich-app/postgres"],
+      "enabled": false
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "SEARXNG_IMAGE in the branding task must follow the compose pin",
+      "managerFilePatterns": ["/^ansible/roles/deploy/tasks/branding\\.yml$/"],
+      "matchStrings": ["SEARXNG_IMAGE: (?<depName>[a-z0-9./-]+):(?<currentValue>\\S+)"],
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "rest-server binary version installed by the offsite-backup role",
+      "managerFilePatterns": ["/^ansible/inventory/host_vars/offsite/main\\.yml$/"],
+      "matchStrings": ["rest_server_version: \"(?<currentValue>[0-9.]+)\""],
+      "depNameTemplate": "restic/rest-server",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    }
+  ]
+}
