@@ -63,7 +63,59 @@
     - { key: "vm.swappiness", value: "10" }
     - { key: "vm.vfs_cache_pressure", value: "50" }
     - { key: "net.core.somaxconn", value: "1024" }
+    # ip_forward=1 is a DELIBERATE CIS 3.3.1 deviation: the lab routes for
+    # Docker and WireGuard (see knowledge/research/cis-audit-2026-07.md).
     - { key: "net.ipv4.ip_forward", value: "1" }
+
+# CIS batch 1 (audit 2026-07): network + kernel hardening. Everything here is
+# compatible with Docker/WireGuard routing — only forwarding stays ours.
+- name: system | Harden kernel network parameters (CIS 1.5.x / 3.3.x)
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/99-homelab.conf
+    reload: true
+  loop:
+    # No ICMP redirects, in or out (3.3.2, 3.3.5, 3.3.6)
+    - { key: "net.ipv4.conf.all.send_redirects", value: "0" }
+    - { key: "net.ipv4.conf.default.send_redirects", value: "0" }
+    - { key: "net.ipv4.conf.all.accept_redirects", value: "0" }
+    - { key: "net.ipv4.conf.default.accept_redirects", value: "0" }
+    - { key: "net.ipv4.conf.all.secure_redirects", value: "0" }
+    - { key: "net.ipv4.conf.default.secure_redirects", value: "0" }
+    - { key: "net.ipv6.conf.all.accept_redirects", value: "0" }
+    - { key: "net.ipv6.conf.default.accept_redirects", value: "0" }
+    # No source-routed packets (3.3.8)
+    - { key: "net.ipv4.conf.all.accept_source_route", value: "0" }
+    - { key: "net.ipv4.conf.default.accept_source_route", value: "0" }
+    - { key: "net.ipv6.conf.all.accept_source_route", value: "0" }
+    - { key: "net.ipv6.conf.default.accept_source_route", value: "0" }
+    # Strict reverse-path filtering (3.3.7) — wg0 traffic is symmetric, but
+    # if the offsite copy ever breaks after this, relax to "2" (loose).
+    - { key: "net.ipv4.conf.all.rp_filter", value: "1" }
+    - { key: "net.ipv4.conf.default.rp_filter", value: "1" }
+    # ICMP hygiene + SYN floods (3.3.3, 3.3.4, 3.3.10)
+    - { key: "net.ipv4.icmp_ignore_bogus_error_responses", value: "1" }
+    - { key: "net.ipv4.icmp_echo_ignore_broadcasts", value: "1" }
+    - { key: "net.ipv4.tcp_syncookies", value: "1" }
+    # Log spoofed/impossible packets (3.3.9)
+    - { key: "net.ipv4.conf.all.log_martians", value: "1" }
+    - { key: "net.ipv4.conf.default.log_martians", value: "1" }
+    # No IPv6 router advertisements — static IPv4 network (3.3.11)
+    - { key: "net.ipv6.conf.all.accept_ra", value: "0" }
+    - { key: "net.ipv6.conf.default.accept_ra", value: "0" }
+    # ASLR, ptrace confinement, no suid core dumps (1.5.1, 1.5.2, 1.5.3)
+    - { key: "kernel.randomize_va_space", value: "2" }
+    - { key: "kernel.yama.ptrace_scope", value: "1" }
+    - { key: "fs.suid_dumpable", value: "0" }
+
+# CIS 1.5.5 — apport phones crash dumps home and has no use on a headless
+# server; crash context lives in the systemd journal.
+- name: system | Remove Ubuntu automatic error reporting (apport)
+  ansible.builtin.apt:
+    name: apport
+    state: absent
+    purge: true
 
 - name: system | Set GPU memory to minimum (headless server)
   ansible.builtin.lineinfile:

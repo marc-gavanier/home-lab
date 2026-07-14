@@ -56,3 +56,24 @@
     name: serial-getty@ttyS0.service
     state: stopped
     masked: true
+
+# CIS batch 2 (audit 2026-07): kernel modules with no use on this host —
+# exotic filesystems (1.1.1.1-.8) and network protocols (3.2.x). `install
+# /bin/false` beats a plain blacklist: it also defeats explicit modprobe.
+# overlayfs and usb-storage are deliberately NOT here (Docker, data disk).
+- name: attack-surface | Blacklist unused kernel modules (CIS 1.1.1.x, 3.2.x)
+  ansible.builtin.copy:
+    dest: /etc/modprobe.d/cis-blacklist.conf
+    mode: "0644"
+    content: |
+      # {{ ansible_managed }}
+      # Unused filesystems
+      {% for mod in ['cramfs', 'freevxfs', 'hfs', 'hfsplus', 'jffs2', 'udf'] %}
+      install {{ mod }} /bin/false
+      blacklist {{ mod }}
+      {% endfor %}
+      # Unused network protocols
+      {% for mod in ['dccp', 'tipc', 'rds', 'sctp'] %}
+      install {{ mod }} /bin/false
+      blacklist {{ mod }}
+      {% endfor %}
