@@ -22,7 +22,9 @@
     - "('usb-storage.quirks=' ~ usb_storage_quirks) not in (offsite_cmdline.content | b64decode)"
   register: offsite_quirk_added
 
-- name: disk | Reboot to apply the storage quirk (must precede any disk write)
+# Not a handler on purpose: handlers fire at end of play, but the quirk must
+# be active BEFORE the format/mount tasks below ever touch the disk.
+- name: disk | Reboot to apply the storage quirk (must precede any disk write)  # noqa: no-handler
   ansible.builtin.reboot:
     reboot_timeout: 300
   when: offsite_quirk_added is changed

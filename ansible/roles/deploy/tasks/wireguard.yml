@@ -61,7 +61,8 @@
     daemon_reload: true
   when: homelab_wg_conf is defined
 
-- name: wireguard | Start the tunnel whenever the encrypted volume mounts
+# noqa command-instead-of-module: the systemd module cannot manage add-wants links.
+- name: wireguard | Start the tunnel whenever the encrypted volume mounts  # noqa: command-instead-of-module
   ansible.builtin.command: systemctl add-wants mnt-data.mount wg-quick@wg0.service
   args:
     creates: /etc/systemd/system/mnt-data.mount.wants/wg-quick@wg0.service

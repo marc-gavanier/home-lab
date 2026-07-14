@@ -4,5 +4,8 @@
 # =============================================================================
 # Thin orchestrator: one file per concern, task names prefixed with the file.
 
-- ansible.builtin.import_tasks: install.yml             # engine, compose, daemon.json, networks
-- ansible.builtin.import_tasks: unlock-integration.yml  # no Docker before the LUKS mount
+- name: Install Docker Engine, Compose and networks
+  ansible.builtin.import_tasks: install.yml
+
+- name: Gate Docker behind the homelab-unlock workflow
+  ansible.builtin.import_tasks: unlock-integration.yml

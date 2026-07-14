@@ -10,7 +10,14 @@
 #     `restic check` runs FROM the homelab (which holds the repo password).
 # Thin orchestrator: one file per concern, task names prefixed with the file.
 
-- ansible.builtin.import_tasks: disk.yml         # UAS quirk, ext4, mount
-- ansible.builtin.import_tasks: rest-server.yml  # append-only restic target
-- ansible.builtin.import_tasks: wireguard.yml    # outbound tunnel + Kuma pin
-- ansible.builtin.import_tasks: health.yml       # SMART report + monthly self-test
+- name: Prepare the backup disk (UAS quirk, ext4, mount)
+  ansible.builtin.import_tasks: disk.yml
+
+- name: Install the append-only rest-server
+  ansible.builtin.import_tasks: rest-server.yml
+
+- name: Set up the outbound WireGuard tunnel and Kuma pin
+  ansible.builtin.import_tasks: wireguard.yml
+
+- name: Install the disk-health report and SMART self-test
+  ansible.builtin.import_tasks: health.yml

@@ -19,14 +19,18 @@
 
 - name: luks | Format device with LUKS (destructive — only if not already LUKS)
   ansible.builtin.shell:
-    cmd: echo "{{ luks_passphrase }}" | cryptsetup luksFormat --batch-mode {{ data_disk_device }}
+    cmd: set -o pipefail; echo "{{ luks_passphrase }}" | cryptsetup luksFormat --batch-mode {{ data_disk_device }}
+    executable: /bin/bash
   when: is_luks.rc != 0
+  changed_when: true
   no_log: true
 
 - name: luks | Open LUKS volume for initial setup
   ansible.builtin.shell:
-    cmd: echo "{{ luks_passphrase }}" | cryptsetup open --type luks {{ data_disk_device }} {{ luks_mapper_name }}
+    cmd: set -o pipefail; echo "{{ luks_passphrase }}" | cryptsetup open --type luks {{ data_disk_device }} {{ luks_mapper_name }}
+    executable: /bin/bash
   when: is_luks.rc != 0
+  changed_when: true
   no_log: true
 
 - name: luks | Check if LUKS volume is already open
@@ -36,8 +40,10 @@
 
 - name: luks | Open LUKS volume (if not open)
   ansible.builtin.shell:
-    cmd: echo "{{ luks_passphrase }}" | cryptsetup open --type luks {{ data_disk_device }} {{ luks_mapper_name }}
+    cmd: set -o pipefail; echo "{{ luks_passphrase }}" | cryptsetup open --type luks {{ data_disk_device }} {{ luks_mapper_name }}
+    executable: /bin/bash
   when: not mapper_device.stat.exists
+  changed_when: true
   no_log: true
 
 - name: luks | Check if filesystem exists on LUKS volume
@@ -51,3 +57,4 @@
   ansible.builtin.command:
     cmd: mkfs.ext4 -L homelab-data /dev/mapper/{{ luks_mapper_name }}
   when: blkid_result.rc != 0
+  changed_when: true

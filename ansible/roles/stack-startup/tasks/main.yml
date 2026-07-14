@@ -15,5 +15,8 @@
 # =============================================================================
 # Thin orchestrator: one file per concern, task names prefixed with the file.
 
-- ansible.builtin.import_tasks: startup.yml  # orchestrator script + unit, unlock wiring
-- ansible.builtin.import_tasks: heal.yml     # crash-recovery script + 2-min timer
+- name: Install the staged-startup orchestrator
+  ansible.builtin.import_tasks: startup.yml
+
+- name: Install the crash-recovery timer
+  ansible.builtin.import_tasks: heal.yml
