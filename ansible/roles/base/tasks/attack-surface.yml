@@ -66,7 +66,7 @@
     dest: /etc/modprobe.d/cis-blacklist.conf
     mode: "0644"
     content: |
-      # {{ ansible_managed }}
+      # Ansible managed — rendered from the home-lab repo (base role)
       # Unused filesystems
       {% for mod in ['cramfs', 'freevxfs', 'hfs', 'hfsplus', 'jffs2', 'udf'] %}
       install {{ mod }} /bin/false
