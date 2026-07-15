@@ -3,11 +3,11 @@
 Instrument: `playbooks/cis-audit.yml` (ansible-lockdown UBUNTU24-CIS 1.6.0,
 `--check` only — the playbook refuses enforce runs).
 
-| Run        | Flagged | Note                                                     |
-|------------|---------|----------------------------------------------------------|
-| 2026-07-14 | 135     | Baseline (279 controls, 425 skipped)                     |
-| 2026-07-15 | 134     | After batches 1-2 — count ~flat, effective (caveat §4)    |
-| 2026-07-15 | 120     | After batches 3-4 — real drops + role-vs-state residue   |
+| Run        | Flagged | Note                                                   |
+|------------|---------|--------------------------------------------------------|
+| 2026-07-14 | 135     | Baseline (279 controls, 425 skipped)                   |
+| 2026-07-15 | 134     | After batches 1-2 — count ~flat, effective (caveat §4) |
+| 2026-07-15 | 120     | After batches 3-4 — real drops + role-vs-state residue |
 
 The 135→120 move: batch-3/4 rules that check *real system files* cleared
 (cron perms 2.4.x, avahi 2.1.2, and the binary-valued sshd rules 5.1.9/11/13/
@@ -71,10 +71,30 @@ IgnoreRhosts, HostbasedAuthentication/GSSAPI off. DisableForwarding skipped
   world-writable media. Existing files need a ONE-SHOT (not idempotent-worthy):
   `ansible homelab -m command -a "chmod -R o-w /mnt/data/media" -b`
 
-**To arbitrate (usability trade-offs, not done by default):**
-umask 027 (5.4.3.3), shell TMOUT (5.4.3.2), login banners (1.6.x),
-lock the 20 shell-less system accounts (5.4.2.8), noexec /dev/shm (1.1.2.2.4),
-sudo pty+logfile (5.2.2/3), su restricted group (5.2.7), MTA local-only (2.1.21).
+**Batch 5 — to arbitrate (usability trade-offs, decide per item):**
+
+Quick wins, no downside (candidate lot 5 — verify the noted preconditions first):
+
+| CIS       | Control                      | What it buys                                                                                                   | Reco  |
+|-----------|------------------------------|----------------------------------------------------------------------------------------------------------------|-------|
+| 1.1.2.2.4 | noexec on /dev/shm           | Blocks the classic "drop payload in RAM and run it" technique                                                  | Do it |
+| 5.4.2.8   | lock shell-less sys accounts | Closes an escalation path via service accounts (www-data…) — check none is actually used (e.g. `claude`) first | Do it |
+| 2.1.21    | MTA local-only               | Postfix stops listening on the network (no mail server here) — confirm an MTA is even running                  | Do it |
+| 5.2.2/3   | sudo pty + logfile           | Logs every sudo command, forces a pty — test an Ansible `become` still works (usually transparent)             | Do it |
+
+Neutral — do only for score/compliance polish:
+
+| CIS   | Control                  | Note                                                       | Reco     |
+|-------|--------------------------|------------------------------------------------------------|----------|
+| 5.2.7 | restrict `su` to a group | Marginal on a single-operator host (sudo NOPASSWD already) | Optional |
+| 1.6.x | login banners            | Legal notice — compliance theatre, zero technical effect   | Optional |
+
+Needs care / not recommended here:
+
+| CIS     | Control           | Why caution                                                                                                                                                    | Reco    |
+|---------|-------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
+| 5.4.3.3 | umask 027 default | Stricter default file perms, but can break cross-service reads (same class as the Transmission umask incident) — deploy watching Nextcloud/Immich media access | Careful |
+| 5.4.3.2 | shell TMOUT       | Auto-logout of idle shells — a nuisance on a personal SSH box; `ClientAliveInterval` (already set) covers the real risk                                        | Skip    |
 
 ## 3. Noise
 
