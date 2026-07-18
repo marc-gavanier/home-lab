@@ -1,0 +1,23 @@
+---
+# Volatile-storage policy — bound what the OS writes to the SD card.
+# Docker logs and swap already live on the HDD (docker + storage roles); this
+# file handles the remaining SD write sources.
+
+# journald writes the persistent journal to /var/log/journal on the SD card.
+# Keep it PERSISTENT — boot logs must survive a poweroff, they are what the
+# "unexplained poweroff -> reflash" runbook reads to decide — but CAP its size
+# so it can never grow unbounded. A drop-in wins over the shipped journald.conf
+# without editing it; "99-" sorts last so it beats any CIS-supplied fragment.
+- name: logging | Cap the systemd journal size (drop-in)
+  ansible.builtin.copy:
+    dest: /etc/systemd/journald.conf.d/99-homelab.conf
+    mode: "0644"
+    content: |
+      # Ansible managed — rendered from the home-lab repo, edits on the host will be overwritten
+      [Journal]
+      Storage=persistent
+      Compress=yes
+      SystemMaxUse={{ journald_system_max_use | default('200M') }}
+      SystemMaxFileSize=50M
+      RuntimeMaxUse=50M
+  notify: Restart systemd-journald
