@@ -1,0 +1,38 @@
+---
+# CIS batch 5 (audit 2026-07): the genuine quick wins from the arbitration
+# table, kept to what ground-truth checks showed as REAL gaps. Deliberately
+# NOT here (verified already-satisfied or decided against):
+#   - lock shell-less accounts (5.4.2.8): every system account is already
+#     locked (* / ! in shadow) — the role's 17 "changed" are false positives
+#   - sudo use_pty (5.2.2): Ubuntu ships "Defaults use_pty" already
+#   - umask 027, shell TMOUT, login banners, su group: see report §2 (skip/careful)
+
+# 1.1.2.2.4 — /dev/shm is tmpfs, exec-capable by default; a classic staging
+# ground for "drop payload in RAM and run it". It already has nosuid,nodev;
+# add noexec. (Container /dev/shm is a separate per-container mount — unaffected.)
+- name: hardening | Mount /dev/shm nodev,nosuid,noexec (CIS 1.1.2.2.4)
+  ansible.posix.mount:
+    path: /dev/shm
+    src: tmpfs
+    fstype: tmpfs
+    opts: defaults,nodev,nosuid,noexec
+    state: mounted
+
+# 2.1.21 — Postfix ships listening on all interfaces (0.0.0.0:25 + [::]:25).
+# No mail is received from the network here; restrict it to loopback so it
+# only carries local cron/report mail.
+- name: hardening | Postfix listens on loopback only (CIS 2.1.21)
+  ansible.builtin.lineinfile:
+    path: /etc/postfix/main.cf
+    regexp: '^inet_interfaces\s*='
+    line: 'inet_interfaces = loopback-only'
+  notify: Restart postfix
+
+# 5.2.3 — record every sudo command to a dedicated log (use_pty is already a
+# Ubuntu default). Drop-in + visudo validation so a syntax slip can't lock sudo.
+- name: hardening | Enable a dedicated sudo logfile (CIS 5.2.3)
+  ansible.builtin.copy:
+    dest: /etc/sudoers.d/cis-logfile
+    content: "Defaults logfile=/var/log/sudo.log\n"
+    mode: "0440"
+    validate: 'visudo -cf %s'

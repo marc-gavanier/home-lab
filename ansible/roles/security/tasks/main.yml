@@ -25,6 +25,9 @@
 - name: Remove unused network services and clients (CIS)
   ansible.builtin.import_tasks: packages.yml
 
+- name: Apply CIS quick-win hardening (/dev/shm, postfix, sudo log)
+  ansible.builtin.import_tasks: hardening.yml
+
 - name: Redact the flash-time password hash from cloud-init artifacts
   ansible.builtin.import_tasks: cloud-init.yml
 
