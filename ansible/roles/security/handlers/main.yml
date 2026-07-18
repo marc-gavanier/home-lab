@@ -25,3 +25,8 @@
   ansible.builtin.service:
     name: postfix
     state: restarted
+
+- name: Restart timesyncd
+  ansible.builtin.systemd:
+    name: systemd-timesyncd
+    state: restarted

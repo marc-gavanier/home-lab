@@ -8,6 +8,12 @@ Instrument: `playbooks/cis-audit.yml` (ansible-lockdown UBUNTU24-CIS 1.6.0,
 | 2026-07-14 | 135     | Baseline (279 controls, 425 skipped)                   |
 | 2026-07-15 | 134     | After batches 1-2 — count ~flat, effective (caveat §4) |
 | 2026-07-15 | 120     | After batches 3-4 — real drops + role-vs-state residue |
+| 2026-07-18 | 51      | After batch 5 + ground-truthed silencing               |
+
+The 51 was fully triaged (ground-truth on the Pi): a small batch 6 of genuine
+cheap wins, the rest false positives / deviations now silenced, plus 4 manual
+warnings. After batch 6 the flagged set should be effectively only what needs
+a human eye (see §2 batch 6 and the warnings note).
 
 The 135→120 move: batch-3/4 rules that check *real system files* cleared
 (cron perms 2.4.x, avahi 2.1.2, and the binary-valued sshd rules 5.1.9/11/13/
@@ -71,30 +77,36 @@ IgnoreRhosts, HostbasedAuthentication/GSSAPI off. DisableForwarding skipped
   world-writable media. Existing files need a ONE-SHOT (not idempotent-worthy):
   `ansible homelab -m command -a "chmod -R o-w /mnt/data/media" -b`
 
-**Batch 5 — to arbitrate (usability trade-offs, decide per item):**
+**Batch 5 — SHIPPED 2026-07-18** (`security/tasks/hardening.yml`)
+Only the REAL gaps confirmed by ground-truth (the rest of the arbitration list
+was already satisfied or decided against — see below):
+- noexec on /dev/shm (1.1.2.2.4)
+- postfix loopback-only (2.1.21 — it was listening on all interfaces)
+- dedicated sudo logfile (5.2.3 — use_pty already a Ubuntu default)
 
-Quick wins, no downside (candidate lot 5 — verify the noted preconditions first):
+**Batch 6 — SHIPPED 2026-07-18** (5 more genuine gaps found while triaging 51)
+- remove `nullok` from pam_unix (5.3.3.4.1 — allowed empty-password auth)
+- root umask 027 (5.4.2.6 — narrower/safer than a system-wide default umask)
+- authorized NTP servers for systemd-timesyncd (2.3.2.1 — NTP= was empty)
+- explicit UFW loopback rules (4.2.4 — allow lo, drop spoofed 127.0.0.0/8 & ::1)
+- sshd_config 0600 (5.1.1 — Ubuntu ships 0644)
 
-| CIS       | Control                      | What it buys                                                                                                   | Reco  |
-|-----------|------------------------------|----------------------------------------------------------------------------------------------------------------|-------|
-| 1.1.2.2.4 | noexec on /dev/shm           | Blocks the classic "drop payload in RAM and run it" technique                                                  | Do it |
-| 5.4.2.8   | lock shell-less sys accounts | Closes an escalation path via service accounts (www-data…) — check none is actually used (e.g. `claude`) first | Do it |
-| 2.1.21    | MTA local-only               | Postfix stops listening on the network (no mail server here) — confirm an MTA is even running                  | Do it |
-| 5.2.2/3   | sudo pty + logfile           | Logs every sudo command, forces a pty — test an Ansible `become` still works (usually transparent)             | Do it |
+**Decided against / already satisfied (silenced, not done):**
+- Already satisfied (ground-truthed): strong hashing SHA512 (5.4.1.4/5.3.3.4.3),
+  no non-root login shells (5.4.2.7), sudo use_pty (5.2.2), AppArmor installed+
+  enabled (1.3.1.1), shadow perms our Ubuntu way (7.1.5-8), all batch 1-2 sysctl/
+  modules (effective).
+- Deviations by design: login banners 1.6.x (theatre), su group 5.2.7, umask 027
+  default 5.4.3.3 (cross-service read risk), shell TMOUT 5.4.3.2 (nuisance),
+  egress allow-outbound 4.2.5, sudo timeout 5.2.6 (moot, NOPASSWD), PAM
+  faillock/pwquality 5.3.x (moot, no local passwords), remote journald
+  1.2.1.x (no central log server), user dotfile perms 7.2.10 (low value).
 
-Neutral — do only for score/compliance polish:
-
-| CIS   | Control                  | Note                                                       | Reco     |
-|-------|--------------------------|------------------------------------------------------------|----------|
-| 5.2.7 | restrict `su` to a group | Marginal on a single-operator host (sudo NOPASSWD already) | Optional |
-| 1.6.x | login banners            | Legal notice — compliance theatre, zero technical effect   | Optional |
-
-Needs care / not recommended here:
-
-| CIS     | Control           | Why caution                                                                                                                                                    | Reco    |
-|---------|-------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
-| 5.4.3.3 | umask 027 default | Stricter default file perms, but can break cross-service reads (same class as the Transmission umask incident) — deploy watching Nextcloud/Immich media access | Careful |
-| 5.4.3.2 | shell TMOUT       | Auto-logout of idle shells — a nuisance on a personal SSH box; `ClientAliveInterval` (already set) covers the real risk                                        | Skip    |
+**4 manual warnings from the last run** — the role can't auto-verify these:
+- 1.2.1.1 / 1.2.1.2 systemd-journal-remote/upload — N/A, no central log server.
+- 2.1.22 "only approved services listening" — **eyeball**: the open ports are
+  Traefik 80/443, Pi-hole 53, WireGuard 51820, SSH, and now Postfix on loopback.
+- 4.2.6 root umask — addressed by batch 6 (5.4.2.6).
 
 ## 3. Noise
 

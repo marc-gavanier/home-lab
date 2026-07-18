@@ -27,6 +27,23 @@
     direction: outgoing
     policy: allow
 
+# CIS 4.2.4 — explicit loopback handling: allow all traffic on lo, and drop
+# anything from a loopback address arriving on a real interface (spoofing).
+- name: firewall | Allow all traffic on the loopback interface (CIS 4.2.4)
+  community.general.ufw:
+    rule: allow
+    direction: in
+    interface: lo
+
+- name: firewall | Deny spoofed loopback traffic on real interfaces (CIS 4.2.4)
+  community.general.ufw:
+    rule: deny
+    direction: in
+    from_ip: "{{ item }}"
+  loop:
+    - 127.0.0.0/8
+    - ::1
+
 - name: firewall | Allow SSH through UFW
   community.general.ufw:
     rule: allow
