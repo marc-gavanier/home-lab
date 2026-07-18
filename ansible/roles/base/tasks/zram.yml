@@ -1,0 +1,34 @@
+---
+# zram — a compressed RAM block device used as high-priority swap. Enabled
+# only where it earns its keep (zram_enabled in host_vars):
+#   - offsite (4GB, no HDD swapfile): real headroom for memory-spiky restic
+#     runs, kept off the SSD.
+#   - homelab (8GB, swappiness=10): almost never swaps, so it stays OFF —
+#     compression CPU for swap it would not use.
+# zram-tools is the Ubuntu-native path; PRIORITY outranks any disk swap so zram
+# fills first and a disk swapfile (where present) stays a last-resort fallback.
+
+- name: zram | Install zram-tools
+  ansible.builtin.apt:
+    name: zram-tools
+    state: present
+  when: zram_enabled | default(false)
+
+- name: zram | Configure the zram swap device
+  ansible.builtin.copy:
+    dest: /etc/default/zramswap
+    mode: "0644"
+    content: |
+      # Ansible managed — rendered from the home-lab repo, edits on the host will be overwritten
+      ALGO=lz4
+      PERCENT={{ zram_percent | default(50) }}
+      PRIORITY=100
+  when: zram_enabled | default(false)
+  notify: Restart zramswap
+
+- name: zram | Enable and start the zramswap service
+  ansible.builtin.systemd:
+    name: zramswap
+    enabled: true
+    state: started
+  when: zram_enabled | default(false)
