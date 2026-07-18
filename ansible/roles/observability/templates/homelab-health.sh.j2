@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# {{ ansible_managed }}
+# =============================================================================
+# Homelab Pi — power & thermal health report
+# =============================================================================
+# Pushes CPU temperature and undervoltage status to an Uptime Kuma push
+# monitor. A sagging PSU/cable silently corrupts the SD and is the prime
+# suspect behind an unexplained poweroff; a Pi 4 also throttles at ~80-85C.
+# Reads kernel sensors directly (vcgencmd is not guaranteed on Ubuntu Server
+# arm64). No-ops when no push URL is configured.
+
+set -uo pipefail
+
+KUMA_PUSH_URL='{{ homelab_health_kuma_push_url | default("") }}'
+
+notify() {
+    [ -n "$KUMA_PUSH_URL" ] || return 0
+    curl -fsS -m 10 --retry 2 -G "$KUMA_PUSH_URL" \
+        --data-urlencode "status=$1" --data-urlencode "msg=$2" >/dev/null 2>&1 || true
+}
+
+problems=()
+report=()
+
+# --- CPU temperature ---
+if [ -r /sys/class/thermal/thermal_zone0/temp ]; then
+    cpu_temp=$(( $(cat /sys/class/thermal/thermal_zone0/temp) / 1000 ))
+    report+=("cpu ${cpu_temp}C")
+    [ "$cpu_temp" -ge 80 ] && problems+=("cpu ${cpu_temp}C (throttling)")
+else
+    report+=("no thermal sensor")
+fi
+
+# --- Undervoltage ---
+# The firmware latches undervoltage events into the rpi_volt hwmon alarm.
+uv_seen=0
+for h in /sys/class/hwmon/hwmon*; do
+    [ "$(cat "$h/name" 2>/dev/null)" = "rpi_volt" ] || continue
+    uv_seen=1
+    [ "$(cat "$h/in0_lcrit_alarm" 2>/dev/null)" = "1" ] && problems+=("undervoltage")
+done
+[ "$uv_seen" = 0 ] && report+=("no rpi_volt sensor")
+
+# --- Verdict ---
+join() { local out; out=$(printf "%s$1" "${@:2}"); echo "${out%"$1"}"; }
+msg=$(join ', ' "${report[@]}")
+
+{# bash ${#array[@]} reads as a Jinja comment opener — shield it #}
+if [ {% raw %}${#problems[@]}{% endraw %} -gt 0 ]; then
+    notify down "$(join '; ' "${problems[@]}") | $msg"
+    exit 1
+fi
+
+notify up "$msg"

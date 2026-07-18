@@ -1,0 +1,13 @@
+---
+# Input contract — validated automatically at run time (ansible-core >= 2.11).
+# Convention (all roles): the spec documents and validates but sets NO
+# defaults; runtime defaults stay inline (`| default()`) in the tasks.
+argument_specs:
+  main:
+    short_description: Host-level observability (Pi power/thermal health to Uptime Kuma)
+    options:
+      homelab_health_kuma_push_url:
+        type: str
+        required: false
+        no_log: true
+        description: Uptime Kuma push URL for the Pi power/thermal report (token = secret). Empty/absent = monitoring disabled.

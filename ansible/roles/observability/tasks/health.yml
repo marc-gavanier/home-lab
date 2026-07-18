@@ -1,0 +1,30 @@
+---
+# Pi power & thermal health -> Uptime Kuma push. Undervoltage is the classic
+# silent Pi killer and the most likely cause behind an "unexplained poweroff"
+# (which the runbook answers with an SD reflash) — detecting it turns that
+# mystery into a signal. The offsite Pi already folds this check into its
+# disk-health report; this brings the same coverage to the homelab.
+# Reads the always-present kernel sensors (thermal_zone + rpi_volt hwmon), NOT
+# vcgencmd (libraspberrypi-bin is not guaranteed on Ubuntu Server arm64).
+
+- name: health | Install the Pi power/thermal health-report script
+  ansible.builtin.template:
+    src: homelab-health.sh.j2
+    dest: /usr/local/bin/homelab-health.sh
+    mode: "0750"
+
+- name: health | Install the health-report service and timer
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: /etc/systemd/system/{{ item }}
+    mode: "0644"
+  loop:
+    - homelab-health.service
+    - homelab-health.timer
+
+- name: health | Enable the health-report timer
+  ansible.builtin.systemd:
+    name: homelab-health.timer
+    enabled: true
+    state: started
+    daemon_reload: true
