@@ -45,6 +45,14 @@ for h in /sys/class/hwmon/hwmon*; do
 done
 [ "$uv_seen" = 0 ] && report+=("no rpi_volt sensor")
 
+# --- Pending reboot ---
+# Auto-reboot is disabled by policy (a reboot would leave /mnt/data locked and
+# services down until a manual homelab-unlock). So a kernel/library update sits
+# waiting on the operator — push DOWN once so Kuma pings, then schedule the
+# reboot+unlock deliberately. State-change only, so it notifies once, not every
+# heartbeat; clears to UP after the reboot.
+[ -f /var/run/reboot-required ] && problems+=("reboot pending — schedule homelab reboot+unlock")
+
 # --- Verdict ---
 join() { local out; out=$(printf "%s$1" "${@:2}"); echo "${out%"$1"}"; }
 msg=$(join ', ' "${report[@]}")
