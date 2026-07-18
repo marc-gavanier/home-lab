@@ -44,3 +44,9 @@
     fstype: tmpfs
     opts: "defaults,nosuid,nodev,noatime,size={{ tmp_tmpfs_size | default('1G') }}"
     state: mounted
+  # AnsiballZ explodes the module payload under TMPDIR (/tmp by default); the
+  # moment this task mounts a fresh tmpfs over /tmp it hides that payload, and
+  # the module dies mid-run trying to re-read its own zip. Land the payload in
+  # /var/tmp so it survives the remount.
+  environment:
+    TMPDIR: /var/tmp
