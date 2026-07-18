@@ -7,6 +7,9 @@
 - name: Configure system identity, packages and boot parameters
   ansible.builtin.import_tasks: system.yml
 
+- name: Bound SD writes — journald cap and tmpfs volatile storage
+  ansible.builtin.import_tasks: logging.yml
+
 - name: Reduce the physical/radio attack surface
   ansible.builtin.import_tasks: attack-surface.yml
 

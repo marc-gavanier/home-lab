@@ -30,3 +30,7 @@ argument_specs:
         type: bool
         required: false
         description: Disable the systemd-resolved stub listener to free port 53 for Pi-hole (inline default true; set false on hosts without Pi-hole).
+      journald_system_max_use:
+        type: str
+        required: false
+        description: Hard cap on the persistent systemd journal (inline default 200M) — bounds SD writes without losing boot logs.
