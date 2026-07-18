@@ -178,5 +178,6 @@ binary/content were removed from the Pi after the test.
   firewall tasks. Any sysctl key managed by the base role must not conflict
   with UFW's file.
 
-See also: ADR-008 (usb tamper), ADR-009, ADR-011 (secrets off SD),
+See also: [ADR-012](../decisions/ADR-012-cis-benchmark-audit.md) (the decision
+this report backs), ADR-008 (usb tamper), ADR-009, ADR-011 (secrets off SD),
 `docs/03-security/`.
