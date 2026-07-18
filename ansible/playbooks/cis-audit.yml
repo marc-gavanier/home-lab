@@ -91,9 +91,63 @@
     # simulated. Home-dir perms are sane (0750/0700, single operator).
     ubtu24cis_rule_7_2_9: false
     ubtu24cis_section7: true
-    # Known deliberate deviations (documented so the report is read with them
-    # in mind): IP forwarding is required (Docker/WireGuard), SSH port is
-    # non-standard on purpose, /mnt/data layout is LUKS-managed by this repo.
+
+    # === Silenced: assumed deviations (NEVER actionable — see report §1) ===
+    # Our architecture answers these differently on purpose. Keeping them
+    # flagged is pure noise: they will never be "fixed". Full rationale per
+    # line lives in knowledge/research/cis-audit-2026-07.md §1.
+    ubtu24cis_rule_3_3_1: false    # IP forwarding required (Docker + WireGuard routing)
+    ubtu24cis_rule_1_1_1_6: false  # overlayfs is Docker's storage driver
+    ubtu24cis_rule_5_2_4: false    # sudo NOPASSWD deliberate (account locked, key-only)
+    ubtu24cis_rule_5_1_8: false    # SSH forwarding is the only admin path to wg-easy UI
+    ubtu24cis_rule_5_4_1_1: false  # password aging moot — no active local passwords
+    ubtu24cis_rule_5_4_1_2: false  # (idem)
+    ubtu24cis_rule_5_4_1_3: false  # (idem)
+
+    # === Silenced: false positives (effective state IS correct — report §4) ===
+    # These stay red not because the system is wrong but because the role
+    # checks ITS OWN file layout / value lists, not effective state (proven by
+    # `sshd -T`, direct sysctl reads, stat). The check is permanently stuck, so
+    # it gives no signal; regression detection lives in the changed=0
+    # convergence runs + direct reads instead. (goss `run_audit: true` would
+    # measure effective state and clear these without silencing — deliberately
+    # not installed: persistent footprint on the Pi for a check we already have.)
+    # -- sshd crypto: our hardened lists are active, role wants its own list
+    ubtu24cis_rule_5_1_6: false    # Ciphers
+    ubtu24cis_rule_5_1_12: false   # KexAlgorithms
+    ubtu24cis_rule_5_1_15: false   # MACs
+    # -- shadow perms: we use Ubuntu's root:shadow 0640, role wants root:root
+    ubtu24cis_rule_7_1_5: false
+    ubtu24cis_rule_7_1_6: false
+    ubtu24cis_rule_7_1_7: false
+    ubtu24cis_rule_7_1_8: false
+    # -- batch 1 network sysctl (base role, effective — verified live)
+    ubtu24cis_rule_3_3_2: false
+    ubtu24cis_rule_3_3_3: false
+    ubtu24cis_rule_3_3_4: false
+    ubtu24cis_rule_3_3_5: false
+    ubtu24cis_rule_3_3_6: false
+    ubtu24cis_rule_3_3_7: false
+    ubtu24cis_rule_3_3_8: false
+    ubtu24cis_rule_3_3_9: false
+    ubtu24cis_rule_3_3_10: false
+    ubtu24cis_rule_3_3_11: false
+    # -- batch 1 kernel params (ASLR, ptrace, core dumps)
+    ubtu24cis_rule_1_5_1: false
+    ubtu24cis_rule_1_5_2: false
+    ubtu24cis_rule_1_5_3: false
+    # -- batch 2 module blacklist (cramfs, freevxfs, hfs, hfsplus, jffs2, udf)
+    ubtu24cis_rule_1_1_1_1: false
+    ubtu24cis_rule_1_1_1_2: false
+    ubtu24cis_rule_1_1_1_3: false
+    ubtu24cis_rule_1_1_1_4: false
+    ubtu24cis_rule_1_1_1_5: false
+    ubtu24cis_rule_1_1_1_8: false
+    # -- batch 2 network-protocol blacklist (dccp, tipc, rds, sctp)
+    ubtu24cis_rule_3_2_1: false
+    ubtu24cis_rule_3_2_2: false
+    ubtu24cis_rule_3_2_3: false
+    ubtu24cis_rule_3_2_4: false
 
   roles:
     - role: UBUNTU24-CIS
