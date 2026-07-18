@@ -5,6 +5,7 @@
     ":timezone(Europe/Paris)"
   ],
   "description": "Docker images (compose), GitHub Actions, and version variables. PRs are batched weekly to keep the noise down; the lint workflow gates every PR.",
+  "mode": "full",
   "schedule": ["before 8am on saturday"],
   "prConcurrentLimit": 5,
   "packageRules": [
