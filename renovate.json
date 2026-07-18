@@ -36,6 +36,13 @@
       "depNameTemplate": "restic/rest-server",
       "datasourceTemplate": "github-releases",
       "extractVersionTemplate": "^v(?<version>.*)$"
+    },
+    {
+      "customType": "regex",
+      "description": "ansible-lockdown CIS role version — bumps surface new benchmark rules for review (the goss audit content tracks this version automatically)",
+      "managerFilePatterns": ["/^ansible/requirements\\.yml$/"],
+      "matchStrings": ["src:\\s*https://github\\.com/(?<depName>[\\w-]+/[\\w-]+)\\s*\\n\\s*version:\\s*\"(?<currentValue>[0-9.]+)\""],
+      "datasourceTemplate": "github-tags"
     }
   ]
 }
