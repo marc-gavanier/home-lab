@@ -16,3 +16,16 @@
       APT::Periodic::Unattended-Upgrade "1";
       APT::Periodic::AutocleanInterval "7";
     mode: "0644"
+
+# Never auto-reboot. A kernel update reboot would bring the host back with
+# /mnt/data LOCKED and every service down until a manual homelab-unlock — a
+# direct collision with the LUKS-unlock model. The package default is already
+# false, but a drop-in makes it explicit and drift-proof (52- overrides the
+# package's 50unattended-upgrades). The Pi health monitor pushes DOWN when
+# /var/run/reboot-required appears, so the reboot gets scheduled deliberately.
+- name: updates | Forbid unattended-upgrades from auto-rebooting
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/52homelab-no-auto-reboot
+    content: |
+      Unattended-Upgrade::Automatic-Reboot "false";
+    mode: "0644"
