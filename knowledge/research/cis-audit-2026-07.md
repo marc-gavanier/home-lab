@@ -119,12 +119,21 @@ A flagged count that is 90% noise is useless. Two categories are now set
 After silencing, whatever the audit still flags = genuine undecided work
 (batch 5 below + anything not yet categorised). That is the number to watch.
 
-**Why not goss.** The role's goss engine (`run_audit: true`) measures effective
-state, which would clear the false positives *without* silencing and keep the
-cross-check. Rejected here: it installs a compliance framework + a second pinned
-audit repo permanently on the Pi (against the minimal-footprint / SD-wear
-ethos), to replace a regression check we already get for free from convergence
-runs. Revisit only if a continuous, tracked compliance *score* is ever wanted.
+**Engine: goss (adopted 2026-07-18).** Initially the audit ran in `--check` and
+silencing was manual. Ground-truth checks then showed the check-mode count is
+mostly false positives (the role scores "would I rewrite MY files", not
+effective state — packages proven absent, sshd settings proven active via
+`sshd -T`, all still flagged). Silencing them by hand was an unbounded,
+ever-growing exclusion list. So the playbook moved to the role's goss engine
+(`setup_audit`/`run_audit`/`audit_only`), which measures EFFECTIVE state:
+- False positives clear themselves — goss checks reality, no manual skip needed.
+- Only genuine assumed deviations (report §1) are still skipped via rule vars,
+  which the role templates into goss's own vars (`ansible_vars_goss.yml.j2`).
+- Safety is `audit_only: true` (end_host before any remediation), not `--check`.
+- Footprint accepted: goss binary (pinned+sha256 by the role) + audit content
+  at /opt, version tracked by Renovate through the role pin.
+Regression detection is preserved (goss re-measures reality each run) on top of
+the convergence `changed=0` guarantee.
 
 ## 4. Lessons learned
 
