@@ -173,6 +173,8 @@
     ubtu24cis_rule_4_2_3: false    # ufw enabled + SSH port allowed (effective)
     ubtu24cis_rule_4_2_7: false    # ufw default deny incoming (effective)
     ubtu24cis_rule_5_1_7: false    # ClientAlive 300/2 — stricter than the role wants
+    ubtu24cis_rule_5_3_3_4_1: false # nullok removed from pam (verified absent), role flags its own way
+    ubtu24cis_rule_2_3_2_1: false  # timesyncd NTP set + NTPSynchronized=yes (effective)
 
     # === Deviations by design (report §1/§2) or not applicable ===
     ubtu24cis_rule_4_2_5: false    # egress: default allow outgoing is intentional

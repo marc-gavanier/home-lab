@@ -50,14 +50,18 @@
     regexp: '(\bpam_unix\.so\b[^\n]*?)\s+nullok\b'
     replace: '\1'
 
-# 5.4.2.6 — root's interactive shell has no explicit umask; default 022 lets
-# new root-created files be world-readable. Set 027 for root only (narrower and
+# 5.4.2.6 — root's login shell has no explicit umask; default 022 lets new
+# root-created files be world-readable. Set 027 for root only (narrower and
 # safer than a system-wide default umask, which can break cross-service reads).
+# Target .bash_profile: the CIS-standard location for a login shell (also what
+# the benchmark checks).
 - name: hardening | Set root umask to 027 (CIS 5.4.2.6)
   ansible.builtin.lineinfile:
-    path: /root/.bashrc
-    regexp: '^umask '
+    path: /root/.bash_profile
+    regexp: '^\s*umask'
     line: 'umask 027'
+    create: true
+    mode: "0600"
 
 # 2.3.2.1 — systemd-timesyncd has no explicit time source (NTP= commented),
 # relying on DHCP/fallback. Pin authorized NTP servers.
