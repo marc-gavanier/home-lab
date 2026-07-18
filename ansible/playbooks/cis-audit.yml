@@ -103,6 +103,7 @@
     ubtu24cis_rule_5_4_1_1: false  # password aging moot — no active local passwords
     ubtu24cis_rule_5_4_1_2: false  # (idem)
     ubtu24cis_rule_5_4_1_3: false  # (idem)
+    ubtu24cis_rule_2_1_13: false   # rsync KEPT — operator's media-transfer tool (§1)
 
     # === Silenced: false positives (effective state IS correct — report §4) ===
     # These stay red not because the system is wrong but because the role
@@ -112,10 +113,22 @@
     # convergence runs + direct reads instead. (goss `run_audit: true` would
     # measure effective state and clear these without silencing — deliberately
     # not installed: persistent footprint on the Pi for a check we already have.)
-    # -- sshd crypto: our hardened lists are active, role wants its own list
+    # -- sshd settings: our values are active (verified `sshd -T` on the Pi),
+    #    the role reports changed only because it writes via its own drop-in.
     ubtu24cis_rule_5_1_6: false    # Ciphers
     ubtu24cis_rule_5_1_12: false   # KexAlgorithms
     ubtu24cis_rule_5_1_15: false   # MACs
+    ubtu24cis_rule_5_1_10: false   # HostbasedAuthentication no (effective)
+    ubtu24cis_rule_5_1_14: false   # LogLevel VERBOSE (effective)
+    ubtu24cis_rule_5_1_16: false   # MaxAuthTries (effective)
+    ubtu24cis_rule_5_1_17: false   # MaxSessions (effective)
+    # -- packages verified ABSENT on the Pi (dpkg), role flags in check mode anyway
+    ubtu24cis_rule_1_5_5: false    # apport purged (batch 1)
+    ubtu24cis_rule_2_2_4: false    # telnet absent
+    ubtu24cis_rule_2_2_6: false    # ftp absent
+    ubtu24cis_rule_2_1_2: false    # avahi-daemon purged (batch 4)
+    # -- system accounts already locked (* / ! in shadow), verified on the Pi
+    ubtu24cis_rule_5_4_2_8: false
     # -- shadow perms: we use Ubuntu's root:shadow 0640, role wants root:root
     ubtu24cis_rule_7_1_5: false
     ubtu24cis_rule_7_1_6: false
