@@ -102,6 +102,30 @@ PRELIM/apt update, handlers flushes, the role's fact files, UFW sysctl.conf
 switch (OPTIONAL), and everything check-mode-skipped that a real lockdown run
 would install first (documented rule by rule in the playbook vars).
 
+## 3bis. Silenced in the playbook — making the count mean something
+
+A flagged count that is 90% noise is useless. Two categories are now set
+`false` in `cis-audit.yml` so the remaining count is *actionable work only*:
+
+- **Assumed deviations (§1)** — never actionable, silenced with a per-line
+  comment pointing here (ip_forward, overlayfs, sudo NOPASSWD, SSH forwarding,
+  password aging).
+- **False positives (§4)** — effective state is correct (proven by `sshd -T`,
+  direct sysctl/stat reads); the role stays red only because it checks its own
+  file layout. A permanently-stuck check gives no signal, so silencing loses
+  nothing — regression detection lives in the `changed=0` convergence runs and
+  direct state reads instead.
+
+After silencing, whatever the audit still flags = genuine undecided work
+(batch 5 below + anything not yet categorised). That is the number to watch.
+
+**Why not goss.** The role's goss engine (`run_audit: true`) measures effective
+state, which would clear the false positives *without* silencing and keep the
+cross-check. Rejected here: it installs a compliance framework + a second pinned
+audit repo permanently on the Pi (against the minimal-footprint / SD-wear
+ethos), to replace a regression check we already get for free from convergence
+runs. Revisit only if a continuous, tracked compliance *score* is ever wanted.
+
 ## 4. Lessons learned
 
 - **The check-mode count does NOT measure effective state** — it measures
