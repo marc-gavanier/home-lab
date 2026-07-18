@@ -8,6 +8,12 @@
 # "unexplained poweroff -> reflash" runbook reads to decide — but CAP its size
 # so it can never grow unbounded. A drop-in wins over the shipped journald.conf
 # without editing it; "99-" sorts last so it beats any CIS-supplied fragment.
+- name: logging | Ensure the journald drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/journald.conf.d
+    state: directory
+    mode: "0755"
+
 - name: logging | Cap the systemd journal size (drop-in)
   ansible.builtin.copy:
     dest: /etc/systemd/journald.conf.d/99-homelab.conf
