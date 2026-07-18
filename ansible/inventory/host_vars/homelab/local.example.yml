@@ -60,6 +60,14 @@ searxng_logo: ""
 killswitch_ntfy_topic: ""  # long random topic, e.g. `openssl rand -hex 16` (acts as a secret)
 killswitch_keyword: ""     # secret keyword; poweroff fires only on an exact match
 
+# --- Observability ---
+# Uptime Kuma "Push" monitor URL for the Pi's OWN power/thermal health
+# (CPU temperature + undervoltage) — same form as backup_kuma_push_url:
+# https://<uptime-kuma>/api/push/<token>  (leave empty to disable monitoring).
+# Create the push monitor + attach a notification: see
+# knowledge/runbooks/backup-monitoring.md
+homelab_health_kuma_push_url: ""
+
 # --- Backup ---
 restic_password: ""
 # Uptime Kuma "Push" monitor URL for backup monitoring — base form:

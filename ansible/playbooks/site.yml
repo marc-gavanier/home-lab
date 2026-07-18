@@ -38,6 +38,11 @@
     - role: docker
       tags: [phase1, docker]
 
+    # Host-level health monitoring (Pi power/thermal → Uptime Kuma). Independent
+    # of the services; the push no-ops until Kuma is up and a push URL is set.
+    - role: observability
+      tags: [phase1, observability]
+
     # Phase 2-5 — Services deployment
     - role: deploy
       tags: [phase2, phase3, phase4, phase5, deploy]

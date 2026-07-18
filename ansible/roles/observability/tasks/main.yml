@@ -1,0 +1,8 @@
+---
+# =============================================================================
+# Role: observability — host-level health monitoring
+# =============================================================================
+# Thin orchestrator: one file per concern, task names prefixed with the file.
+
+- name: Push Pi power/thermal health to Uptime Kuma
+  ansible.builtin.import_tasks: health.yml
