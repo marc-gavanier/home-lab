@@ -22,6 +22,21 @@
       fi
 
       if ! mountpoint -q "$MOUNT"; then
+        # The data volume is never in fstab (no passno), so nothing ever fsck's
+        # it — the one disk holding all data + Docker's data-root gets no
+        # integrity check. Run a preen pass here, on the still-unmounted mapper
+        # (fsck on a mounted fs corrupts it). Clean fs = ~1s (reads the clean
+        # flag); a real scan only happens after an unclean shutdown — exactly
+        # the "unexplained poweroff" case. -p auto-fixes safe problems and
+        # stops (rc >= 4) on anything needing a human, so we refuse to mount a
+        # filesystem too damaged to repair automatically.
+        echo "Checking data volume integrity..."
+        rc=0; e2fsck -p "/dev/mapper/$MAPPER" || rc=$?
+        if [ "$rc" -ge 4 ]; then
+          echo "fsck could not auto-repair (rc=$rc)."
+          echo "Run 'e2fsck /dev/mapper/$MAPPER' by hand before mounting. NOT mounting."
+          exit 1
+        fi
         echo "Mounting $MOUNT..."
         systemctl start mnt-data.mount
       fi
