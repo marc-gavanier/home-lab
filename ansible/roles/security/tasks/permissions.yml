@@ -15,6 +15,15 @@
     - /etc/gshadow
     - /etc/gshadow-
 
+# 5.1.1 — Ubuntu ships sshd_config 0644 (world-readable); CIS wants 0600.
+# Nothing secret is in it, but tightening costs nothing.
+- name: permissions | Restrict /etc/ssh/sshd_config (CIS 5.1.1)
+  ansible.builtin.file:
+    path: /etc/ssh/sshd_config
+    owner: root
+    group: root
+    mode: "0600"
+
 - name: permissions | Restrict crontab and cron directories (CIS 2.4.1.x)
   ansible.builtin.file:
     path: "{{ item.path }}"

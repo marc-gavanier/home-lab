@@ -1,10 +1,12 @@
 ---
-# CIS batch 5 (audit 2026-07): the genuine quick wins from the arbitration
+# CIS batches 5-6 (audit 2026-07): the genuine quick wins from the arbitration
 # table, kept to what ground-truth checks showed as REAL gaps. Deliberately
 # NOT here (verified already-satisfied or decided against):
 #   - lock shell-less accounts (5.4.2.8): every system account is already
 #     locked (* / ! in shadow) — the role's 17 "changed" are false positives
 #   - sudo use_pty (5.2.2): Ubuntu ships "Defaults use_pty" already
+#   - strong password hashing (5.4.1.4): login.defs is already SHA512
+#   - system-account shells (5.4.2.7): no non-root account has a login shell
 #   - umask 027, shell TMOUT, login banners, su group: see report §2 (skip/careful)
 
 # 1.1.2.2.4 — /dev/shm is tmpfs, exec-capable by default; a classic staging
@@ -36,3 +38,33 @@
     content: "Defaults logfile=/var/log/sudo.log\n"
     mode: "0440"
     validate: 'visudo -cf %s'
+
+# --- batch 6 ---
+
+# 5.3.3.4.1 — pam_unix ships with `nullok` in common-auth, which permits login
+# to accounts that have an EMPTY password. Remove the token (word-boundary
+# replace, leaves the rest of the line intact).
+- name: hardening | Remove nullok from pam_unix (CIS 5.3.3.4.1)
+  ansible.builtin.replace:
+    path: /etc/pam.d/common-auth
+    regexp: '(\bpam_unix\.so\b[^\n]*?)\s+nullok\b'
+    replace: '\1'
+
+# 5.4.2.6 — root's interactive shell has no explicit umask; default 022 lets
+# new root-created files be world-readable. Set 027 for root only (narrower and
+# safer than a system-wide default umask, which can break cross-service reads).
+- name: hardening | Set root umask to 027 (CIS 5.4.2.6)
+  ansible.builtin.lineinfile:
+    path: /root/.bashrc
+    regexp: '^umask '
+    line: 'umask 027'
+
+# 2.3.2.1 — systemd-timesyncd has no explicit time source (NTP= commented),
+# relying on DHCP/fallback. Pin authorized NTP servers.
+- name: hardening | Configure authorized NTP servers for timesyncd (CIS 2.3.2.1)
+  ansible.builtin.lineinfile:
+    path: /etc/systemd/timesyncd.conf
+    regexp: '^#?NTP='
+    line: 'NTP=0.pool.ntp.org 1.pool.ntp.org 2.pool.ntp.org 3.pool.ntp.org'
+    insertafter: '^\[Time\]'
+  notify: Restart timesyncd

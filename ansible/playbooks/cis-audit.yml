@@ -163,6 +163,39 @@
     ubtu24cis_rule_3_2_2: false
     ubtu24cis_rule_3_2_3: false
     ubtu24cis_rule_3_2_4: false
+    # -- effective/already-satisfied, confirmed on the Pi 2026-07-18
+    ubtu24cis_rule_1_3_1_1: false  # AppArmor installed 4.0.1 + enabled (aa-status)
+    ubtu24cis_rule_5_4_1_4: false  # login.defs ENCRYPT_METHOD already SHA512
+    ubtu24cis_rule_5_3_3_4_3: false # pam_unix hashing already SHA512
+    ubtu24cis_rule_5_4_2_7: false  # no non-root account has a login shell
+    ubtu24cis_rule_5_2_2: false    # sudo use_pty already a Ubuntu default
+    ubtu24cis_rule_5_2_3: false    # dedicated sudo logfile deployed (batch 5)
+    ubtu24cis_rule_4_2_3: false    # ufw enabled + SSH port allowed (effective)
+    ubtu24cis_rule_4_2_7: false    # ufw default deny incoming (effective)
+    ubtu24cis_rule_5_1_7: false    # ClientAlive 300/2 — stricter than the role wants
+
+    # === Deviations by design (report §1/§2) or not applicable ===
+    ubtu24cis_rule_4_2_5: false    # egress: default allow outgoing is intentional
+    ubtu24cis_rule_5_2_6: false    # sudo timeout moot — NOPASSWD, no auth prompt
+    ubtu24cis_rule_1_2_1_1: false  # remote journald: no central log server here
+    ubtu24cis_rule_1_2_1_2: false  # (idem)
+    ubtu24cis_rule_1_2_2_1: false  # updates handled by unattended-upgrades (base)
+    ubtu24cis_rule_1_6_1: false    # login banners: compliance theatre, decided against
+    ubtu24cis_rule_1_6_2: false
+    ubtu24cis_rule_1_6_3: false
+    ubtu24cis_rule_5_1_5: false    # sshd Banner (ties to 1.6.x, decided against)
+    ubtu24cis_rule_5_2_7: false    # su restricted group: marginal single-operator
+    ubtu24cis_rule_5_4_3_2: false  # shell TMOUT: nuisance on a personal box
+    ubtu24cis_rule_5_4_3_3: false  # default umask 027: risk to cross-service reads
+    ubtu24cis_rule_7_2_10: false   # user dotfile perms: low value, single operator
+    # -- PAM lockout/quality: moot with no active local passwords (key-only, locked)
+    ubtu24cis_rule_5_3_1_3: false
+    ubtu24cis_rule_5_3_2_2: false
+    ubtu24cis_rule_5_3_2_3: false
+    ubtu24cis_rule_5_3_2_4: false
+    ubtu24cis_rule_5_3_3_1_1: false
+    ubtu24cis_rule_5_3_3_1_2: false
+    ubtu24cis_rule_5_3_3_1_3: false
 
   roles:
     - role: UBUNTU24-CIS
