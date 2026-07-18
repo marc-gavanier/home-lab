@@ -9,11 +9,18 @@ Instrument: `playbooks/cis-audit.yml` (ansible-lockdown UBUNTU24-CIS 1.6.0,
 | 2026-07-15 | 134     | After batches 1-2 — count ~flat, effective (caveat §4) |
 | 2026-07-15 | 120     | After batches 3-4 — real drops + role-vs-state residue |
 | 2026-07-18 | 51      | After batch 5 + ground-truthed silencing               |
+| 2026-07-18 | 6       | After batch 6 — CLOSED: the 6 are role internals only   |
 
-The 51 was fully triaged (ground-truth on the Pi): a small batch 6 of genuine
-cheap wins, the rest false positives / deviations now silenced, plus 4 manual
-warnings. After batch 6 the flagged set should be effectively only what needs
-a human eye (see §2 batch 6 and the warnings note).
+**Closed 2026-07-18.** No real security finding remains. The final 6 `changed`
+are role-internal mechanics, not findings and not rule-gated (so not
+silenceable): `PRELIM Run apt update`, `PRELIM Create journald conf.d dir`,
+`PRELIM Ensure auditd installed` (a check-mode would-install; auditd stays out
+by design), `OPTIONAL UFW sysctl.conf`, and the two `Create ansible facts`
+files. Two manual AUDIT warnings stand, both satisfied by eyeball: **2.1.22**
+(only approved services listen — Traefik 80/443, Pi-hole 53, WireGuard 51820,
+Transmission 51413, SSH, Postfix loopback) and **4.2.6** (a ufw rule exists for
+each open port — it does). The last real gap, 5.4.2.6 root umask, was a literal
+`027` vs `0027` mismatch — aligned.
 
 The 135→120 move: batch-3/4 rules that check *real system files* cleared
 (cron perms 2.4.x, avahi 2.1.2, and the binary-valued sshd rules 5.1.9/11/13/

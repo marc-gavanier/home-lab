@@ -59,7 +59,7 @@
   ansible.builtin.lineinfile:
     path: /root/.bash_profile
     regexp: '^\s*umask'
-    line: 'umask 027'
+    line: 'umask 0027'  # 0027 == 027; the leading zero matches the CIS literal
     create: true
     mode: "0600"
 
