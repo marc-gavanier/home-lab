@@ -12,6 +12,10 @@
 set -uo pipefail
 
 KUMA_PUSH_URL='{{ homelab_health_kuma_push_url | default("") }}'
+# Kuma shows the push URL WITH an example query (?status=up&msg=OK&ping=); if
+# that gets pasted in, our own -G params arrive as a second status=/msg= and
+# Kuma reads the array as DOWN. Strip anything from '?' on so our params win.
+KUMA_PUSH_URL="${KUMA_PUSH_URL%%\?*}"
 
 notify() {
     [ -n "$KUMA_PUSH_URL" ] || return 0
