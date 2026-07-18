@@ -33,6 +33,10 @@ homelab_wg_ip: "10.8.0.5"
 # The 52Pi enclosure's ASMedia ASM1153 bridge is unstable in UAS mode on the
 # Pi (async write errors under load — bitten during first mkfs, 2026-07-12).
 # Force the plain usb-storage driver instead.
+# Consequence: usb-storage (BOT, no UAS) does not pass TRIM/UNMAP, so
+# `fstrim /mnt/backup` reports "discard not supported" — accepted. Integrity of
+# the backup target outranks TRIM; fstrim.timer skips it quietly
+# (--quiet-unsupported) and the SSD's own background GC handles wear.
 usb_storage_quirks: "174c:55aa:u"
 backup_disk_device: /dev/sda1
 backup_mount_point: /mnt/backup
