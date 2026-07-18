@@ -1,82 +1,71 @@
 ---
 # =============================================================================
-# CIS Ubuntu 24.04 audit — goss engine, effective-state, READ-ONLY
+# CIS Ubuntu 24.04 audit — READ-ONLY by design: ALWAYS run with --check
 # =============================================================================
-#   ansible-galaxy install -r requirements.yml     # once (role + goss content)
-#   ansible-playbook playbooks/cis-audit.yml --ask-vault-pass
+#   ansible-galaxy install -r requirements.yml        # once (role v1.6.0)
+#   ansible-playbook playbooks/cis-audit.yml --check --diff --ask-vault-pass
 #
-# This measures EFFECTIVE state with goss (not "would the ansible role rewrite
-# its files"), so hardening we apply our own way (sysctl, sshd, packages) is
-# scored on reality — the check-mode false positives are gone.
-#
-# SAFETY MODEL — audit_only, not --check:
-#   goss must actually install its binary + content, so --check can't be used.
-#   Instead audit_only=true makes the role run the audit during prelim and then
-#   `meta: end_host` BEFORE any remediation section runs (verified in the role:
-#   prelim.yml imports pre_remediation_audit.yml which end_hosts on audit_only,
-#   and sections are imported only after prelim in main.yml). The assert below
-#   refuses to run if audit_only is ever overridden to false.
-#
-# FOOTPRINT (chosen: installed permanently): goss binary (pinned v0.4.8 +
-#   sha256 by the role) at /usr/local/bin/goss, audit content cloned to
-#   /opt/UBUNTU24-CIS-Audit (version benchmark_<role version>, tracked by
-#   Renovate via the role pin). Reports land in /opt as JSON.
+# Purpose: confront the homelab's own hardening (security role, ADRs) with
+# the CIS benchmark and read the gap — NOT to enforce it. The lockdown role
+# in enforce mode would break this setup (SSH config, mounts, Docker
+# forwarding, ...). The assert below refuses to run outside check mode.
 # =============================================================================
 
-- name: CIS Ubuntu 24.04 audit (goss, effective state, read-only)
+- name: CIS Ubuntu 24.04 audit (read-only)
   hosts: homelab
   become: true
 
   pre_tasks:
-    - name: Refuse to run unless audit_only is set (it end_hosts before any remediation)
+    - name: Refuse to run outside check mode (audit only — enforce would break the lab)
       ansible.builtin.assert:
-        that: audit_only | bool
+        that: ansible_check_mode
         fail_msg: >-
-          This playbook MUST run with audit_only=true. Without it the lockdown
-          role executes its remediation sections and could break the lab
-          (SSH, mounts, IP forwarding). Do not override audit_only.
+          This playbook is audit-only. Re-run with --check. Enforcing the full
+          CIS benchmark would break the homelab (SSH, mounts, IP forwarding).
 
   vars:
-    # --- goss audit engine ---
-    setup_audit: true    # install goss (pinned+checksummed by the role) + audit content
-    run_audit: true      # run the goss scan
-    audit_only: true     # SAFETY: end_host after the scan, before any remediation
-    audit_format: json
-
-    # Sections goss evaluates. Section 6 off: auditd is an accepted absence
-    # (report §1), and its 6.2.4.x prelim tasks read a non-existent
-    # /etc/audit/auditd.conf and crash even under audit_only (prelim runs
-    # before end_host).
+    # Report only — never let the role touch the system even if check mode
+    # were bypassed on individual tasks.
     ubtu24cis_section1: true
     ubtu24cis_section2: true
     ubtu24cis_section3: true
     ubtu24cis_section4: true
     ubtu24cis_section5: true
+    # Section 6 (logging & auditing) disabled: auditd is not installed, which
+    # IS the section-6 finding — and its prelim tasks crash in check mode when
+    # /etc/audit/auditd.conf is absent (install is only simulated). The 6.2.4.x
+    # rule vars gate a prelim task with `tags: always`, so they must be off too.
     ubtu24cis_section6: false
-    ubtu24cis_section7: true
     ubtu24cis_rule_6_2_4_1: false
     ubtu24cis_rule_6_2_4_2: false
     ubtu24cis_rule_6_2_4_3: false
     ubtu24cis_rule_6_2_4_4: false
-
-    # This host uses systemd-timesyncd (Ubuntu default), not chrony.
+    # Deliberate deviation: the 5TB data disk IS usb-storage — disabling the
+    # module (CIS 1.1.1.9) is incompatible with this hardware. Physical USB
+    # attack surface is covered differently: ADR-008 usb-tamper poweroff.
+    ubtu24cis_rule_1_1_1_9: false
+    # Check-mode incompatible: 1.1.1.10 deploys its own discovery script then
+    # runs it — the copy is only simulated, the run fails. Covered manually:
+    # `lsmod` review; unused fs modules are already blacklisted in firmware
+    # (base role kills i2c/spi/radios; overlayfs & friends are needed).
+    ubtu24cis_rule_1_1_1_10: false
+    # No GRUB on a Raspberry Pi (firmware boot + cmdline.txt): the bootloader
+    # AppArmor flag check reads /etc/default/grub and crashes. AppArmor being
+    # enabled at boot is verified by 1.3.1.1/3/4 (kept) and aa-status.
+    ubtu24cis_rule_1_3_1_2: false
+    # Check-mode cascade: /etc/motd does not exist on Ubuntu 24.04 (update-motd.d
+    # instead) and the rule creating it (1.6.2) is only simulated — the perms
+    # rule then dies on the absent file.
+    ubtu24cis_rule_1_6_4: false
+    # This host uses systemd-timesyncd (Ubuntu default), not chrony — tell the
+    # role so it audits the right tool instead of crashing on absent chrony.conf.
     ubtu24cis_time_sync_tool: systemd-timesyncd
-
-    # === Assumed deviations — goss WOULD fail these on purpose, so skip them ===
-    # These are the ONLY skips now: goss measures effective state, so the former
-    # "false positive" skips are gone — goss verifies sshd/sysctl/packages/perms
-    # for real and they should pass on their own. Per-line rationale: report §1.
-    ubtu24cis_rule_3_3_1: false     # IP forwarding required (Docker + WireGuard routing)
-    ubtu24cis_rule_1_1_1_6: false   # overlayfs is Docker's storage driver
-    ubtu24cis_rule_1_1_1_9: false   # usb-storage: the 5TB data disk is USB (ADR-008)
-    ubtu24cis_rule_1_3_1_2: false   # no GRUB on a Raspberry Pi (firmware boot)
-    ubtu24cis_rule_5_2_4: false     # sudo NOPASSWD deliberate (account locked, key-only)
-    ubtu24cis_rule_5_1_8: false     # SSH forwarding is the only admin path to wg-easy UI
-    ubtu24cis_rule_2_1_13: false    # rsync kept — operator's media-transfer tool
-    ubtu24cis_rule_5_4_1_1: false   # password aging moot — no active local passwords
-    ubtu24cis_rule_5_4_1_2: false   # (idem)
-    ubtu24cis_rule_5_4_1_3: false   # (idem)
-    ubtu24cis_rule_5_3_3_2_1: false # pwquality moot — no active local passwords
+    # Check-mode cascade: libpam-pwquality is not installed (its install is
+    # only simulated), so every 5.3.3.2.x rule dies editing the absent
+    # /etc/security/pwquality.conf. Real finding to arbitrate: password
+    # QUALITY rules are moot here (account password locked, SSH key-only,
+    # sudo NOPASSWD) — noted as a deliberate deviation.
+    ubtu24cis_rule_5_3_3_2_1: false
     ubtu24cis_rule_5_3_3_2_2: false
     ubtu24cis_rule_5_3_3_2_3: false
     ubtu24cis_rule_5_3_3_2_4: false
@@ -84,9 +73,96 @@
     ubtu24cis_rule_5_3_3_2_6: false
     ubtu24cis_rule_5_3_3_2_7: false
     ubtu24cis_rule_5_3_3_2_8: false
-    ubtu24cis_rule_5_3_3_3_1: false # pwhistory moot — no active local passwords
+    # Same cascade and same rationale for password HISTORY (pam_pwhistory
+    # profile absent): no active local passwords on this host.
+    ubtu24cis_rule_5_3_3_3_1: false
     ubtu24cis_rule_5_3_3_3_2: false
     ubtu24cis_rule_5_3_3_3_3: false
+    # The claude vault is a FUSE mount unreadable by root BY DESIGN (sandbox,
+    # no allow_other): every root-wide `find` sweep stats it and exits non-zero,
+    # which these rules' failed_when reject. Manual equivalent when needed:
+    #   find / -xdev ! -path '/home/claude/vault*' -type f -perm -0002
+    # NOTE: the 7.1.11 sweep DID surface a real finding before dying — the
+    # media tree is world-writable (see audit synthesis).
+    ubtu24cis_rule_7_1_11: false
+    ubtu24cis_rule_7_1_12: false
+    ubtu24cis_rule_7_1_13: false
+    # Check-mode cascade: setfacl (acl package) is absent, its install only
+    # simulated. Home-dir perms are sane (0750/0700, single operator).
+    ubtu24cis_rule_7_2_9: false
+    ubtu24cis_section7: true
+
+    # === Silenced: assumed deviations (NEVER actionable — see report §1) ===
+    # Our architecture answers these differently on purpose. Keeping them
+    # flagged is pure noise: they will never be "fixed". Full rationale per
+    # line lives in knowledge/research/cis-audit-2026-07.md §1.
+    ubtu24cis_rule_3_3_1: false    # IP forwarding required (Docker + WireGuard routing)
+    ubtu24cis_rule_1_1_1_6: false  # overlayfs is Docker's storage driver
+    ubtu24cis_rule_5_2_4: false    # sudo NOPASSWD deliberate (account locked, key-only)
+    ubtu24cis_rule_5_1_8: false    # SSH forwarding is the only admin path to wg-easy UI
+    ubtu24cis_rule_5_4_1_1: false  # password aging moot — no active local passwords
+    ubtu24cis_rule_5_4_1_2: false  # (idem)
+    ubtu24cis_rule_5_4_1_3: false  # (idem)
+    ubtu24cis_rule_2_1_13: false   # rsync KEPT — operator's media-transfer tool (§1)
+
+    # === Silenced: false positives (effective state IS correct — report §4) ===
+    # These stay red not because the system is wrong but because the role
+    # checks ITS OWN file layout / value lists, not effective state (proven by
+    # `sshd -T`, direct sysctl reads, stat). The check is permanently stuck, so
+    # it gives no signal; regression detection lives in the changed=0
+    # convergence runs + direct reads instead. (goss `run_audit: true` would
+    # measure effective state and clear these without silencing — tried
+    # 2026-07-18 and reverted: the audit content is a moving branch with no
+    # pinnable tag and had drifted ahead of role 1.6.0, missing 28 vars. See
+    # report §4.)
+    # -- sshd settings: our values are active (verified `sshd -T` on the Pi),
+    #    the role reports changed only because it writes via its own drop-in.
+    ubtu24cis_rule_5_1_6: false    # Ciphers
+    ubtu24cis_rule_5_1_12: false   # KexAlgorithms
+    ubtu24cis_rule_5_1_15: false   # MACs
+    ubtu24cis_rule_5_1_10: false   # HostbasedAuthentication no (effective)
+    ubtu24cis_rule_5_1_14: false   # LogLevel VERBOSE (effective)
+    ubtu24cis_rule_5_1_16: false   # MaxAuthTries (effective)
+    ubtu24cis_rule_5_1_17: false   # MaxSessions (effective)
+    # -- packages verified ABSENT on the Pi (dpkg), role flags in check mode anyway
+    ubtu24cis_rule_1_5_5: false    # apport purged (batch 1)
+    ubtu24cis_rule_2_2_4: false    # telnet absent
+    ubtu24cis_rule_2_2_6: false    # ftp absent
+    ubtu24cis_rule_2_1_2: false    # avahi-daemon purged (batch 4)
+    # -- system accounts already locked (* / ! in shadow), verified on the Pi
+    ubtu24cis_rule_5_4_2_8: false
+    # -- shadow perms: we use Ubuntu's root:shadow 0640, role wants root:root
+    ubtu24cis_rule_7_1_5: false
+    ubtu24cis_rule_7_1_6: false
+    ubtu24cis_rule_7_1_7: false
+    ubtu24cis_rule_7_1_8: false
+    # -- batch 1 network sysctl (base role, effective — verified live)
+    ubtu24cis_rule_3_3_2: false
+    ubtu24cis_rule_3_3_3: false
+    ubtu24cis_rule_3_3_4: false
+    ubtu24cis_rule_3_3_5: false
+    ubtu24cis_rule_3_3_6: false
+    ubtu24cis_rule_3_3_7: false
+    ubtu24cis_rule_3_3_8: false
+    ubtu24cis_rule_3_3_9: false
+    ubtu24cis_rule_3_3_10: false
+    ubtu24cis_rule_3_3_11: false
+    # -- batch 1 kernel params (ASLR, ptrace, core dumps)
+    ubtu24cis_rule_1_5_1: false
+    ubtu24cis_rule_1_5_2: false
+    ubtu24cis_rule_1_5_3: false
+    # -- batch 2 module blacklist (cramfs, freevxfs, hfs, hfsplus, jffs2, udf)
+    ubtu24cis_rule_1_1_1_1: false
+    ubtu24cis_rule_1_1_1_2: false
+    ubtu24cis_rule_1_1_1_3: false
+    ubtu24cis_rule_1_1_1_4: false
+    ubtu24cis_rule_1_1_1_5: false
+    ubtu24cis_rule_1_1_1_8: false
+    # -- batch 2 network-protocol blacklist (dccp, tipc, rds, sctp)
+    ubtu24cis_rule_3_2_1: false
+    ubtu24cis_rule_3_2_2: false
+    ubtu24cis_rule_3_2_3: false
+    ubtu24cis_rule_3_2_4: false
 
   roles:
     - role: UBUNTU24-CIS

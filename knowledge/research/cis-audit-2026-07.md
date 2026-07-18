@@ -119,21 +119,25 @@ A flagged count that is 90% noise is useless. Two categories are now set
 After silencing, whatever the audit still flags = genuine undecided work
 (batch 5 below + anything not yet categorised). That is the number to watch.
 
-**Engine: goss (adopted 2026-07-18).** Initially the audit ran in `--check` and
-silencing was manual. Ground-truth checks then showed the check-mode count is
-mostly false positives (the role scores "would I rewrite MY files", not
-effective state — packages proven absent, sshd settings proven active via
-`sshd -T`, all still flagged). Silencing them by hand was an unbounded,
-ever-growing exclusion list. So the playbook moved to the role's goss engine
-(`setup_audit`/`run_audit`/`audit_only`), which measures EFFECTIVE state:
-- False positives clear themselves — goss checks reality, no manual skip needed.
-- Only genuine assumed deviations (report §1) are still skipped via rule vars,
-  which the role templates into goss's own vars (`ansible_vars_goss.yml.j2`).
-- Safety is `audit_only: true` (end_host before any remediation), not `--check`.
-- Footprint accepted: goss binary (pinned+sha256 by the role) + audit content
-  at /opt, version tracked by Renovate through the role pin.
-Regression detection is preserved (goss re-measures reality each run) on top of
-the convergence `changed=0` guarantee.
+**Engine: check-mode + silencing (goss attempted and reverted 2026-07-18).**
+The check-mode count is mostly false positives (the role scores "would I
+rewrite MY files", not effective state — packages proven absent, sshd settings
+proven active via `sshd -T`, all still flagged). goss (`run_audit: true`)
+measures effective state and would clear those, so it was tried — and reverted.
+
+Why goss failed here: the ansible-lockdown audit content is a **moving git
+branch (`benchmark_v1.0.0`) with no pinnable tag**, and its HEAD had drifted
+ahead of the pinned role 1.6.0 — the goss run errored with 28 variables the
+role no longer templates (`machine_uuid`, `os_release`, `ubtu24cis_pass_max_days`,
+…). Making it work would mean pinning the content to a matching commit (which
+Renovate can't track cleanly, killing the controlled-freshness design) or
+hand-supplying 28 vars including host facts (whack-a-mole). Not worth it: an
+upstream version-sync fragility, not just the footprint I first cited.
+
+So we stay on check-mode + documented silencing. Its false-positive floor is a
+known, bounded quantity (verified against ground truth on the Pi); regression
+detection lives in the `changed=0` convergence runs + direct state reads. goss
+binary/content were removed from the Pi after the test.
 
 ## 4. Lessons learned
 
