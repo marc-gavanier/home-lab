@@ -10,6 +10,9 @@
 - name: Bound SD writes — journald cap and tmpfs volatile storage
   ansible.builtin.import_tasks: logging.yml
 
+- name: Configure zram compressed swap (opt-in via zram_enabled)
+  ansible.builtin.import_tasks: zram.yml
+
 - name: Reduce the physical/radio attack surface
   ansible.builtin.import_tasks: attack-surface.yml
 

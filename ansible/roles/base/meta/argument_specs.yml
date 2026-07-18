@@ -38,3 +38,11 @@ argument_specs:
         type: str
         required: false
         description: Size cap of the tmpfs /tmp mount (inline default 1G; 512M on the 4GB offsite node).
+      zram_enabled:
+        type: bool
+        required: false
+        description: Enable zram compressed swap (inline default false; true on the offsite node, which has no HDD swapfile).
+      zram_percent:
+        type: int
+        required: false
+        description: zram device size as a percentage of RAM (inline default 50).

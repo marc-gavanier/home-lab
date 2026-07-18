@@ -12,3 +12,8 @@
   ansible.builtin.service:
     name: systemd-journald
     state: restarted
+
+- name: Restart zramswap
+  ansible.builtin.service:
+    name: zramswap
+    state: restarted
