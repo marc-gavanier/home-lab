@@ -18,7 +18,10 @@ Defense in depth — each layer is secured independently. If one layer falls, th
 - **fail2ban**: automatic banning after failed attempts
 - **unattended-upgrades**: automatic security updates
 - **Non-root user**: no service runs as root
-- **Audit**: lynis for periodic security audits
+- **Audit**: lynis for periodic security audits; CIS Ubuntu 24.04 benchmark
+  via `ansible/playbooks/cis-audit.yml` (read-only) — findings, remediation
+  batches and assumed deviations in
+  [knowledge/research/cis-audit-2026-07.md](../../knowledge/research/cis-audit-2026-07.md)
 
 ### 3. Containers (Docker)
 - Official images only, pinned versions

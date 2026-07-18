@@ -93,7 +93,8 @@ was already satisfied or decided against — see below):
 
 **Batch 6 — SHIPPED 2026-07-18** (5 more genuine gaps found while triaging 51)
 - remove `nullok` from pam_unix (5.3.3.4.1 — allowed empty-password auth)
-- root umask 027 (5.4.2.6 — narrower/safer than a system-wide default umask)
+- root umask 0027 in /root/.bash_profile (5.4.2.6 — narrower/safer than a
+  system-wide default umask; the literal `0027` matches the benchmark)
 - authorized NTP servers for systemd-timesyncd (2.3.2.1 — NTP= was empty)
 - explicit UFW loopback rules (4.2.4 — allow lo, drop spoofed 127.0.0.0/8 & ::1)
 - sshd_config 0600 (5.1.1 — Ubuntu ships 0644)
@@ -109,11 +110,13 @@ was already satisfied or decided against — see below):
   faillock/pwquality 5.3.x (moot, no local passwords), remote journald
   1.2.1.x (no central log server), user dotfile perms 7.2.10 (low value).
 
-**4 manual warnings from the last run** — the role can't auto-verify these:
-- 1.2.1.1 / 1.2.1.2 systemd-journal-remote/upload — N/A, no central log server.
-- 2.1.22 "only approved services listening" — **eyeball**: the open ports are
-  Traefik 80/443, Pi-hole 53, WireGuard 51820, SSH, and now Postfix on loopback.
-- 4.2.6 root umask — addressed by batch 6 (5.4.2.6).
+**2 manual AUDIT warnings on the closed run** — the role can't auto-verify
+these; both are satisfied by eyeball (see the "Closed" note at the top):
+- 2.1.22 "only approved services listening" — open ports are Traefik 80/443,
+  Pi-hole 53, WireGuard 51820, Transmission 51413, SSH, Postfix on loopback.
+- 4.2.6 "a ufw rule exists for each open port" — it does (each of the above).
+(Earlier runs also warned 1.2.1.1/1.2.1.2 remote journald — N/A, no central
+log server; now silenced.)
 
 ## 3. Noise
 
@@ -166,9 +169,9 @@ binary/content were removed from the Pi after the test.
   our sysctl/modprobe layout (`99-homelab.conf`, `cis-blacklist.conf`)
   differs from the role's own file naming, so its tasks always want to write.
   Verify remediations with direct state reads; treat the check-mode count as
-  a coarse discovery tool only. For true effective-state scoring, the role's
-  goss audit engine (`run_audit: true`) is the option — it installs tooling
-  on the host, left out for now.
+  a coarse discovery tool only. The role's goss engine would score effective
+  state directly — tried and reverted (upstream version desync, see the engine
+  note above §4).
 - **UFW owns a competing sysctl file**: `/etc/ufw/sysctl.conf` (IPT_SYSCTL)
   is re-applied on every ufw reload and silently overrode `log_martians` —
   caught by the changed=0 discipline, fixed by aligning UFW's file from the
