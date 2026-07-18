@@ -21,3 +21,20 @@
       SystemMaxFileSize=50M
       RuntimeMaxUse=50M
   notify: Restart systemd-journald
+
+# /tmp defaults to the SD card. A tmpfs /tmp removes that write surface
+# entirely (RAM is plentiful on both hosts) and satisfies CIS's /tmp
+# separate-mount rules. fstab is safe HERE — unlike /mnt/data: tmpfs has no
+# device dependency, so the LUKS "ghost store" race that banned fstab for the
+# data mount does not apply. Size-capped so a runaway temp writer hits a loud
+# ENOSPC instead of silently exhausting RAM.
+# Deliberately NOT noexec: apt/dpkg postinst and container/pip tooling exec
+# from /tmp — noexec there is a foot-gun on a Docker host (documented CIS
+# deviation, not a fix).
+- name: logging | Mount /tmp as tmpfs (size-capped, nosuid/nodev)
+  ansible.posix.mount:
+    path: /tmp
+    src: tmpfs
+    fstype: tmpfs
+    opts: "defaults,nosuid,nodev,noatime,size={{ tmp_tmpfs_size | default('1G') }}"
+    state: mounted

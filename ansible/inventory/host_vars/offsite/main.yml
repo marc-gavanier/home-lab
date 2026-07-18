@@ -8,6 +8,7 @@
 # --- System ---
 hostname: backup
 free_port_53: false # No Pi-hole here — keep stock systemd-resolved
+tmp_tmpfs_size: 512M # Smaller /tmp cap on the 4GB node (homelab defaults to 1G)
 # 52Pi ICE Tower NAS case: PWM fan on GPIO 14, thermostat at 60°C (vendor
 # wiki ZP-0141). Without this the fan runs full speed permanently.
 gpio_fan_pin: 14

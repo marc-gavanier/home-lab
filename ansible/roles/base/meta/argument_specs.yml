@@ -34,3 +34,7 @@ argument_specs:
         type: str
         required: false
         description: Hard cap on the persistent systemd journal (inline default 200M) — bounds SD writes without losing boot logs.
+      tmp_tmpfs_size:
+        type: str
+        required: false
+        description: Size cap of the tmpfs /tmp mount (inline default 1G; 512M on the 4GB offsite node).
