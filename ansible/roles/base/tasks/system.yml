@@ -132,6 +132,17 @@
     opts: defaults,noatime
     state: mounted
 
+# Weekly TRIM lets the SD (and the offsite SSD) controller wear-level free
+# blocks efficiently — a modest longevity complement. Ubuntu ships fstrim.timer
+# enabled by default; enforce it so an image variant can't ship it off. The
+# synchronous `discard` mount option is deliberately avoided — the timer is the
+# right mechanism; on the main spinning HDD TRIM is a harmless no-op.
+- name: system | Ensure periodic TRIM (fstrim.timer) is enabled
+  ansible.builtin.systemd:
+    name: fstrim.timer
+    enabled: true
+    state: started
+
 - name: system | Read cmdline.txt
   ansible.builtin.slurp:
     src: /boot/firmware/cmdline.txt
