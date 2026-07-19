@@ -78,6 +78,18 @@ if docker ps --format '{{.Names}}' | grep -q immich-db; then
         > "$DUMP_DIR/immich.sql" 2>> "$BACKUP_LOG" || log "WARNING: Immich DB dump failed"
 fi
 
+# Vaultwarden SQLite — consistent online backup (WAL-safe).
+# Restic snapshotting the live db.sqlite3 while Vaultwarden runs can capture a
+# torn WAL state. sqlite3 .backup uses SQLite's Online Backup API to write a
+# consistent copy even under concurrent writes (run host-side: the Vaultwarden
+# image ships no sqlite3 CLI). See Vaultwarden wiki "Backing up your vault".
+VAULTWARDEN_DB="/mnt/data/services/vaultwarden/db.sqlite3"
+if [ -f "$VAULTWARDEN_DB" ]; then
+    log "Backing up Vaultwarden database (sqlite3 .backup)..."
+    sqlite3 "$VAULTWARDEN_DB" ".backup '$DUMP_DIR/vaultwarden.sqlite3'" 2>> "$BACKUP_LOG" \
+        || log "WARNING: Vaultwarden DB backup failed"
+fi
+
 # --- Restic backup ---
 
 log "Running restic backup..."

@@ -1,9 +1,11 @@
 ---
 # Local restic backup: script, env on LUKS, Kuma DNS pin, repo init, timer.
 
-- name: backup | Install restic
+- name: backup | Install restic and sqlite3
   ansible.builtin.apt:
-    name: restic
+    name:
+      - restic
+      - sqlite3   # host-side `sqlite3 .backup` for the Vaultwarden online backup
     state: present
 
 - name: backup | Create scripts directory
