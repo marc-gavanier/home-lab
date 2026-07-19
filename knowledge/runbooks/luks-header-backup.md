@@ -13,9 +13,11 @@ now, and again after **any** keyslot change.
 
 ## Sensitivity
 
-The header file is **as sensitive as the passphrase**: header + passphrase =
-your data. Treat it exactly like the offsite repo password — stored *off* the
-volume, never in the repo, never on the Pi long-term.
+The header is one half of the secret: **header + passphrase = your data**. The
+header *alone* does not expose anything (an attacker still needs the passphrase),
+so physical control of an offline copy is a legitimate protection. But treat it
+as sensitive: stored *off* the volume, never in the repo, never on the Pi
+long-term.
 
 ## Create a header backup
 
@@ -36,10 +38,21 @@ sudo cryptsetup luksHeaderBackup /dev/sda1 \
 
 Then move it off the machine and destroy the working copy:
 
-1. Attach it to a **secure note in Vaultwarden** (your password vault — offsite).
-2. Copy it to an **offline USB key** kept off-site (same discipline as the
-   offsite repo password: two independent, off-machine locations).
-3. Shred the working copy: `shred -u /tmp/luks-header-*.img`.
+1. **Primary — offline USB key kept off-site.** This is the copy that matters:
+   independent hardware, survives the loss of the Pi and the whole `/mnt/data`
+   volume. Plaintext is acceptable (the header alone is not enough without the
+   passphrase); encrypt it if you prefer, but only with a secret you will still
+   have *in the disaster* (a symmetric passphrase in your password manager, or a
+   GPG key whose private half is itself backed up offline — otherwise you lock
+   yourself out). Ideally keep a second independent copy (2nd USB, or the offsite
+   Pi) — 3-2-1 applies to the header too.
+2. **Do NOT rely on Vaultwarden as the (only) copy.** Vaultwarden's own data
+   lives on this same LUKS volume, so a damaged header takes Vaultwarden with it —
+   a circular dependency. A Vaultwarden attachment can be a *convenience* extra
+   (it also rides along in the offsite restic backup), never the primary.
+3. Shred the working copy: `shred -u /tmp/luks-header-*.img`. Note `/tmp` is a
+   tmpfs (RAM), so the file also vanishes on reboot — but shred it now, and copy
+   it off *before* any reboot.
 
 ## When to refresh it
 
