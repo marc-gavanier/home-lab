@@ -46,6 +46,20 @@ The monitor should go up within seconds of the `=== Backup completed ===` log li
 exercise the down path, point `RESTIC_REPOSITORY` at a bad path temporarily and run — the
 monitor goes red and the notification fires.
 
+## Local maintenance monitor
+
+The weekly local prune+check (`local-maintenance.sh`, `homelab-local-maintenance.timer`,
+Sunday 05:00) reports to its own push monitor, same pattern as the offsite check:
+
+| Monitor            | Pinged by                                       | Interval       | Vault variable                                    |
+|--------------------|-------------------------------------------------|----------------|---------------------------------------------------|
+| Local prune+check  | `local-maintenance.sh` (homelab, Sunday 05:00)  | 700000 s (8 d) | `local_maintenance_kuma_push_url` (homelab local) |
+
+Create the Push monitor first (8 d interval covers a weekly run plus grace), then set
+`local_maintenance_kuma_push_url` in `local.yml` and redeploy with the same
+`--start-at-task "Copy backup script"` command. This variable is **optional**: empty just
+disables the monitor ping — the prune+check timer still runs.
+
 ## Offsite monitors (ADR-010)
 
 Three more push monitors follow the same pattern:

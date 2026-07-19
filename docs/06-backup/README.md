@@ -10,13 +10,15 @@ Chosen for its deduplication, native encryption (AES-256), incremental support, 
 
 Mirrors exactly what `ansible/roles/deploy/files/backup.sh` does (keep this table and the script in sync).
 
-| Data                   | Source (host path)                                                                              | Method        | Frequency |
-|------------------------|-------------------------------------------------------------------------------------------------|---------------|-----------|
-| Service data & configs | `/mnt/data/services` (Nextcloud files, Vaultwarden, Immich uploads, Jellyfin/Navidrome config…) | Restic        | Daily     |
-| **Media originals**    | `/mnt/data/media` (photos, music, videos)                                                       | Restic        | Daily     |
-| Databases              | Nextcloud (MariaDB) + Immich (PostgreSQL) dumps → `/mnt/data/backups/dumps`                     | dump → Restic | Daily     |
-| Stack config           | `/opt/homelab` (compose, scripts)                                                               | Restic        | Daily     |
-| Secrets (ADR-011)      | `/mnt/data/secrets` (`.env`, `backup.env`, `wg0.conf`… — `/opt/homelab` entries are symlinks)   | Restic        | Daily     |
+| Data                   | Source (host path)                                                                              | Method              | Frequency |
+|------------------------|-------------------------------------------------------------------------------------------------|---------------------|-----------|
+| Service data & configs | `/mnt/data/services` (Nextcloud files, Vaultwarden, Immich uploads, Jellyfin/Navidrome config…) | Restic              | Daily     |
+| **Media originals**    | `/mnt/data/media` (photos, music, videos)                                                       | Restic              | Daily     |
+| Nextcloud DB           | MariaDB dump (`--single-transaction`) → `/mnt/data/backups/dumps`                               | dump → Restic       | Daily     |
+| Vaultwarden DB         | SQLite `sqlite3 .backup` (WAL-safe) → `/mnt/data/backups/dumps`                                 | dump → Restic       | Daily     |
+| Immich DB              | Immich's own scheduled backup → `services/immich/upload/backups/*.sql.gz`                       | built-in → Restic   | Daily     |
+| Stack config           | `/opt/homelab` (compose, scripts)                                                               | Restic              | Daily     |
+| Secrets (ADR-011)      | `/mnt/data/secrets` (`.env`, `backup.env`, `wg0.conf`… — `/opt/homelab` entries are symlinks)   | Restic              | Daily     |
 
 > The OS itself is **not** backed up — it is reproducible from scratch via Ansible (IaC).
 
@@ -26,10 +28,15 @@ Mirrors exactly what `ansible/roles/deploy/files/backup.sh` does (keep this tabl
 - **4** weekly snapshots
 - **6** monthly snapshots
 
+`restic forget` runs nightly (cheap); the expensive `prune` (repack/reclaim) runs
+weekly in the local maintenance job, not in the backup window.
+
 ### Destination (3-2-1)
 
 - **Local**: `/mnt/data/backups/restic-repo` (same HDD, separate directory) — automated
-  daily; guards against accidental deletion, corruption and bad edits.
+  daily; guards against accidental deletion, corruption and bad edits. Weekly
+  `prune` + rotating `restic check --read-data-subset` (whole repo over ~10 weeks)
+  catches local bit-rot the way the offsite check does for the offsite repo.
 - **Offsite** (ADR-010): second Restic repo on the offsite Pi (Pi 4 4GB + 2TB SSD,
   WireGuard client, rest-server **append-only**), fed by a nightly `restic copy` of the
   latest snapshot. Distinct repo password, never stored on the offsite host. Weekly
@@ -41,12 +48,18 @@ Mirrors exactly what `ansible/roles/deploy/files/backup.sh` does (keep this tabl
 
 ## Restoration
 
-Service-by-service restoration procedures will be documented in `knowledge/runbooks/`.
+Procedures are in `knowledge/runbooks/restore-from-backup.md` (single files, services,
+Nextcloud/Vaultwarden/Immich databases, full disaster recovery). The LUKS header — the
+prerequisite for reaching *any* of `/mnt/data` — has its own backstop:
+`knowledge/runbooks/luks-header-backup.md`.
 
 ## Automation
 
-- Script: `ansible/roles/deploy/files/backup.sh`
-- Scheduling: systemd timer (`homelab-backup.timer`), daily at 03:00
-- Monitoring: Uptime Kuma **Push** monitor (dead-man's switch) — `backup.sh` pings it on
-  success/failure, and missed pings turn it red (catches "didn't run at all"). Setup:
+- Scripts: `ansible/roles/deploy/files/backup.sh` (nightly) and `local-maintenance.sh` (weekly)
+- Scheduling (systemd timers):
+  - `homelab-backup.timer` — daily 03:00 (dumps → backup → offsite copy → forget)
+  - `homelab-local-maintenance.timer` — Sunday 05:00 (prune + rotating read-data check)
+  - `homelab-offsite-check.timer` — Sunday 06:00 (offsite repo check)
+- Monitoring: Uptime Kuma **Push** monitors (dead-man's switches) — the scripts ping on
+  success/failure, and missed pings turn a monitor red (catches "didn't run at all"). Setup:
   `knowledge/runbooks/backup-monitoring.md`
