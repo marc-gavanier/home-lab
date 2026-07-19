@@ -6,7 +6,34 @@
     name:
       - unattended-upgrades
       - apt-listchanges
+      - needrestart
     state: present
+
+# needrestart ships on Ubuntu Server but defaults to interactive mode ('i'),
+# which does NOTHING in a non-interactive unattended-upgrades run — so a
+# patched shared lib (libssl, glibc, pam...) stays MAPPED in already-running
+# host daemons until the next reboot, which policy avoids. Automatic mode ('a')
+# restarts affected host services right after the upgrade, closing that window
+# reboot-free — exactly what the LUKS-unlock model wants.
+# docker.service is blacklisted: auto-restarting it would bounce all ~19
+# containers (colliding with staged startup, ADR-007). Container userspace is
+# Renovate's lane; a host docker lib bump waits for the next deliberate reboot.
+- name: updates | Ensure the needrestart drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/needrestart/conf.d
+    state: directory
+    mode: "0755"
+
+- name: updates | Set needrestart to restart host services automatically
+  ansible.builtin.copy:
+    dest: /etc/needrestart/conf.d/99-homelab.conf
+    content: |
+      # Ansible managed — rendered from the home-lab repo, edits on the host will be overwritten
+      $nrconf{restart} = 'a';
+      $nrconf{override_rc} = {
+          qr(^docker\.service$) => 0,
+      };
+    mode: "0644"
 
 - name: updates | Enable unattended-upgrades
   ansible.builtin.copy:
