@@ -1,0 +1,7 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Homelab monthly lynis security audit (report to Uptime Kuma)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/homelab-lynis-report.sh
