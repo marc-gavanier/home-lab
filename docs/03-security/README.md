@@ -35,13 +35,13 @@ Defense in depth — each layer is secured independently. If one layer falls, th
   `osvVulnerabilityAlerts` for off-schedule CVE PRs
 - **`no-new-privileges`** on every container — blocks privilege escalation via
   setuid binaries after an app compromise
-- **Docker socket never mounted raw into Traefik** — reached through a
-  read-only `docker-socket-proxy` (CONTAINERS read-only, POST denied, on an
-  internal-only network), so a reverse-proxy RCE can't pivot to host root.
-  (Netdata still mounts it read-only — behind vpn-only; proxying it is a
-  tracked follow-up.)
+- **Docker socket never mounted raw** — both Traefik and Netdata reach it only
+  through a read-only `docker-socket-proxy` (CONTAINERS read-only, POST denied,
+  on an internal-only network), so a container RCE can't pivot to host root via
+  the socket. (Netdata uses it solely to resolve container names.)
 - No `privileged` mode; explicit capabilities only where required (wg-easy:
-  NET_ADMIN/SYS_MODULE; netdata: SYS_PTRACE/SYS_ADMIN)
+  NET_ADMIN/SYS_MODULE; netdata: SYS_PTRACE only — SYS_ADMIN dropped, it only
+  powered eBPF charts)
 - **Security headers + rate-limit on every HTTPS router** — HSTS, SAMEORIGIN,
   nosniff and a per-IP rate cap applied at the Traefik entrypoint
 - Isolated Docker networks (`proxy` / `internal` / `socketproxy`); the DB tier
@@ -54,6 +54,10 @@ Defense in depth — each layer is secured independently. If one layer falls, th
 - Strong passwords generated via Vaultwarden
 - 2FA enabled on services that support it
 - Secrets in `.env` (gitignored), never in config files
+- **Vaultwarden hardening**: signups off; admin panel (`/admin`, an RCE-capable
+  surface) disabled by default — re-enable only for a session with
+  `VAULTWARDEN_ADMIN_DISABLE=false docker compose up -d vaultwarden`, then revert.
+  Password hints off, server-side icon fetching off (SSRF/egress), Sends off.
 
 ### 5. Data
 - Encrypted backups (Restic)
