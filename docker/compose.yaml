@@ -302,6 +302,14 @@ services:
       DOMAIN: https://vault.${DOMAIN}
       SIGNUPS_ALLOWED: ${VAULTWARDEN_SIGNUPS_ALLOWED:-false}
       ADMIN_TOKEN: ${VAULTWARDEN_ADMIN_TOKEN_HASH}
+      # /admin is an RCE-capable surface (it can rewire SMTP to a shell command);
+      # keep it OFF by default. The token stays set, so re-enabling needs no
+      # re-hash: VAULTWARDEN_ADMIN_DISABLE=false docker compose up -d vaultwarden.
+      DISABLE_ADMIN_TOKEN: ${VAULTWARDEN_ADMIN_DISABLE:-true}
+      PASSWORD_HINTS_ALLOWED: "false"   # never store/serve master-password hints
+      SHOW_PASSWORD_HINT: "false"       # no hint on failed login (also aids user-enum)
+      DISABLE_ICON_DOWNLOAD: "true"     # no server-side favicon fetches (SSRF/egress)
+      SENDS_ALLOWED: "false"            # Send file/text sharing unused — drop the surface
     volumes:
       - ${SERVICES_DATA_DIR}/vaultwarden:/data
     networks:
