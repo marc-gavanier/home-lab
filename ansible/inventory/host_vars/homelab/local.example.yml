@@ -18,6 +18,10 @@ luks_passphrase: ""  # Used once for initial LUKS format, needed for re-provisio
 
 # --- Traefik ---
 traefik_acme_email: "admin@example.com"
+# Scoped Cloudflare API token for the ACME DNS-01 challenge (ADR-014).
+# Create at Cloudflare → My Profile → API Tokens → "Edit zone DNS" template
+# (permissions Zone:DNS:Edit + Zone:Read), scoped to your zone only.
+cloudflare_dns_api_token: "cf-scoped-dns-edit-token"
 
 # --- Pi-hole ---
 pihole_password: ""
