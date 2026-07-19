@@ -26,8 +26,10 @@ BACKUP_LOG="/var/log/homelab-backup.log"
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$BACKUP_LOG"; }
 
 notify() {
-    [ -n "${KUMA_LOCAL_MAINT_PUSH_URL:-}" ] || return 0
-    curl -fsS -m 10 --retry 2 -G "$KUMA_LOCAL_MAINT_PUSH_URL" \
+    local url="${KUMA_LOCAL_MAINT_PUSH_URL:-}"
+    [ -n "$url" ] || return 0
+    url="${url%%\?*}"   # strip any pasted ?status=...&msg=... query (dup params read as DOWN)
+    curl -fsS -m 10 --retry 2 -G "$url" \
         --data-urlencode "status=$1" --data-urlencode "msg=$2" >/dev/null 2>&1 || true
 }
 
