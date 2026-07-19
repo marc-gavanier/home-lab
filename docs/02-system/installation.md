@@ -212,30 +212,38 @@ WAN > IPv4 > Adresse IP → should be a public IP (not 10.x.x.x)
 
 ### DNS (Cloudflare)
 
-Add individual A records for each service (DNS only, not proxied):
+Certificates are issued via the ACME **DNS-01** challenge (ADR-014), so service
+subdomains need **no public A record** — they resolve internally via Pi-hole
+split DNS (below) and stay out of public DNS. Two things to set up:
 
-| Name       | Service     |
-|------------|-------------|
-| `drive`    | Nextcloud   |
-| `vault`    | Vaultwarden |
-| `videos`   | Jellyfin    |
-| `music`    | Navidrome   |
-| `photos`   | Immich      |
-| `vpn`      | WireGuard   |
-| `dns`      | Pi-hole     |
-| `services` | Uptime Kuma |
-| `system`   | Netdata     |
-| `search`   | SearXNG     |
+1. **One public A record** — `vpn` only (WireGuard; the one host a remote client
+   must resolve before the tunnel exists). DNS only, not proxied.
+2. **A scoped API token** for DNS-01: My Profile → API Tokens → Create Custom
+   Token, permissions `Zone:DNS:Edit` + `Zone:Read`, zone `example.com`. Put it
+   in `local.yml` as `cloudflare_dns_api_token` (Traefik solves the challenge
+   with it).
 
-> **Important**: Do NOT use a wildcard record — other subdomains (personal site, mail/Proton) must not be affected. Do NOT use Cloudflare proxy (orange cloud) — it breaks Let's Encrypt HTTP challenge and WireGuard.
+Homelab subdomains resolved internally (split DNS): `drive` (Nextcloud), `vault`
+(Vaultwarden), `videos` (Jellyfin), `music` (Navidrome), `photos` (Immich),
+`dns` (Pi-hole), `services` (Uptime Kuma), `system` (Netdata), `search`
+(SearXNG), `share` (Transmission), `traefik` (dashboard).
+
+> **Important**: No wildcard — per-host certs, so other subdomains (personal
+> site, mail/Proton, `marc.example.com` on GitHub) are unaffected. Do NOT use
+> Cloudflare proxy (orange cloud) — it breaks direct TLS and WireGuard.
 
 ### Port Forwarding (ISP Router)
 
+With DNS-01, port 80 is no longer needed for ACME (it only served the HTTP-01
+challenge). Forward just:
+
 | Port  | Protocol | Destination   |
 |-------|----------|---------------|
-| 80    | TCP      | 192.168.1.100 |
 | 443   | TCP      | 192.168.1.100 |
 | 51820 | UDP      | 192.168.1.100 |
+
+> Port 80 can be dropped from the router. It can be reduced further (443 is only
+> reached via the tunnel anyway) — see ADR-014.
 
 ### Disable systemd-resolved
 
@@ -316,9 +324,9 @@ All HTTPS services are **VPN/LAN-only** (Traefik `vpn-only` middleware applied g
 - **Docker**: Does not auto-start at boot. Started by `homelab-unlock` after LUKS volume is opened.
 - **Remote access**: All remote access goes through WireGuard VPN (port 51820/udp). SSH is LAN/VPN only, never directly exposed to internet.
 - **ISP (SFR/Red)**: Required IPv4 full stack rollback to exit CGNAT. Without it, port forwarding is impossible (WAN IP is private 10.x.x.x).
-- **DNS**: Individual A records on Cloudflare (not proxied). No wildcard to preserve existing site and Proton mail config.
+- **DNS**: Only `vpn` has a public A record (Cloudflare, not proxied); service subdomains resolve via Pi-hole split DNS and get certs via ACME DNS-01, so they stay out of public DNS. No wildcard — per-host certs preserve existing site, Proton mail, and GitHub-served subdomains (ADR-014).
 - **Secrets**: All secrets in Ansible Vault-encrypted `local.yml` (gitignored). Passwords generated in Bitwarden, WireGuard password hashed via bcrypt on Pi.
-- **TLS**: Let's Encrypt via HTTP challenge (Traefik ACME). Certificates auto-renewed.
+- **TLS**: Let's Encrypt via DNS-01 challenge (Traefik ACME + scoped Cloudflare token). Per-host certs, no inbound needed. Certificates auto-renewed (ADR-014).
 - **Split DNS**: Pi-hole resolves homelab subdomains to LAN IP. Required `FTLCONF_misc_etc_dnsmasq_d: "true"` for Pi-hole v6 to read custom dnsmasq configs.
 - **VPN-only by default**: `vpn-only` middleware applied globally on Traefik's `websecure` entrypoint. ipAllowList includes WireGuard (10.8.0.0/24), LAN (192.168.1.0/24), and Docker networks (172.16.0.0/12). All services protected automatically; new services inherit the protection. Trade-off: VPN must be active on mobile for sync (Bitwarden, Nextcloud, Immich), but attack surface is minimized. Internet sees only `403 Forbidden`.
 - **wg-easy Web UI**: Bound to localhost:51821 only, accessed via SSH tunnel. Avoids chicken-and-egg problem (can't access VPN admin behind VPN-only middleware without VPN).
