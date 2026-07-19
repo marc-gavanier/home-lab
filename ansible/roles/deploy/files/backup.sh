@@ -23,8 +23,10 @@ log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$BACKUP_LOG"; }
 
 # Ping the Uptime Kuma push monitor (dead-man's switch). Best-effort: never fails the backup.
 notify() {
-    [ -n "${KUMA_PUSH_URL:-}" ] || return 0
-    curl -fsS -m 10 --retry 2 -G "$KUMA_PUSH_URL" \
+    local url="${KUMA_PUSH_URL:-}"
+    [ -n "$url" ] || return 0
+    url="${url%%\?*}"   # strip any pasted ?status=...&msg=... query (dup params read as DOWN)
+    curl -fsS -m 10 --retry 2 -G "$url" \
         --data-urlencode "status=$1" --data-urlencode "msg=$2" >/dev/null 2>&1 || true
 }
 
@@ -110,8 +112,10 @@ restic backup \
 # backup — it only trips the dedicated Kuma monitor.
 
 notify_offsite() {
-    [ -n "${KUMA_OFFSITE_PUSH_URL:-}" ] || return 0
-    curl -fsS -m 10 --retry 2 -G "$KUMA_OFFSITE_PUSH_URL" \
+    local url="${KUMA_OFFSITE_PUSH_URL:-}"
+    [ -n "$url" ] || return 0
+    url="${url%%\?*}"   # strip any pasted ?status=...&msg=... query (dup params read as DOWN)
+    curl -fsS -m 10 --retry 2 -G "$url" \
         --data-urlencode "status=$1" --data-urlencode "msg=$2" >/dev/null 2>&1 || true
 }
 
