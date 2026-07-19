@@ -8,7 +8,11 @@ Defense in depth — each layer is secured independently. If one layer falls, th
 
 ### 1. Network (perimeter)
 - **ISP Router**: only ports 80, 443, and 51820/udp are open
-- **UFW**: firewall on the Pi, deny by default, explicit whitelist
+- **UFW**: firewall on the Pi, deny by default, explicit whitelist. Note:
+  Docker-published ports (53, 51413) insert their own iptables rules that
+  bypass UFW's INPUT policy — so the *internet*-exposure boundary is enforced
+  by the **ISP router's forward list** (80/443/51820), not by UFW. Published
+  ports are only LAN-reachable because the router doesn't forward them.
 - **WireGuard**: encrypted remote access, only way to reach services from outside the LAN
 - **Traefik**: mandatory TLS, HTTP → HTTPS redirect
 - **VPN-only by default**: the `vpn-only` middleware is applied globally on Traefik's HTTPS entrypoint. All services return `403 Forbidden` to internet traffic — only LAN, WireGuard, and Docker bridge networks pass through. Internet bots can't enumerate or exploit hosted services.
@@ -27,12 +31,24 @@ Defense in depth — each layer is secured independently. If one layer falls, th
   [knowledge/research/cis-audit-2026-07.md](../../knowledge/research/cis-audit-2026-07.md)
 
 ### 3. Containers (Docker)
-- Official images only, pinned versions
-- No `privileged` mode
-- Minimal capabilities
-- Isolated Docker networks
-- Read-only filesystems when possible
-- No directly exposed ports (everything goes through Traefik)
+- Official images only, pinned versions — Renovate-tracked, with
+  `osvVulnerabilityAlerts` for off-schedule CVE PRs
+- **`no-new-privileges`** on every container — blocks privilege escalation via
+  setuid binaries after an app compromise
+- **Docker socket never mounted raw into Traefik** — reached through a
+  read-only `docker-socket-proxy` (CONTAINERS read-only, POST denied, on an
+  internal-only network), so a reverse-proxy RCE can't pivot to host root.
+  (Netdata still mounts it read-only — behind vpn-only; proxying it is a
+  tracked follow-up.)
+- No `privileged` mode; explicit capabilities only where required (wg-easy:
+  NET_ADMIN/SYS_MODULE; netdata: SYS_PTRACE/SYS_ADMIN)
+- **Security headers + rate-limit on every HTTPS router** — HSTS, SAMEORIGIN,
+  nosniff and a per-IP rate cap applied at the Traefik entrypoint
+- Isolated Docker networks (`proxy` / `internal` / `socketproxy`); the DB tier
+  lives on `internal` only — never proxied, never published
+- No directly exposed service ports — everything routes through Traefik (vpn-only)
+- Per-service `cap_drop` / read-only rootfs: incremental defense-in-depth,
+  tracked as a follow-up (needs per-image testing)
 
 ### 4. Application
 - Strong passwords generated via Vaultwarden
