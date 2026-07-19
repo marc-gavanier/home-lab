@@ -53,6 +53,27 @@ done
 # heartbeat; clears to UP after the reboot.
 [ -f /var/run/reboot-required ] && problems+=("reboot pending — schedule homelab reboot+unlock")
 
+# --- Pending security updates (age-gated) ---
+# unattended-upgrades installs security fixes daily, so a bare nonzero count
+# would flash red in the hours before u-u runs. Only alarm if it is STILL
+# nonzero after 48h — a held/failed/stuck update, or a fix that installed but
+# needs a restart needrestart didn't cover. apt-check prints "all;security" on
+# stderr; stamp the first time it goes nonzero, clear the stamp at zero.
+APT_CHECK=/usr/lib/update-notifier/apt-check
+SEC_STAMP=/var/lib/homelab-health/security-pending.stamp
+if [ -x "$APT_CHECK" ]; then
+    sec=$("$APT_CHECK" 2>&1 | cut -d';' -f2); sec=${sec//[^0-9]/}; sec=${sec:-0}
+    if [ "$sec" -gt 0 ]; then
+        report+=("$sec security updates pending")
+        mkdir -p "$(dirname "$SEC_STAMP")"
+        [ -f "$SEC_STAMP" ] || date +%s > "$SEC_STAMP"
+        age=$(( $(date +%s) - $(cat "$SEC_STAMP" 2>/dev/null || echo 0) ))
+        [ "$age" -gt 172800 ] && problems+=("$sec security updates unapplied >48h")
+    else
+        rm -f "$SEC_STAMP"
+    fi
+fi
+
 # --- Verdict ---
 join() { local out; out=$(printf "%s$1" "${@:2}"); echo "${out%"$1"}"; }
 msg=$(join ', ' "${report[@]}")
