@@ -7,5 +7,5 @@
 - name: Push Pi power/thermal health to Uptime Kuma
   ansible.builtin.import_tasks: health.yml
 
-- name: Run a monthly lynis audit and push the result to Uptime Kuma
+- name: Run a weekly lynis audit and push the result to Uptime Kuma
   ansible.builtin.import_tasks: lynis.yml
