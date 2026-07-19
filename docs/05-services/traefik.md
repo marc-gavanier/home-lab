@@ -4,7 +4,7 @@ Reverse proxy with automatic TLS certificate management.
 
 ## Access
 
-- Dashboard: `https://traefik.example.com` (VPN only, not currently exposed)
+- Dashboard: `https://proxy.example.com` (VPN only)
 
 ## What It Does
 

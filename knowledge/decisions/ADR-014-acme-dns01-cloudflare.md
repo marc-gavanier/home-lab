@@ -16,7 +16,7 @@ reachable on :80", which fights the vpn-only posture (ADR-002):
   and **:80** is open to the internet for scanners — even though access itself is
   gated (`vpn-only` → 403). It is not an access hole, but unnecessary public
   footprint and information disclosure.
-- The Traefik **dashboard** host (`traefik.gavanier.com`) had no public A record,
+- The Traefik **dashboard** host (`proxy.gavanier.com`) had no public A record,
   so HTTP-01 could not validate it → it served no valid certificate and (absent
   a Pi-hole split-DNS entry) was unresolvable internally too — routed but dead.
 - Adding an internal-only service forces publishing a public A record just to get
@@ -49,7 +49,7 @@ exactly the homelab hosts and nothing else.
   `443` + `51820/udp` (or just `51820/udp`, since all legitimate 443 access is
   via the tunnel). The `web` entrypoint stays only for the internal http→https
   redirect over VPN.
-- The dashboard (`traefik.gavanier.com`) now gets a valid cert, and a split-DNS
+- The dashboard (`proxy.gavanier.com`) now gets a valid cert, and a split-DNS
   entry makes it resolvable over VPN.
 - Cert issuance is decoupled from public exposure — an internal-only service can
   get a trusted cert without ever being published.
@@ -72,7 +72,7 @@ exactly the homelab hosts and nothing else.
 
 ## Alternatives considered
 
-- **Keep HTTP-01, add the missing A records** (`traefik`, …): perpetuates the
+- **Keep HTTP-01, add the missing A records** (`proxy`, …): perpetuates the
   coupling and grows the public footprint. Rejected.
 - **`*.gavanier.com` wildcard via DNS-01**: one cert for all, but one private key
   valid for subdomains served elsewhere (GitHub) and for domains the homelab does
