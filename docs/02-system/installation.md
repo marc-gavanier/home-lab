@@ -226,7 +226,7 @@ split DNS (below) and stay out of public DNS. Two things to set up:
 Homelab subdomains resolved internally (split DNS): `drive` (Nextcloud), `vault`
 (Vaultwarden), `videos` (Jellyfin), `music` (Navidrome), `photos` (Immich),
 `dns` (Pi-hole), `services` (Uptime Kuma), `system` (Netdata), `search`
-(SearXNG), `share` (Transmission), `traefik` (dashboard).
+(SearXNG), `share` (Transmission), `proxy` (Traefik dashboard).
 
 > **Important**: No wildcard — per-host certs, so other subdomains (personal
 > site, mail/Proton, `marc.example.com` on GitHub) are unaffected. Do NOT use
