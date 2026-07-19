@@ -129,6 +129,13 @@ argument_specs:
         required: true
         no_log: true
         description: Uptime Kuma push URL for the nightly backup (token = secret).
+      local_maintenance_kuma_push_url:
+        type: str
+        required: false
+        no_log: true
+        description: >-
+          Uptime Kuma push URL for the weekly local prune+check (create the
+          monitor in Kuma first; empty disables that monitor, not the timer).
       offsite_copy_kuma_push_url:
         type: str
         required: true

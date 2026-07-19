@@ -138,14 +138,16 @@ if [ -n "${OFFSITE_RESTIC_REPOSITORY:-}" ]; then
 fi
 
 # --- Retention ---
+# Nightly: forget only (cheap — updates the snapshot list). The expensive prune
+# (repack) + a rotating read-data integrity check run weekly in
+# local-maintenance.sh, off the backup window. See homelab-local-maintenance.timer.
 
 log "Applying retention policy..."
 restic forget \
     --keep-daily 7 \
     --keep-weekly 4 \
     --keep-monthly 6 \
-    --prune \
-    2>> "$BACKUP_LOG" || log "WARNING: Restic prune failed"
+    2>> "$BACKUP_LOG" || log "WARNING: Restic forget failed"
 
 # --- Cleanup dumps ---
 rm -rf "$DUMP_DIR"
