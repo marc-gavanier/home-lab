@@ -55,10 +55,29 @@ docker exec -i nextcloud-db mariadb -u nextcloud -p"$NEXTCLOUD_DB_PASSWORD" next
   < /tmp/restore/mnt/data/backups/dumps/nextcloud.sql
 docker exec -u www-data nextcloud php occ maintenance:mode --off
 
-# Immich (PostgreSQL)
-docker exec -i immich-db psql -U immich immich \
-  < /tmp/restore/mnt/data/backups/dumps/immich.sql
+# Immich (PostgreSQL) — see "Restore Immich" below (special search_path handling)
 ```
+
+## Restore Vaultwarden (SQLite)
+
+The nightly backup writes a consistent `sqlite3 .backup` copy to
+`/mnt/data/backups/dumps/vaultwarden.sqlite3` (captured in the snapshot). Restore
+that file rather than the live `db.sqlite3` from the service folder — the live
+copy can carry a torn WAL. Restore it as the new database:
+
+```bash
+restic restore latest --target /tmp/restore --include /mnt/data/backups/dumps
+
+docker stop vaultwarden
+# Drop any stale WAL/SHM so SQLite reopens cleanly from the restored DB
+rm -f /mnt/data/services/vaultwarden/db.sqlite3-wal /mnt/data/services/vaultwarden/db.sqlite3-shm
+cp /tmp/restore/mnt/data/backups/dumps/vaultwarden.sqlite3 \
+   /mnt/data/services/vaultwarden/db.sqlite3
+docker start vaultwarden
+```
+
+(Attachments/sends/rsa keys live alongside the DB in `/mnt/data/services/vaultwarden`
+and are already restored by a full service restore — see "Restore one service".)
 
 ## Full disaster recovery
 
