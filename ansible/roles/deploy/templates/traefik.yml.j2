@@ -43,7 +43,7 @@ certificatesResolvers:
       # public A record or inbound :80 — services can stay out of public DNS.
       # Each router keeps its own certresolver → per-host certs, deliberately NOT
       # a *.{{ domain }} wildcard (one key valid for subdomains served elsewhere,
-      # e.g. marc.{{ domain }} on GitHub). See ADR-014.
+      # e.g. a static site on GitHub Pages). See ADR-014.
       dnsChallenge:
         provider: cloudflare
         resolvers:

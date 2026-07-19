@@ -35,7 +35,7 @@ Traefik container as `CF_DNS_API_TOKEN`.
 router keeps its own `certresolver`, so DNS-01 issues one single-host cert per
 homelab service. A wildcard was rejected: it would be a single private key valid
 for **every** subdomain — including ones served by other providers
-(`marc.gavanier.com` is GitHub Pages) and any future one — so a compromise of the
+(e.g. a static site on GitHub Pages) and any future one — so a compromise of the
 Pi would threaten domains the homelab does not even serve. Per-host certs cover
 exactly the homelab hosts and nothing else.
 

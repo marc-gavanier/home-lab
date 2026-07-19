@@ -33,7 +33,7 @@ All services are **VPN-only**. The `vpn-only` middleware is applied globally on 
 - **Records**: only `vpn.example.com` needs a public A record (to bootstrap the tunnel).
   Service subdomains use ACME **DNS-01**, so they need no public A record and are kept
   out of public DNS (ADR-014). No wildcard — per-host certs, so subdomains served
-  elsewhere (e.g. `marc.example.com` on GitHub) are unaffected.
+  elsewhere (e.g. a static site on GitHub Pages) are unaffected.
 - **Dynamic IP**: if ISP IP changes, update via Cloudflare API (DDNS script planned)
 
 ## Traefik
