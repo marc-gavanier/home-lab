@@ -22,6 +22,14 @@ argument_specs:
         type: int
         required: true
         description: Failed attempts before a ban.
+      unattended_automatic_reboot:
+        type: bool
+        required: false
+        description: Let unattended-upgrades auto-reboot (inline default false — homelab is LUKS-locked on reboot; true on the offsite node, which has no LUKS).
+      unattended_automatic_reboot_time:
+        type: str
+        required: false
+        description: Time of day for the unattended auto-reboot when enabled (inline default "04:00").
       ufw_service_rules:
         type: list
         elements: dict

@@ -8,6 +8,10 @@
 # --- System ---
 hostname: backup
 free_port_53: false # No Pi-hole here — keep stock systemd-resolved
+# No LUKS here, so an unattended reboot is safe and wanted — kernel security
+# updates self-clear (homelab keeps this false; see ADR-013). 04:00 is after
+# the nightly restic copy (03:00).
+unattended_automatic_reboot: true
 tmp_tmpfs_size: 512M # Smaller /tmp cap on the 4GB node (homelab defaults to 1G)
 # zram compressed swap: this node has no HDD swapfile (it doesn't run the
 # storage role) and runs memory-spiky restic jobs, so compressed RAM swap is

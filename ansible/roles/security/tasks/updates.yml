@@ -17,15 +17,26 @@
       APT::Periodic::AutocleanInterval "7";
     mode: "0644"
 
-# Never auto-reboot. A kernel update reboot would bring the host back with
-# /mnt/data LOCKED and every service down until a manual homelab-unlock — a
-# direct collision with the LUKS-unlock model. The package default is already
-# false, but a drop-in makes it explicit and drift-proof (52- overrides the
-# package's 50unattended-upgrades). The Pi health monitor pushes DOWN when
-# /var/run/reboot-required appears, so the reboot gets scheduled deliberately.
-- name: updates | Forbid unattended-upgrades from auto-rebooting
+# Reboot policy — driven per host by unattended_automatic_reboot (52- overrides
+# the package's 50unattended-upgrades):
+#  - homelab (default false): an auto-reboot would bring the host back with
+#    /mnt/data LOCKED and every service down until a manual homelab-unlock — a
+#    collision with the LUKS-unlock model. A pending reboot is surfaced by the
+#    Pi health monitor and cleared on a bounded manual cadence (ADR-013).
+#  - offsite (true): no LUKS, so an unattended reboot is safe AND wanted — kernel
+#    updates self-clear at unattended_automatic_reboot_time, after the nightly
+#    copy. Without this the offsite would neither auto-reboot nor alert.
+- name: updates | Set the unattended-upgrades reboot policy
   ansible.builtin.copy:
-    dest: /etc/apt/apt.conf.d/52homelab-no-auto-reboot
+    dest: /etc/apt/apt.conf.d/52homelab-reboot-policy
     content: |
-      Unattended-Upgrade::Automatic-Reboot "false";
+      Unattended-Upgrade::Automatic-Reboot "{{ 'true' if (unattended_automatic_reboot | default(false) | bool) else 'false' }}";
+      Unattended-Upgrade::Automatic-Reboot-Time "{{ unattended_automatic_reboot_time | default('04:00') }}";
     mode: "0644"
+
+# Supersedes the earlier fixed-false drop-in (renamed to carry the per-host
+# policy); remove the stale file so both never coexist.
+- name: updates | Remove the superseded no-auto-reboot drop-in
+  ansible.builtin.file:
+    path: /etc/apt/apt.conf.d/52homelab-no-auto-reboot
+    state: absent
