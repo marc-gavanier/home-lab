@@ -34,9 +34,10 @@ weekly in the local maintenance job, not in the backup window.
 ### Destination (3-2-1)
 
 - **Local**: `/mnt/data/backups/restic-repo` (same HDD, separate directory) — automated
-  daily; guards against accidental deletion, corruption and bad edits. Weekly
-  `prune` + rotating `restic check --read-data-subset` (whole repo over ~10 weeks)
-  catches local bit-rot the way the offsite check does for the offsite repo.
+  daily; guards against accidental deletion, corruption and bad edits. Weekly `prune`
+  + metadata `restic check`, plus a **monthly** deep read (rotating
+  `--read-data-subset=<month>/12`, whole repo re-read over ~12 months) to catch local
+  bit-rot without pegging the Pi every week.
 - **Offsite** (ADR-010): second Restic repo on the offsite Pi (Pi 4 4GB + 2TB SSD,
   WireGuard client, rest-server **append-only**), fed by a nightly `restic copy` of the
   latest snapshot. Distinct repo password, never stored on the offsite host. Weekly
@@ -58,7 +59,7 @@ prerequisite for reaching *any* of `/mnt/data` — has its own backstop:
 - Scripts: `ansible/roles/deploy/files/backup.sh` (nightly) and `local-maintenance.sh` (weekly)
 - Scheduling (systemd timers):
   - `homelab-backup.timer` — daily 03:00 (dumps → backup → offsite copy → forget)
-  - `homelab-local-maintenance.timer` — Sunday 05:00 (prune + rotating read-data check)
+  - `homelab-local-maintenance.timer` — Sunday 05:00 (weekly prune + metadata check; deep read-data on the 1st Sunday of the month)
   - `homelab-offsite-check.timer` — Sunday 06:00 (offsite repo check)
 - Monitoring: Uptime Kuma **Push** monitors (dead-man's switches) — the scripts ping on
   success/failure, and missed pings turn a monitor red (catches "didn't run at all"). Setup:
