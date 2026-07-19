@@ -19,7 +19,10 @@ entryPoints:
     address: ":443"
     http:
       middlewares:
-        - vpn-only@file   # All services require VPN/LAN access by default
+        # Applied to EVERY HTTPS router (routers can still add their own):
+        - vpn-only@file        # VPN/LAN access only (403 to the internet)
+        - secure-headers@file  # HSTS, SAMEORIGIN, nosniff, referrer-policy
+        - rate-limit@file      # 100 req/s per source IP (DoS/brute-force cap)
       tls:
         certResolver: letsencrypt
   ping:

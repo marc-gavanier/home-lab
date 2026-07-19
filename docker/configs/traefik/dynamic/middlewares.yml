@@ -12,14 +12,17 @@ http:
           - "192.168.1.0/24"  # LAN subnet
           - "172.16.0.0/12"   # Docker internal networks
 
-    # Security headers for all services
+    # Security headers applied to every service (attached at the websecure
+    # entrypoint). SAMEORIGIN rather than frameDeny: a global frameDeny would
+    # break apps that legitimately iframe their own origin (Nextcloud etc.);
+    # SAMEORIGIN still blocks cross-origin clickjacking.
     secure-headers:
       headers:
         stsSeconds: 31536000
         stsIncludeSubdomains: true
         stsPreload: true
         forceSTSHeader: true
-        frameDeny: true
+        customFrameOptionsValue: "SAMEORIGIN"
         contentTypeNosniff: true
         browserXssFilter: true
         referrerPolicy: "strict-origin-when-cross-origin"
