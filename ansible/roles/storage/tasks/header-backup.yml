@@ -1,0 +1,15 @@
+---
+# Operator script: homelab-luks-header-backup.
+# The LUKS header is the single point of failure for the whole data volume
+# (damaged header = /mnt/data unrecoverable even with the passphrase). This
+# tool produces a header backup on demand; it is run MANUALLY on the Pi (no
+# timer) and never stores the output itself — see
+# knowledge/runbooks/luks-header-backup.md.
+
+- name: header-backup | Install LUKS header backup script
+  ansible.builtin.copy:
+    src: homelab-luks-header-backup
+    dest: /usr/local/bin/homelab-luks-header-backup
+    owner: root
+    group: root
+    mode: "0755"

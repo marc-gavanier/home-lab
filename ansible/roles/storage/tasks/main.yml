@@ -19,6 +19,9 @@
 - name: Install the homelab-unlock / homelab-lock scripts
   ansible.builtin.import_tasks: unlock.yml
 
+- name: Install the LUKS header backup operator script
+  ansible.builtin.import_tasks: header-backup.yml
+
 - name: Install the homelab-services systemd target
   ansible.builtin.import_tasks: target.yml
 

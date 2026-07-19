@@ -19,12 +19,12 @@ volume, never in the repo, never on the Pi long-term.
 
 ## Create a header backup
 
-On the Pi, as root:
+On the Pi, as root (the script is deployed to `/usr/local/bin` by the storage role):
 
 ```bash
-sudo /path/to/ops/luks-header-backup.sh        # defaults to /dev/sda1
+sudo homelab-luks-header-backup                # defaults to /dev/sda1
 # or point at another device:
-sudo /path/to/ops/luks-header-backup.sh /dev/sdX1
+sudo homelab-luks-header-backup /dev/sdX1
 ```
 
 Equivalent one-liner if the script isn't to hand:

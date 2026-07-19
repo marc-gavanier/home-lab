@@ -14,7 +14,8 @@
 #
 # Re-run after ANY cryptsetup change (added/removed keyslot, luksChangeKey).
 #
-# Usage:  sudo ./luks-header-backup.sh [LUKS_DEVICE]   (default: /dev/sda1)
+# Deployed to /usr/local/bin by the storage role. Run manually (not automated).
+# Usage:  sudo homelab-luks-header-backup [LUKS_DEVICE]   (default: /dev/sda1)
 # =============================================================================
 
 set -euo pipefail
