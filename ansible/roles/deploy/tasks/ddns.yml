@@ -1,0 +1,69 @@
+---
+# Cloudflare DDNS: keep the vpn A record (the one public hostname, ADR-014)
+# pointed at the current dynamic public IP. Runs on a 15-min timer.
+
+- name: ddns | Install jq (Cloudflare API JSON parsing)
+  ansible.builtin.apt:
+    name: jq
+    state: present
+
+- name: ddns | Copy DDNS script
+  ansible.builtin.copy:
+    src: cloudflare-ddns.sh
+    dest: /opt/homelab/scripts/cloudflare-ddns.sh
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: ddns | Template DDNS environment file (encrypted volume)
+  ansible.builtin.template:
+    src: ddns.env.j2
+    dest: /mnt/data/secrets/ddns.env
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: ddns | Link /opt/homelab/ddns.env to the encrypted volume
+  ansible.builtin.file:
+    src: /mnt/data/secrets/ddns.env
+    dest: /opt/homelab/ddns.env
+    state: link
+    force: true
+
+- name: ddns | Create DDNS systemd service
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/homelab-ddns.service
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Home Lab Cloudflare DDNS (keep vpn A record fresh)
+      Wants=network-online.target
+      After=network-online.target
+
+      [Service]
+      Type=oneshot
+      ExecStart=/opt/homelab/scripts/cloudflare-ddns.sh
+      EnvironmentFile=/opt/homelab/ddns.env
+
+- name: ddns | Create DDNS systemd timer
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/homelab-ddns.timer
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Cloudflare DDNS every 15 minutes
+
+      [Timer]
+      OnBootSec=2min
+      OnCalendar=*:0/15
+      Persistent=true
+
+      [Install]
+      WantedBy=timers.target
+
+- name: ddns | Enable DDNS timer
+  ansible.builtin.systemd:
+    name: homelab-ddns.timer
+    enabled: true
+    state: started
+    daemon_reload: true

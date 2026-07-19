@@ -34,7 +34,9 @@ All services are **VPN-only**. The `vpn-only` middleware is applied globally on 
   Service subdomains use ACME **DNS-01**, so they need no public A record and are kept
   out of public DNS (ADR-014). No wildcard — per-host certs, so subdomains served
   elsewhere (e.g. a static site on GitHub Pages) are unaffected.
-- **Dynamic IP**: if ISP IP changes, update via Cloudflare API (DDNS script planned)
+- **Dynamic IP**: a systemd timer (`homelab-ddns.timer`, every 15 min) runs
+  `cloudflare-ddns.sh`, which keeps the `vpn` A record on the current public IPv4
+  via the Cloudflare API (updates only on change; recreates the record if missing).
 
 ## Traefik
 
