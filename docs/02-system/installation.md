@@ -234,16 +234,19 @@ Homelab subdomains resolved internally (split DNS): `drive` (Nextcloud), `vault`
 
 ### Port Forwarding (ISP Router)
 
-With DNS-01, port 80 is no longer needed for ACME (it only served the HTTP-01
-challenge). Forward just:
+All service access is via the VPN and certs use DNS-01, so no HTTP/HTTPS port is
+public. Forward only:
 
-| Port  | Protocol | Destination   |
-|-------|----------|---------------|
-| 443   | TCP      | 192.168.1.100 |
-| 51820 | UDP      | 192.168.1.100 |
+| Port  | Protocol | Destination   | Purpose                                             |
+|-------|----------|---------------|-----------------------------------------------------|
+| 51820 | UDP      | 192.168.1.100 | WireGuard tunnel                                    |
+| 51413 | TCP/UDP  | 192.168.1.100 | Transmission BitTorrent peer (optional — P2P connectivity) |
 
-> Port 80 can be dropped from the router. It can be reduced further (443 is only
-> reached via the tunnel anyway) — see ADR-014.
+> Ports **80 and 443 are deliberately not forwarded**: HTTP-01 is gone (DNS-01),
+> and public 443 would only ever return 403 (vpn-only). The homelab is invisible
+> on HTTP/HTTPS from the internet — all access is via the tunnel (ADR-014). If a
+> service ever needs public exposure, put it on a separate, isolated system, not
+> on this data-bearing host.
 
 ### Disable systemd-resolved
 
