@@ -15,8 +15,8 @@ argument_specs:
         type: str
         required: false
         no_log: true
-        description: Uptime Kuma push URL for the monthly lynis audit report (token = secret). Empty/absent = disabled.
+        description: Uptime Kuma push URL for the weekly lynis audit report (token = secret). Empty/absent = disabled.
       lynis_min_index:
         type: int
         required: false
-        description: lynis hardening-index floor (inline default 65); the monthly report pushes DOWN below it.
+        description: lynis hardening-index floor (inline default 65); the weekly report pushes DOWN below it.

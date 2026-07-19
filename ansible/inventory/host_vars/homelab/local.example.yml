@@ -67,9 +67,10 @@ killswitch_keyword: ""     # secret keyword; poweroff fires only on an exact mat
 # Create the push monitor + attach a notification: see
 # knowledge/runbooks/backup-monitoring.md
 homelab_health_kuma_push_url: ""
-# Uptime Kuma "Push" monitor URL for the monthly lynis security audit
+# Uptime Kuma "Push" monitor URL for the weekly lynis security audit
 # (hardening index + warnings; DOWN if the index drops below lynis_min_index).
-# Empty = disabled.
+# Kuma caps the push heartbeat interval at 24 days, so the audit runs weekly
+# (set the monitor's interval to ~8 days). Empty = disabled.
 lynis_kuma_push_url: ""
 
 # --- Backup ---

@@ -1,9 +1,12 @@
 # {{ ansible_managed }}
 [Unit]
-Description=Monthly lynis security audit
+Description=Weekly lynis security audit
 
 [Timer]
-OnCalendar=monthly
+# Weekly (not monthly): Uptime Kuma caps the push heartbeat interval at 24 days,
+# so a monthly cadence would flag DOWN between runs. Weekly fits comfortably
+# (Kuma interval ~8 days) and gives a finer dead-man's signal.
+OnCalendar=weekly
 Persistent=true
 RandomizedDelaySec=1h
 
