@@ -229,7 +229,7 @@ Homelab subdomains resolved internally (split DNS): `drive` (Nextcloud), `vault`
 (SearXNG), `share` (Transmission), `proxy` (Traefik dashboard).
 
 > **Important**: No wildcard — per-host certs, so other subdomains (personal
-> site, mail/Proton, `marc.example.com` on GitHub) are unaffected. Do NOT use
+> site, mail/Proton, a static site on GitHub Pages) are unaffected. Do NOT use
 > Cloudflare proxy (orange cloud) — it breaks direct TLS and WireGuard.
 
 ### Port Forwarding (ISP Router)
