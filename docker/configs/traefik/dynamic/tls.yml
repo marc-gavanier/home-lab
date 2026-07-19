@@ -1,0 +1,25 @@
+# =============================================================================
+# Traefik — Dynamic configuration (TLS options)
+# =============================================================================
+# Explicit, drift-proof TLS policy applied as the DEFAULT for every router
+# (Mozilla "intermediate"). Traefik's built-in defaults are already TLS 1.2+
+# with sane ciphers; pinning them makes the posture explicit and immune to a
+# future default change. cipherSuites apply to TLS 1.2 only (Go fixes the
+# TLS 1.3 suites). All access is by hostname, so sniStrict is safe here.
+
+tls:
+  options:
+    default:
+      minVersion: VersionTLS12
+      sniStrict: true
+      cipherSuites:
+        - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+        - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+        - TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+        - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+        - TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305
+        - TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305
+      curvePreferences:
+        - X25519
+        - CurveP256
+        - CurveP384
