@@ -54,20 +54,14 @@ Defense in depth — each layer is secured independently. If one layer falls, th
 - Strong passwords generated via Vaultwarden
 - 2FA enabled on services that support it
 - Secrets in `.env` (gitignored), never in config files
-- **Vaultwarden hardening**: signups off; admin panel (`/admin`, an RCE-capable
-  surface) **disabled by default** by shipping no `ADMIN_TOKEN` (empty token =
-  Vaultwarden returns 404 on `/admin`). Re-enable for a one-off session by
-  supplying the vaulted token hash, then revert:
-  ```bash
-  cd /opt/homelab
-  VAULTWARDEN_ADMIN_TOKEN="$(sed -n 's/^VAULTWARDEN_ADMIN_TOKEN_HASH=//p' .env)" \
-    docker compose up -d vaultwarden      # /admin now prompts for the token
-  # ...do the admin task at https://vault.<domain>/admin (over VPN)...
-  docker compose up -d vaultwarden        # token unset again -> /admin back to 404
-  ```
-  Never use `DISABLE_ADMIN_TOKEN` — it *bypasses* the token check (opens `/admin`
-  without auth), the opposite of disabling the panel. Password hints off,
-  server-side icon fetching off (SSRF/egress), Sends off.
+- **Vaultwarden hardening**: signups off; the admin panel (`/admin`) stays
+  **token-protected** — an argon2-hashed `ADMIN_TOKEN`, behind vpn-only, on a
+  patched version (≥1.33.0, past CVE-2025-24364). Password hints off,
+  server-side icon fetching off (SSRF/egress), Sends off. **Never** set
+  `DISABLE_ADMIN_TOKEN` — it *bypasses* the token check (opens `/admin` without
+  auth), the opposite of hardening. (Disabling the panel by default was
+  evaluated and dropped: the empty-token mechanism doesn't cleanly disable it
+  with a vault-rendered token, and token + vpn-only is a solid posture.)
 
 ### 5. Data
 - Encrypted backups (Restic)

@@ -301,12 +301,11 @@ services:
     environment:
       DOMAIN: https://vault.${DOMAIN}
       SIGNUPS_ALLOWED: ${VAULTWARDEN_SIGNUPS_ALLOWED:-false}
-      # Admin panel OFF by default: with NO ADMIN_TOKEN, Vaultwarden disables the
-      # /admin route entirely (404). Enable for a one-off session by supplying
-      # the vaulted token hash (see docs/03-security). Do NOT use
-      # DISABLE_ADMIN_TOKEN — that BYPASSES the token check (opens /admin without
-      # auth), the OPPOSITE of disabling the panel.
-      ADMIN_TOKEN: ${VAULTWARDEN_ADMIN_TOKEN:-}
+      # Admin panel kept token-protected (argon2 hash, behind vpn-only, on a
+      # patched version >=1.33.0). "Disable by default" was dropped: never use
+      # DISABLE_ADMIN_TOKEN (it BYPASSES the token = opens /admin), and an empty
+      # ADMIN_TOKEN did not cleanly disable the panel with a vault-rendered token.
+      ADMIN_TOKEN: ${VAULTWARDEN_ADMIN_TOKEN_HASH}
       PASSWORD_HINTS_ALLOWED: "false"   # never store/serve master-password hints
       SHOW_PASSWORD_HINT: "false"       # no hint on failed login (also aids user-enum)
       DISABLE_ICON_DOWNLOAD: "true"     # no server-side favicon fetches (SSRF/egress)
