@@ -16,12 +16,35 @@ networks:
     external: true
   internal:
     driver: bridge
+  # Traefik <-> docker-socket-proxy only; internal:true = no outside route.
+  socketproxy:
+    driver: bridge
+    internal: true
 
 # =============================================================================
 # Phase 2 — Network infrastructure
 # =============================================================================
 
 services:
+
+  # --- Docker socket proxy ---
+  # Traefik must NOT mount the raw docker.sock: `:ro` only makes the socket file
+  # read-only, not the API — a container holding it has full Docker control =
+  # host root (a real proxy-RCE -> host-root chain given Traefik's 2025 CVE
+  # history). This read-only proxy exposes ONLY the container-list endpoint
+  # Traefik needs (CONTAINERS=1; POST stays 0), on an internal-only network.
+  socket-proxy:
+    image: tecnativa/docker-socket-proxy:0.3.0
+    container_name: socket-proxy
+    restart: unless-stopped   # Tier 0: Traefik depends on it at boot
+    security_opt: *no-new-privs
+    environment:
+      CONTAINERS: 1   # Traefik reads the container list; EVENTS/PING default on
+      POST: 0         # deny all writes (default, made explicit)
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - socketproxy
 
   # --- Traefik (Reverse Proxy) ---
   traefik:
@@ -33,12 +56,15 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # docker.sock is now reached via socket-proxy (tcp), never mounted here
       - ${SERVICES_DATA_DIR}/traefik/acme:/acme
       - ./configs/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
       - ./configs/traefik/dynamic:/etc/traefik/dynamic:ro
+    depends_on:
+      - socket-proxy
     networks:
       - proxy
+      - socketproxy
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.traefik.rule=Host(`traefik.${DOMAIN}`)"
