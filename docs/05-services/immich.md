@@ -52,22 +52,17 @@ ssh homelab "docker stop immich-ml"
 
 ## Backup
 
-Backed up daily by Restic. Database is dumped before each snapshot (`immich.sql`).
+Backed up daily by Restic. The database is **not** dumped by `backup.sh` — Immich
+runs its own scheduled DB backup (Admin → Settings → Backup) to
+`upload/backups/*.sql.gz`, which lives under `/mnt/data/services/immich` and is
+therefore captured in every Restic snapshot. This produces a correctly-formatted
+dump for the VectorChord / pgvecto.rs extensions (a hand-rolled `pg_dump` needs a
+`search_path` transform on restore and is easy to get wrong).
+
+Confirm the built-in backup is enabled (Admin → Settings → Backup) and that
+`upload/backups/` holds a recent `*.sql.gz`.
 
 ## Restore
 
-```bash
-# Stop Immich
-docker stop immich-server immich-ml immich-redis immich-db
-
-# Restore from backup
-restic restore latest --target / --include /mnt/data/services/immich
-
-# Restore database
-docker start immich-db
-sleep 10
-docker exec -i immich-db psql -U immich immich < /mnt/data/backups/dumps/immich.sql
-
-# Start all components
-docker start immich-redis immich-ml immich-server
-```
+The DB restore has extension-specific steps (fresh DB + `search_path` transform).
+Full procedure: `knowledge/runbooks/restore-from-backup.md` → "Restore Immich".

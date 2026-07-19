@@ -69,14 +69,12 @@ docker exec nextcloud-db mariadb-dump \
     "${NEXTCLOUD_DB_NAME:-nextcloud}" \
     > "$DUMP_DIR/nextcloud.sql" 2>> "$BACKUP_LOG" || log "WARNING: Nextcloud DB dump failed"
 
-# Immich PostgreSQL (if running)
-if docker ps --format '{{.Names}}' | grep -q immich-db; then
-    log "Dumping Immich database..."
-    docker exec immich-db pg_dump \
-        -U "${IMMICH_DB_USER:-immich}" \
-        "${IMMICH_DB_NAME:-immich}" \
-        > "$DUMP_DIR/immich.sql" 2>> "$BACKUP_LOG" || log "WARNING: Immich DB dump failed"
-fi
+# Immich PostgreSQL — handled by Immich's OWN scheduled DB backup, not here.
+# A hand-rolled `pg_dump` is fragile on this DB (VectorChord + pgvecto.rs need a
+# search_path transform on restore). Immich's built-in backup (Admin → Settings
+# → Backup) writes a correctly-formatted dump.sql.gz to UPLOAD_LOCATION/backups
+# = /mnt/data/services/immich/upload/backups, already inside the restic set
+# below. Restore per knowledge/runbooks/restore-from-backup.md ("Restore Immich").
 
 # Vaultwarden SQLite — consistent online backup (WAL-safe).
 # Restic snapshotting the live db.sqlite3 while Vaultwarden runs can capture a

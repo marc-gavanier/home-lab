@@ -79,6 +79,52 @@ docker start vaultwarden
 (Attachments/sends/rsa keys live alongside the DB in `/mnt/data/services/vaultwarden`
 and are already restored by a full service restore — see "Restore one service".)
 
+## Restore Immich (PostgreSQL — VectorChord / pgvecto.rs)
+
+Immich takes its **own** scheduled DB backup (Admin → Settings → Backup), written
+to `/mnt/data/services/immich/upload/backups/*.sql.gz` and captured in the restic
+snapshot (`/mnt/data/services` is in the set). Restore follows Immich's official
+procedure: the `search_path` `sed` transform is **mandatory** for the vector
+extensions, and the dump must be loaded into a **freshly-initialised** database.
+
+> ⚠️ Our stack is one shared `compose.yaml`, and the Immich DB is a **bind mount**
+> (`services/immich/db`), not a named volume — so **never** run
+> `docker compose down -v` (it would target every service's volumes). Reset only
+> the Immich DB directory, as below.
+
+```bash
+# 1. Get the newest dump (from disk, or restore the folder from a snapshot first):
+restic restore latest --target /tmp/restore \
+  --include /mnt/data/services/immich/upload/backups
+DUMP=$(ls -t /mnt/data/services/immich/upload/backups/*.sql.gz | head -1)
+# (or: DUMP=$(ls -t /tmp/restore/mnt/data/services/immich/upload/backups/*.sql.gz | head -1))
+
+cd /opt/homelab
+
+# 2. Stop Immich and reset the DB dir so the container re-runs initdb (fresh,
+#    empty `immich` database owned by the `immich` superuser):
+docker compose stop immich-server immich-ml immich-db immich-redis
+rm -rf /mnt/data/services/immich/db/*
+
+# 3. Bring the DB back up empty and wait until it is healthy:
+docker compose up -d immich-db
+until [ "$(docker inspect -f '{{.State.Health.Status}}' immich-db)" = healthy ]; do sleep 2; done
+
+# 4. Load the dump — search_path transform + atomic, abort-on-error import:
+gunzip --stdout "$DUMP" \
+| sed "s/SELECT pg_catalog.set_config('search_path', '', false);/SELECT pg_catalog.set_config('search_path', 'public, pg_catalog', true);/g" \
+| docker exec -i immich-db psql \
+    --dbname=immich --username=immich \
+    --single-transaction --set ON_ERROR_STOP=on
+
+# 5. Start the rest of the stack:
+docker compose up -d immich-server immich-ml immich-redis
+```
+
+Sanity-check: log in, confirm the timeline and search (VectorChord) work. The
+photo/video files themselves live in `services/immich/upload` and `media/photos`
+— restore those from a snapshot too if they were lost.
+
 ## Full disaster recovery
 
 1. **Re-provision the OS** with Ansible (the OS isn't backed up — it's reproducible): flash
