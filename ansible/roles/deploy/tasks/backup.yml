@@ -108,3 +108,52 @@
     enabled: true
     state: started
     daemon_reload: true
+
+# Weekly local repo maintenance: prune (moved out of the nightly forget) + a
+# rotating read-data integrity check. Sunday 05:00 — clear of the 03:00 nightly
+# backup (both touch the LOCAL repo) and the 06:00 offsite check (different repo).
+- name: backup | Copy local maintenance script
+  ansible.builtin.copy:
+    src: local-maintenance.sh
+    dest: /opt/homelab/scripts/local-maintenance.sh
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: backup | Create local maintenance systemd service
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/homelab-local-maintenance.service
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Weekly local restic repo maintenance (prune + check)
+      Requires=mnt-data.mount
+      After=mnt-data.mount
+
+      [Service]
+      Type=oneshot
+      ExecStart=/opt/homelab/scripts/local-maintenance.sh
+      EnvironmentFile=/opt/homelab/backup.env
+      Environment=HOME=/root
+
+- name: backup | Create local maintenance systemd timer
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/homelab-local-maintenance.timer
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Weekly local restic repo maintenance (Sunday 05:00)
+
+      [Timer]
+      OnCalendar=Sun *-*-* 05:00:00
+      Persistent=true
+
+      [Install]
+      WantedBy=timers.target
+
+- name: backup | Enable local maintenance timer
+  ansible.builtin.systemd:
+    name: homelab-local-maintenance.timer
+    enabled: true
+    state: started
+    daemon_reload: true
