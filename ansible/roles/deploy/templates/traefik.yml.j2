@@ -43,7 +43,9 @@ certificatesResolvers:
 
 providers:
   docker:
-    endpoint: "unix:///var/run/docker.sock"
+    # Reached through the read-only docker-socket-proxy (compose service), never
+    # the raw socket — Traefik holds no direct Docker API access.
+    endpoint: "tcp://socket-proxy:2375"
     exposedByDefault: false
     network: proxy
   file:
