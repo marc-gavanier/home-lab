@@ -26,7 +26,6 @@ Internet → ISP Router (SFR)
                ├─ :80/:443 → Traefik
                │                ├─ nextcloud.example.com
                │                ├─ vault.example.com
-               │                ├─ notes.example.com
                │                └─ (other services)
                │
                └─ :51820/udp → WireGuard

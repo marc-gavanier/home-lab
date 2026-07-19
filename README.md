@@ -44,7 +44,6 @@ Internet → ISP Router (ports 80, 443, 51820)
                ├─ :80/:443 → Traefik (reverse proxy + TLS Let's Encrypt)
                │                 ├─ nextcloud.example.com
                │                 ├─ vault.example.com
-               │                 ├─ notes.example.com
                │                 └─ ...
                │
                └─ :51820/udp → WireGuard VPN
