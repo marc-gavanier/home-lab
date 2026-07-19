@@ -11,3 +11,12 @@ argument_specs:
         required: false
         no_log: true
         description: Uptime Kuma push URL for the Pi power/thermal report (token = secret). Empty/absent = monitoring disabled.
+      lynis_kuma_push_url:
+        type: str
+        required: false
+        no_log: true
+        description: Uptime Kuma push URL for the monthly lynis audit report (token = secret). Empty/absent = disabled.
+      lynis_min_index:
+        type: int
+        required: false
+        description: lynis hardening-index floor (inline default 65); the monthly report pushes DOWN below it.

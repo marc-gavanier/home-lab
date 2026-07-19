@@ -1,0 +1,27 @@
+---
+# Monthly lynis audit -> Uptime Kuma push. lynis is installed by the security
+# role (audit.yml) but nothing scheduled it; this closes the loop with a monthly
+# run reporting the hardening index + warnings (DOWN on a regression below the
+# floor). Reuses the same Kuma-push idiom as the Pi health monitor.
+
+- name: lynis | Install the lynis report script
+  ansible.builtin.template:
+    src: homelab-lynis-report.sh.j2
+    dest: /usr/local/bin/homelab-lynis-report.sh
+    mode: "0750"
+
+- name: lynis | Install the lynis audit service and timer
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: /etc/systemd/system/{{ item }}
+    mode: "0644"
+  loop:
+    - homelab-lynis.service
+    - homelab-lynis.timer
+
+- name: lynis | Enable the monthly lynis timer
+  ansible.builtin.systemd:
+    name: homelab-lynis.timer
+    enabled: true
+    state: started
+    daemon_reload: true
