@@ -17,7 +17,6 @@ set -euo pipefail
 
 BACKUP_LOG="/var/log/homelab-backup.log"
 DUMP_DIR="/mnt/data/backups/dumps"
-COMPOSE_DIR="/opt/homelab"
 
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$BACKUP_LOG"; }
 
