@@ -94,9 +94,29 @@ docker compose down <svc>                    # removes it — nothing to heal
 systemctl stop homelab-stack-heal.timer     # or pause healing (restart after)
 ```
 
+## Security-update reboot cadence
+
+Security updates install automatically but **never auto-reboot** the homelab (a
+reboot = locked volume + outage until you unlock — ADR-011/013). `needrestart`
+restarts host daemons on a patched library without a reboot, so only **kernel /
+core-init** updates leave a pending reboot. When one does, the "Pi health"
+Kuma monitor goes DOWN (`/var/run/reboot-required`). Schedule the reboot+unlock
+by *reachability*, not raw CVSS:
+
+| Situation | Reboot+unlock within |
+|-----------|----------------------|
+| Routine kernel bump — no active exploitation, or an LPE with no reachable foothold | **≤ 14 days** (next maintenance window) |
+| Actively exploited **and** reachable — CISA KEV / public PoC in the netstack, WireGuard, or an unauth-reachable path | **≤ 48 h** |
+
+A reboot is just power-cycle-then-`homelab-unlock` (this runbook). Check what's
+pending with `cat /var/run/reboot-required.pkgs`. The offsite Pi has no LUKS and
+auto-reboots at 04:00, so this cadence is homelab-only. Rationale:
+[ADR-013](../decisions/ADR-013-update-patching-strategy.md).
+
 ## Related
 
 - [ADR-007](../decisions/ADR-007-staged-container-startup.md) — design & alternatives.
+- [ADR-013](../decisions/ADR-013-update-patching-strategy.md) — update & patching strategy (reboot cadence).
 - [kill-switch runbook](kill-switch.md) — the remote poweroff lands on this boot path.
 - [usb-tamper runbook](usb-tamper.md) — the local poweroff (USB events) lands here too.
 - `homelab-lock` — stops the target (containers, heal timer, swap), unmounts and

@@ -16,7 +16,10 @@ Defense in depth — each layer is secured independently. If one layer falls, th
 ### 2. System (OS)
 - **SSH**: key-only, password disabled, non-standard port
 - **fail2ban**: automatic banning after failed attempts
-- **unattended-upgrades**: automatic security updates
+- **unattended-upgrades**: automatic security updates (auto-install, no
+  auto-reboot on the homelab; `needrestart` activates patched libraries
+  reboot-free; kernel residue on a bounded manual cadence) — strategy in
+  [ADR-013](../../knowledge/decisions/ADR-013-update-patching-strategy.md)
 - **Non-root user**: no service runs as root
 - **Audit**: lynis for periodic security audits; CIS Ubuntu 24.04 benchmark
   via `ansible/playbooks/cis-audit.yml` (read-only) — findings, remediation
