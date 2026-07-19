@@ -39,16 +39,21 @@ Personal home lab on Raspberry Pi 4 — self-hosted services, full automation, h
 ## Network Architecture
 
 ```
-Internet → ISP Router (ports 80, 443, 51820)
+Internet → ISP Router  (public: 51820/udp only)
                │
-               ├─ :80/:443 → Traefik (reverse proxy + TLS Let's Encrypt)
-               │                 ├─ nextcloud.example.com
-               │                 ├─ vault.example.com
-               │                 └─ ...
-               │
-               └─ :51820/udp → WireGuard VPN
-                                 └─ Full LAN access
+               └─ :51820/udp → WireGuard VPN   ← the only public entry point
+                                  │
+                                  └─ LAN → Traefik (:443, TLS via Cloudflare DNS-01)
+                                             ├─ drive.example.com  → Nextcloud
+                                             ├─ vault.example.com  → Vaultwarden
+                                             ├─ proxy.example.com  → Traefik dashboard
+                                             └─ ...
 ```
+
+No public HTTP/HTTPS: ports 80/443 are not forwarded. Certificates use the ACME
+DNS-01 challenge (Cloudflare), so services need no public DNS record and are
+reachable only through the VPN (resolved to the LAN IP via Pi-hole split DNS).
+Only `vpn.example.com` stays in public DNS, to bootstrap the tunnel. See ADR-014.
 
 ## Quick Start
 
