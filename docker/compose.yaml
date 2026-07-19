@@ -5,6 +5,12 @@
 #   docker compose up -d
 # =============================================================================
 
+# Applied to every service (aliased in each block): block privilege escalation
+# via setuid binaries after container start (no-new-privileges). Does NOT remove
+# explicitly-granted capabilities — wg-easy/netdata keep theirs.
+x-security-opt: &no-new-privs
+  - no-new-privileges:true
+
 networks:
   proxy:
     external: true
@@ -22,8 +28,7 @@ services:
     image: traefik:v3.7.7
     container_name: traefik
     restart: unless-stopped   # Tier 0: auto-start at boot (see stack-startup role)
-    security_opt:
-      - no-new-privileges:true
+    security_opt: *no-new-privs
     ports:
       - "80:80"
       - "443:443"
@@ -51,6 +56,7 @@ services:
     image: pihole/pihole:2026.07.2
     container_name: pihole
     restart: unless-stopped   # Tier 0: auto-start at boot (see stack-startup role)
+    security_opt: *no-new-privs
     ports:
       - "53:53/tcp"
       - "53:53/udp"
@@ -86,6 +92,7 @@ services:
     image: ghcr.io/wg-easy/wg-easy:14
     container_name: wg-easy
     restart: unless-stopped   # Tier 0: auto-start at boot (see stack-startup role)
+    security_opt: *no-new-privs
     cap_add:
       - NET_ADMIN
       - SYS_MODULE
@@ -120,6 +127,7 @@ services:
     image: nextcloud:34.0.1-apache
     container_name: nextcloud
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    security_opt: *no-new-privs
     depends_on:
       nextcloud-db:
         condition: service_healthy
@@ -173,6 +181,7 @@ services:
     image: mariadb:11.8.8
     container_name: nextcloud-db
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    security_opt: *no-new-privs
     environment:
       MYSQL_ROOT_PASSWORD: ${NEXTCLOUD_DB_ROOT_PASSWORD}
       MYSQL_DATABASE: ${NEXTCLOUD_DB_NAME}
@@ -192,6 +201,7 @@ services:
     image: redis:7.4.9-alpine
     container_name: nextcloud-redis
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    security_opt: *no-new-privs
     networks:
       - internal
     healthcheck:
@@ -206,6 +216,7 @@ services:
     image: nextcloud:34.0.1-apache
     container_name: nextcloud-cron
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    security_opt: *no-new-privs
     entrypoint: /cron.sh
     depends_on:
       nextcloud-db:
@@ -223,6 +234,7 @@ services:
     image: nextcloud:34.0.1-apache
     container_name: nextcloud-notify-push
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    security_opt: *no-new-privs
     depends_on:
       nextcloud-db:
         condition: service_healthy
@@ -259,6 +271,7 @@ services:
     image: vaultwarden/server:1.36.0
     container_name: vaultwarden
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    security_opt: *no-new-privs
     environment:
       DOMAIN: https://vault.${DOMAIN}
       SIGNUPS_ALLOWED: ${VAULTWARDEN_SIGNUPS_ALLOWED:-false}
@@ -287,6 +300,7 @@ services:
     image: jellyfin/jellyfin:10.11.11
     container_name: jellyfin
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    security_opt: *no-new-privs
     environment:
       JELLYFIN_PublishedServerUrl: https://videos.${DOMAIN}
     volumes:
@@ -313,6 +327,7 @@ services:
     image: deluan/navidrome:0.63.2
     container_name: navidrome
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    security_opt: *no-new-privs
     environment:
       ND_SCANSCHEDULE: 1h
       ND_LOGLEVEL: info
@@ -341,6 +356,7 @@ services:
     image: ghcr.io/immich-app/immich-server:v3.0.1
     container_name: immich-server
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    security_opt: *no-new-privs
     depends_on:
       immich-db:
         condition: service_healthy
@@ -370,6 +386,7 @@ services:
     image: ghcr.io/immich-app/immich-machine-learning:v3.0.1
     container_name: immich-ml
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    security_opt: *no-new-privs
     volumes:
       - ${SERVICES_DATA_DIR}/immich/ml-cache:/cache
     networks:
@@ -379,6 +396,7 @@ services:
     image: redis:7.4.9-alpine
     container_name: immich-redis
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    security_opt: *no-new-privs
     networks:
       - internal
     healthcheck:
@@ -396,6 +414,7 @@ services:
     image: ghcr.io/immich-app/postgres:16-vectorchord0.4.3-pgvectors0.2.0
     container_name: immich-db
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    security_opt: *no-new-privs
     environment:
       POSTGRES_USER: ${IMMICH_DB_USER}
       POSTGRES_PASSWORD: ${IMMICH_DB_PASSWORD}
@@ -416,6 +435,7 @@ services:
     image: linuxserver/transmission:4.1.3-r0-ls354
     container_name: transmission
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    security_opt: *no-new-privs
     environment:
       PUID: ${PUID}
       PGID: ${PGID}
@@ -457,6 +477,7 @@ services:
     image: louislam/uptime-kuma:2.4.0
     container_name: uptime-kuma
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    security_opt: *no-new-privs
     dns:
       - ${PI_LAN_IP}
     volumes:
@@ -475,6 +496,7 @@ services:
     image: searxng/searxng:2026.7.13-9e25585ae
     container_name: searxng
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    security_opt: *no-new-privs
     volumes:
       - ./configs/searxng:/etc/searxng
       # Gerbier branding: recoloured stylesheet (+ optional logo) overlaid on the
@@ -502,6 +524,7 @@ services:
       - SYS_PTRACE
       - SYS_ADMIN
     security_opt:
+      - no-new-privileges:true
       - apparmor:unconfined
     volumes:
       - /proc:/host/proc:ro
