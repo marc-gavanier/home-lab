@@ -555,18 +555,26 @@ services:
     container_name: netdata
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     cap_add:
-      - SYS_PTRACE
-      - SYS_ADMIN
+      - SYS_PTRACE             # apps.plugin: read /host/proc for per-process charts
+      # SYS_ADMIN removed — it only powered ebpf.plugin (advanced eBPF charts);
+      # core/system/apps/container charts are unaffected. SYS_ADMIN ~= host root.
     security_opt:
       - no-new-privileges:true
-      - apparmor:unconfined
+      - apparmor:unconfined    # lets apps.plugin ptrace despite Docker's default AppArmor profile
+    environment:
+      # Container-name resolution via the read-only socket-proxy (CONTAINERS=1,
+      # same as Traefik), never the raw docker.sock (full Docker API = host root
+      # even mounted :ro). Container CPU/mem/net charts come from /proc + /sys.
+      DOCKER_HOST: tcp://socket-proxy:2375
+    depends_on:
+      - socket-proxy
     volumes:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
       - /etc/os-release:/host/etc/os-release:ro
     networks:
       - proxy
+      - socketproxy
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.netdata.rule=Host(`system.${DOMAIN}`)"
