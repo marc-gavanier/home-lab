@@ -55,9 +55,19 @@ Defense in depth — each layer is secured independently. If one layer falls, th
 - 2FA enabled on services that support it
 - Secrets in `.env` (gitignored), never in config files
 - **Vaultwarden hardening**: signups off; admin panel (`/admin`, an RCE-capable
-  surface) disabled by default — re-enable only for a session with
-  `VAULTWARDEN_ADMIN_DISABLE=false docker compose up -d vaultwarden`, then revert.
-  Password hints off, server-side icon fetching off (SSRF/egress), Sends off.
+  surface) **disabled by default** by shipping no `ADMIN_TOKEN` (empty token =
+  Vaultwarden returns 404 on `/admin`). Re-enable for a one-off session by
+  supplying the vaulted token hash, then revert:
+  ```bash
+  cd /opt/homelab
+  VAULTWARDEN_ADMIN_TOKEN="$(sed -n 's/^VAULTWARDEN_ADMIN_TOKEN_HASH=//p' .env)" \
+    docker compose up -d vaultwarden      # /admin now prompts for the token
+  # ...do the admin task at https://vault.<domain>/admin (over VPN)...
+  docker compose up -d vaultwarden        # token unset again -> /admin back to 404
+  ```
+  Never use `DISABLE_ADMIN_TOKEN` — it *bypasses* the token check (opens `/admin`
+  without auth), the opposite of disabling the panel. Password hints off,
+  server-side icon fetching off (SSRF/egress), Sends off.
 
 ### 5. Data
 - Encrypted backups (Restic)
