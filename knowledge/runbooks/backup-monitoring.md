@@ -48,8 +48,9 @@ monitor goes red and the notification fires.
 
 ## Local maintenance monitor
 
-The weekly local prune+check (`local-maintenance.sh`, `homelab-local-maintenance.timer`,
-Sunday 05:00) reports to its own push monitor, same pattern as the offsite check:
+The local maintenance job (`local-maintenance.sh`, `homelab-local-maintenance.timer`,
+Sunday 05:00: weekly prune + metadata check, monthly deep read-data on the 1st Sunday)
+reports to its own push monitor, same pattern as the offsite check:
 
 | Monitor            | Pinged by                                       | Interval       | Vault variable                                    |
 |--------------------|-------------------------------------------------|----------------|---------------------------------------------------|
