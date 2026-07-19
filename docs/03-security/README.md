@@ -33,8 +33,10 @@ Defense in depth — each layer is secured independently. If one layer falls, th
 ### 3. Containers (Docker)
 - Official images only, pinned versions — Renovate-tracked, with
   `osvVulnerabilityAlerts` for off-schedule CVE PRs
-- **`no-new-privileges`** on every container — blocks privilege escalation via
-  setuid binaries after an app compromise
+- **`no-new-privileges`** on every container (one exception: Netdata, whose
+  `apps.plugin` must gain `cap_sys_ptrace`/`cap_dac_read_search` via file
+  capabilities for per-app charts — the flag would block that) — blocks
+  privilege escalation via setuid binaries after an app compromise
 - **Docker socket never mounted raw** — both Traefik and Netdata reach it only
   through a read-only `docker-socket-proxy` (CONTAINERS read-only, POST denied,
   on an internal-only network), so a container RCE can't pivot to host root via

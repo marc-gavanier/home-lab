@@ -559,7 +559,11 @@ services:
       # SYS_ADMIN removed — it only powered ebpf.plugin (advanced eBPF charts);
       # core/system/apps/container charts are unaffected. SYS_ADMIN ~= host root.
     security_opt:
-      - no-new-privileges:true
+      # NO no-new-privileges here (the one exception): apps.plugin elevates via
+      # file capabilities (cap_sys_ptrace/cap_dac_read_search on the binary) to
+      # read other processes' /proc for per-app charts — no-new-privileges blocks
+      # that gain and floods the log with EPERM. The big wins (SYS_ADMIN + raw
+      # docker.sock) are already removed, so this residual is acceptable.
       - apparmor:unconfined    # lets apps.plugin ptrace despite Docker's default AppArmor profile
     environment:
       # Container-name resolution via the read-only socket-proxy (CONTAINERS=1,
