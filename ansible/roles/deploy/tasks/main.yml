@@ -39,3 +39,6 @@
 
 - name: Set up the weekly offsite repo check
   ansible.builtin.import_tasks: offsite.yml
+
+- name: Set up the Cloudflare DDNS updater for the vpn record
+  ansible.builtin.import_tasks: ddns.yml

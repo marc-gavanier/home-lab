@@ -20,7 +20,12 @@ argument_specs:
         type: str
         required: true
         no_log: true
-        description: Scoped Cloudflare API token (Zone:DNS:Edit + Zone:Read) for the ACME DNS-01 challenge.
+        description: Scoped Cloudflare API token (Zone:DNS:Edit + Zone:Read) for ACME DNS-01 and DDNS.
+      ddns_kuma_push_url:
+        type: str
+        required: false
+        no_log: true
+        description: Optional Uptime Kuma push URL for the DDNS updater (empty = no monitor).
       services_data_dir:
         type: path
         required: true
