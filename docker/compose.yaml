@@ -52,6 +52,9 @@ services:
     container_name: traefik
     restart: unless-stopped   # Tier 0: auto-start at boot (see stack-startup role)
     security_opt: *no-new-privs
+    environment:
+      # Scoped Cloudflare token for the ACME DNS-01 challenge (ADR-014).
+      CF_DNS_API_TOKEN: ${CF_DNS_API_TOKEN}
     ports:
       - "80:80"
       - "443:443"

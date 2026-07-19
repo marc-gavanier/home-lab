@@ -38,8 +38,17 @@ certificatesResolvers:
     acme:
       email: "{{ traefik_acme_email }}"
       storage: /acme/acme.json
-      httpChallenge:
-        entryPoint: web
+      # DNS-01 via Cloudflare (CF_DNS_API_TOKEN in the container env): proves
+      # domain control by writing _acme-challenge TXT records, so certs need no
+      # public A record or inbound :80 — services can stay out of public DNS.
+      # Each router keeps its own certresolver → per-host certs, deliberately NOT
+      # a *.{{ domain }} wildcard (one key valid for subdomains served elsewhere,
+      # e.g. marc.{{ domain }} on GitHub). See ADR-014.
+      dnsChallenge:
+        provider: cloudflare
+        resolvers:
+          - "1.1.1.1:53"
+          - "8.8.8.8:53"
 
 providers:
   docker:

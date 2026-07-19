@@ -30,13 +30,17 @@ All services are **VPN-only**. The `vpn-only` middleware is applied globally on 
 ### DNS
 
 - **Provider**: Cloudflare (DNS only, not proxied)
-- **Records**: individual A records per service (no wildcard — preserves existing site and mail config)
+- **Records**: only `vpn.example.com` needs a public A record (to bootstrap the tunnel).
+  Service subdomains use ACME **DNS-01**, so they need no public A record and are kept
+  out of public DNS (ADR-014). No wildcard — per-host certs, so subdomains served
+  elsewhere (e.g. `marc.example.com` on GitHub) are unaffected.
 - **Dynamic IP**: if ISP IP changes, update via Cloudflare API (DDNS script planned)
 
 ## Traefik
 
-- Entrypoints: 80 (redirect → 443 + ACME HTTP challenge), 443 (TLS, vpn-only middleware applied globally)
-- ACME: Let's Encrypt via HTTP challenge (`/.well-known/acme-challenge/*` handled internally before middlewares)
+- Entrypoints: 80 (http→https redirect over VPN), 443 (TLS, vpn-only middleware applied globally)
+- ACME: Let's Encrypt via **DNS-01** (Cloudflare API, scoped token) — per-host certs, no inbound
+  needed, so no public A record or open :80 is required for issuance (ADR-014)
 - Middlewares: vpn-only (default on websecure), rate limiting, secure headers, nextcloud-headers
 - Dashboard: accessible via LAN/VPN only
 

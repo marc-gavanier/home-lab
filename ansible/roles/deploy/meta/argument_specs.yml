@@ -16,6 +16,11 @@ argument_specs:
         type: str
         required: true
         description: Let's Encrypt account email.
+      cloudflare_dns_api_token:
+        type: str
+        required: true
+        no_log: true
+        description: Scoped Cloudflare API token (Zone:DNS:Edit + Zone:Read) for the ACME DNS-01 challenge.
       services_data_dir:
         type: path
         required: true

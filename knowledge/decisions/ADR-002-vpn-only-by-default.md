@@ -39,6 +39,10 @@ Anything else gets `403 Forbidden`.
 ### ACME / Let's Encrypt
 HTTP-01 challenges go to `/.well-known/acme-challenge/*` on port 80, handled by Traefik's ACME resolver **before** middlewares. Certificate renewal continues to work despite the global middleware.
 
+> **Superseded by [ADR-014](ADR-014-acme-dns01-cloudflare.md)**: certificates now
+> use the DNS-01 challenge (Cloudflare), so ACME no longer touches port 80 and
+> services need no public A record — reinforcing this vpn-only posture.
+
 ## Alternatives Considered
 
 - **Per-router middleware**: explicit on each service. More verbose, easier to forget, but allows per-service exceptions. Rejected because the homelab has no service that should be public.
