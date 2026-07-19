@@ -7,6 +7,9 @@
       - unattended-upgrades
       - apt-listchanges
       - needrestart
+      # provides /usr/lib/update-notifier/apt-check — the pending-security-update
+      # counter the Pi health monitor reads (observability role)
+      - update-notifier-common
     state: present
 
 # needrestart ships on Ubuntu Server but defaults to interactive mode ('i'),
