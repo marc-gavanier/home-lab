@@ -2,7 +2,7 @@
 
 ## Context
 
-Personal home lab on Raspberry Pi 4 (4GB RAM, 64GB SD, 5TB external HDD).
+Personal home lab on Raspberry Pi 4 (8GB RAM, 64GB SD, 5TB external HDD).
 Goals: maximum automation, hardened security, self-hosted services.
 Domain: example.com
 
@@ -51,6 +51,7 @@ Use agents in `.claude/agents/` for domain-specific tasks:
 | `services`        | Docker service selection and configuration            |
 | `backup`          | Data protection, restoration, disaster recovery       |
 | `observability`   | Monitoring, logs, alerting                            |
+| `ansible-deploy`  | Ansible roles, deployment, idempotence, vault         |
 | `project-manager` | Coordination, planning, prioritization, documentation |
 
 ## Security — Non-negotiable Rules
