@@ -38,6 +38,16 @@ All services are **VPN-only**. The `vpn-only` middleware is applied globally on 
   `cloudflare-ddns.sh`, which keeps the `vpn` A record on the current public IPv4
   via the Cloudflare API (updates only on change; recreates the record if missing).
 
+### Resolver (Pi-hole → encrypted upstream)
+
+- **Pi-hole** is the LAN resolver (ad/tracker blocking, split DNS, lists). Clients
+  talk only to Pi-hole.
+- **Encrypted egress**: Pi-hole forwards upstream to a **cloudflared** sidecar
+  (`127.0.0.1#5053`, sharing Pi-hole's netns), which proxies to **Quad9 over DoH**
+  (RFC 8484 / HTTP2). Upstream queries no longer leave in cleartext to the ISP.
+- The upstream is pinned in `compose.yaml` (`FTLCONF_dns_upstreams`), not the
+  manual `pihole.toml` — version-controlled, no drift. See ADR-015.
+
 ## Traefik
 
 - Entrypoints: 80 (http→https redirect over VPN), 443 (TLS, vpn-only middleware applied globally)

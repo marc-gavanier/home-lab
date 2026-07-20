@@ -93,6 +93,10 @@ services:
       TZ: ${TZ}
       FTLCONF_dns_listeningMode: all
       FTLCONF_misc_etc_dnsmasq_d: "true"
+      # Upstream = the cloudflared sidecar (DoH to Quad9), reached at 127.0.0.1
+      # because cloudflared shares this container's netns (network_mode below).
+      # Codified here (was manual pihole.toml drift); FTLCONF locks it (ADR-015).
+      FTLCONF_dns_upstreams: 127.0.0.1#5053
     volumes:
       - ${SERVICES_DATA_DIR}/pihole/etc:/etc/pihole
       - ${SERVICES_DATA_DIR}/pihole/dnsmasq:/etc/dnsmasq.d
@@ -115,6 +119,26 @@ services:
       # under boot load; don't flag unhealthy (Traefik drops unhealthy
       # containers from routing) while it warms up.
       start_period: 120s
+
+  # --- cloudflared (encrypted DNS-over-HTTPS upstream for Pi-hole) ---
+  # Pi-hole forwards to 127.0.0.1#5053; this container shares Pi-hole's network
+  # namespace (network_mode below), so 127.0.0.1 IS Pi-hole. cloudflared then
+  # proxies over DoH (HTTP/2, RFC 8484) to Quad9 — no cleartext DNS to the ISP,
+  # upstream choice under version control (ADR-015). No bootstrap loop: the host
+  # resolves via 1.1.1.1/8.8.8.8 (Docker's embedded DNS), never Pi-hole.
+  cloudflared:
+    image: cloudflare/cloudflared:2025.8.1
+    container_name: cloudflared
+    restart: unless-stopped   # Tier 0: Pi-hole's only upstream — must stay up
+    security_opt: *no-new-privs
+    network_mode: "service:pihole"   # share Pi-hole's netns → reachable at 127.0.0.1#5053
+    command: proxy-dns
+    environment:
+      TUNNEL_DNS_ADDRESS: "127.0.0.1"
+      TUNNEL_DNS_PORT: "5053"
+      TUNNEL_DNS_UPSTREAM: "https://dns.quad9.net/dns-query"
+    depends_on:
+      - pihole
 
   # --- WireGuard VPN ---
   wg-easy:
