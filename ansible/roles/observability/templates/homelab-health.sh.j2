@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 # {{ ansible_managed }}
 # =============================================================================
-# Homelab Pi — power & thermal health report
+# Homelab Pi — host health report
 # =============================================================================
-# Pushes CPU temperature and undervoltage status to an Uptime Kuma push
-# monitor. A sagging PSU/cable silently corrupts the SD and is the prime
-# suspect behind an unexplained poweroff; a Pi 4 also throttles at ~80-85C.
-# Reads kernel sensors directly (vcgencmd is not guaranteed on Ubuntu Server
-# arm64). No-ops when no push URL is configured.
+# Pushes the host-level signals that need a human to a single Uptime Kuma push
+# monitor: CPU temperature, undervoltage, pending reboot, stuck security
+# updates, disk capacity and unhealthy containers. A sagging PSU/cable silently
+# corrupts the SD and is the prime suspect behind an unexplained poweroff; a
+# Pi 4 also throttles at ~80-85C. Reads kernel sensors directly (vcgencmd is
+# not guaranteed on Ubuntu Server arm64). No-ops when no push URL is
+# configured.
 
 set -uo pipefail
 
@@ -71,6 +73,55 @@ if [ -x "$APT_CHECK" ]; then
         [ "$age" -gt 172800 ] && problems+=("$sec security updates unapplied >48h")
     else
         rm -f "$SEC_STAMP"
+    fi
+fi
+
+# --- Disk capacity ---
+# A full disk is the one failure nothing else here would catch: restic, Immich
+# and Jellyfin write to /mnt/data, while Docker images and logs fill the SD.
+# Netdata graphs it but has no notification path, so it only ever surfaces
+# after something has already broken. The offsite Pi runs the same check.
+DISK_THRESHOLD=85
+for fs in / /mnt/data; do
+    # /mnt/data is a LUKS volume unlocked by hand after a reboot (staged
+    # startup). Between boot and homelab-unlock it is legitimately absent —
+    # report it, but do not alarm: the "reboot pending" signal already covers
+    # that window, and alarming here would cry wolf on every reboot.
+    if ! mountpoint -q "$fs"; then
+        report+=("$fs not mounted")
+        continue
+    fi
+    usage=$(df --output=pcent "$fs" | tail -1 | tr -dc '0-9')
+    [ -n "$usage" ] || continue
+    report+=("$fs ${usage}%")
+    [ "$usage" -ge "$DISK_THRESHOLD" ] && problems+=("$fs ${usage}% full")
+done
+
+# --- Unhealthy containers ---
+# The heal timer only resurrects containers that EXITED; one that stays up but
+# fails its healthcheck is invisible. User-facing services are covered
+# indirectly by the Kuma HTTP monitors — the real gap is internal containers,
+# notably nextcloud-notify-push, whose death silently kills mobile push while
+# Nextcloud itself keeps answering 200.
+# Age-gated: a container is briefly unhealthy on every restart (and "starting"
+# is deliberately not matched), so only alarm once it has stayed that way
+# across two runs, i.e. >10 min.
+UNHEALTHY_STAMP=/var/lib/homelab-health/unhealthy.stamp
+if command -v docker >/dev/null 2>&1; then
+    unhealthy=$(docker ps --filter health=unhealthy \
+        --format '{% raw %}{{.Names}}{% endraw %}' 2>/dev/null | sort | tr '\n' ' ')
+    unhealthy="${unhealthy% }"
+    if [ -n "$unhealthy" ]; then
+        mkdir -p "$(dirname "$UNHEALTHY_STAMP")"
+        [ -f "$UNHEALTHY_STAMP" ] || date +%s > "$UNHEALTHY_STAMP"
+        age=$(( $(date +%s) - $(cat "$UNHEALTHY_STAMP" 2>/dev/null || echo 0) ))
+        if [ "$age" -gt 600 ]; then
+            problems+=("unhealthy >10min: $unhealthy")
+        else
+            report+=("unhealthy: $unhealthy")
+        fi
+    else
+        rm -f "$UNHEALTHY_STAMP"
     fi
 fi
 

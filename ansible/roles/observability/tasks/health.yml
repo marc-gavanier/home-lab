@@ -1,13 +1,16 @@
 ---
-# Pi power & thermal health -> Uptime Kuma push. Undervoltage is the classic
+# Pi host health -> a single Uptime Kuma push. Undervoltage is the classic
 # silent Pi killer and the most likely cause behind an "unexplained poweroff"
 # (which the runbook answers with an SD reflash) — detecting it turns that
 # mystery into a signal. The offsite Pi already folds this check into its
 # disk-health report; this brings the same coverage to the homelab.
 # Reads the always-present kernel sensors (thermal_zone + rpi_volt hwmon), NOT
 # vcgencmd (libraspberrypi-bin is not guaranteed on Ubuntu Server arm64).
+# Disk capacity and unhealthy containers ride the same monitor on purpose:
+# Kuma v2 monitors are created by hand, so folding host-level signals into one
+# push keeps the alerting surface flat (issue #13 items 1 and 6).
 
-- name: health | Install the Pi power/thermal health-report script
+- name: health | Install the Pi host health-report script
   ansible.builtin.template:
     src: homelab-health.sh.j2
     dest: /usr/local/bin/homelab-health.sh
