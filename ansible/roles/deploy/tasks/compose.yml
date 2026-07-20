@@ -2,6 +2,12 @@
 # Docker Compose: file, networks, pull, up — via the native compose module
 # (real changed detection per container, no stderr grepping). Optional
 # targeting: -e deploy_services="svc1 svc2" limits pull/up to those services.
+#
+# CAVEAT — adding a BRAND-NEW service: targeting may not pull/create a service
+# that doesn't exist yet (the image isn't fetched, so `up` skips it silently).
+# The first time a new service is introduced, run a FULL deploy (no
+# deploy_services) or `docker compose up -d <svc>` on the host once; afterwards
+# targeted deploys keep it in sync. (Learned adding cloudflared, ADR-015.)
 
 - name: compose | Copy Docker Compose file
   ansible.builtin.copy:
