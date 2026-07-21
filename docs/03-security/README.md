@@ -44,6 +44,14 @@ Defense in depth — each layer is secured independently. If one layer falls, th
 - No `privileged` mode; explicit capabilities only where required (wg-easy:
   NET_ADMIN/SYS_MODULE; netdata: SYS_PTRACE only — SYS_ADMIN dropped, it only
   powered eBPF charts)
+- **Secrets injected as files, not environment variables** — the socket-proxy
+  still allows `GET /containers/{id}/json`, whose response carries every
+  container's `Env` array, so an env-injected password would be readable by a
+  compromised Traefik or Netdata. DB and app passwords are mounted at
+  `/run/secrets/` via each image's own convention (`*_FILE`, `FILE__*`), leaving
+  only a path in `inspect` (ADR-016). The two values still passed inline are
+  **hashes**, not plaintext (wg-easy's `PASSWORD_HASH` — no file convention
+  exists for that image)
 - **Security headers + rate-limit on every HTTPS router** — HSTS, SAMEORIGIN,
   nosniff and a per-IP rate cap applied at the Traefik entrypoint
 - Isolated Docker networks (`proxy` / `internal` / `socketproxy`); the DB tier
@@ -55,7 +63,9 @@ Defense in depth — each layer is secured independently. If one layer falls, th
 ### 4. Application
 - Strong passwords generated via Vaultwarden
 - 2FA enabled on services that support it
-- Secrets in `.env` (gitignored), never in config files
+- Secrets rendered by Ansible onto the LUKS volume (ADR-011), never in the repo:
+  service passwords as individual files consumed as Docker secrets (ADR-016),
+  the rest in `.env` (gitignored, symlinked off `/mnt/data/secrets/`)
 - **Vaultwarden hardening**: signups off; the admin panel (`/admin`) stays
   **token-protected** — an argon2-hashed `ADMIN_TOKEN`, behind vpn-only, on a
   patched version (≥1.33.0, past CVE-2025-24364). Password hints off,

@@ -32,7 +32,8 @@ pihole_password: ""
 wg_password: ""  # Max 72 chars (bcrypt limit), will be hashed by Ansible
 
 # --- Nextcloud ---
-nextcloud_admin_password: ""
+# No admin password here: the container no longer self-installs, so the admin
+# account is created once through the web installer (see ADR-016).
 nextcloud_db_password: ""
 nextcloud_db_root_password: ""
 
