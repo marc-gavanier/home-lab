@@ -62,15 +62,6 @@ argument_specs:
         required: true
         no_log: true
         description: Pi-hole admin password (enforced via the v6 API probe).
-      nextcloud_admin_user:
-        type: str
-        required: false
-        description: Nextcloud admin account name (inline default admin).
-      nextcloud_admin_password:
-        type: str
-        required: true
-        no_log: true
-        description: Nextcloud admin password (first install only).
       nextcloud_db_name:
         type: str
         required: false

@@ -11,6 +11,24 @@
 x-security-opt: &no-new-privs
   - no-new-privileges:true
 
+# Secrets injected as files rather than through `environment:` (ADR-016).
+# The socket-proxy permits GET /containers/{id}/json, and that response includes
+# every container's Env array — so an env-injected password is readable by
+# Traefik or Netdata if either is compromised. Mounted at /run/secrets/<name>,
+# only the path shows up there. Sources live on the LUKS volume (ADR-011) and
+# are rendered by the deploy role, never committed.
+secrets:
+  nextcloud_db_password:
+    file: /mnt/data/secrets/docker/nextcloud_db_password
+  nextcloud_db_root_password:
+    file: /mnt/data/secrets/docker/nextcloud_db_root_password
+  immich_db_password:
+    file: /mnt/data/secrets/docker/immich_db_password
+  transmission_password:
+    file: /mnt/data/secrets/docker/transmission_password
+  vaultwarden_admin_token_hash:
+    file: /mnt/data/secrets/docker/vaultwarden_admin_token_hash
+
 networks:
   proxy:
     external: true
@@ -187,12 +205,14 @@ services:
       nextcloud-redis:
         condition: service_started
     environment:
-      MYSQL_HOST: nextcloud-db
-      MYSQL_DATABASE: ${NEXTCLOUD_DB_NAME}
-      MYSQL_USER: ${NEXTCLOUD_DB_USER}
-      MYSQL_PASSWORD: ${NEXTCLOUD_DB_PASSWORD}
-      NEXTCLOUD_ADMIN_USER: ${NEXTCLOUD_ADMIN_USER}
-      NEXTCLOUD_ADMIN_PASSWORD: ${NEXTCLOUD_ADMIN_PASSWORD}
+      # No MYSQL_*/NEXTCLOUD_ADMIN_* here on purpose. The entrypoint reads them
+      # only inside `if [ "$installed_version" = "0.0.0.0" ]` — i.e. on a first
+      # install. This instance is installed, and its DB credentials live in
+      # config.php, so those variables were dead weight leaking the DB password
+      # into `docker inspect`. Consequence, accepted: a from-scratch deployment
+      # now goes through the Nextcloud web installer instead of self-installing.
+      # That is not the recovery path anyway — the runbook restores config.php
+      # and the data volume (knowledge/runbooks/restore-from-backup.md).
       # "nextcloud" is needed so the notify_push service can reach NEXTCLOUD_URL=http://nextcloud
       NEXTCLOUD_TRUSTED_DOMAINS: drive.${DOMAIN} nextcloud
       OVERWRITEPROTOCOL: https
@@ -236,10 +256,13 @@ services:
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
     environment:
-      MYSQL_ROOT_PASSWORD: ${NEXTCLOUD_DB_ROOT_PASSWORD}
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/nextcloud_db_root_password
       MYSQL_DATABASE: ${NEXTCLOUD_DB_NAME}
       MYSQL_USER: ${NEXTCLOUD_DB_USER}
-      MYSQL_PASSWORD: ${NEXTCLOUD_DB_PASSWORD}
+      MYSQL_PASSWORD_FILE: /run/secrets/nextcloud_db_password
+    secrets:
+      - nextcloud_db_root_password
+      - nextcloud_db_password
     volumes:
       - ${SERVICES_DATA_DIR}/nextcloud/db:/var/lib/mysql
     networks:
@@ -332,11 +355,15 @@ services:
       # patched version >=1.33.0). "Disable by default" was dropped: never use
       # DISABLE_ADMIN_TOKEN (it BYPASSES the token = opens /admin), and an empty
       # ADMIN_TOKEN did not cleanly disable the panel with a vault-rendered token.
-      ADMIN_TOKEN: ${VAULTWARDEN_ADMIN_TOKEN_HASH}
+      # Vaultwarden reads any setting from <VAR>_FILE (verified: DOMAIN_FILE
+      # produces the same validation error as DOMAIN).
+      ADMIN_TOKEN_FILE: /run/secrets/vaultwarden_admin_token_hash
       PASSWORD_HINTS_ALLOWED: "false"   # never store/serve master-password hints
       SHOW_PASSWORD_HINT: "false"       # no hint on failed login (also aids user-enum)
       DISABLE_ICON_DOWNLOAD: "true"     # no server-side favicon fetches (SSRF/egress)
       SENDS_ALLOWED: "false"            # Send file/text sharing unused — drop the surface
+    secrets:
+      - vaultwarden_admin_token_hash
     volumes:
       - ${SERVICES_DATA_DIR}/vaultwarden:/data
     networks:
@@ -426,9 +453,12 @@ services:
     environment:
       DB_HOSTNAME: immich-db
       DB_USERNAME: ${IMMICH_DB_USER}
-      DB_PASSWORD: ${IMMICH_DB_PASSWORD}
+      # start.sh exports DB_PASSWORD from this file, then unsets DB_PASSWORD_FILE
+      DB_PASSWORD_FILE: /run/secrets/immich_db_password
       DB_DATABASE_NAME: ${IMMICH_DB_NAME}
       REDIS_HOSTNAME: immich-redis
+    secrets:
+      - immich_db_password
     volumes:
       - ${SERVICES_DATA_DIR}/immich/upload:/usr/src/app/upload
       - ${MEDIA_DIR}/photos:/usr/src/app/external:ro
@@ -478,9 +508,11 @@ services:
     security_opt: *no-new-privs
     environment:
       POSTGRES_USER: ${IMMICH_DB_USER}
-      POSTGRES_PASSWORD: ${IMMICH_DB_PASSWORD}
+      POSTGRES_PASSWORD_FILE: /run/secrets/immich_db_password
       POSTGRES_DB: ${IMMICH_DB_NAME}
       DB_STORAGE_TYPE: "HDD"   # tunes VectorChord for spinning disks
+    secrets:
+      - immich_db_password
     volumes:
       - ${SERVICES_DATA_DIR}/immich/db:/var/lib/postgresql/data
     networks:
@@ -504,10 +536,15 @@ services:
       # Downloads were landing world-writable (CIS 7.1.11 finding, 2026-07)
       UMASK: "022"
       USER: ${TRANSMISSION_USER}
-      PASS: ${TRANSMISSION_PASSWORD}
+      # linuxserver convention: FILE__<VAR> is read into <VAR> at init. It does
+      # NOT strip a trailing newline (init-envfile only warns), which is why the
+      # deploy role writes the secret files without one.
+      FILE__PASS: /run/secrets/transmission_password
       PEERPORT: 51413
       HOST_WHITELIST: "127.0.0.1,*.lan,*.local,*.localhost,share.${DOMAIN}"
       WHITELIST: "127.0.0.1,172.*.*.*"
+    secrets:
+      - transmission_password
     volumes:
       - ${SERVICES_DATA_DIR}/transmission/config:/config
       - ${SERVICES_DATA_DIR}/transmission/downloads:/downloads
