@@ -28,8 +28,13 @@ append-only mode. The repo password is deliberately NOT stored on it.
    WireGuard client dials out to vpn.<domain>:51820 from any network.
 3. Verify from the homelab: `ping 10.8.0.4`, then
    `systemctl start homelab-offsite-check.service` and check Kuma goes green.
-4. Update `offsite_ip` in `host_vars/offsite/main.yml` to `10.8.0.4` (the
-   VPN IP becomes the management path) and commit.
+4. Nothing to change in the inventory: `offsite_ip` tracks `offsite_wg_ip`
+   since the 2026-07-25 move, so Ansible already manages this host through
+   the tunnel. Confirm with
+   `ansible offsite -m ping --ask-vault-pass`.
+   The override goes the *other* way now — if the Pi ever comes home for
+   maintenance, or is reflashed before its WireGuard config exists, reach it
+   on the LAN for that run only: `-e offsite_ip=<lan_ip>`.
 
 ## If the offsite Pi is stolen
 
