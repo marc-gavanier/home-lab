@@ -23,9 +23,12 @@ gpio_fan_pin: 14
 gpio_fan_temp: 60
 
 # --- Connection ---
-# LAN IP during preparation. After the move, point this at the WireGuard IP
-# (offsite_wg_ip) — the tunnel is the permanent management path.
-offsite_ip: "192.168.1.138"
+# The Pi moved to its offsite location on 2026-07-25, so the tunnel is now the
+# permanent management path — there is no LAN route to this host any more.
+# Only revert to a LAN IP (192.168.1.138 was the preparation one) if the Pi
+# comes back home for maintenance, or to bootstrap a fresh flash before its
+# WireGuard client config is installed.
+offsite_ip: "{{ offsite_wg_ip }}"
 
 # --- WireGuard ---
 offsite_wg_ip: "10.8.0.4" # Assigned by wg-easy to the offsite-backup client
