@@ -757,12 +757,19 @@ services:
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
-    cap_add:
-      # Runs as root while /etc/searxng holds an Ansible-rendered settings file
-      # owned by the host user, and the entrypoint rewrites it at start.
-      - DAC_OVERRIDE
     volumes:
-      - ./configs/searxng:/etc/searxng
+      # The settings file itself, not the directory around it: a symlink inside a
+      # bind-mounted directory is resolved in the container's namespace, so the
+      # previous ./configs/searxng mount left SearXNG with a dangling link, a
+      # stub config and a secret_key regenerated at every start (issue #27).
+      # Read-only, 0444 root, from the LUKS secrets dir — same reasoning as the
+      # Docker secrets in ADR-016, since this file embeds secret_key.
+      # The image declares VOLUME /etc/searxng, so the directory itself is an
+      # anonymous volume and this file is mounted on top of it. Consequence when
+      # changing this line: Compose carries the previous mount over on recreate,
+      # so the container must be *removed*, not recreated — see
+      # knowledge/runbooks/container-config-changes.md.
+      - /mnt/data/secrets/docker/searxng_settings:/etc/searxng/settings.yml:ro
       # Gerbier branding: recoloured stylesheet (+ optional logo) overlaid on the
       # stock theme, built by the deploy role (docker/branding/searxng). Read-only.
       - ./branding/searxng/out/sxng-ltr.min.css:/usr/local/searxng/searx/static/themes/simple/sxng-ltr.min.css:ro

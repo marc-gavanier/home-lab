@@ -28,10 +28,20 @@ docs are unchanged:
 |---------------------------------------------|------------------------------------------|
 | `/opt/homelab/.env`                         | `/mnt/data/secrets/homelab.env`          |
 | `/opt/homelab/backup.env`                   | `/mnt/data/secrets/backup.env`           |
-| `/opt/homelab/configs/searxng/settings.yml` | `/mnt/data/secrets/searxng-settings.yml` |
+| ~~`/opt/homelab/configs/searxng/settings.yml`~~ (see note) | `/mnt/data/secrets/docker/searxng_settings` |
 | `/etc/wireguard/wg0.conf`                   | `/mnt/data/secrets/wg0.conf`             |
 | claude rclone config                        | `/mnt/data/secrets/claude/rclone.conf`   |
 | operator rclone config (`RCLONE_CONFIG`)    | `/mnt/data/secrets/<user>/rclone.conf`   |
+
+> **Note (2026-07-27, issue #27)** — the SearXNG row is the one case where a
+> symlink could not work, and it is worth stating as a limit of this decision.
+> Every other entry here is resolved **host-side** (Ansible, systemd, or Compose
+> reading `.env`). SearXNG's settings live inside a bind-mounted *directory*, so
+> the container resolved the link in its own namespace, found nothing, and wrote
+> a stub over it. That file is now bind-mounted directly, 0444 in the
+> `/mnt/data/secrets/docker/` directory the Docker secrets use (ADR-016). The
+> rule: a symlink is fine for host-side consumers, never for a path a container
+> reads through a directory mount.
 
 Units that consume these files are gated on the volume
 (`RequiresMountsFor=/mnt/data`) and, when they must start at unlock rather
