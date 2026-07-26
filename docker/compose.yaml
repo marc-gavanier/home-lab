@@ -11,6 +11,15 @@
 x-security-opt: &no-new-privs
   - no-new-privileges:true
 
+# Dropped from every service (aliased in each block): Docker's default set is 14
+# capabilities handed to every container regardless of need — CHOWN, SETUID,
+# SETGID, DAC_OVERRIDE, FOWNER, MKNOD, NET_RAW, KILL, AUDIT_WRITE and more. Most
+# images here touch none of them. Each block re-adds only what its own image was
+# observed to need, with a comment saying which behaviour requires it; anything
+# not listed there was verified absent, not assumed (issue #24).
+x-cap-drop: &cap-drop-all
+  - ALL
+
 # Secrets injected as files rather than through `environment:` (ADR-016).
 # The socket-proxy permits GET /containers/{id}/json, and that response includes
 # every container's Env array — so an env-injected password is readable by
@@ -58,6 +67,7 @@ services:
     container_name: socket-proxy
     restart: unless-stopped   # Tier 0: Traefik depends on it at boot
     security_opt: *no-new-privs
+    cap_drop: *cap-drop-all
     environment:
       CONTAINERS: 1   # Traefik reads the container list; EVENTS/PING default on
       POST: 0         # deny all writes (default, made explicit)
@@ -85,6 +95,16 @@ services:
     container_name: traefik
     restart: unless-stopped   # Tier 0: auto-start at boot (see stack-startup role)
     security_opt: *no-new-privs
+    cap_drop: *cap-drop-all
+    cap_add:
+      # Binds :80 and :443 inside the container.
+      - NET_BIND_SERVICE
+      # Reads traefik.yml and the dynamic dir, which Ansible renders 0640
+      # <user>:docker inside 0750 directories, while the process runs as root:
+      # without this it dies in a restart loop on "permission denied" (measured).
+      # The read-only override is enough — acme.json is root-owned, so the ACME
+      # store rewrites it in place with no directory write involved.
+      - DAC_READ_SEARCH
     environment:
       # Scoped Cloudflare token for the ACME DNS-01 challenge (ADR-014), as a
       # file so it stays out of `docker inspect` (ADR-016). lego — which drives
@@ -124,6 +144,30 @@ services:
     container_name: pihole
     restart: unless-stopped   # Tier 0: auto-start at boot (see stack-startup role)
     security_opt: *no-new-privs
+    cap_drop: *cap-drop-all
+    cap_add:
+      # FTL binds :53 (and :80/:443 for the UI), sets its own scheduling
+      # priority, chowns its logs/database when started as pihole rather
+      # than root, and switches to uid 1000 to run. NET_ADMIN/SYS_TIME are
+      # deliberately absent: the docs tie both to DHCP and embedded NTP,
+      # and pihole.toml has dhcp.active = false.
+      - NET_BIND_SERVICE
+      - CHOWN
+      - SETUID
+      - SETGID
+      - SYS_NICE
+      # The image runs `setcap` on the pihole-FTL binary so FTL can serve :53 as
+      # uid 1000 instead of root. Without SETFCAP that step fails hard — "Unable
+      # to set capabilities for pihole-FTL. Cannot run as non-root" — and the
+      # container exits in 6 s. The documented alternative (DNSMASQ_USER=root)
+      # would trade this capability for running the resolver as root; refused.
+      - SETFCAP
+      # start.sh runs as root over an /etc/pihole owned by uid 1000: it writes
+      # `versions` and chmods the tree. Without these two the container still
+      # resolves, but starts degraded with a run of "Permission denied" and
+      # "Operation not permitted" — a half-configured state, not a clean one.
+      - DAC_OVERRIDE
+      - FOWNER
     ports:
       - "53:53/tcp"
       - "53:53/udp"
@@ -169,6 +213,7 @@ services:
     container_name: cloudflared
     restart: unless-stopped   # Tier 0: Pi-hole's only upstream — must stay up
     security_opt: *no-new-privs
+    cap_drop: *cap-drop-all
     network_mode: "service:pihole"   # share Pi-hole's netns → reachable at 127.0.0.1#5053
     command: proxy-dns
     environment:
@@ -184,9 +229,23 @@ services:
     container_name: wg-easy
     restart: unless-stopped   # Tier 0: auto-start at boot (see stack-startup role)
     security_opt: *no-new-privs
+    cap_drop: *cap-drop-all
     cap_add:
       - NET_ADMIN
       - SYS_MODULE
+      # wg-quick shells out to iptables for the NAT/forward rules, and iptables
+      # opens a raw socket to talk to netfilter. Without NET_RAW it fails with
+      # "can't initialize iptables table `nat': Permission denied", wg-quick
+      # exits 3 and the container crash-loops — the VPN and the offsite link
+      # with it. Verified in a sandbox: with NET_RAW, wg0 comes up in 5 s and
+      # the MASQUERADE rule is installed.
+      #
+      # No DAC_OVERRIDE on purpose, with a caveat: /mnt/data/services/wireguard
+      # is owned by the host user while wg0.conf/wg0.json inside it are root's,
+      # so the in-place rewrites wg-easy performs when clients change do work
+      # (measured), but creating a *new* file there would be denied. Chowning
+      # that directory to root would remove the caveat without a capability.
+      - NET_RAW
     sysctls:
       - net.ipv4.conf.all.src_valid_mark=1
       - net.ipv4.ip_forward=1
@@ -219,6 +278,16 @@ services:
     container_name: nextcloud
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
+    cap_drop: *cap-drop-all
+    cap_add:
+      # Apache binds :80 then drops to www-data (uid 33), and the entrypoint
+      # fixes ownership of config/ and data/ on every start.
+      - NET_BIND_SERVICE
+      - CHOWN
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
+      - FOWNER
     depends_on:
       nextcloud-db:
         condition: service_healthy
@@ -275,6 +344,15 @@ services:
     container_name: nextcloud-db
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
+    cap_drop: *cap-drop-all
+    cap_add:
+      # The mariadb entrypoint starts as root, chowns the datadir, then
+      # execs the server as mysql (uid 999).
+      - CHOWN
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
+      - FOWNER
     environment:
       MYSQL_ROOT_PASSWORD_FILE: /run/secrets/nextcloud_db_root_password
       MYSQL_DATABASE: ${NEXTCLOUD_DB_NAME}
@@ -298,6 +376,12 @@ services:
     container_name: nextcloud-redis
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
+    cap_drop: *cap-drop-all
+    cap_add:
+      # Same gosu hand-off as the DB, on a much smaller data dir.
+      - CHOWN
+      - SETUID
+      - SETGID
     networks:
       - internal
     healthcheck:
@@ -313,6 +397,11 @@ services:
     container_name: nextcloud-cron
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
+    cap_drop: *cap-drop-all
+    cap_add:
+      # busybox crond runs the cron job as www-data.
+      - SETUID
+      - SETGID
     entrypoint: /cron.sh
     depends_on:
       nextcloud-db:
@@ -331,6 +420,11 @@ services:
     container_name: nextcloud-notify-push
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
+    cap_drop: *cap-drop-all
+    cap_add:
+      # Only *reads* Nextcloud's config.php, owned by www-data — the narrower
+      # read/traverse override is enough, no write bypass needed.
+      - DAC_READ_SEARCH
     depends_on:
       nextcloud-db:
         condition: service_healthy
@@ -368,6 +462,10 @@ services:
     container_name: vaultwarden
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
+    cap_drop: *cap-drop-all
+    cap_add:
+      # Binds :80 inside the container (Traefik terminates TLS).
+      - NET_BIND_SERVICE
     environment:
       DOMAIN: https://vault.${DOMAIN}
       SIGNUPS_ALLOWED: ${VAULTWARDEN_SIGNUPS_ALLOWED:-false}
@@ -409,6 +507,11 @@ services:
     container_name: jellyfin
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
+    cap_drop: *cap-drop-all
+    cap_add:
+      # Writes its marker files into a /config tree owned by the host user
+      # (sanity check at startup) while running as root.
+      - DAC_OVERRIDE
     environment:
       JELLYFIN_PublishedServerUrl: https://videos.${DOMAIN}
     volumes:
@@ -436,6 +539,11 @@ services:
     container_name: navidrome
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
+    cap_drop: *cap-drop-all
+    cap_add:
+      # SQLite needs to create its WAL/journal beside the database, in a
+      # directory owned by the host user while the process runs as root.
+      - DAC_OVERRIDE
     environment:
       ND_SCANSCHEDULE: 1h
       ND_LOGLEVEL: info
@@ -465,6 +573,7 @@ services:
     container_name: immich-server
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
+    cap_drop: *cap-drop-all
     depends_on:
       immich-db:
         condition: service_healthy
@@ -498,6 +607,7 @@ services:
     container_name: immich-ml
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
+    cap_drop: *cap-drop-all
     volumes:
       - ${SERVICES_DATA_DIR}/immich/ml-cache:/cache
     networks:
@@ -508,6 +618,12 @@ services:
     container_name: immich-redis
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
+    cap_drop: *cap-drop-all
+    cap_add:
+      # Same gosu hand-off as the DB, on a much smaller data dir.
+      - CHOWN
+      - SETUID
+      - SETGID
     networks:
       - internal
     healthcheck:
@@ -526,6 +642,14 @@ services:
     container_name: immich-db
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
+    cap_drop: *cap-drop-all
+    cap_add:
+      # Same pattern as nextcloud-db: root entrypoint, then postgres.
+      - CHOWN
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
+      - FOWNER
     environment:
       POSTGRES_USER: ${IMMICH_DB_USER}
       POSTGRES_PASSWORD_FILE: /run/secrets/immich_db_password
@@ -549,6 +673,15 @@ services:
     container_name: transmission
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
+    cap_drop: *cap-drop-all
+    cap_add:
+      # linuxserver s6 init chowns the config tree and drops to abc
+      # (uid 1000) — PUID/PGID is exactly this mechanism.
+      - CHOWN
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
+      - FOWNER
     environment:
       PUID: ${PUID}
       PGID: ${PGID}
@@ -596,6 +729,14 @@ services:
     container_name: uptime-kuma
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
+    cap_drop: *cap-drop-all
+    cap_add:
+      # Kuma spawns /usr/bin/ping, which carries cap_net_raw=ep as a file
+      # capability. Under cap_drop ALL that capability is outside the bounding
+      # set, so the exec itself fails and every ping-type monitor reports
+      # "spawn EPERM" — while the container stays healthy and the web UI keeps
+      # answering. Found by the monitoring, not by an HTTP probe.
+      - NET_RAW
     dns:
       - ${PI_LAN_IP}
     volumes:
@@ -615,6 +756,11 @@ services:
     container_name: searxng
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
+    cap_drop: *cap-drop-all
+    cap_add:
+      # Runs as root while /etc/searxng holds an Ansible-rendered settings file
+      # owned by the host user, and the entrypoint rewrites it at start.
+      - DAC_OVERRIDE
     volumes:
       - ./configs/searxng:/etc/searxng
       # Gerbier branding: recoloured stylesheet (+ optional logo) overlaid on the

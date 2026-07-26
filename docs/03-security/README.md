@@ -41,9 +41,25 @@ Defense in depth — each layer is secured independently. If one layer falls, th
   through a read-only `docker-socket-proxy` (CONTAINERS read-only, POST denied,
   on an internal-only network), so a container RCE can't pivot to host root via
   the socket. (Netdata uses it solely to resolve container names.)
-- No `privileged` mode; explicit capabilities only where required (wg-easy:
-  NET_ADMIN/SYS_MODULE; netdata: SYS_PTRACE only — SYS_ADMIN dropped, it only
-  powered eBPF charts)
+- No `privileged` mode, and **`cap_drop: ALL` on every service**, each re-adding
+  only what its image was *observed* to need (issue #24). Docker hands 14
+  capabilities to every container by default; six services keep none at all.
+  What the exercise showed is that the requirement is rarely guessable from the
+  outside: Pi-hole needs `SETFCAP` because its image `setcap`s the FTL binary in
+  order to run the resolver as non-root, wg-easy needs `NET_RAW` because
+  `wg-quick` shells out to `iptables`, which opens a raw socket, and Uptime Kuma
+  needs `NET_RAW` because the `ping` binary carries `cap_net_raw` as a file
+  capability — without it the exec fails and every ping monitor reports
+  "spawn EPERM" while the container stays healthy and its UI keeps answering.
+  Each cap in `compose.yaml` carries a comment naming the behaviour that needs
+  it. Netdata is the one service still on the default set (SYS_PTRACE added),
+  pending a check that dropping the rest leaves its plugins intact.
+- **`DAC_OVERRIDE` is the recurring exception**, and it says something worth
+  knowing: several containers run as root over data directories owned by the
+  host user, so root was quietly relying on that capability to read and write
+  them. Where only reads are involved the narrower `DAC_READ_SEARCH` is used
+  instead (Traefik's config, Nextcloud's push service). Chowning those trees to
+  the uid the container actually runs as would let the last ones go.
 - **Secrets injected as files, not environment variables** — the socket-proxy
   still allows `GET /containers/{id}/json`, whose response carries every
   container's `Env` array, so an env-injected password would be readable by a
