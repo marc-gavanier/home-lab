@@ -166,6 +166,13 @@ Host homelab
     User pi
     Port <ssh_port_hardened>   # the port set in your vaulted local.yml
     IdentityFile ~/.ssh/id_ed25519
+
+Host offsite
+    HostName 10.8.0.4          # WireGuard IP — the offsite Pi has no LAN route
+    User pi
+    Port <ssh_port_hardened>
+    IdentityFile ~/.ssh/id_ed25519
+    ProxyJump homelab          # only the homelab holds the tunnel peer identity
 EOF
 chmod 600 ~/.ssh/config
 ```
@@ -173,7 +180,12 @@ chmod 600 ~/.ssh/config
 Then connect with just:
 ```bash
 ssh homelab
+ssh offsite    # jumps through homelab; needs homelab-unlock done first
 ```
+
+The `offsite` alias only applies once the backup Pi lives at its remote
+location — see [offsite backup runbook](../../knowledge/runbooks/offsite-backup.md)
+for why the tunnel is the only management path and what a refused jump means.
 
 ## Step 9 — Post-Reboot Unlock
 

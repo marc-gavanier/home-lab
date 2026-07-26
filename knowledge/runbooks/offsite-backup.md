@@ -20,9 +20,36 @@ append-only mode. The repo password is deliberately NOT stored on it.
   self-test (the drive scans its own surface); result read by the Sunday
   health report.
 
+## Management access (SSH)
+
+Since the 2026-07-25 move the tunnel is the only way in: the LAN IP the Pi was
+prepared on no longer routes, and the Pi dials out rather than accepting an
+inbound connection. Reach it through the homelab, which holds the peer
+identity (`homelab-host`, 10.8.0.5):
+
+```bash
+ssh -J homelab -p <ssh_port_hardened> <admin_user>@10.8.0.4
+```
+
+Worth a workstation alias — `~/.ssh/config`:
+
+```
+Host offsite
+    HostName 10.8.0.4
+    User <admin_user>
+    Port <ssh_port_hardened>
+    IdentityFile ~/.ssh/id_ed25519
+    ProxyJump homelab
+```
+
+The jump only works once the homelab has been unlocked: its `wg-quick@wg0`
+config lives on the encrypted volume, so the tunnel is pulled in by
+`mnt-data.mount`, not at boot. A refused jump right after a homelab reboot
+means `homelab-unlock` is still pending, not that the offsite Pi is down.
+
 ## Moving day checklist (installing at the relative's home)
 
-1. Shut down cleanly: `ssh -p <ssh_port_hardened> backup sudo poweroff` (no USB tamper on
+1. Shut down cleanly: `ssh offsite sudo poweroff` (no USB tamper on
    this host; unplugging is safe once halted).
 2. At the relative's home: plug ethernet + power. Nothing to configure — the
    WireGuard client dials out to vpn.<domain>:51820 from any network.
@@ -31,7 +58,10 @@ append-only mode. The repo password is deliberately NOT stored on it.
 4. Nothing to change in the inventory: `offsite_ip` tracks `offsite_wg_ip`
    since the 2026-07-25 move, so Ansible already manages this host through
    the tunnel. Confirm with
-   `ansible offsite -m ping --ask-vault-pass`.
+   `cd ansible && ansible offsite -m ping --ask-vault-pass` — the `cd` matters,
+   `ansible.cfg` points at `inventory/hosts.yml` relatively, so from anywhere
+   else Ansible parses no inventory and just warns that the host pattern
+   matched nothing.
    The override goes the *other* way now — if the Pi ever comes home for
    maintenance, or is reflashed before its WireGuard config exists, reach it
    on the LAN for that run only: `-e offsite_ip=<lan_ip>`.
