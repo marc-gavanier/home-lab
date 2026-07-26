@@ -48,8 +48,17 @@ that netdata ships `/usr/bin/fping` with `cap_net_raw`.
 Several containers run as root over data directories owned by the host user
 (uid 1000, created by Ansible), so root was silently relying on `DAC_OVERRIDE`
 to read and write them. Removing it surfaced the dependency: jellyfin fails its
-startup sanity check, navidrome reports a read-only database, searxng cannot
-rewrite its settings, Traefik cannot read its own 0640 config and restart-loops.
+startup sanity check, navidrome reports a read-only database, Traefik cannot
+read its own 0640 config and restart-loops.
+
+SearXNG was in that list until the reason it rewrote its settings turned out to
+be a defect rather than a requirement (issue #27): a symlink inside a
+bind-mounted directory is resolved in the container's namespace, so the instance
+saw no settings and generated a stub over the link. Mounting the file itself,
+0444 from the LUKS secrets directory, removed both the rewrite and the need for
+any capability — searxng now runs with none. Worth noting as the general shape:
+a capability that looks required can be the symptom of a broken assumption
+somewhere else.
 
 Where only reads are involved, the narrower `DAC_READ_SEARCH` is used instead —
 Traefik's config and Nextcloud's push service, whose six self-tests pass with
@@ -64,8 +73,8 @@ would be denied.
 ## Consequences
 
 **Positive**
-- Six services hold no capabilities at all; the rest hold between one and eight
-  instead of fourteen. `NET_RAW` (packet spoofing/sniffing), `MKNOD`,
+- Five of the twenty services hold no capabilities at all; the rest hold between
+  one and eight instead of fourteen. `NET_RAW` (packet spoofing/sniffing), `MKNOD`,
   `SYS_CHROOT`, `SETPCAP` and `AUDIT_WRITE` are gone wherever unused.
 - Every remaining capability is now a documented, justified line rather than an
   invisible default — a new service starts from zero and has to earn each one.
@@ -77,8 +86,9 @@ would be denied.
 - Image updates can change the requirement (a new binary with file
   capabilities, an entrypoint that starts chowning). The file-capability sweep
   is the cheap regression check.
-- `DAC_OVERRIDE` survives on six services, which limits the gain there: it is
-  the capability that makes root's file access unconditional.
+- `DAC_OVERRIDE` survives on seven services, which limits the gain there: it is
+  the capability that makes root's file access unconditional. Two more make do
+  with `DAC_READ_SEARCH`.
 
 **Learned the hard way**
 Applying the change to wg-easy against the live container left the VPN — and the

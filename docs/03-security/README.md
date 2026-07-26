@@ -43,7 +43,7 @@ Defense in depth — each layer is secured independently. If one layer falls, th
   the socket. (Netdata uses it solely to resolve container names.)
 - No `privileged` mode, and **`cap_drop: ALL` on every service**, each re-adding
   only what its image was *observed* to need (issue #24). Docker hands 14
-  capabilities to every container by default; six services keep none at all.
+  capabilities to every container by default; five of the twenty keep none at all.
   What the exercise showed is that the requirement is rarely guessable from the
   outside: Pi-hole needs `SETFCAP` because its image `setcap`s the FTL binary in
   order to run the resolver as non-root, wg-easy needs `NET_RAW` because
@@ -62,7 +62,9 @@ Defense in depth — each layer is secured independently. If one layer falls, th
   host user, so root was quietly relying on that capability to read and write
   them. Where only reads are involved the narrower `DAC_READ_SEARCH` is used
   instead (Traefik's config, Nextcloud's push service). Chowning those trees to
-  the uid the container actually runs as would let the last ones go.
+  the uid the container actually runs as would let the last ones go — SearXNG
+  proved the point: its grant disappeared once its settings stopped being a
+  symlink it could not read (issue #27), and it now holds no capability at all.
 - **Secrets injected as files, not environment variables** — the socket-proxy
   still allows `GET /containers/{id}/json`, whose response carries every
   container's `Env` array, so an env-injected password would be readable by a

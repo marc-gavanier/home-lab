@@ -74,6 +74,14 @@ The directory and the files carry deliberately opposite intents:
   bind mount lands at `/run/secrets/<name>` whose parent directories are inside
   the container, where the host directory mode no longer applies.
 
+**A symlink is not a substitute for a mount.** ADR-011 routes credential files
+through `/opt/homelab` symlinks into `/mnt/data/secrets`, and that works because
+those links are resolved *host-side* — by Ansible, systemd, and Compose reading
+`.env`. A file inside a bind-mounted **directory** is the exception: the
+container resolves it, and `/mnt/data/secrets` does not exist there. SearXNG hit
+exactly this and ran for weeks on a self-generated stub (issue #27). Anything a
+container must read is bind-mounted as a file, or mounted as a secret.
+
 Files are written **without a trailing newline**. The linuxserver
 `init-envfile` script passes content through verbatim and only *warns* that a
 trailing newline "may not work as expected"; mariadb, postgres and Immich all

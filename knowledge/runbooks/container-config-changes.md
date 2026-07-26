@@ -75,7 +75,34 @@ the service *does* beyond answering.
    Currently: `pihole-FTL` (chown, net_bind_service, sys_nice), `ping` in
    uptime-kuma and `fping` in netdata (net_raw).
 
-5. **Leave the Pi's file consistent with the running state.** `docker compose`
+5. **If the image declares `VOLUME` at the path you are changing, `up -d` is not
+   enough.** Compose carries mounts for image-declared volume paths over from
+   the previous container when it recreates, so a mount you *removed* from
+   `compose.yaml` can survive in the running container. It then fails the moment
+   the old source disappears:
+
+   ```
+   invalid mount config for type "bind": bind source path does not exist: ...
+   ```
+
+   Measured on SearXNG, whose image declares `VOLUME /etc/searxng`: the
+   directory mount was replaced by a file mount in `compose.yaml`, the container
+   was recreated and *still* carried the old bind, and once Ansible removed that
+   directory both `--force-recreate` and `docker restart` failed — the service
+   went down at the restart, not at the change. Check the image first, and
+   delete the container rather than recreating it:
+
+   ```bash
+   docker image inspect <image> --format '{{json .Config.Volumes}}'
+   docker rm -f <svc> && docker compose up -d <svc>
+   ```
+
+   Then `docker inspect <svc> --format '{{range .Mounts}}...'` to confirm what
+   the container actually got, and restart it once to prove the mount survives.
+   Each such recreation leaves the previous anonymous volume dangling
+   (`docker volume ls -f dangling=true`).
+
+6. **Leave the Pi's file consistent with the running state.** `docker compose`
    reads `/opt/homelab/compose.yaml`; if a container was rolled back but the file
    still holds the broken definition, the next `up` — from the heal timer, a
    reboot, or an Ansible deploy — reintroduces the failure. Ansible re-templates

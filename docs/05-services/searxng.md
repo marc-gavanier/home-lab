@@ -28,11 +28,16 @@ Private metasearch engine — your own aggregator over Google/Bing/DuckDuckGo…
 
 ## Data
 
-| Path                                        | Content                                          |
-|---------------------------------------------|--------------------------------------------------|
-| `/opt/homelab/configs/searxng/settings.yml` | Config, templated by Ansible (holds `secret_key`) |
+| Path                                        | Content                                           |
+|---------------------------------------------|---------------------------------------------------|
+| `/mnt/data/secrets/docker/searxng_settings` | Config, templated by Ansible (holds `secret_key`) |
 
-Otherwise stateless — no database. The config lives under `/opt/homelab` (backed up).
+Otherwise stateless — no database. The config lives on the LUKS volume, mounted
+read-only into the container at `/etc/searxng/settings.yml`, and is covered by
+the backup (`/mnt/data/secrets` is in the restic set). It is **not** a symlink
+from `/opt/homelab`: a symlink inside a bind-mounted directory is resolved in
+the container's namespace, where `/mnt/data/secrets` does not exist — which is
+how this instance spent weeks on a self-generated stub config (issue #27).
 
 ## Restore
 
