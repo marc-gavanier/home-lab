@@ -1,7 +1,9 @@
 # ADR-016 — Container secrets as files, not environment variables
 
 **Date**: 2026-07-21
-**Status**: accepted (deployment pending on-Pi validation)
+**Status**: accepted — deployed and validated on the Pi (no plaintext left in
+any container's `Config.Env`, MariaDB / Immich Postgres / Transmission RPC all
+authenticating from the mounted secrets, reconverge `changed=0`)
 
 ## Context
 
@@ -41,9 +43,21 @@ Support was **verified per image** rather than assumed, since the images differ:
 `config.php`, so those variables were dead weight that leaked the DB password.
 Deleting them beats converting them.
 
-Two secrets deliberately remain in `environment:`, and both are **hashes, not
-plaintext**: wg-easy's `PASSWORD_HASH` (the image supports no file convention —
-verified) and — before this change — Vaultwarden's Argon2 token, now moved.
+### What stays in `environment:`
+
+| Variable | Why | Exposure |
+|----------|-----|----------|
+| `PASSWORD_HASH` (wg-easy) | v14 reads `process.env.PASSWORD_HASH` with no file fallback — verified in `src/config.js` at tag `v14.0.0` | a bcrypt hash, so offline-crackable at best, not replayable |
+| `CF_DNS_API_TOKEN` (Traefik) | **not** a support limit: lego documents the `_FILE` suffix for every Cloudflare variable. Deferred to issue #23 because verifying it means exercising a real DNS-01 challenge, and this ADR only claims what was verified | plaintext token, `Zone:DNS:Edit` — the largest remaining item on the container layer |
+
+Vaultwarden's Argon2 token was in this category before this change; it now
+mounts as a secret, since the image does honour `<VAR>_FILE`.
+
+Two variables were dropped from the rendered env file rather than converted,
+because nothing ever read them: `PIHOLE_PASSWORD` (the Pi-hole password reaches
+the container through `pihole setpassword`, so rendering it only copied the
+secret into one more file) and `TRAEFIK_ACME_EMAIL` (the address is templated
+into `traefik.yml`, not passed through Compose).
 
 ### File modes
 
@@ -66,8 +80,10 @@ strip it. No-newline is the single form that satisfies every consumer.
 **Positive**
 - No plaintext service password is reachable through the socket-proxy's
   inspect endpoint.
-- The passwords also leave `docker/.env` entirely — Ansible renders the secret
-  files straight from the vault — so one fewer file aggregates every credential.
+- The service passwords also leave `docker/.env` entirely — Ansible renders the
+  secret files straight from the vault — so no single file aggregates every
+  credential any more. What remains there is the wg-easy hash and the
+  Cloudflare token (issue #23), not a password set.
 - Adding a service with a secret now has an obvious, uniform pattern.
 
 **Negative / cost**
@@ -94,3 +110,8 @@ strip it. No-newline is the single form that satisfies every consumer.
 
 ADR-011 (secrets off the SD card on LUKS), PR #10 (container runtime
 hardening), issue #11, `docs/03-security/`.
+
+Follow-ups left open by this decision: issue #23 (move `CF_DNS_API_TOKEN` to
+`CF_DNS_API_TOKEN_FILE`), issue #24 (`cap_drop: ALL` per service), issue #25
+(Kuma monitor on the socket-proxy — the component whose failure would otherwise
+surface as a diffuse multi-service outage).
