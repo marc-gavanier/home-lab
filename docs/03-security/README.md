@@ -49,11 +49,11 @@ Defense in depth — each layer is secured independently. If one layer falls, th
   container's `Env` array, so an env-injected password would be readable by a
   compromised Traefik or Netdata. DB and app passwords are mounted at
   `/run/secrets/` via each image's own convention (`*_FILE`, `FILE__*`), leaving
-  only a path in `inspect` (ADR-016). Two values are still passed inline:
-  wg-easy's `PASSWORD_HASH`, a bcrypt hash and unavoidable (v14 reads
-  `process.env` with no file fallback), and Traefik's `CF_DNS_API_TOKEN`, which
-  *is* plaintext and remains the largest item left on this layer — lego supports
-  `CF_DNS_API_TOKEN_FILE`, tracked in issue #23
+  only a path in `inspect` (ADR-016). This covers the Cloudflare DNS-01 token
+  too — a `Zone:DNS:Edit` token being worth more than any DB password, since
+  DNS control means issuing certificates. One value is still passed inline:
+  wg-easy's `PASSWORD_HASH`, a bcrypt hash, unavoidable (v14 reads
+  `process.env` with no file fallback)
 - **Security headers + rate-limit on every HTTPS router** — HSTS, SAMEORIGIN,
   nosniff and a per-IP rate cap applied at the Traefik entrypoint
 - Isolated Docker networks (`proxy` / `internal` / `socketproxy`); the DB tier

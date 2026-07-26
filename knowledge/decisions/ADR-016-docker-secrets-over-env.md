@@ -36,6 +36,7 @@ Support was **verified per image** rather than assumed, since the images differ:
 | `immich-server` | `DB_PASSWORD_FILE` | `read_file_and_export` in `start.sh` (also `unset`s the `_FILE` var) |
 | `linuxserver/transmission` | `FILE__PASS` | `init-envfile` s6 script |
 | `vaultwarden` | `<VAR>_FILE` | empirically: `DOMAIN_FILE` yields the same validation error as `DOMAIN` |
+| `traefik` | `CF_DNS_API_TOKEN_FILE` | lego (embedded) documents a `_FILE` suffix on every provider variable; confirmed by a real DNS-01 issuance |
 
 **Nextcloud's own container gets no secret at all.** Its entrypoint reads
 `MYSQL_*` and `NEXTCLOUD_ADMIN_*` only inside `if [ "$installed_version" =
@@ -45,13 +46,16 @@ Deleting them beats converting them.
 
 ### What stays in `environment:`
 
-| Variable | Why | Exposure |
-|----------|-----|----------|
-| `PASSWORD_HASH` (wg-easy) | v14 reads `process.env.PASSWORD_HASH` with no file fallback — verified in `src/config.js` at tag `v14.0.0` | a bcrypt hash, so offline-crackable at best, not replayable |
-| `CF_DNS_API_TOKEN` (Traefik) | **not** a support limit: lego documents the `_FILE` suffix for every Cloudflare variable. Deferred to issue #23 because verifying it means exercising a real DNS-01 challenge, and this ADR only claims what was verified | plaintext token, `Zone:DNS:Edit` — the largest remaining item on the container layer |
+One value only: wg-easy's `PASSWORD_HASH`. v14 reads
+`process.env.PASSWORD_HASH` with no file fallback (verified in `src/config.js`
+at tag `v14.0.0`), so no file convention exists to use. It is a bcrypt hash —
+offline-crackable at best, not replayable — which is why the residual risk is
+accepted rather than worked around with a wrapper entrypoint.
 
-Vaultwarden's Argon2 token was in this category before this change; it now
-mounts as a secret, since the image does honour `<VAR>_FILE`.
+Vaultwarden's Argon2 token and Traefik's Cloudflare token were both in this
+category earlier; both now mount as secrets. The Cloudflare one mattered most:
+a `Zone:DNS:Edit` token is worth more to an attacker than any database password
+here, since DNS control means issuing certificates for the domain.
 
 Two variables were dropped from the rendered env file rather than converted,
 because nothing ever read them: `PIHOLE_PASSWORD` (the Pi-hole password reaches
@@ -82,8 +86,7 @@ strip it. No-newline is the single form that satisfies every consumer.
   inspect endpoint.
 - The service passwords also leave `docker/.env` entirely — Ansible renders the
   secret files straight from the vault — so no single file aggregates every
-  credential any more. What remains there is the wg-easy hash and the
-  Cloudflare token (issue #23), not a password set.
+  credential any more. The wg-easy bcrypt hash is all that remains there.
 - Adding a service with a secret now has an obvious, uniform pattern.
 
 **Negative / cost**
@@ -111,7 +114,7 @@ strip it. No-newline is the single form that satisfies every consumer.
 ADR-011 (secrets off the SD card on LUKS), PR #10 (container runtime
 hardening), issue #11, `docs/03-security/`.
 
-Follow-ups left open by this decision: issue #23 (move `CF_DNS_API_TOKEN` to
-`CF_DNS_API_TOKEN_FILE`), issue #24 (`cap_drop: ALL` per service), issue #25
-(Kuma monitor on the socket-proxy — the component whose failure would otherwise
-surface as a diffuse multi-service outage).
+Follow-ups left open by this decision: issue #24 (`cap_drop: ALL` per service)
+and issue #25 (Kuma monitor on the socket-proxy — the component whose failure
+would otherwise surface as a diffuse multi-service outage). Issue #23 (the
+Cloudflare token) is closed by this change.
