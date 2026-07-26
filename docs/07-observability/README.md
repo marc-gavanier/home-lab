@@ -61,6 +61,16 @@ containers that *exited* — one that stays up while failing its healthcheck
 (notably `nextcloud-notify-push`, whose death silently kills mobile push)
 would otherwise be invisible.
 
+That last alert only reaches containers that *declare* a healthcheck, so a
+missing one is a blind spot rather than a green light. `socket-proxy` was one,
+and its failure is invisible without help: freezing HAProxy inside it was
+measured to leave Traefik answering 200 from its in-memory routes, so no page
+breaks — Traefik has merely gone blind to container changes, and would come up
+with an empty routing table whenever it next restarts. The check flips to
+unhealthy ~105 s after the proxy stops answering. It probes `/_ping` through
+the proxy rather than testing the port, since a HAProxy still listening but no
+longer reaching the Docker socket would pass a port test.
+
 A weekly Lynis run pushes its hardening score to a separate monitor.
 
 ### Backups (push dead-man's switches)

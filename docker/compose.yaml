@@ -65,6 +65,19 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       - socketproxy
+    # Without this the container is invisible to the health report, which only
+    # looks at `docker ps --filter health=unhealthy` — and this failure is the
+    # silent kind: with HAProxy frozen, Traefik kept answering 200 from its
+    # in-memory routes (measured), so nothing looks wrong while it has actually
+    # gone blind to container changes and would come up with an empty routing
+    # table on its next restart. Probes /_ping *through the proxy* rather than
+    # the port, since a HAProxy that listens but no longer reaches the socket
+    # still passes a `nc -z` (PING is allowed by default).
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2375/_ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   # --- Traefik (Reverse Proxy) ---
   traefik:
