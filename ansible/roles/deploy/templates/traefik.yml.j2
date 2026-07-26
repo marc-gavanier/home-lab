@@ -38,9 +38,10 @@ certificatesResolvers:
     acme:
       email: "{{ traefik_acme_email }}"
       storage: /acme/acme.json
-      # DNS-01 via Cloudflare (CF_DNS_API_TOKEN in the container env): proves
-      # domain control by writing _acme-challenge TXT records, so certs need no
-      # public A record or inbound :80 — services can stay out of public DNS.
+      # DNS-01 via Cloudflare (token read from /run/secrets by lego, through
+      # CF_DNS_API_TOKEN_FILE — ADR-016): proves domain control by writing
+      # _acme-challenge TXT records, so certs need no public A record or
+      # inbound :80 — services can stay out of public DNS.
       # Each router keeps its own certresolver → per-host certs, deliberately NOT
       # a *.{{ domain }} wildcard (one key valid for subdomains served elsewhere,
       # e.g. a static site on GitHub Pages). See ADR-014.

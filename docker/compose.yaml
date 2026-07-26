@@ -18,6 +18,8 @@ x-security-opt: &no-new-privs
 # only the path shows up there. Sources live on the LUKS volume (ADR-011) and
 # are rendered by the deploy role, never committed.
 secrets:
+  cf_dns_api_token:
+    file: /mnt/data/secrets/docker/cf_dns_api_token
   nextcloud_db_password:
     file: /mnt/data/secrets/docker/nextcloud_db_password
   nextcloud_db_root_password:
@@ -71,8 +73,13 @@ services:
     restart: unless-stopped   # Tier 0: auto-start at boot (see stack-startup role)
     security_opt: *no-new-privs
     environment:
-      # Scoped Cloudflare token for the ACME DNS-01 challenge (ADR-014).
-      CF_DNS_API_TOKEN: ${CF_DNS_API_TOKEN}
+      # Scoped Cloudflare token for the ACME DNS-01 challenge (ADR-014), as a
+      # file so it stays out of `docker inspect` (ADR-016). lego — which drives
+      # the challenge inside Traefik — accepts a _FILE suffix on any of its
+      # provider variables.
+      CF_DNS_API_TOKEN_FILE: /run/secrets/cf_dns_api_token
+    secrets:
+      - cf_dns_api_token
     ports:
       - "80:80"
       - "443:443"
