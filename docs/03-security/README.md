@@ -53,7 +53,10 @@ Defense in depth — each layer is secured independently. If one layer falls, th
   "spawn EPERM" while the container stays healthy and its UI keeps answering.
   Each cap in `compose.yaml` carries a comment naming the behaviour that needs
   it. Netdata is the one service still on the default set (SYS_PTRACE added),
-  pending a check that dropping the rest leaves its plugins intact.
+  pending a check that dropping the rest leaves its plugins intact — it ships
+  `fping` with a file capability, so the same trap applies. Rationale and the
+  per-service findings: ADR-017; procedure for changing any container's
+  configuration safely: `knowledge/runbooks/container-config-changes.md`.
 - **`DAC_OVERRIDE` is the recurring exception**, and it says something worth
   knowing: several containers run as root over data directories owned by the
   host user, so root was quietly relying on that capability to read and write
@@ -75,8 +78,8 @@ Defense in depth — each layer is secured independently. If one layer falls, th
 - Isolated Docker networks (`proxy` / `internal` / `socketproxy`); the DB tier
   lives on `internal` only — never proxied, never published
 - No directly exposed service ports — everything routes through Traefik (vpn-only)
-- Per-service `cap_drop` / read-only rootfs: incremental defense-in-depth,
-  tracked as a follow-up (needs per-image testing)
+- Read-only rootfs per service: the remaining incremental step on this layer,
+  not yet attempted — it needs the same per-image testing `cap_drop` required
 
 ### 4. Application
 - Strong passwords generated via Vaultwarden
