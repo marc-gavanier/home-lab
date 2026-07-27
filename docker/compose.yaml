@@ -436,6 +436,14 @@ services:
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     read_only: true          # measured: no volume and no write outside its socket
+    # redis 8 no longer declares VOLUME /data, so on a read-only rootfs the RDB
+    # snapshot fails and redis then DISABLES ALL WRITES (stop-writes-on-bgsave-
+    # error). Measured the hard way: both caches accepted reads and writes for
+    # minutes, then the first background save failed and took the Nextcloud
+    # upgrade down with it. These caches hold nothing worth keeping across a
+    # restart — they never had a volume — so the honest fix is to stop saving
+    # rather than hand a cache a disk.
+    command: ["redis-server", "--save", ""]
     # Same treatment as the databases, and even simpler here: no volume at all,
     # so there is nothing for the entrypoint's root phase to chown (#28).
     user: "999:999"
@@ -706,6 +714,14 @@ services:
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     read_only: true          # measured: no volume and no write outside its socket
+    # redis 8 no longer declares VOLUME /data, so on a read-only rootfs the RDB
+    # snapshot fails and redis then DISABLES ALL WRITES (stop-writes-on-bgsave-
+    # error). Measured the hard way: both caches accepted reads and writes for
+    # minutes, then the first background save failed and took the Nextcloud
+    # upgrade down with it. These caches hold nothing worth keeping across a
+    # restart — they never had a volume — so the honest fix is to stop saving
+    # rather than hand a cache a disk.
+    command: ["redis-server", "--save", ""]
     # Same treatment as the databases, and even simpler here: no volume at all,
     # so there is nothing for the entrypoint's root phase to chown (#28).
     user: "999:999"
