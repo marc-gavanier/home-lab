@@ -158,6 +158,77 @@ if command -v docker >/dev/null 2>&1 && mountpoint -q /mnt/data; then
     fi
 fi
 
+# --- systemd units ---
+# Nothing watched these until now, and a service can be dead for hours without a
+# signal: claude-remote-control looped 1 112 times over 5h47 on 2026-07-27 while
+# work was going on continuously on this host, and fail2ban — including its sshd
+# jail — was down for six minutes the same morning (issue #52).
+#
+# `systemctl --failed` alone would have caught NEITHER: a unit with
+# Restart=on-failure and StartLimitIntervalSec=0 restarts forever and never
+# reaches the failed state. It sits in activating/auto-restart, and --failed
+# stays empty. That is why NRestarts is compared between runs — a unit that
+# restarted since five minutes ago is flapping, whatever it says about itself.
+#
+# Gated on /mnt/data like the check above: before homelab-unlock the stack is
+# legitimately down and claude-remote-control legitimately retries.
+UNITS_STAMP=/var/lib/homelab-health/nrestarts
+# Long-running units whose "active" state is the signal. `is-enabled` is not
+# usable here: docker is deliberately disabled (the staged startup owns it) and
+# ssh is socket-activated, yet both must be running.
+WATCHED_UNITS="docker.service containerd.service fail2ban.service claude-remote-control.service wg-quick@wg0.service"
+if command -v systemctl >/dev/null 2>&1 && mountpoint -q /mnt/data; then
+    mkdir -p "$(dirname "$UNITS_STAMP")"
+
+    failed=$(systemctl --failed --no-legend --plain 2>/dev/null | awk '{print $1}' | tr '\n' ' ')
+    [ -n "${failed% }" ] && problems+=("systemd failed: ${failed% }")
+
+    # Any unit stuck in auto-restart is looping, whatever it says about itself:
+    # that is the state claude-remote-control sat in for 5h47. Reported on the
+    # second consecutive sighting so a single legitimate restart, which passes
+    # through auto-restart for RestartSec, does not page.
+    LOOP_STAMP=/var/lib/homelab-health/autorestart
+    looping=$(systemctl list-units --state=activating --no-legend --plain 2>/dev/null \
+              | awk '$4 == "auto-restart" {print $1}' | sort | tr '\n' ' ')
+    if [ -n "${looping% }" ]; then
+        seen=""
+        for u in $looping; do
+            grep -qx "$u" "$LOOP_STAMP" 2>/dev/null && seen="$seen $u"
+        done
+        [ -n "$seen" ] && problems+=("restart loop:$seen")
+        printf '%s\n' $looping > "$LOOP_STAMP"
+    else
+        rm -f "$LOOP_STAMP"
+    fi
+
+    inactive=""; flapping=""
+    : > "${UNITS_STAMP}.new"
+    for u in $WATCHED_UNITS; do
+        state=$(systemctl is-active "$u" 2>/dev/null)
+        [ "$state" = "active" ] || inactive="$inactive $u($state)"
+        n=$(systemctl show "$u" -p NRestarts --value 2>/dev/null)
+        [ -n "$n" ] && echo "$u $n" >> "${UNITS_STAMP}.new"
+        prev=$(awk -v u="$u" '$1 == u {print $2}' "$UNITS_STAMP" 2>/dev/null)
+        if [ -n "$prev" ] && [ -n "$n" ] && [ "$n" -gt "$prev" ]; then
+            flapping="$flapping $u($prev->$n)"
+        fi
+    done
+    mv "${UNITS_STAMP}.new" "$UNITS_STAMP"
+    [ -n "$inactive" ] && problems+=("not active:$inactive")
+    [ -n "$flapping" ] && problems+=("restarted since last check:$flapping")
+
+    # Timer-driven oneshots rest at inactive/dead, so their state says nothing —
+    # the signal is the result of the last run. Enumerated rather than listed, so
+    # a new timer is covered without editing this script.
+    badrun=""
+    for t in $(systemctl list-timers 'homelab-*' --all --no-legend --no-pager 2>/dev/null | awk '{print $NF}'); do
+        case "$t" in *.service) ;; *) continue ;; esac
+        r=$(systemctl show "$t" -p Result --value 2>/dev/null)
+        [ -z "$r" ] || [ "$r" = "success" ] || badrun="$badrun $t($r)"
+    done
+    [ -n "$badrun" ] && problems+=("last run failed:$badrun")
+fi
+
 # --- Verdict ---
 join() { local out; out=$(printf "%s$1" "${@:2}"); echo "${out%"$1"}"; }
 msg=$(join ', ' "${report[@]}")
