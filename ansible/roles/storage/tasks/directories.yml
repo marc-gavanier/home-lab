@@ -70,3 +70,20 @@
   loop:
     - "{{ services_data_dir }}/nextcloud/db"
     - "{{ services_data_dir }}/immich/db"
+
+# Netdata keeps its registry and its metrics database here rather than in the
+# container's writable layer, which is what lets it run with a read-only rootfs
+# (issue #32) — and incidentally means its history now survives a recreate. It
+# runs as uid 201 and has no CHOWN once started, so the directories must arrive
+# owned by 201.
+- name: directories | Own the netdata state directories as uid 201
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "201"
+    group: "201"
+    mode: "0750"
+  loop:
+    - "{{ services_data_dir }}/netdata"
+    - "{{ services_data_dir }}/netdata/lib"
+    - "{{ services_data_dir }}/netdata/cache"

@@ -18,6 +18,11 @@ alarms would duplicate what `homelab-health.sh` already pushes, and the extra
 config surface is not worth it on a RAM-limited Pi. Use it to investigate
 *after* Kuma has told you something is wrong.
 
+Netdata's history now survives a restart. Until 2026-07-27 its registry and its
+metrics database sat in the container's writable layer with no volume, so every
+recreate — every image bump, every configuration test — silently restarted the
+history from zero. Both now live on `/mnt/data/services/netdata` (ADR-019).
+
 ### Checking that Netdata itself is not lying
 
 Netdata is the one service whose breakage is invisible from the outside: the
