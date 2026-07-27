@@ -51,6 +51,19 @@ the service *does* beyond answering.
    The probe must be the *function*, not the status: `dig @127.0.0.1 example.com`
    for Pi-hole, `wg show wg0` for wg-easy, an HTTPS response for Traefik.
 
+   **The backup has to be older than the change.** A harness that copies the
+   whole `compose.yaml` per service quietly breaks this after its first run: the
+   file on the Pi already carries every service's change, so the "backup" taken
+   before service #3 already contains service #3's change and rolling back
+   recreates the container identically. That is how the nextcloud-cron attempt
+   under #28 stayed broken after its rollback fired correctly. Either stage one
+   service's change at a time, or make the script refuse to run when the file it
+   is about to keep already contains the new setting:
+
+   ```bash
+   grep -q '<the new setting>' "$BAK" && { echo "not a rollback point"; exit 2; }
+   ```
+
 3. **Verify functions, one per service.** What proved useful:
 
    | Service | Probe that actually proves something |
@@ -62,6 +75,8 @@ the service *does* beyond answering.
    | wg-easy | `wg show` peer handshake ages, then ping a peer; recreation drops handshakes and they return at each client's own pace, so poll for a minute before concluding |
    | Uptime Kuma | spawn a ping from inside the container |
    | Nextcloud | `occ status` plus the age of `core lastcron` |
+   | Nextcloud cron | `core lastcron` **must advance** — busybox `crond` calls `setgroups()` before every job, so without `SETGID` it logs "can't set groups" once per run and never executes `cron.php`, with the container still Up (#28) |
+   | Netdata | uid of PID 1 = 201, the full plugin list, and the chart-context counts per family — see `docs/07-observability` |
 
 4. **Sweep for file-capability binaries** before dropping capabilities anywhere,
    since that failure is invisible from outside:

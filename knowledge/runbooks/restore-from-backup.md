@@ -44,6 +44,28 @@ docker start <service>
 
 (Each service's own doc lists its exact path.)
 
+## Ownership after a restore
+
+Five services now start **as** their service uid rather than as root
+(`user:` in `compose.yaml` — the databases, both redis caches, the Nextcloud
+cron companion), which is what lets them run with no capability at all
+(ADR-017). The consequence for a restore: **they can no longer repair the
+ownership of their own data directory**, because `CHOWN` is gone.
+
+`restic restore` runs as root and preserves ownership, so a normal restore is
+safe. What is not safe is recreating a datadir by hand — `mkdir`, `cp -r` out of
+`/tmp/restore`, or an `rsync` without `-a` — which leaves it owned by root.
+Postgres then refuses to start ("data directory has wrong ownership") and
+MariaDB fails on its first write.
+
+```bash
+# After any hand-made copy into a database directory:
+chown -R 999:999 /mnt/data/services/nextcloud/db /mnt/data/services/immich/db
+chmod 700       /mnt/data/services/nextcloud/db /mnt/data/services/immich/db
+# Or simply let Ansible do it:
+ansible-playbook playbooks/site.yml --tags storage --ask-vault-pass
+```
+
 ## Restore a database
 
 DB dumps are taken before each backup and captured in the snapshot at

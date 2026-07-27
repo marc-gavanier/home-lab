@@ -92,16 +92,40 @@ Where only reads are involved, the narrower `DAC_READ_SEARCH` is used instead �
 Traefik's config and Nextcloud's push service, whose six self-tests pass with
 nothing more.
 
-This is treated as a residual, not a resolution. The clean fix is ownership:
-data trees chowned to the uid each container actually runs as would let the
-remaining `DAC_OVERRIDE` grants go. `/mnt/data/services/wireguard` is the
-clearest case — in-place rewrites work (measured), only creating a new file
-would be denied.
+The residual was then attacked from two directions (issue #28). Ownership works
+where a container runs as a single identity: jellyfin and navidrome run purely
+as root, so root-owned trees — codified in the storage role, not applied by
+hand — retired their grant.
+
+Where the container runs as root **and then hands off** to a service uid,
+ownership settles nothing: root ends up writing files owned by that uid either
+way. The answer there is to remove the root phase instead of feeding it — start
+the container **as** the service uid. `user: "999:999"` on both databases and
+both redis caches, and `user: "33:33"` on the cron companion, took five services
+from between three and five capabilities to **none**, because the hand-off is
+the only thing `CHOWN`, `SETUID`, `SETGID`, `DAC_OVERRIDE` and `FOWNER` ever
+served. Postgres pushed in the same direction on its own: it refuses a data
+directory it does not own.
+
+What is left is four grants that are not accidents of ownership, and each fails
+the uid trick for its own structural reason:
+
+| Service | Why the root phase cannot be removed |
+|--------------|----------------------------------------------------------------|
+| pihole | the root phase is where `setcap` runs on pihole-FTL; FTL then serves as uid 1000. Two identities, one tree |
+| nextcloud | apache binds `:80` as root before dropping to uid 33 — as a non-root PID 1 the permitted set is empty, so `NET_BIND_SERVICE` goes inert and the port is lost, not the capability |
+| transmission | the s6 init model *is* the root phase; `PUID`/`PGID` is that mechanism, and it is what the image supports |
+| netdata | its setuid-root plugins write into `/run/netdata`, owned by uid 201 **inside** the container — no host ownership reaches it, and the agent already runs as 201 |
+
+That is the difference worth keeping: a capability held because a directory
+belongs to the wrong user is a defect, and every one of those is now gone; a
+capability held because the image genuinely needs two identities is a property
+of the image.
 
 ## Consequences
 
 **Positive**
-- Seven of the twenty-one services hold no capabilities at all; the rest hold
+- Twelve of the twenty-one services hold no capabilities at all; the rest hold
   between one and eight instead of fourteen. `NET_RAW` (packet spoofing/sniffing), `MKNOD`,
   `SYS_CHROOT`, `SETPCAP` and `AUDIT_WRITE` are gone wherever unused.
 - Every remaining capability is now a documented, justified line rather than an
@@ -114,11 +138,15 @@ would be denied.
 - Image updates can change the requirement (a new binary with file
   capabilities, an entrypoint that starts chowning). The file-capability sweep
   is the cheap regression check.
-- `DAC_OVERRIDE` survives on six services, which limits the gain there: it is
+- `DAC_OVERRIDE` survives on four services, which limits the gain there: it is
   the capability that makes root's file access unconditional. Two more make do
-  with `DAC_READ_SEARCH`. Jellyfin and Navidrome shed theirs by owning their
-  trees as root instead (issue #28) — five paths, all of them directories, were
-  enough to require the capability.
+  with `DAC_READ_SEARCH`.
+- The five services now started under `user:` no longer go through their image's
+  ownership-fixing phase, which means the datadirs have to arrive correctly
+  owned. That is why the storage role owns them explicitly: on a fresh
+  provision Docker would create the bind-mount sources as root, and none of
+  those containers has `CHOWN` left to repair it. A restore has the same
+  obligation — `knowledge/runbooks/restore-from-backup.md` carries it.
 
 **Learned the hard way**
 Applying the change to wg-easy against the live container left the VPN — and the
@@ -131,16 +159,13 @@ sandbox-first rule applies to every service on the critical path.
 
 - **Keep the default set** — the status quo grants capabilities nothing uses.
   Rejected: this was the cheapest remaining reduction on the container layer.
-- **Chowning every data tree to match each container's uid** — strictly better,
-  and started under issue #28: Jellyfin and Navidrome run purely as root, so
-  root-owned trees (codified in the storage role, not applied by hand) retired
-  their `DAC_OVERRIDE`. It does not generalise. The remaining six run as root
-  *and* hand off to a service uid, so root ends up writing files owned by that
-  uid whichever way the tree is owned; Postgres additionally refuses a data
-  directory it does not own, which rules the pattern out for immich-db. For
-  those, running the container **as** the service uid (`user: 999:999`, with the
-  data directory already owned by it) is the promising route — it removes the
-  root phase altogether, and with it CHOWN/SETUID/SETGID/FOWNER as well.
+- **Chowning every data tree to match each container's uid** — the first half of
+  issue #28, and it works only for containers that run as a single identity
+  (jellyfin, navidrome). It does not generalise, for the reason given above.
+  Running the container **as** the service uid is what generalises, and it is
+  now applied to the five services where the image allows it. The two are
+  complements, not competitors: both end in the storage role owning the tree
+  correctly, which is the part a fresh provision depends on.
 - **A custom seccomp or AppArmor profile per service** — finer-grained than
   capabilities, and the right tool for netdata specifically (issue #24). Not a
   substitute for this: it is more work per service and does not remove the

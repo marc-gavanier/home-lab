@@ -34,16 +34,25 @@ Defense in depth — each layer is secured independently. If one layer falls, th
 - Official images only, pinned versions — Renovate-tracked, with
   `osvVulnerabilityAlerts` for off-schedule CVE PRs
 - **`no-new-privileges`** on every container (one exception: Netdata, whose
-  `apps.plugin` must gain `cap_sys_ptrace`/`cap_dac_read_search` via file
-  capabilities for per-app charts — the flag would block that) — blocks
+  plugins are setuid-root binaries and need that elevation to read other
+  processes' `/proc` for per-app charts — the flag blocks it outright) — blocks
   privilege escalation via setuid binaries after an app compromise
+- **AppArmor on every container, netdata included.** Every other service runs
+  under Docker's `docker-default` profile; netdata ran `unconfined` because
+  `apps.plugin` reads the `/proc` of processes belonging to other profiles,
+  which docker-default denies. It now runs under `homelab-netdata` — the same
+  default profile plus a ptrace **read** grant, with attaching to processes
+  still denied (ADR-018, issue #30). The profile is a file in the repo, shipped
+  and loaded by the deploy role; if it is missing the container refuses to
+  start, which is the loud failure rather than a silent fall back to
+  unconfined.
 - **Docker socket never mounted raw** — both Traefik and Netdata reach it only
   through a read-only `docker-socket-proxy` (CONTAINERS read-only, POST denied,
   on an internal-only network), so a container RCE can't pivot to host root via
   the socket. (Netdata uses it solely to resolve container names.)
 - No `privileged` mode, and **`cap_drop: ALL` on every service**, each re-adding
   only what its image was *observed* to need (issue #24). Docker hands 14
-  capabilities to every container by default; seven of the twenty-one keep none.
+  capabilities to every container by default; twelve of the twenty-one keep none.
   What the exercise showed is that the requirement is rarely guessable from the
   outside: Pi-hole needs `SETFCAP` because its image `setcap`s the FTL binary in
   order to run the resolver as non-root, wg-easy needs `NET_RAW` because
@@ -59,16 +68,28 @@ Defense in depth — each layer is secured independently. If one layer falls, th
   discovery while all 279 chart contexts stay present. Rationale and the
   per-service findings: ADR-017; procedure for changing any container's
   configuration safely: `knowledge/runbooks/container-config-changes.md`.
-- **`DAC_OVERRIDE` is the recurring exception**, and it says something worth
-  knowing: several containers run as root over data directories owned by the
+- **`DAC_OVERRIDE` was the recurring exception**, and it said something worth
+  knowing: several containers ran as root over data directories owned by the
   host user, so root was quietly relying on that capability to read and write
   them. Where only reads are involved the narrower `DAC_READ_SEARCH` is used
-  instead (Traefik's config, Nextcloud's push service). Six services still hold
-  it. Jellyfin and Navidrome shed theirs by owning their trees as root, since
-  they run purely as root inside (issue #28); SearXNG shed its when the defect
-  behind it was fixed (issue #27). The rest run as root *and* hand off to a
-  service uid, so ownership alone does not settle it — running the container as
-  that uid is the open avenue.
+  instead (Traefik's config, Nextcloud's push service). Issue #28 took it from
+  seven services to **four**, by two different means: owning the tree as root
+  where the container is root throughout (Jellyfin, Navidrome), and **starting
+  the container as the service uid** where the image would otherwise start as
+  root and hand off — `user: "999:999"` on both databases and both redis caches,
+  `user: "33:33"` on the Nextcloud cron companion. That second move is the
+  general one: it removes the root phase rather than feeding it, so `CHOWN`,
+  `SETUID`, `SETGID` and `FOWNER` go with it — five capabilities to zero, per
+  service. SearXNG shed its when the defect behind it was fixed (issue #27).
+- **The four that keep it are structural, not accidental**: pihole's root phase
+  is where `setcap` runs on FTL; Nextcloud's apache must bind `:80` as root, and
+  a non-root PID 1 has an empty permitted set, so `user:` would cost the port
+  rather than the capability; transmission's s6 init *is* the root phase
+  (`PUID`/`PGID` is that mechanism); netdata's setuid plugins write into
+  `/run/netdata` inside the container, where no host ownership reaches. The
+  price of the change is that those five services can no longer fix their own
+  data directory's ownership, so the storage role owns it explicitly and the
+  restore runbook says so.
 - **Secrets injected as files, not environment variables** — the socket-proxy
   still allows `GET /containers/{id}/json`, whose response carries every
   container's `Env` array, so an env-injected password would be readable by a
@@ -84,8 +105,18 @@ Defense in depth — each layer is secured independently. If one layer falls, th
 - Isolated Docker networks (`proxy` / `internal` / `socketproxy`); the DB tier
   lives on `internal` only — never proxied, never published
 - No directly exposed service ports — everything routes through Traefik (vpn-only)
-- Read-only rootfs per service: the remaining incremental step on this layer,
-  not yet attempted — it needs the same per-image testing `cap_drop` required
+- **Read-only rootfs — the next step on this layer, deliberately not taken yet.**
+  `read_only: true` plus explicit `tmpfs` mounts would stop a compromised
+  process from writing to its own image layer. The cost is what makes it a
+  decision rather than a chore: each of the twenty-one images has to be observed
+  to find every path it writes at runtime (locks, PID files, caches, session
+  data, entrypoint-generated config), and getting it wrong produces exactly the
+  silent degradation `cap_drop` produced — SearXNG ran on a self-generated stub
+  config for two weeks under a related defect. Estimated at the same order of
+  effort as ADR-017, for a smaller gain, since `cap_drop: ALL` and
+  `no-new-privileges` already remove most of what a writable rootfs would buy an
+  attacker. Revisit when the stack is otherwise idle; not filed as an issue on
+  purpose, so it is not mistaken for planned work.
 
 ### 4. Application
 - Strong passwords generated via Vaultwarden

@@ -166,6 +166,10 @@ services:
       # `versions` and chmods the tree. Without these two the container still
       # resolves, but starts degraded with a run of "Permission denied" and
       # "Operation not permitted" — a half-configured state, not a clean one.
+      # This one cannot be retired the way the databases were (#28): the root
+      # phase is not an accident of ownership, it is where `setcap` happens, and
+      # FTL must then run as uid 1000. Two identities share one tree, so no
+      # ownership settles it and `user:` would break the setcap step.
       - DAC_OVERRIDE
       - FOWNER
     ports:
@@ -282,6 +286,10 @@ services:
     cap_add:
       # Apache binds :80 then drops to www-data (uid 33), and the entrypoint
       # fixes ownership of config/ and data/ on every start.
+      # Kept deliberately (#28): running the container as uid 33, as the
+      # databases now do, would take the port away rather than the capability —
+      # a non-root process has an empty permitted set, so NET_BIND_SERVICE
+      # becomes inert and apache can no longer bind :80.
       - NET_BIND_SERVICE
       - CHOWN
       - SETUID
@@ -377,11 +385,9 @@ services:
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
-    cap_add:
-      # Same gosu hand-off as the DB, on a much smaller data dir.
-      - CHOWN
-      - SETUID
-      - SETGID
+    # Same treatment as the databases, and even simpler here: no volume at all,
+    # so there is nothing for the entrypoint's root phase to chown (#28).
+    user: "999:999"
     networks:
       - internal
     healthcheck:
@@ -399,7 +405,12 @@ services:
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     cap_add:
-      # busybox crond runs the cron job as www-data.
+      # busybox crond runs the cron job as www-data. Tried and reverted under
+      # #28: starting the container as uid 33 leaves crond unable to
+      # setgroups() before the job, so it logs "can't set groups: Operation not
+      # permitted" and **silently never runs cron.php** — the container stays
+      # Up, and only `occ config:app:get core lastcron` shows it. The drop is
+      # unconditional in busybox, so the capability is the price of using it.
       - SETUID
       - SETGID
     entrypoint: /cron.sh
@@ -611,11 +622,9 @@ services:
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
-    cap_add:
-      # Same gosu hand-off as the DB, on a much smaller data dir.
-      - CHOWN
-      - SETUID
-      - SETGID
+    # Same treatment as the databases, and even simpler here: no volume at all,
+    # so there is nothing for the entrypoint's root phase to chown (#28).
+    user: "999:999"
     networks:
       - internal
     healthcheck:
@@ -665,7 +674,10 @@ services:
     cap_drop: *cap-drop-all
     cap_add:
       # linuxserver s6 init chowns the config tree and drops to abc
-      # (uid 1000) — PUID/PGID is exactly this mechanism.
+      # (uid 1000) — PUID/PGID is exactly this mechanism. Kept (#28): the s6
+      # init model *is* the root phase, so setting `user:` here would not
+      # simplify it but disable it — the images document PUID/PGID as the
+      # supported way, and it needs these capabilities to work.
       - CHOWN
       - SETUID
       - SETGID
@@ -796,7 +808,10 @@ services:
                                # spawn server fails to bind and go.d service
                                # discovery (local-listeners) dies — while all 279
                                # chart contexts stay present, so charts alone
-                               # would have called this a success
+                               # would have called this a success.
+                               # Out of reach of #28's fix: that directory lives
+                               # inside the container, so no host ownership
+                               # changes it, and the agent already runs as 201
       - CHOWN                  # prepares /run, /var/cache, /var/lib as 201:201
       - SETUID                 # …then drops from root to netdata (uid 201)
       - SETGID
