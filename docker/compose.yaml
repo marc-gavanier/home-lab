@@ -419,7 +419,7 @@ services:
       retries: 3
 
   nextcloud-redis:
-    image: redis:7.4.9-alpine
+    image: redis:8.8.1-alpine
     container_name: nextcloud-redis
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
@@ -689,7 +689,7 @@ services:
       - internal
 
   immich-redis:
-    image: redis:7.4.9-alpine
+    image: redis:8.8.1-alpine
     container_name: immich-redis
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
