@@ -5,3 +5,8 @@ Description=Homelab Pi host health report (to Uptime Kuma)
 [Service]
 Type=oneshot
 ExecStart=/usr/local/bin/homelab-health.sh
+# Exit 1 means "problems found and pushed to Kuma", not "the check broke". Without
+# this, systemd marks the unit failed for doing its job — and the unit checks added
+# in #52 then read that as a problem, so the health report accuses itself and the
+# alarm sustains itself long after the original cause is gone (measured 2026-07-27).
+SuccessExitStatus=1
