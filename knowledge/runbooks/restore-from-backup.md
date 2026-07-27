@@ -66,6 +66,12 @@ chmod 700       /mnt/data/services/nextcloud/db /mnt/data/services/immich/db
 ansible-playbook playbooks/site.yml --tags storage --ask-vault-pass
 ```
 
+Run that **after every restore**, not only after a hand-made copy: restic
+returns files with the ownership and permissions they had *in the snapshot*,
+which is not necessarily what the current configuration expects. Measured in the
+2026-07-27 drill below — the restored Nextcloud datadir came back mode 755, the
+value it had before that morning's change to 700.
+
 ## Restore a database
 
 DB dumps are taken before each backup and captured in the snapshot at
@@ -164,6 +170,57 @@ photo/video files themselves live in `services/immich/upload` and `media/photos`
 3. **Import the DB dumps** (see above), then bring services up (`docker compose up -d`,
    handled by the deploy role).
 4. Sanity-check services; re-run `occ files:scan` if media browsing looks stale.
+
+## Drill record
+
+A restore procedure that has never been executed is a hypothesis. Each drill
+goes here, with what it measured and what it contradicted.
+
+### 2026-07-27 — first drill, from the **offsite** repository (issue #36)
+
+Restored through the WireGuard tunnel from the repo at the relative's house —
+the one that matters when the house is gone — not from the local one.
+
+| What | Volume | Time |
+|--------------------------------|-----------|--------|
+| DB dumps (`nextcloud.sql`, `vaultwarden.sqlite3`) | 13.3 MiB | 2 s |
+| Nextcloud datadir (`services/nextcloud/db`) | 243 MiB | 18 s |
+
+**≈ 13.5 MiB/s** through the tunnel. The whole snapshot is **343 GiB across
+116 482 files**, so a full restore at that rate is **around 7 hours** — the
+number worth knowing before deciding anything during an incident.
+
+Verified by *loading*, never by listing:
+
+- `vaultwarden.sqlite3` — `pragma integrity_check` ok, 1 user, 587 ciphers.
+- The restored datadir **started a MariaDB** under the current hardened
+  configuration (uid 999, no capability, read-only rootfs) and answered
+  queries: 1 user, 18 899 filecache rows.
+- The SQL dump imported into a fresh database in 10 s and produced the *same*
+  counts — so the dump and the datadir agree, which no `ls` would have shown.
+
+**What the drill contradicted or confirmed:**
+
+1. **A restore returns the permissions of the snapshot, not today's.** The
+   datadir came back mode 755 — its value before it was tightened to 700 the
+   same morning. Harmless for MariaDB, fatal for Postgres, and a real trap now
+   that the databases run as uid 999 with no `CHOWN` to repair themselves.
+   **Re-run the storage role after any restore** (see "Ownership after a
+   restore" above). This was written that morning as a precaution; the drill
+   turned it into a measured fact.
+2. **Retention starts 2026-07-11** (20 snapshots offsite). Anything older is
+   gone, including the pre-Immich-v3 state — which retroactively justified
+   deleting the v2.7.5 images the same day: the rollback path they existed for
+   had already expired.
+3. **The passphrase survives the house.** The offsite repo password is
+   deliberately absent from the offsite Pi, and `local.yml` is gitignored, so
+   it exists at home only — on the homelab and the workstation, which a fire
+   takes together. The documented recovery path is the Vaultwarden offline
+   cache on the phone **plus a printed copy kept outside the house**. Confirm
+   the phone cache in airplane mode at the next drill rather than assuming it.
+
+**Next drill: 2027-07** (annual). Bring it forward if the storage layout, the
+uid model or the repository backend changes.
 
 ## Verify a backup without restoring
 
