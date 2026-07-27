@@ -13,7 +13,12 @@ Defense in depth — each layer is secured independently. If one layer falls, th
   bypass UFW's INPUT policy — so the *internet*-exposure boundary is enforced
   by the **ISP router's forward list** (80/443/51820), not by UFW. Published
   ports are only LAN-reachable because the router doesn't forward them.
-- **WireGuard**: encrypted remote access, only way to reach services from outside the LAN
+- **WireGuard**: encrypted remote access, only way to reach services from outside the LAN.
+  A peer key *is* the perimeter — everything behind `vpn-only` trusts whoever
+  holds one. Four peers today, each attributable to a named device, two of them
+  infrastructure (the offsite Pi and the homelab's own host tunnel). Revocation
+  procedure and the "what the lost device still holds" checklist:
+  [wireguard-peer-revocation runbook](../../knowledge/runbooks/wireguard-peer-revocation.md)
 - **Traefik**: mandatory TLS, HTTP → HTTPS redirect
 - **VPN-only by default**: the `vpn-only` middleware is applied globally on Traefik's HTTPS entrypoint. All services return `403 Forbidden` to internet traffic — only LAN, WireGuard, and Docker bridge networks pass through. Internet bots can't enumerate or exploit hosted services.
 
@@ -148,7 +153,21 @@ Defense in depth — each layer is secured independently. If one layer falls, th
 
 ### 4. Application
 - Strong passwords generated via Vaultwarden
-- 2FA enabled on services that support it
+- **2FA — measured, not assumed** (issue #38, checked 2026-07-27):
+
+  | Service | State |
+  |---------------|--------------------------------------------------|
+  | Nextcloud | **TOTP + backup codes** on the admin account |
+  | Vaultwarden | **enabled** |
+  | Uptime Kuma | **enabled** |
+  | Immich | no 2FA in the schema at v3.0.1 — the feature does not exist to enable, which is a different statement from "not enabled" |
+  | Jellyfin | no native second factor |
+
+  The two accounts that matter most are outside this stack and cannot be checked
+  from it: **Cloudflare**, which holds the DNS and therefore certificate
+  issuance — a `Zone:DNS:Edit` token is already treated as worth more than any
+  database password (ADR-016), and the account that mints such tokens is worth
+  more still — and **GitHub**, which holds this repository.
 - Secrets rendered by Ansible onto the LUKS volume (ADR-011), never in the repo:
   service passwords as individual files consumed as Docker secrets (ADR-016),
   the rest in `.env` (gitignored, symlinked off `/mnt/data/secrets/`)

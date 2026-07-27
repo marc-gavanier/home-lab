@@ -1,6 +1,12 @@
 ---
 # Lint gate — mirrors the local pre-commit hooks so a bypassed hook
 # (git commit --no-verify, GitHub web edits) still gets caught on the PR.
+#
+# Actions are pinned by commit SHA, not by tag (issue #37): a tag is a mutable
+# pointer, and a compromised maintainer can move it to different code that this
+# workflow would then run over a checkout of the whole repository — one whose
+# entire discipline is that secrets never enter it. Renovate keeps the digests
+# updated and rewrites the trailing version comment.
 name: Lint
 
 on:
@@ -13,10 +19,10 @@ jobs:
     name: Secret scan (gitleaks)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           fetch-depth: 0  # scan the full history of the push/PR range
-      - uses: gitleaks/gitleaks-action@v3
+      - uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e  # v3.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -26,8 +32,8 @@ jobs:
     env:
       ANSIBLE_CONFIG: ansible/ansible.cfg
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
           python-version: "3.12"
       - name: Install linters
