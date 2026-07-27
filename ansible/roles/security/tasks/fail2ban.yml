@@ -52,6 +52,28 @@
       journalmatch ={% endraw %}
   notify: Restart fail2ban
 
+# fail2ban does not skip a jail whose log file is missing — it refuses to start
+# at all, taking the sshd jail down with it. The files are created here, and not
+# left to the services, so a fresh provision (where this role runs before the
+# containers exist) produces a working fail2ban rather than a dead one.
+# `modification_time: preserve` keeps this idempotent on an existing file.
+- name: fail2ban | Ensure the watched log files exist
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: touch
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "0640"
+    modification_time: preserve
+    access_time: preserve
+  loop:
+    - path: "{{ services_data_dir }}/nextcloud/data/data/nextcloud.log"
+      owner: "33"        # www-data inside the container writes it
+      group: "33"
+    - path: "{{ services_data_dir }}/vaultwarden/logs/vaultwarden.log"
+      owner: root        # vaultwarden runs as root inside its container
+      group: root
+
 - name: fail2ban | Configure the jails
   ansible.builtin.copy:
     dest: /etc/fail2ban/jail.local
@@ -80,18 +102,24 @@
       # backend set above — with it they would watch the journal, find nothing,
       # and report themselves perfectly healthy.
       #
-      # banaction targets DOCKER-USER rather than INPUT: these services are
-      # reached through a Docker-published port, so their packets are filtered
-      # in the FORWARD path. A default iptables ban would be written, counted
-      # and shown by `fail2ban-client status` — and let the traffic through.
-      # Same mechanism as the UFW note in docs/03-security.
+      # `chain` is a JAIL parameter, not a banaction bracket argument: fail2ban
+      # composes action_ = %(banaction)s[..., chain="%(chain)s"], so a chain
+      # passed in brackets is overridden by the jail's own value. Measured —
+      # with the bracket form the ban was registered and counted while the rule
+      # landed in INPUT, blocking nothing.
+      #
+      # DOCKER-USER rather than INPUT because these services are reached through
+      # a Docker-published port: their packets are filtered in the FORWARD path
+      # and never traverse INPUT. Same mechanism as the UFW note in
+      # docs/03-security.
       [nextcloud]
       enabled = true
       filter = nextcloud
       backend = auto
       logpath = {{ services_data_dir }}/nextcloud/data/data/nextcloud.log
       port = http,https
-      banaction = iptables-allports[chain="DOCKER-USER"]
+      banaction = iptables-allports
+      chain = DOCKER-USER
       maxretry = 5
       findtime = 600
 
@@ -101,7 +129,8 @@
       backend = auto
       logpath = {{ services_data_dir }}/vaultwarden/logs/vaultwarden.log
       port = http,https
-      banaction = iptables-allports[chain="DOCKER-USER"]
+      banaction = iptables-allports
+      chain = DOCKER-USER
       maxretry = 5
       findtime = 600
     mode: "0644"

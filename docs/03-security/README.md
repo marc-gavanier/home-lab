@@ -32,7 +32,14 @@ Defense in depth — each layer is secured independently. If one layer falls, th
   default ban would be written, counted, and ignored. Docker's own ranges are in
   `ignoreip`: if `X-Forwarded-For` handling ever broke, the address in the
   application log would be Traefik's, and banning it would take the whole stack
-  off the network.
+  off the network. Two operational traps, both met while building this and both
+  now asserted daily (issue #33): fail2ban **refuses to start at all** when a
+  jail's `logpath` is missing — it does not skip that jail, it exits, taking the
+  `sshd` jail down with it, which is why the log files are created by Ansible
+  rather than left to the services; and a jail whose action or filter is broken
+  is **silently skipped**, so fail2ban comes up reporting itself healthy while
+  protecting one door less. The posture check compares the jails configured in
+  `jail.local` against the jails actually loaded.
 - **unattended-upgrades**: automatic security updates (auto-install, no
   auto-reboot on the homelab; `needrestart` activates patched libraries
   reboot-free; kernel residue on a bounded manual cadence) — strategy in

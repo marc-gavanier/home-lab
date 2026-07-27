@@ -44,6 +44,12 @@ should not compete with temperature and disk alerts for attention. It also
 skips entirely while `/mnt/data` is locked, since the whole stack is
 legitimately down in that window.
 
+It also asserts that **every fail2ban jail configured is actually loaded**. A
+jail with a broken filter or action is not reported as broken — fail2ban starts,
+declares itself healthy, and protects one door less (measured: a single
+misindented line made two jails vanish). The check compares `jail.local` against
+`fail2ban-client status`, so it needs no list of its own to keep in sync.
+
 The health report covers the complementary case at a five-minute cadence:
 **expected containers that are not running at all**. `docker ps --filter
 health=unhealthy` cannot see them, and the heal timer only resurrects containers

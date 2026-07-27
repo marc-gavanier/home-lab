@@ -128,6 +128,20 @@ if [ "$(docker inspect -f '{% raw %}{{.State.Status}}{% endraw %}' netdata 2>/de
         || problems+=("netdata: $contexts chart contexts, want >= $NETDATA_MIN_CONTEXTS")
 fi
 
+# --- fail2ban: every configured jail is actually loaded ---------------------
+# A jail whose action or filter is broken is not reported as broken: fail2ban
+# starts, says it is healthy, and silently protects one door less (measured
+# while building #35 — two jails vanished after a one-character config error).
+# Comparing what is configured against what is loaded needs no separate list,
+# so it cannot drift.
+if command -v fail2ban-client >/dev/null 2>&1 && [ -r /etc/fail2ban/jail.local ]; then
+    want=$(grep -oE '^\[[a-z0-9_-]+\]' /etc/fail2ban/jail.local | tr -d '[]' \
+           | grep -v '^DEFAULT$' | sort | tr '\n' ' ')
+    have=$(fail2ban-client status 2>/dev/null | sed -n 's/.*Jail list:[[:space:]]*//p' \
+           | tr -d ' ' | tr ',' '\n' | grep -v '^$' | sort | tr '\n' ' ')
+    [ "$want" = "$have" ] || problems+=("fail2ban: jails loaded [$have] configured [$want]")
+fi
+
 # --- Verdict ---------------------------------------------------------------
 {# bash ${#array[@]} reads as a Jinja comment opener — shield it #}
 if [ {% raw %}${#problems[@]}{% endraw %} -gt 0 ]; then

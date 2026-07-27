@@ -71,10 +71,16 @@
     - "{{ services_data_dir }}/nextcloud/db"
     - "{{ services_data_dir }}/immich/db"
 
-# Vaultwarden writes a log file here so fail2ban can watch it (#35): the
-# container cannot create the directory itself on first start, and the jail
-# would then sit on a path that never appears — a jail reporting healthy while
-# watching nothing.
+# The two directories fail2ban's jails read from (#35). Both have to exist
+# before the security role restarts fail2ban: fail2ban refuses to start at all
+# when a jail's logpath is missing — it does not skip that jail, it exits, and
+# takes the sshd jail with it. Measured the hard way, since the security role
+# runs before deploy: on the first run the Vaultwarden log did not exist yet and
+# fail2ban stayed dead until restarted by hand.
+#
+# Ownership differs because the writers differ: Vaultwarden runs as root inside
+# its container, Nextcloud drops to www-data (uid 33) and could not write its
+# own log if the file arrived owned by root.
 - name: directories | Create the Vaultwarden log directory
   ansible.builtin.file:
     path: "{{ services_data_dir }}/vaultwarden/logs"
@@ -82,6 +88,14 @@
     owner: root
     group: root
     mode: "0750"
+
+- name: directories | Create the Nextcloud data directory (holds its log)
+  ansible.builtin.file:
+    path: "{{ services_data_dir }}/nextcloud/data/data"
+    state: directory
+    owner: "33"
+    group: "33"
+    mode: "0770"
 
 # Netdata keeps its registry and its metrics database here rather than in the
 # container's writable layer, which is what lets it run with a read-only rootfs
