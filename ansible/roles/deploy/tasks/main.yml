@@ -22,6 +22,9 @@
 - name: Build the SearXNG Gerbier assets (before compose up)
   ansible.builtin.import_tasks: branding.yml
 
+- name: Install the netdata AppArmor profile (before compose up — see file)
+  ansible.builtin.import_tasks: apparmor.yml
+
 - name: Run Docker Compose (file, networks, pull, up)
   ansible.builtin.import_tasks: compose.yml
 
