@@ -19,7 +19,20 @@ Defense in depth — each layer is secured independently. If one layer falls, th
 
 ### 2. System (OS)
 - **SSH**: key-only, password disabled, non-standard port
-- **fail2ban**: automatic banning after failed attempts
+- **fail2ban**: three jails — `sshd`, plus **Nextcloud and Vaultwarden**
+  (issue #35). SSH is not internet-reachable, so its jail guards the least
+  exposed door; the two application jails cover the attacker the threat model
+  actually expects — a compromised VPN client or LAN device, already inside the
+  `vpn-only` gate. Two details make the difference between a jail that works and
+  one that reports itself healthy while catching nothing: the filters are
+  **custom** (the `bitwarden` filter shipped by fail2ban targets the official
+  Bitwarden server and never matches Vaultwarden), and the ban action targets
+  the **`DOCKER-USER`** chain — these services are reached through a
+  Docker-published port, so their packets never traverse `INPUT`, where a
+  default ban would be written, counted, and ignored. Docker's own ranges are in
+  `ignoreip`: if `X-Forwarded-For` handling ever broke, the address in the
+  application log would be Traefik's, and banning it would take the whole stack
+  off the network.
 - **unattended-upgrades**: automatic security updates (auto-install, no
   auto-reboot on the homelab; `needrestart` activates patched libraries
   reboot-free; kernel residue on a bounded manual cadence) — strategy in

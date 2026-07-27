@@ -14,6 +14,10 @@ argument_specs:
         elements: str
         required: true
         description: AllowUsers whitelist for sshd.
+      services_data_dir:
+        type: str
+        required: true
+        description: Root of the service data trees (the Nextcloud and Vaultwarden jails read logs from there).
       fail2ban_ban_time:
         type: int
         required: true

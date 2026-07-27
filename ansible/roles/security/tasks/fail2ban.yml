@@ -1,20 +1,73 @@
 ---
-# fail2ban on SSH.
+# fail2ban on SSH, Nextcloud and Vaultwarden.
+#
+# SSH is not reachable from the internet, so the sshd jail guards the least
+# exposed door. Nextcloud and Vaultwarden sit behind vpn-only, which makes
+# their attacker a compromised VPN client or LAN device — scenario #1 of the
+# 2026-07-19 audit, and the one the container hardening was aimed at. Brute
+# force from inside the perimeter was unthrottled until now (issue #35).
 
 - name: fail2ban | Install fail2ban
   ansible.builtin.apt:
     name: fail2ban
     state: present
 
-- name: fail2ban | Configure fail2ban for SSH
+# Neither filter ships with Debian's fail2ban. The `bitwarden` filter that does
+# ship targets the *official* Bitwarden server (Bit.Core log lines) and never
+# matches Vaultwarden — a jail that silently catches nothing, which is exactly
+# the failure mode this stack keeps producing.
+- name: fail2ban | Install the Vaultwarden filter
+  ansible.builtin.copy:
+    dest: /etc/fail2ban/filter.d/vaultwarden.conf
+    mode: "0644"
+    content: |
+      # Managed by Ansible — do not edit on the host.
+      # Vaultwarden logs to LOG_FILE with its own prefix:
+      #   [2026-07-27 12:00:00.000][vaultwarden::api::identity][ERROR] Username or
+      #   password is incorrect. Try again. IP: 1.2.3.4. Username: user@example.com.
+      [Definition]
+      failregex = ^.*\[vaultwarden::api::identity\]\[ERROR\] Username or password is incorrect\. Try again\. IP: <HOST>\.
+                  ^.*\[vaultwarden::api::identity\]\[ERROR\] Invalid TOTP code.*IP: <HOST>\.
+                  ^.*\[vaultwarden::api::admin\]\[ERROR\] Invalid admin token\. IP: <HOST>
+      ignoreregex =
+      journalmatch =
+  notify: Restart fail2ban
+
+- name: fail2ban | Install the Nextcloud filter
+  ansible.builtin.copy:
+    dest: /etc/fail2ban/filter.d/nextcloud.conf
+    mode: "0644"
+    content: |
+      # Managed by Ansible — do not edit on the host.
+      # Nextcloud writes JSON lines into its data directory. The address is the
+      # real client one (remoteAddr) because trusted_proxies is configured — if
+      # that ever breaks, every attempt would appear to come from a Docker
+      # address, which is one reason the Docker ranges are in ignoreip.
+      {% raw %}[Definition]
+      _groupsre = (?:(?:,?\s*"\w+":(?:"[^"]*"|[\w\.]+))*)
+      failregex = ^\{%(_groupsre)s,?\s*"remoteAddr":"<HOST>"%(_groupsre)s,?\s*"message":"Login failed:
+                  ^\{%(_groupsre)s,?\s*"remoteAddr":"<HOST>"%(_groupsre)s,?\s*"message":"Trusted domain error
+                  ^\{%(_groupsre)s,?\s*"remoteAddr":"<HOST>"%(_groupsre)s,?\s*"message":"Bruteforce attempt
+      ignoreregex =
+      journalmatch ={% endraw %}
+  notify: Restart fail2ban
+
+- name: fail2ban | Configure the jails
   ansible.builtin.copy:
     dest: /etc/fail2ban/jail.local
     content: |
+      # Managed by Ansible — do not edit on the host.
       [DEFAULT]
       bantime = {{ fail2ban_ban_time }}
       findtime = 600
       maxretry = {{ fail2ban_max_retry }}
       backend = systemd
+      # Docker's own networks are never banned. Every request to Nextcloud and
+      # Vaultwarden arrives through Traefik; if X-Forwarded-For handling ever
+      # breaks, the address in the application log becomes Traefik's, and
+      # banning it would take the whole stack off the network — an outage caused
+      # by the protection itself.
+      ignoreip = 127.0.0.1/8 ::1 172.16.0.0/12
 
       [sshd]
       enabled = true
@@ -22,5 +75,52 @@
       filter = sshd
       logpath = /var/log/auth.log
       maxretry = {{ fail2ban_max_retry }}
+
+      # The two jails below read FILES, so they must override the systemd
+      # backend set above — with it they would watch the journal, find nothing,
+      # and report themselves perfectly healthy.
+      #
+      # banaction targets DOCKER-USER rather than INPUT: these services are
+      # reached through a Docker-published port, so their packets are filtered
+      # in the FORWARD path. A default iptables ban would be written, counted
+      # and shown by `fail2ban-client status` — and let the traffic through.
+      # Same mechanism as the UFW note in docs/03-security.
+      [nextcloud]
+      enabled = true
+      filter = nextcloud
+      backend = auto
+      logpath = {{ services_data_dir }}/nextcloud/data/data/nextcloud.log
+      port = http,https
+      banaction = iptables-allports[chain="DOCKER-USER"]
+      maxretry = 5
+      findtime = 600
+
+      [vaultwarden]
+      enabled = true
+      filter = vaultwarden
+      backend = auto
+      logpath = {{ services_data_dir }}/vaultwarden/logs/vaultwarden.log
+      port = http,https
+      banaction = iptables-allports[chain="DOCKER-USER"]
+      maxretry = 5
+      findtime = 600
     mode: "0644"
   notify: Restart fail2ban
+
+# Vaultwarden holds the file open, so rotation must not move it out from under
+# the process — copytruncate rather than create.
+- name: fail2ban | Rotate the Vaultwarden log
+  ansible.builtin.copy:
+    dest: /etc/logrotate.d/vaultwarden
+    mode: "0644"
+    content: |
+      # Managed by Ansible — do not edit on the host.
+      {{ services_data_dir }}/vaultwarden/logs/vaultwarden.log {
+          weekly
+          rotate 4
+          missingok
+          notifempty
+          compress
+          delaycompress
+          copytruncate
+      }

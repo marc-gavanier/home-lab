@@ -537,6 +537,12 @@ services:
       SHOW_PASSWORD_HINT: "false"       # no hint on failed login (also aids user-enum)
       DISABLE_ICON_DOWNLOAD: "true"     # no server-side favicon fetches (SSRF/egress)
       SENDS_ALLOWED: "false"            # Send file/text sharing unused — drop the surface
+      # A log FILE, because fail2ban cannot read a container's stdout (#35).
+      # It lands inside the existing /data bind mount, so the read-only rootfs
+      # is untouched; the host rotates it (copytruncate — vaultwarden holds the
+      # descriptor open).
+      LOG_FILE: /data/logs/vaultwarden.log
+      LOG_LEVEL: warn                   # failed logins are logged at ERROR
     secrets:
       - vaultwarden_admin_token_hash
     volumes:
