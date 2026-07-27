@@ -831,7 +831,14 @@ services:
       # per-app charts. no-new-privileges blocks the setuid gain outright and
       # floods the log with EPERM. The big wins (SYS_ADMIN + raw
       # docker.sock) are already removed, so this residual is acceptable.
-      - apparmor:unconfined    # lets apps.plugin ptrace despite Docker's default AppArmor profile
+      # Scoped profile instead of the `unconfined` this carried until #30:
+      # docker-default plus a ptrace **read** grant, which is all apps.plugin
+      # ever needed from unconfined (it reads /host/proc/<pid>/* for processes
+      # confined by other profiles). Attaching to a process — ptrace trace —
+      # stays denied. The profile is installed and loaded by the deploy role;
+      # if it is missing the container does not start at all, which is the
+      # failure mode we want rather than a silent fall back to unconfined.
+      - apparmor=homelab-netdata
     environment:
       # Container-name resolution via the read-only socket-proxy (CONTAINERS=1,
       # same as Traefik), never the raw docker.sock (full Docker API = host root

@@ -1,0 +1,59 @@
+# Managed by Ansible — do not edit on the host.
+#
+# Scoped replacement for `apparmor:unconfined` on the netdata container (#30).
+# Netdata ran unconfined for exactly one reason: apps.plugin reads
+# /host/proc/<pid>/* for processes that belong to other AppArmor profiles, and
+# Docker's default profile denies that cross-profile read. This profile is
+# docker-default, verbatim, plus that single grant — read only. `trace`
+# (attaching to and modifying another process) stays denied outside this
+# profile, which is the part that matters: reading /proc is what the charts
+# need, attaching to a process is not.
+abi <abi/4.0>,
+
+include <tunables/global>
+
+profile homelab-netdata flags=(attach_disconnected,mediate_deleted) {
+  include <abstractions/base>
+
+  network,
+  capability,
+  file,
+  umount,
+
+  # Host (privileged) processes may signal container processes; dockerd signals
+  # them to stop or kill; the agent signals its own plugins.
+  signal (receive) peer=unconfined,
+  signal (send,receive) peer=homelab-netdata,
+
+  # The grant unconfined was covering, narrowed to reads.
+  ptrace (read),
+  ptrace (trace,read,tracedby,readby) peer=homelab-netdata,
+
+  # `lsns` asks for ptrace(trace) on host processes when the agent starts and is
+  # refused. Verified that the refusal costs nothing: lsns returns the same nine
+  # namespaces confined and unconfined, because what limits it is the container's
+  # namespace and capability set, not this profile. An explicit deny is silent,
+  # which keeps a harmless probe from leaving a DENIED line that reads like a
+  # fault during the next incident.
+  deny ptrace (trace) peer=unconfined,
+
+  # --- docker-default, unchanged from here down -----------------------------
+  deny @{PROC}/* w,
+  deny @{PROC}/{[^1-9],[^1-9][^0-9],[^1-9s][^0-9y][^0-9s],[^1-9][^0-9][^0-9][^0-9]*}/** w,
+  deny @{PROC}/sys/[^k]** w,
+  deny @{PROC}/sys/kernel/{?,??,[^s][^h][^m]**} w,
+  deny @{PROC}/sysrq-trigger rwklx,
+  deny @{PROC}/kcore rwklx,
+
+  deny mount,
+
+  deny /sys/[^f]*/** wklx,
+  deny /sys/f[^s]*/** wklx,
+  deny /sys/fs/[^c]*/** wklx,
+  deny /sys/fs/c[^g]*/** wklx,
+  deny /sys/fs/cg[^r]*/** wklx,
+  deny /sys/firmware/** rwklx,
+  deny /sys/kernel/security/** rwklx,
+
+  include if exists <local/homelab-netdata>
+}

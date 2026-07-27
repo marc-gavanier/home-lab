@@ -16,6 +16,13 @@
 # `docker compose up -d` won't recreate the container when only the mounted
 # traefik.yml changes (the compose config hash is unchanged), so a config edit
 # never takes effect without an explicit restart.
+# Replacing a loaded profile applies to the processes already confined by it,
+# so netdata does not need a restart when the profile changes.
+- name: Reload the netdata AppArmor profile
+  ansible.builtin.command:
+    cmd: apparmor_parser -r /etc/apparmor.d/homelab-netdata
+  changed_when: true
+
 - name: Restart traefik
   ansible.builtin.command:
     cmd: docker restart traefik

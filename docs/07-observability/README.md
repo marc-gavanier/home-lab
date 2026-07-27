@@ -18,6 +18,33 @@ alarms would duplicate what `homelab-health.sh` already pushes, and the extra
 config surface is not worth it on a RAM-limited Pi. Use it to investigate
 *after* Kuma has told you something is wrong.
 
+### Checking that Netdata itself is not lying
+
+Netdata is the one service whose breakage is invisible from the outside: the
+container stays `healthy` and the dashboard keeps answering while a plugin is
+dead or the agent has silently fallen back to running as root. Any change to its
+container — image bump, capability, AppArmor profile (ADR-017, ADR-018) — is
+verified on three axes, never on status:
+
+```bash
+# 1. the agent must have dropped to uid 201; 0 means it gave up and runs as root
+docker exec netdata awk '/^Uid:/' /proc/1/status
+
+# 2. every plugin must be running — NETWORK-VIEWER's absence shows nowhere else
+docker exec netdata ps -eo comm | sort
+
+# 3. the chart contexts must still be there, per family
+docker exec netdata curl -s http://127.0.0.1:19999/api/v3/contexts \
+| python3 -c 'import sys,json,collections; c=json.load(sys.stdin)["contexts"]; \
+p=collections.Counter(k.split(".")[0] for k in c); print(len(c), dict(p.most_common(8)))'
+```
+
+Reference on this host: uid **201**, **10** plugin processes (`NETWORK-VIEWER`,
+`apps.plugin`, `debugfs.plugin`, `go.d.plugin`, `otel-plugin`,
+`otel-signal-viewer`, `sd-jrnl.plugin`, `sd-unit.plugin`, `spawn-plugins`,
+`spawn-setns`), **278** contexts — app 14, user 14, usergroup 14, cgroup 25,
+systemd 7. AppArmor denials, if any, land in `dmesg | grep apparmor`.
+
 ## What is actually monitored
 
 The authoritative inventory is the Kuma database itself; export it with
