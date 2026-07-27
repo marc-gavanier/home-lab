@@ -345,14 +345,14 @@ services:
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
-    cap_add:
-      # The mariadb entrypoint starts as root, chowns the datadir, then
-      # execs the server as mysql (uid 999).
-      - CHOWN
-      - SETUID
-      - SETGID
-      - DAC_OVERRIDE
-      - FOWNER
+    # No capability at all: running as mysql from PID 1 removes the root phase
+    # the entrypoint would otherwise go through (chown the datadir, then exec as
+    # uid 999), and with it CHOWN/SETUID/SETGID/DAC_OVERRIDE/FOWNER — five
+    # capabilities that existed only to serve a hand-off we can skip (#28). The
+    # datadir is owned by 999 by the storage role, which is what makes this safe
+    # on a fresh provision too. The image supports it: it declares no USER and
+    # its entrypoint skips the gosu hand-off when already non-root.
+    user: "999:999"
     environment:
       MYSQL_ROOT_PASSWORD_FILE: /run/secrets/nextcloud_db_root_password
       MYSQL_DATABASE: ${NEXTCLOUD_DB_NAME}
@@ -635,13 +635,10 @@ services:
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
-    cap_add:
-      # Same pattern as nextcloud-db: root entrypoint, then postgres.
-      - CHOWN
-      - SETUID
-      - SETGID
-      - DAC_OVERRIDE
-      - FOWNER
+    # Same reasoning as nextcloud-db: no root phase, therefore no capability.
+    # Postgres additionally *requires* the datadir to belong to the uid it runs
+    # as, so this is the direction the image was pushing us in anyway.
+    user: "999:999"
     environment:
       POSTGRES_USER: ${IMMICH_DB_USER}
       POSTGRES_PASSWORD_FILE: /run/secrets/immich_db_password
