@@ -17,11 +17,6 @@
       "groupName": "minor & patch updates"
     },
     {
-      "description": "cloudflared removed `proxy-dns` in 2026.2.0 and this container is Pi-hole's only upstream — 2026.7.3 exits at once, taking LAN DNS with it (measured 2026-07-27). Hold at the last release that still has the feature until the DoH client is replaced.",
-      "matchPackageNames": ["cloudflare/cloudflared"],
-      "allowedVersions": "<2026.2.0"
-    },
-    {
       "description": "wg-easy 15 is a rewrite, not an upgrade: it drops nearly every environment variable, moves the config from wg0.json to SQLite, and migrates through an interactive setup wizard. A merged PR would ride the next deploy and bring the VPN up with no peers — taking the offsite Pi, which is only reachable through that tunnel, out of reach. Hold at 14 until issue #48 is done.",
       "matchPackageNames": ["ghcr.io/wg-easy/wg-easy"],
       "allowedVersions": "<15"

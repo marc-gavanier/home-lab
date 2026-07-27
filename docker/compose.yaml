@@ -233,25 +233,41 @@ services:
   # proxies over DoH (HTTP/2, RFC 8484) to Quad9 — no cleartext DNS to the ISP,
   # upstream choice under version control (ADR-015). No bootstrap loop: the host
   # resolves via 1.1.1.1/8.8.8.8 (Docker's embedded DNS), never Pi-hole.
-  # Held at 2026.1.x deliberately: cloudflared REMOVED the `proxy-dns` feature in
-  # 2026.2.0, and this container is Pi-hole's only upstream — 2026.7.3 exits
-  # immediately with "dns-proxy feature is no longer supported" (measured), which
-  # would take DNS down for the whole LAN. 2026.1.1 is the last release that
-  # still has it. Renovate is constrained to match; replacing the DoH client is
-  # tracked separately.
-  cloudflared:
-    image: cloudflare/cloudflared:2026.1.2
-    container_name: cloudflared
+  # Pi-hole's ONLY upstream: every name the LAN and the VPN resolve leaves
+  # through here, encrypted. Replaced cloudflared on 2026-07-27 (ADR-015, issue
+  # #50) — Cloudflare removed the `proxy-dns` feature in 2026.2.0, and the new
+  # image exits at once with "dns-proxy feature is no longer supported", so the
+  # container this stack depended on stopped existing rather than breaking.
+  dnsproxy:
+    image: adguard/dnsproxy:v0.83.0
+    container_name: dnsproxy
     restart: unless-stopped   # Tier 0: Pi-hole's only upstream — must stay up
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
-    read_only: true          # measured: nothing written since it started; it only proxies DNS over HTTPS
+    cap_add:
+      # Not for the port — :5053 is unprivileged. The binary carries
+      # cap_net_bind_service as a FILE capability, and a file-capability binary
+      # cannot even be exec'd when that capability is outside the bounding set:
+      # `exec /opt/dnsproxy/dnsproxy: operation not permitted` (measured). Same
+      # mechanism as ping in uptime-kuma and pihole-FTL (ADR-017).
+      - NET_BIND_SERVICE
+    read_only: true          # measured: writes nothing, configured by flags alone
     network_mode: "service:pihole"   # share Pi-hole's netns → reachable at 127.0.0.1#5053
-    command: proxy-dns
-    environment:
-      TUNNEL_DNS_ADDRESS: "127.0.0.1"
-      TUNNEL_DNS_PORT: "5053"
-      TUNNEL_DNS_UPSTREAM: "https://dns.quad9.net/dns-query"
+    command:
+      - "-l"
+      - "127.0.0.1"
+      - "-p"
+      - "5053"
+      # Upstreams addressed by IP on purpose. A service that *is* the DNS path
+      # must not need DNS to start: the hostname form works today (measured
+      # inside Pi-hole's namespace), but it would depend on Docker's embedded
+      # resolver and on the host's own DNS being up at boot. Quad9's certificate
+      # carries IP SANs, so TLS validation is unchanged — this is not a
+      # downgrade to an unverified connection.
+      - "-u"
+      - "https://9.9.9.9/dns-query"
+      - "-u"
+      - "https://149.112.112.112/dns-query"
     depends_on:
       - pihole
 

@@ -1,7 +1,9 @@
 # ADR-015 — Encrypted DNS egress via cloudflared DoH (Quad9)
 
 **Date**: 2026-07-20
-**Status**: accepted (deployment pending on-Pi validation)
+**Status**: accepted — deployed and validated on the Pi. The **client changed on
+2026-07-27** (cloudflared → dnsproxy); the decision itself is unchanged, see the
+appended section.
 
 ## Context
 
@@ -74,3 +76,61 @@ anycast plus `restart: unless-stopped` is deemed reliable enough.
 ## Related
 
 ADR-014 (ACME DNS-01), issue #12 (network hardening), `docs/04-network/`.
+
+---
+
+## 2026-07-27 — the client changed, the decision did not (issue #50)
+
+Cloudflare **removed** `proxy-dns` in cloudflared 2026.2.0. The container this
+ADR specified did not break — it stopped existing. `2026.7.3` exits immediately
+with `dns-proxy feature is no longer supported`, and since this container is
+Pi-hole's only upstream, deploying that bump would have taken DNS down for the
+whole LAN and every VPN client. Caught by testing the image before deploying it,
+not after.
+
+The decision recorded above — encrypted egress to Quad9 over DoH, in a sidecar
+sharing Pi-hole's network namespace — is untouched. Only the implementation
+moved.
+
+### Candidates, benched under the hardening this stack applies
+
+| Candidate | Starts under `read_only` + `cap_drop: ALL` + `no-new-privileges` | RSS |
+|---|---|---|
+| **`adguard/dnsproxy`** | yes, with one capability | **6.9 MiB** |
+| `cloudflare/cloudflared` (previous) | yes | 14.7 MiB |
+| `unbound` (full recursion) | **no** — `unable to set group id`, needs SETUID/SETGID | — |
+| `dnscrypt-proxy` | not benched: TOML config plus a downloaded resolver list, a poor fit for a read-only rootfs | — |
+
+Pi-hole's own FTL (v6.7) has no encrypted-upstream option — `dns.upstreams`
+accepts `IP#port` only — so removing the sidecar entirely was not available.
+
+### Two details that are not obvious
+
+**One capability, and not for the port.** `cap_drop: ALL` alone makes the
+container fail with `exec /opt/dnsproxy/dnsproxy: operation not permitted`. The
+binary carries `cap_net_bind_service` as a *file capability*, and such a binary
+cannot even be exec'd when the capability is outside the bounding set — the same
+mechanism that broke `ping` in uptime-kuma and `pihole-FTL` (ADR-017). It is not
+needed to bind `:5053`, which is unprivileged.
+
+**Upstreams by IP, deliberately.** The hostname form works — measured inside
+Pi-hole's own namespace, where the only resolver on `127.0.0.1#5053` is the
+sidecar itself. But a service that *is* the DNS path should not depend on DNS to
+start, and the IP form has nothing to resolve. Quad9's certificate carries IP
+SANs, so this is not a downgrade to an unverified connection.
+
+Both forms log occasional `exchange failed ... unexpected EOF` against Quad9 —
+an HTTP/2 connection-lifecycle artifact, not a property of either form. Over 30
+uncached queries each, the IP form produced **0** client-visible failures and
+the hostname form **1**. Two upstreams in load-balance mode exist to absorb
+exactly that.
+
+### What the switch cost
+
+A first attempt took DNS down for uncached names: the image was pinned as
+`0.83.0` where the registry publishes `v0.83.0`, so `up -d` failed after
+cloudflared had already been removed — and the rollback harness's probe passed
+anyway, because it queried three names it had just cached itself. Both defects
+are fixed in the procedure (`knowledge/runbooks/container-config-changes.md`):
+pull the replacement **before** dismantling what works, and probe with a name
+that cannot be cached.

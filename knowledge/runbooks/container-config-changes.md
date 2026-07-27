@@ -78,6 +78,22 @@ the service *does* beyond answering.
    | Nextcloud cron | `core lastcron` **must advance** — busybox `crond` calls `setgroups()` before every job, so without `SETGID` it logs "can't set groups" once per run and never executes `cron.php`, with the container still Up (#28) |
    | Netdata | uid of PID 1 = 201, the full plugin list, and the chart-context counts per family — see `docs/07-observability` |
 
+   **A probe a cache can satisfy is not a probe.** Swapping Pi-hole's DoH client
+   on 2026-07-27, the harness reported success while **no upstream container
+   existed at all**: it queried three names it had just resolved itself moments
+   earlier, and Pi-hole answered every one from cache. Uncached names were timing
+   out the whole time. Probe with something that *cannot* be cached — a random
+   label, where `NXDOMAIN` is a passing answer because it proves something
+   upstream replied — and gate on the container actually being `running` before
+   believing any functional result.
+
+   **Pull the replacement before dismantling what works.** The same switch took
+   DNS down because the image was pinned `0.83.0` where the registry publishes
+   `v0.83.0`: `up -d` failed *after* the working container had been removed. A
+   `docker pull` as the first step of the script turns that into an abort with
+   nothing touched. And never send `docker compose up` to `/dev/null` — that is
+   what hid the error.
+
    **Validate the probe before you trust it.** A probe that cannot succeed turns
    a working change into a rollback, and then reports the rollback as failed
    too. On this host the trap is DNS: internal names resolve only in Pi-hole,
