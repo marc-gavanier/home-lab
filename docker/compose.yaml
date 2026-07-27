@@ -70,7 +70,7 @@ services:
   # history). This read-only proxy exposes ONLY the container-list endpoint
   # Traefik needs (CONTAINERS=1; POST stays 0), on an internal-only network.
   socket-proxy:
-    image: tecnativa/docker-socket-proxy:0.3.0
+    image: tecnativa/docker-socket-proxy:v0.5.0
     container_name: socket-proxy
     restart: unless-stopped   # Tier 0: Traefik depends on it at boot
     # NO read_only (#32): the entrypoint generates haproxy.cfg from the template
@@ -102,7 +102,7 @@ services:
 
   # --- Traefik (Reverse Proxy) ---
   traefik:
-    image: traefik:v3.7.7
+    image: traefik:v3.7.9
     container_name: traefik
     restart: unless-stopped   # Tier 0: auto-start at boot (see stack-startup role)
     security_opt: *no-new-privs
@@ -233,8 +233,14 @@ services:
   # proxies over DoH (HTTP/2, RFC 8484) to Quad9 — no cleartext DNS to the ISP,
   # upstream choice under version control (ADR-015). No bootstrap loop: the host
   # resolves via 1.1.1.1/8.8.8.8 (Docker's embedded DNS), never Pi-hole.
+  # Held at 2026.1.x deliberately: cloudflared REMOVED the `proxy-dns` feature in
+  # 2026.2.0, and this container is Pi-hole's only upstream — 2026.7.3 exits
+  # immediately with "dns-proxy feature is no longer supported" (measured), which
+  # would take DNS down for the whole LAN. 2026.1.1 is the last release that
+  # still has it. Renovate is constrained to match; replacing the DoH client is
+  # tracked separately.
   cloudflared:
-    image: cloudflare/cloudflared:2025.8.1
+    image: cloudflare/cloudflared:2026.1.1
     container_name: cloudflared
     restart: unless-stopped   # Tier 0: Pi-hole's only upstream — must stay up
     security_opt: *no-new-privs
@@ -303,7 +309,7 @@ services:
 
   # --- Nextcloud ---
   nextcloud:
-    image: nextcloud:34.0.1-apache
+    image: nextcloud:34.0.2-apache
     container_name: nextcloud
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     # NO read_only (#32): the entrypoint writes redis-session.ini into
@@ -379,7 +385,7 @@ services:
       start_period: 120s
 
   nextcloud-db:
-    image: mariadb:11.8.8
+    image: mariadb:12.3.2
     container_name: nextcloud-db
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
@@ -401,6 +407,11 @@ services:
     # its entrypoint skips the gosu hand-off when already non-root.
     user: "999:999"
     environment:
+      # Without this the entrypoint logs "MariaDB upgrade required, but skipped"
+      # and starts anyway on system tables from the previous major — measured on
+      # the 11.8 → 12.3 bump. The upgrade it runs is one-way, so an image
+      # rollback past a major needs a datadir restore, not just a tag change.
+      MARIADB_AUTO_UPGRADE: "1"
       MYSQL_ROOT_PASSWORD_FILE: /run/secrets/nextcloud_db_root_password
       MYSQL_DATABASE: ${NEXTCLOUD_DB_NAME}
       MYSQL_USER: ${NEXTCLOUD_DB_USER}
@@ -419,12 +430,20 @@ services:
       retries: 3
 
   nextcloud-redis:
-    image: redis:7.4.9-alpine
+    image: redis:8.8.1-alpine
     container_name: nextcloud-redis
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     read_only: true          # measured: no volume and no write outside its socket
+    # redis 8 no longer declares VOLUME /data, so on a read-only rootfs the RDB
+    # snapshot fails and redis then DISABLES ALL WRITES (stop-writes-on-bgsave-
+    # error). Measured the hard way: both caches accepted reads and writes for
+    # minutes, then the first background save failed and took the Nextcloud
+    # upgrade down with it. These caches hold nothing worth keeping across a
+    # restart — they never had a volume — so the honest fix is to stop saving
+    # rather than hand a cache a disk.
+    command: ["redis-server", "--save", ""]
     # Same treatment as the databases, and even simpler here: no volume at all,
     # so there is nothing for the entrypoint's root phase to chown (#28).
     user: "999:999"
@@ -439,7 +458,7 @@ services:
   # Companion container running Nextcloud background jobs every 5 min
   # (system cron, more reliable than AJAX). Shares the data volume.
   nextcloud-cron:
-    image: nextcloud:34.0.1-apache
+    image: nextcloud:34.0.2-apache
     container_name: nextcloud-cron
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
@@ -471,7 +490,7 @@ services:
   # Real-time update push to sync clients (websocket). Runs the notify_push
   # binary shipped by the app; the until-loop waits for it to be installed.
   nextcloud-notify-push:
-    image: nextcloud:34.0.1-apache
+    image: nextcloud:34.0.2-apache
     container_name: nextcloud-notify-push
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
@@ -514,7 +533,7 @@ services:
 
   # --- Vaultwarden ---
   vaultwarden:
-    image: vaultwarden/server:1.36.0
+    image: vaultwarden/server:1.37.0
     container_name: vaultwarden
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
@@ -689,12 +708,20 @@ services:
       - internal
 
   immich-redis:
-    image: redis:7.4.9-alpine
+    image: redis:8.8.1-alpine
     container_name: immich-redis
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     read_only: true          # measured: no volume and no write outside its socket
+    # redis 8 no longer declares VOLUME /data, so on a read-only rootfs the RDB
+    # snapshot fails and redis then DISABLES ALL WRITES (stop-writes-on-bgsave-
+    # error). Measured the hard way: both caches accepted reads and writes for
+    # minutes, then the first background save failed and took the Nextcloud
+    # upgrade down with it. These caches hold nothing worth keeping across a
+    # restart — they never had a volume — so the honest fix is to stop saving
+    # rather than hand a cache a disk.
+    command: ["redis-server", "--save", ""]
     # Same treatment as the databases, and even simpler here: no volume at all,
     # so there is nothing for the entrypoint's root phase to chown (#28).
     user: "999:999"
@@ -882,7 +909,7 @@ services:
 
   # --- Netdata ---
   netdata:
-    image: netdata/netdata:v2.10.0
+    image: netdata/netdata:v2.10.4
     container_name: netdata
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     # Netdata's plugins are **setuid root** (4755: apps.plugin, cgroup-network,
