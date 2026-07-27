@@ -240,7 +240,7 @@ services:
   # still has it. Renovate is constrained to match; replacing the DoH client is
   # tracked separately.
   cloudflared:
-    image: cloudflare/cloudflared:2026.1.1
+    image: cloudflare/cloudflared:2026.1.2
     container_name: cloudflared
     restart: unless-stopped   # Tier 0: Pi-hole's only upstream — must stay up
     security_opt: *no-new-privs
