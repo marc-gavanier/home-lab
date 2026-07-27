@@ -1,8 +1,8 @@
 # ADR-017 — Drop all Linux capabilities, re-add per image
 
 **Date**: 2026-07-26
-**Status**: accepted — deployed and verified per service on the Pi, except
-netdata, which stays on the default set for now
+**Status**: accepted — deployed and verified per service on the Pi, netdata
+included (2026-07-27)
 
 ## Context
 
@@ -40,8 +40,36 @@ issuance for Traefik, a blocked-domain lookup for Pi-hole, an RPC call with both
 right and wrong credentials for Transmission, real peer handshakes for wg-easy.
 
 A sweep for file-capability binaries across all containers is part of the
-procedure now, since that failure mode is invisible from outside. It also warns
-that netdata ships `/usr/bin/fping` with `cap_net_raw`.
+procedure now, since that failure mode is invisible from outside.
+
+### Netdata: dropping capabilities can *raise* privilege
+
+Netdata was done last and turned out to be the instructive case. Its plugins are
+**setuid root** (mode 4755: `apps.plugin`, `cgroup-network`, `go.d.plugin`,
+`network-viewer`…) — not file-capability binaries, as the compose comment had
+claimed for months. A setuid binary still only receives the container's bounding
+set, so `cap_drop` governs what those plugins can do.
+
+Two findings, both invisible from the outside:
+
+- **Without `CHOWN` the agent never drops privilege.** It fails to prepare
+  `/run`, `/var/cache` and `/var/lib` as `201:201`, gives up on switching user,
+  and runs *entirely as root* — the opposite of the intent, and nothing in
+  `docker inspect` or a healthcheck says so. Only `awk /^Uid:/ /proc/1/status`
+  does.
+- **Without `DAC_OVERRIDE` two features die while every chart survives.** The
+  setuid-root plugins write into `/run/netdata`, owned by uid 201; without the
+  capability `network-viewer`'s spawn server fails to `bind()` and go.d's
+  `local-listeners` service discovery dies. Chart contexts stayed at 278 of 279
+  either way — the comparison that mattered was the list of running plugin
+  processes.
+
+Verification was therefore a diff against production on three axes: uid of PID 1,
+plugin processes alive, and chart contexts. `NET_RAW` is deliberately absent
+(only `fping` needs it, and no ping collector is configured); `SYS_ADMIN` stays
+out as before, which already made `cgroup-network`'s namespace-entering path
+inert on this host — the same "Cannot switch to network namespace" lines predate
+this change, so `SYS_CHROOT` was left out too rather than moving a log line.
 
 ### `DAC_OVERRIDE` — the exception, and what it reveals
 
@@ -73,8 +101,8 @@ would be denied.
 ## Consequences
 
 **Positive**
-- Five of the twenty services hold no capabilities at all; the rest hold between
-  one and eight instead of fourteen. `NET_RAW` (packet spoofing/sniffing), `MKNOD`,
+- Seven of the twenty-one services hold no capabilities at all; the rest hold
+  between one and eight instead of fourteen. `NET_RAW` (packet spoofing/sniffing), `MKNOD`,
   `SYS_CHROOT`, `SETPCAP` and `AUDIT_WRITE` are gone wherever unused.
 - Every remaining capability is now a documented, justified line rather than an
   invisible default — a new service starts from zero and has to earn each one.
@@ -86,9 +114,11 @@ would be denied.
 - Image updates can change the requirement (a new binary with file
   capabilities, an entrypoint that starts chowning). The file-capability sweep
   is the cheap regression check.
-- `DAC_OVERRIDE` survives on seven services, which limits the gain there: it is
+- `DAC_OVERRIDE` survives on six services, which limits the gain there: it is
   the capability that makes root's file access unconditional. Two more make do
-  with `DAC_READ_SEARCH`.
+  with `DAC_READ_SEARCH`. Jellyfin and Navidrome shed theirs by owning their
+  trees as root instead (issue #28) — five paths, all of them directories, were
+  enough to require the capability.
 
 **Learned the hard way**
 Applying the change to wg-easy against the live container left the VPN — and the
@@ -101,11 +131,16 @@ sandbox-first rule applies to every service on the critical path.
 
 - **Keep the default set** — the status quo grants capabilities nothing uses.
   Rejected: this was the cheapest remaining reduction on the container layer.
-- **`cap_drop: ALL` with no re-adds, chowning every data tree to match each
-  container's uid** — strictly better, and it would retire `DAC_OVERRIDE`
-  entirely. Deferred, not rejected: it changes on-disk ownership across every
-  service and belongs in its own change, codified in the storage role rather
-  than applied by hand.
+- **Chowning every data tree to match each container's uid** — strictly better,
+  and started under issue #28: Jellyfin and Navidrome run purely as root, so
+  root-owned trees (codified in the storage role, not applied by hand) retired
+  their `DAC_OVERRIDE`. It does not generalise. The remaining six run as root
+  *and* hand off to a service uid, so root ends up writing files owned by that
+  uid whichever way the tree is owned; Postgres additionally refuses a data
+  directory it does not own, which rules the pattern out for immich-db. For
+  those, running the container **as** the service uid (`user: 999:999`, with the
+  data directory already owned by it) is the promising route — it removes the
+  root phase altogether, and with it CHOWN/SETUID/SETGID/FOWNER as well.
 - **A custom seccomp or AppArmor profile per service** — finer-grained than
   capabilities, and the right tool for netdata specifically (issue #24). Not a
   substitute for this: it is more work per service and does not remove the

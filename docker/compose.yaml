@@ -508,10 +508,6 @@ services:
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
-    cap_add:
-      # Writes its marker files into a /config tree owned by the host user
-      # (sanity check at startup) while running as root.
-      - DAC_OVERRIDE
     environment:
       JELLYFIN_PublishedServerUrl: https://videos.${DOMAIN}
     volumes:
@@ -540,10 +536,6 @@ services:
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
-    cap_add:
-      # SQLite needs to create its WAL/journal beside the database, in a
-      # directory owned by the host user while the process runs as root.
-      - DAC_OVERRIDE
     environment:
       ND_SCANSCHEDULE: 1h
       ND_LOGLEVEL: info
@@ -791,15 +783,41 @@ services:
     image: netdata/netdata:v2.10.0
     container_name: netdata
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    # Netdata's plugins are **setuid root** (4755: apps.plugin, cgroup-network,
+    # go.d.plugin, network-viewer…), which is why no-new-privileges is absent
+    # below. A setuid binary still only gets the container's bounding set, so
+    # cap_drop decides what those plugins can do — and dropping too much backfires
+    # in a way no status check shows: without CHOWN the agent cannot prepare its
+    # own directories, never drops to uid 201, and runs entirely as root
+    # (measured). Every cap here was established by running a throwaway agent and
+    # diffing its plugin processes and chart contexts against this one (#24).
+    cap_drop: *cap-drop-all
     cap_add:
       - SYS_PTRACE             # apps.plugin: read /host/proc for per-process charts
-      # SYS_ADMIN removed — it only powered ebpf.plugin (advanced eBPF charts);
-      # core/system/apps/container charts are unaffected. SYS_ADMIN ~= host root.
+      - DAC_OVERRIDE           # the setuid-root plugins write into /run/netdata,
+                               # owned by uid 201. Without it network-viewer's
+                               # spawn server fails to bind and go.d service
+                               # discovery (local-listeners) dies — while all 279
+                               # chart contexts stay present, so charts alone
+                               # would have called this a success
+      - CHOWN                  # prepares /run, /var/cache, /var/lib as 201:201
+      - SETUID                 # …then drops from root to netdata (uid 201)
+      - SETGID
+      # SYS_ADMIN stays removed — it only powered ebpf.plugin (advanced eBPF
+      # charts); core/system/apps/container charts are unaffected, and
+      # SYS_ADMIN ~= host root. Consequence already visible before this change:
+      # cgroup-network cannot enter other containers' namespaces ("Cannot switch
+      # to network namespace"), so SYS_CHROOT is left out too — granting it alone
+      # would only move that log line, not restore the path.
+      # NET_RAW is absent as well: only /usr/bin/fping needs it (it carries
+      # cap_net_raw) and no ping collector is configured. Add it back the day one
+      # is, or the collector will fail at exec with nothing else looking wrong.
     security_opt:
-      # NO no-new-privileges here (the one exception): apps.plugin elevates via
-      # file capabilities (cap_sys_ptrace/cap_dac_read_search on the binary) to
-      # read other processes' /proc for per-app charts — no-new-privileges blocks
-      # that gain and floods the log with EPERM. The big wins (SYS_ADMIN + raw
+      # NO no-new-privileges here (the one exception): the plugins are setuid
+      # root (4755, verified — not file capabilities as this comment previously
+      # claimed) and need that elevation to read other processes' /proc for
+      # per-app charts. no-new-privileges blocks the setuid gain outright and
+      # floods the log with EPERM. The big wins (SYS_ADMIN + raw
       # docker.sock) are already removed, so this residual is acceptable.
       - apparmor:unconfined    # lets apps.plugin ptrace despite Docker's default AppArmor profile
     environment:

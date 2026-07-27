@@ -43,7 +43,7 @@ Defense in depth — each layer is secured independently. If one layer falls, th
   the socket. (Netdata uses it solely to resolve container names.)
 - No `privileged` mode, and **`cap_drop: ALL` on every service**, each re-adding
   only what its image was *observed* to need (issue #24). Docker hands 14
-  capabilities to every container by default; five of the twenty keep none at all.
+  capabilities to every container by default; seven of the twenty-one keep none.
   What the exercise showed is that the requirement is rarely guessable from the
   outside: Pi-hole needs `SETFCAP` because its image `setcap`s the FTL binary in
   order to run the resolver as non-root, wg-easy needs `NET_RAW` because
@@ -52,19 +52,23 @@ Defense in depth — each layer is secured independently. If one layer falls, th
   capability — without it the exec fails and every ping monitor reports
   "spawn EPERM" while the container stays healthy and its UI keeps answering.
   Each cap in `compose.yaml` carries a comment naming the behaviour that needs
-  it. Netdata is the one service still on the default set (SYS_PTRACE added),
-  pending a check that dropping the rest leaves its plugins intact — it ships
-  `fping` with a file capability, so the same trap applies. Rationale and the
+  it. Netdata is the sharpest example of why this is measured rather than
+  reasoned: its plugins are setuid root, so dropping `CHOWN` stops the agent
+  from preparing its directories and it silently runs **as root** instead of
+  uid 201, and dropping `DAC_OVERRIDE` kills its network-viewer and service
+  discovery while all 279 chart contexts stay present. Rationale and the
   per-service findings: ADR-017; procedure for changing any container's
   configuration safely: `knowledge/runbooks/container-config-changes.md`.
 - **`DAC_OVERRIDE` is the recurring exception**, and it says something worth
   knowing: several containers run as root over data directories owned by the
   host user, so root was quietly relying on that capability to read and write
   them. Where only reads are involved the narrower `DAC_READ_SEARCH` is used
-  instead (Traefik's config, Nextcloud's push service). Chowning those trees to
-  the uid the container actually runs as would let the last ones go — SearXNG
-  proved the point: its grant disappeared once its settings stopped being a
-  symlink it could not read (issue #27), and it now holds no capability at all.
+  instead (Traefik's config, Nextcloud's push service). Six services still hold
+  it. Jellyfin and Navidrome shed theirs by owning their trees as root, since
+  they run purely as root inside (issue #28); SearXNG shed its when the defect
+  behind it was fixed (issue #27). The rest run as root *and* hand off to a
+  service uid, so ownership alone does not settle it — running the container as
+  that uid is the open avenue.
 - **Secrets injected as files, not environment variables** — the socket-proxy
   still allows `GET /containers/{id}/json`, whose response carries every
   container's `Env` array, so an env-injected password would be readable by a
