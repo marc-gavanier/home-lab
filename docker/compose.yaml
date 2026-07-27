@@ -379,7 +379,7 @@ services:
       start_period: 120s
 
   nextcloud-db:
-    image: mariadb:11.8.8
+    image: mariadb:12.3.2
     container_name: nextcloud-db
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
