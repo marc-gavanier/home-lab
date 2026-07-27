@@ -19,3 +19,26 @@
     - "{{ media_dir }}/videos/music-videos"
     - "{{ media_dir }}/photos"
     - "{{ backup_dir }}"
+
+# Ownership here is a capability decision, not housekeeping. Jellyfin and
+# Navidrome run as root *inside* the container, over trees that were created
+# 1000:1000 — so root was reading and writing files it did not own, which only
+# worked because Docker grants DAC_OVERRIDE by default. Dropping that capability
+# (ADR-017) made jellyfin fail its startup sanity check and navidrome report a
+# read-only database. Root-owned trees remove the need for the capability
+# instead of working around it (issue #28).
+#
+# recurse: the existing trees hold a mix of root- and 1000-owned files (the
+# containers created some, Ansible the rest), so the top directory alone is not
+# enough. ~8000 files, re-checked on each deploy and reported changed only while
+# something differs.
+- name: directories | Own the trees of services that run as root in-container
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    recurse: true
+  loop:
+    - "{{ services_data_dir }}/jellyfin"
+    - "{{ services_data_dir }}/navidrome"
