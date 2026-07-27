@@ -42,8 +42,14 @@ All services are **VPN-only**. The `vpn-only` middleware is applied globally on 
 
 - **Pi-hole** is the LAN resolver (ad/tracker blocking, split DNS, lists). Clients
   talk only to Pi-hole.
-- **Encrypted egress**: Pi-hole forwards upstream to a **cloudflared** sidecar
-  (`127.0.0.1#5053`, sharing Pi-hole's netns), which proxies to **Quad9 over DoH**
+- **Encrypted egress**: Pi-hole forwards upstream to a **dnsproxy** sidecar
+  (`127.0.0.1#5053`, sharing Pi-hole's netns), which proxies to **Quad9 over DoH**.
+  It replaced cloudflared on 2026-07-27: Cloudflare **removed** the `proxy-dns`
+  feature in 2026.2.0, so the container this depended on stopped existing rather
+  than breaking (ADR-015, issue #50). The upstreams are addressed **by IP**
+  (`9.9.9.9`, `149.112.112.112`) on purpose — a service that *is* the DNS path
+  should not need DNS to start; Quad9's certificate carries IP SANs, so TLS
+  validation is unchanged
   (RFC 8484 / HTTP2). Upstream queries no longer leave in cleartext to the ISP.
 - The upstream is pinned in `compose.yaml` (`FTLCONF_dns_upstreams`), not the
   manual `pihole.toml` — version-controlled, no drift. See ADR-015.
