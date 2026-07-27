@@ -105,18 +105,26 @@ Defense in depth — each layer is secured independently. If one layer falls, th
 - Isolated Docker networks (`proxy` / `internal` / `socketproxy`); the DB tier
   lives on `internal` only — never proxied, never published
 - No directly exposed service ports — everything routes through Traefik (vpn-only)
-- **Read-only rootfs — the next step on this layer, deliberately not taken yet.**
-  `read_only: true` plus explicit `tmpfs` mounts would stop a compromised
-  process from writing to its own image layer. The cost is what makes it a
-  decision rather than a chore: each of the twenty-one images has to be observed
-  to find every path it writes at runtime (locks, PID files, caches, session
-  data, entrypoint-generated config), and getting it wrong produces exactly the
-  silent degradation `cap_drop` produced — SearXNG ran on a self-generated stub
-  config for two weeks under a related defect. Estimated at the same order of
-  effort as ADR-017, for a smaller gain, since `cap_drop: ALL` and
-  `no-new-privileges` already remove most of what a writable rootfs would buy an
-  attacker. Revisit when the stack is otherwise idle; not filed as an issue on
-  purpose, so it is not mistaken for planned work.
+- **Read-only rootfs on 17 of the 21 services** (ADR-019, issue #32) — a
+  compromised process cannot rewrite the code it runs, drop a binary, or persist
+  anything outside the paths we declared. Every writable path is explicit: a
+  sized `tmpfs` for state meant to be lost (PID files, sockets, caches,
+  temporary files), a bind mount for state that is not. The requirement was
+  **measured** with `docker diff` on the running containers — the real write set
+  after weeks of production — not guessed from the images: seven services turned
+  out to write nothing at all. Two rules earned the hard way: mount the *leaf*
+  (`/run/mysqld`), never the parent, or the image's own runtime directories
+  disappear and the server aborts; and Docker mounts `tmpfs` `noexec`, which
+  breaks any init system that stages executables there.
+- **The four exceptions all write into directories the image itself populates**,
+  and each is stated in its own block: pihole (`setcap` on its own binary —
+  read-only leaves the container *Up* with the resolver dead, the failure mode
+  we most want to avoid), nextcloud (`redis-session.ini` among 21 shipped
+  `.ini` files), socket-proxy (`haproxy.cfg` beside its template), transmission
+  (starts read-only but silently stops honouring `PUID`/`PGID` and the `UMASK`
+  that came from a CIS finding). The available workarounds — a `tmpfs` over a
+  populated directory, or a host copy of image content — would each mask the
+  next image update, trading a visible limit for an invisible one.
 
 ### 4. Application
 - Strong passwords generated via Vaultwarden

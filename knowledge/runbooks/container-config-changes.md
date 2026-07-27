@@ -78,6 +78,15 @@ the service *does* beyond answering.
    | Nextcloud cron | `core lastcron` **must advance** — busybox `crond` calls `setgroups()` before every job, so without `SETGID` it logs "can't set groups" once per run and never executes `cron.php`, with the container still Up (#28) |
    | Netdata | uid of PID 1 = 201, the full plugin list, and the chart-context counts per family — see `docs/07-observability` |
 
+   **Validate the probe before you trust it.** A probe that cannot succeed turns
+   a working change into a rollback, and then reports the rollback as failed
+   too. On this host the trap is DNS: internal names resolve only in Pi-hole,
+   and the Pi does **not** use Pi-hole as its own resolver, so `curl
+   https://videos.gavanier.com/health` fails on the host with "Could not resolve
+   host" while the service is perfectly healthy. Use `--resolve
+   <name>:443:192.168.1.100`, or probe from inside the container. Only
+   `drive` and `services` are pinned in `/etc/hosts`.
+
 4. **Sweep for file-capability binaries** before dropping capabilities anywhere,
    since that failure is invisible from outside:
 
@@ -117,7 +126,27 @@ the service *does* beyond answering.
    Each such recreation leaves the previous anonymous volume dangling
    (`docker volume ls -f dangling=true`).
 
-6. **Leave the Pi's file consistent with the running state.** `docker compose`
+6. **Making a container read-only** (ADR-019) — the write set is measurable, so
+   measure it: `docker diff <container>` lists everything written to the image
+   layer since the container was created. Then:
+
+   - **Mount the leaf, never the parent.** A `tmpfs` on `/run` erases the
+     subdirectories the image made there and the process will not recreate them
+     (`Bind on unix socket: No such file or directory`). Mount `/run/mysqld`,
+     `/run/postgresql`, `/run/netdata`. Check what a directory holds before
+     covering it — netdata's `/var/log/netdata` is all symlinks to `/dev/stdout`.
+   - **`tmpfs` is mounted `noexec` by default.** An init system that stages
+     binaries under `/run` (s6) fails with `Permission denied` on exec. Use
+     `- /run:exec`.
+   - **A write target that shares a directory with image content is a stop.**
+     Both workarounds — `tmpfs` over the directory, or a host copy of what the
+     image ships — hide the next image update. Leave the rootfs writable and
+     write down why.
+   - `docker diff` only shows writes since the container started, so rare paths
+     (log rotation, certificate renewal, weekly jobs) will not appear. Probe
+     those explicitly.
+
+7. **Leave the Pi's file consistent with the running state.** `docker compose`
    reads `/opt/homelab/compose.yaml`; if a container was rolled back but the file
    still holds the broken definition, the next `up` — from the heal timer, a
    reboot, or an Ansible deploy — reintroduces the failure. Ansible re-templates

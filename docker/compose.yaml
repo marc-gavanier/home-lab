@@ -17,6 +17,13 @@ x-security-opt: &no-new-privs
 # images here touch none of them. Each block re-adds only what its own image was
 # observed to need, with a comment saying which behaviour requires it; anything
 # not listed there was verified absent, not assumed (issue #24).
+# Read-only root filesystem (per service, issue #32): the container cannot write
+# to its own image layer, so a compromised process cannot drop a binary or alter
+# the code it will run next. What each service needs was measured with
+# `docker diff` on the live containers — the real write set after weeks of
+# running — not guessed. Writable paths are declared explicitly: a sized tmpfs
+# for state meant to be lost, a bind mount for state that is not. Services
+# without `read_only` carry the reason why in their own block.
 x-cap-drop: &cap-drop-all
   - ALL
 
@@ -66,6 +73,10 @@ services:
     image: tecnativa/docker-socket-proxy:0.3.0
     container_name: socket-proxy
     restart: unless-stopped   # Tier 0: Traefik depends on it at boot
+    # NO read_only (#32): the entrypoint generates haproxy.cfg from the template
+    # sitting next to it. Measured: exit code 1, "can't create
+    # /usr/local/etc/haproxy/haproxy.cfg". Same reason as nextcloud — the write
+    # target shares a directory with content the image provides.
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     environment:
@@ -105,6 +116,11 @@ services:
       # The read-only override is enough — acme.json is root-owned, so the ACME
       # store rewrites it in place with no directory write involved.
       - DAC_READ_SEARCH
+    read_only: true
+    tmpfs:
+      # Nothing was observed being written here, but lego writes temporary files
+      # during a challenge — a failure would only surface at the next renewal.
+      - /tmp:size=16m
     environment:
       # Scoped Cloudflare token for the ACME DNS-01 challenge (ADR-014), as a
       # file so it stays out of `docker inspect` (ADR-016). lego — which drives
@@ -143,6 +159,11 @@ services:
     image: pihole/pihole:2026.07.2
     container_name: pihole
     restart: unless-stopped   # Tier 0: auto-start at boot (see stack-startup role)
+    # NO read_only (#32), and this is the sharpest case for measuring instead of
+    # reasoning: with a read-only rootfs the container still reports **Up**, but
+    # `setcap` on /usr/bin/pihole-FTL fails silently, getcap comes back empty,
+    # FTL never starts and :53 refuses connections. A read-only rootfs would turn
+    # a loud failure into the invisible kind — the opposite of the goal.
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     cap_add:
@@ -218,6 +239,7 @@ services:
     restart: unless-stopped   # Tier 0: Pi-hole's only upstream — must stay up
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
+    read_only: true          # measured: nothing written since it started; it only proxies DNS over HTTPS
     network_mode: "service:pihole"   # share Pi-hole's netns → reachable at 127.0.0.1#5053
     command: proxy-dns
     environment:
@@ -250,6 +272,9 @@ services:
       # (measured), but creating a *new* file there would be denied. Chowning
       # that directory to root would remove the caveat without a capability.
       - NET_RAW
+    read_only: true
+    tmpfs:
+      - /run:size=8m           # xtables.lock; wg0.conf lives on the bind mount
     sysctls:
       - net.ipv4.conf.all.src_valid_mark=1
       - net.ipv4.ip_forward=1
@@ -281,6 +306,12 @@ services:
     image: nextcloud:34.0.1-apache
     container_name: nextcloud
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    # NO read_only (#32): the entrypoint writes redis-session.ini into
+    # /usr/local/etc/php/conf.d, which also holds the 21 .ini files the image
+    # ships. Measured: exit code 2, "cannot create .../redis-session.ini". A
+    # tmpfs there would hide every PHP extension config, and pre-rendering the
+    # directory on the host would silently swallow whatever the next image
+    # version adds to it.
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     cap_add:
@@ -353,6 +384,14 @@ services:
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
+    read_only: true
+    tmpfs:
+      # The leaf, not /run: a tmpfs on /run would erase the image's own
+      # /run/mysqld and mariadbd does not recreate it ("Bind on unix socket: No
+      # such file or directory", measured).
+      - /run/mysqld
+      # InnoDB creates temporary files at startup and aborts without them.
+      - /tmp:size=256m
     # No capability at all: running as mysql from PID 1 removes the root phase
     # the entrypoint would otherwise go through (chown the datadir, then exec as
     # uid 999), and with it CHOWN/SETUID/SETGID/DAC_OVERRIDE/FOWNER — five
@@ -385,6 +424,7 @@ services:
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
+    read_only: true          # measured: no volume and no write outside its socket
     # Same treatment as the databases, and even simpler here: no volume at all,
     # so there is nothing for the entrypoint's root phase to chown (#28).
     user: "999:999"
@@ -413,6 +453,10 @@ services:
       # unconditional in busybox, so the capability is the price of using it.
       - SETUID
       - SETGID
+    read_only: true
+    tmpfs:
+      - /run:size=8m           # crond.pid, crond.reboot
+      - /tmp:size=32m          # PHP temporary files during the cron run
     entrypoint: /cron.sh
     depends_on:
       nextcloud-db:
@@ -432,6 +476,7 @@ services:
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
+    read_only: true          # measured: runs a single binary out of the mounted app directory
     cap_add:
       # Only *reads* Nextcloud's config.php, owned by www-data — the narrower
       # read/traverse override is enough, no write bypass needed.
@@ -474,6 +519,7 @@ services:
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
+    read_only: true          # measured: its only image-layer entries are the secret mount points
     cap_add:
       # Binds :80 inside the container (Traefik terminates TLS).
       - NET_BIND_SERVICE
@@ -519,6 +565,14 @@ services:
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
+    read_only: true
+    tmpfs:
+      # Leaf mounts, never the parent: /jellyfin holds the application itself.
+      - /tmp:size=64m                    # .NET debug pipes and diagnostic sockets
+      - /root/.aspnet:size=8m            # DataProtection keys — regenerated at each
+                                         # start today too, nothing is lost
+      - /var/cache/fontconfig:size=16m   # rebuilt on demand
+      - /jellyfin/Dictionaries:size=8m
     environment:
       JELLYFIN_PublishedServerUrl: https://videos.${DOMAIN}
     volumes:
@@ -547,6 +601,7 @@ services:
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
+    read_only: true          # measured: writes only into the mounted /data and /music
     environment:
       ND_SCANSCHEDULE: 1h
       ND_LOGLEVEL: info
@@ -577,6 +632,11 @@ services:
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m
+      - /data:size=8m          # created empty by the entrypoint; the real upload
+                               # path is the bind mount below
     depends_on:
       immich-db:
         condition: service_healthy
@@ -611,6 +671,12 @@ services:
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
+    read_only: true
+    tmpfs:
+      # matplotlib insists on a writable home; the model cache is a bind mount.
+      - /root/.cache:size=32m
+      - /root/.config:size=8m
+      - /tmp:size=64m
     volumes:
       - ${SERVICES_DATA_DIR}/immich/ml-cache:/cache
     networks:
@@ -622,6 +688,7 @@ services:
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
+    read_only: true          # measured: no volume and no write outside its socket
     # Same treatment as the databases, and even simpler here: no volume at all,
     # so there is nothing for the entrypoint's root phase to chown (#28).
     user: "999:999"
@@ -644,6 +711,12 @@ services:
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
+    read_only: true
+    tmpfs:
+      - /run/postgresql        # same leaf rule as nextcloud-db
+      - /tmp:size=128m
+      - /etc/postgresql        # the entrypoint writes postgresql.conf here, and
+                               # the directory holds nothing else
     # Same reasoning as nextcloud-db: no root phase, therefore no capability.
     # Postgres additionally *requires* the datadir to belong to the uid it runs
     # as, so this is the direction the image was pushing us in anyway.
@@ -670,6 +743,13 @@ services:
     image: linuxserver/transmission:4.1.3-r0-ls354
     container_name: transmission
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    # NO read_only (#32) — and here the image says so itself. Under a read-only
+    # rootfs the linuxserver init prints "UMASK, custom services & docker mod
+    # functionality will be disabled and the PUID/PGID environment variables will
+    # have no effect". Both matter: PUID/PGID own the downloads, and UMASK 022 is
+    # there because downloads were landing world-writable (CIS 7.1.11). The
+    # container does start read-only — it just quietly stops honouring two
+    # settings we rely on, which is a worse trade than the writable layer.
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     cap_add:
@@ -731,6 +811,7 @@ services:
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
+    read_only: true          # measured: everything it keeps is in the mounted /app/data
     cap_add:
       # Kuma spawns /usr/bin/ping, which carries cap_net_raw=ep as a file
       # capability. Under cap_drop ALL that capability is outside the bounding
@@ -758,6 +839,12 @@ services:
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
+    read_only: true
+    tmpfs:
+      # Engine and data caches (sqlite). update-ca-certificates also fails
+      # read-only, which is harmless: no extra CA is injected, so the image's
+      # own bundle is what is used either way (verified).
+      - /tmp:size=64m
     volumes:
       # The settings file itself, not the directory around it: a symlink inside a
       # bind-mounted directory is resolved in the container's namespace, so the
@@ -839,6 +926,20 @@ services:
       # if it is missing the container does not start at all, which is the
       # failure mode we want rather than a silent fall back to unconfined.
       - apparmor=homelab-netdata
+    read_only: true
+    tmpfs:
+      # Leaf mounts only. /run ships adduser/lock/log and /var/log/netdata is a
+      # set of symlinks to /dev/stdout — a tmpfs on either parent would destroy
+      # them and turn the agent's logs into files growing in RAM.
+      - /run/netdata:size=8m          # spawn-server sockets and the plugin pipe
+      - /tmp:size=32m                 # /tmp/netdata
+      - /var/log/netdata/otel:size=16m
+      # The otel signal viewer creates these two *inside* the container (the host
+      # journal is not mounted, and deliberately so). They were empty before this
+      # change too — the tmpfs keeps the behaviour identical instead of adding two
+      # ERROR lines to every start.
+      - /host/var/log:size=1m
+      - /host/run/log:size=1m
     environment:
       # Container-name resolution via the read-only socket-proxy (CONTAINERS=1,
       # same as Traefik), never the raw docker.sock (full Docker API = host root
@@ -847,6 +948,15 @@ services:
     depends_on:
       - socket-proxy
     volumes:
+      # State on disk rather than in the image layer. This is what makes
+      # read_only possible without paying for it in RAM, and it fixes something
+      # that was quietly true before: the metrics database lived in the
+      # container's writable layer, so **every recreate started the history from
+      # zero**. The image ships only empty cloud.d/ and registry/ directories
+      # plus netdata.tarball.checksum (for the auto-updater we do not use) at
+      # /var/lib/netdata, so mounting over it masks nothing that matters.
+      - ${SERVICES_DATA_DIR}/netdata/lib:/var/lib/netdata
+      - ${SERVICES_DATA_DIR}/netdata/cache:/var/cache/netdata
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
       - /etc/os-release:/host/etc/os-release:ro
