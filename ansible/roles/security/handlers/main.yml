@@ -16,10 +16,13 @@
     daemon_reload: true
   listen: Restart SSH
 
+# daemon_reload: the drop-in that makes fail2ban wait for /mnt/data is a unit
+# file, and systemd will not see it otherwise.
 - name: Restart fail2ban
-  ansible.builtin.service:
+  ansible.builtin.systemd:
     name: fail2ban
     state: restarted
+    daemon_reload: true
 
 - name: Restart postfix
   ansible.builtin.service:
