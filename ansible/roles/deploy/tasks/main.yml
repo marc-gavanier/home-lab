@@ -45,3 +45,16 @@
 
 - name: Set up the Cloudflare DDNS updater for the vpn record
   ansible.builtin.import_tasks: ddns.yml
+
+# A deploy is the moment the container posture is most likely to have changed,
+# and the posture check runs only once a day. Without this, a drift introduced
+# at 12:00 waits until 11:00 the next morning to be reported — and worse, a
+# drift that has just been FIXED leaves its monitor red for the rest of the day.
+# Re-asserting here makes detection and recovery both minutes rather than a day
+# (issue #33; seen for real on 2026-07-27, when a corrected finding stayed red).
+- name: Re-assert the container posture now that the stack has changed
+  ansible.builtin.systemd:
+    name: homelab-posture.service
+    state: started
+  changed_when: false
+  failed_when: false
