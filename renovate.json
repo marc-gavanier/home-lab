@@ -2,7 +2,8 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended",
-    ":timezone(Europe/Paris)"
+    ":timezone(Europe/Paris)",
+    "helpers:pinGitHubActionDigests"
   ],
   "description": "Docker images (compose), GitHub Actions, and version variables. PRs are batched weekly to keep the noise down; the lint workflow gates every PR.",
   "mode": "full",
