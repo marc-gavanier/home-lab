@@ -214,7 +214,21 @@ if command -v systemctl >/dev/null 2>&1 && mountpoint -q /mnt/data; then
         fi
     done
     mv "${UNITS_STAMP}.new" "$UNITS_STAMP"
-    [ -n "$inactive" ] && problems+=("not active:$inactive")
+
+    # Age-gated like everything else here: a unit can legitimately be down for a
+    # few seconds — fail2ban waits for /mnt/data and comes up within 30 s of the
+    # unlock, so an immediate alarm would fire on a normal boot.
+    INACTIVE_STAMP=/var/lib/homelab-health/inactive
+    if [ -n "$inactive" ]; then
+        seen=""
+        for u in $inactive; do
+            grep -qx "$u" "$INACTIVE_STAMP" 2>/dev/null && seen="$seen $u"
+        done
+        [ -n "$seen" ] && problems+=("not active:$seen")
+        printf '%s\n' $inactive > "$INACTIVE_STAMP"
+    else
+        rm -f "$INACTIVE_STAMP"
+    fi
     [ -n "$flapping" ] && problems+=("restarted since last check:$flapping")
 
     # Timer-driven oneshots rest at inactive/dead, so their state says nothing —

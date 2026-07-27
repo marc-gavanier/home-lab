@@ -12,6 +12,14 @@
     name: fail2ban
     state: present
 
+- name: fail2ban | Create the systemd drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/fail2ban.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
 # Neither filter ships with Debian's fail2ban. The `bitwarden` filter that does
 # ship targets the *official* Bitwarden server (Bit.Core log lines) and never
 # matches Vaultwarden — a jail that silently catches nothing, which is exactly
@@ -134,6 +142,36 @@
       maxretry = 5
       findtime = 600
     mode: "0644"
+  notify: Restart fail2ban
+
+# Two of the three jails read logs from /mnt/data, which is a LUKS volume
+# unlocked by hand minutes-to-hours after boot. fail2ban does not skip a jail
+# whose logpath is missing — it exits, and with no Restart= directive it stays
+# down. Measured on the reboot of 2026-07-27: fail2ban failed at 23:43:52, the
+# volume appeared at 23:52:30, and SSH was left unprotected until a human
+# restarted it. Adding those jails is what created the dependency, so the unit
+# has to learn about it.
+#
+# Deliberately NOT `Requires=mnt-data.mount`: a hard dependency-job failure
+# stays dead forever and is not covered by Restart= — the same trap documented
+# on claude-remote-control. Soft-want the mount, gate startup on it being
+# there, and let the retry bring the service up ~30 s after the unlock.
+- name: fail2ban | Wait for the encrypted volume before starting (jails read from it)
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/fail2ban.service.d/override.conf
+    mode: "0644"
+    content: |
+      # Managed by Ansible — do not edit on the host.
+      [Unit]
+      After=mnt-data.mount
+      Wants=mnt-data.mount
+      # The unlock can come hours after boot; never stop retrying.
+      StartLimitIntervalSec=0
+
+      [Service]
+      ExecStartPre=/bin/sh -c 'grep -q " /mnt/data " /proc/mounts'
+      Restart=on-failure
+      RestartSec=30
   notify: Restart fail2ban
 
 # Vaultwarden holds the file open, so rotation must not move it out from under
