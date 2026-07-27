@@ -22,6 +22,11 @@
       "allowedVersions": "<2026.2.0"
     },
     {
+      "description": "wg-easy 15 is a rewrite, not an upgrade: it drops nearly every environment variable, moves the config from wg0.json to SQLite, and migrates through an interactive setup wizard. A merged PR would ride the next deploy and bring the VPN up with no peers — taking the offsite Pi, which is only reachable through that tunnel, out of reach. Hold at 14 until issue #48 is done.",
+      "matchPackageNames": ["ghcr.io/wg-easy/wg-easy"],
+      "allowedVersions": "<15"
+    },
+    {
       "description": "Immich pins are managed manually (one-way DB migrations, server & ML must move together — see feedback 2026-07)",
       "matchPackageNames": ["ghcr.io/immich-app/immich-server", "ghcr.io/immich-app/immich-machine-learning", "ghcr.io/immich-app/postgres"],
       "enabled": false
