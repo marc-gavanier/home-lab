@@ -1,0 +1,139 @@
+#!/usr/bin/env bash
+# {{ ansible_managed }}
+# =============================================================================
+# Homelab Pi — container security posture check
+# =============================================================================
+# Asserts that the container hardening is still in place. Nothing else does,
+# and every failure this stack has produced was invisible from the outside:
+# Uptime Kuma stayed healthy with every ping monitor dead, SearXNG ran two weeks
+# on a stub config, netdata reported working charts while running as root. A
+# drifted posture would look exactly as normal (issue #33).
+#
+# The expected values are GENERATED FROM docker/compose.yaml at deploy time, so
+# this check cannot drift from the file it is checking: adding a service or
+# changing a capability updates the expectation on the next deploy, by
+# construction. Hand-maintaining that table would rot at the first new service.
+#
+# Runs daily rather than every five minutes: posture only changes when a
+# container is recreated, and the netdata assertions cost a docker exec each.
+# No-ops when no push URL is configured.
+
+set -uo pipefail
+
+KUMA_PUSH_URL='{{ homelab_posture_kuma_push_url | default("") }}'
+KUMA_PUSH_URL="${KUMA_PUSH_URL%%\?*}"   # strip a pasted example query (see homelab-health.sh)
+
+notify() {
+    [ -n "$KUMA_PUSH_URL" ] || return 0
+    curl -fsS -m 10 --retry 2 -G "$KUMA_PUSH_URL" \
+        --data-urlencode "status=$1" --data-urlencode "msg=$2" >/dev/null 2>&1 || true
+}
+
+problems=()
+checked=0
+
+# /mnt/data is unlocked by hand after a reboot: until then the stack is
+# legitimately down and there is nothing to assert. The health report already
+# covers that window, and alarming here would cry wolf on every boot.
+if ! mountpoint -q /mnt/data; then
+    notify up "/mnt/data locked — posture not checked"
+    exit 0
+fi
+
+{% raw %}
+inspect() { docker inspect -f "$2" "$1" 2>/dev/null; }
+
+check_service() {
+    local name="$1" want_caps="$2" want_ro="$3" want_nnp="$4" want_aa="$5"
+
+    # A container that is not running is the health report's business — that
+    # one runs every five minutes, this runs daily.
+    [ "$(inspect "$name" '{{.State.Status}}')" = "running" ] || return 0
+    checked=$((checked + 1))
+
+    # cap_drop: ALL first. Without it the capability list below means nothing —
+    # the default fourteen come back regardless of what cap_add says.
+    case "$(inspect "$name" '{{range .HostConfig.CapDrop}}{{.}} {{end}}')" in
+        *ALL*) ;;
+        *) problems+=("$name: cap_drop ALL missing") ;;
+    esac
+
+    local caps
+    caps=$(inspect "$name" '{{range .HostConfig.CapAdd}}{{.}} {{end}}' \
+           | tr ' ' '\n' | sed 's/^CAP_//' | grep -v '^$' | sort | tr '\n' ' ')
+    caps="${caps% }"
+    [ "$caps" = "$want_caps" ] || problems+=("$name: caps [$caps] want [$want_caps]")
+
+    local ro
+    ro=$(inspect "$name" '{{.HostConfig.ReadonlyRootfs}}')
+    [ "$ro" = "$want_ro" ] || problems+=("$name: read_only=$ro want $want_ro")
+
+    local nnp
+    case "$(inspect "$name" '{{range .HostConfig.SecurityOpt}}{{.}} {{end}}')" in
+        *no-new-privileges*) nnp=true ;;
+        *) nnp=false ;;
+    esac
+    [ "$nnp" = "$want_nnp" ] || problems+=("$name: no-new-privileges=$nnp want $want_nnp")
+
+    # AppArmor: what the kernel actually applied, not what compose asked for. A
+    # missing profile stops the container (loud); a profile silently replaced by
+    # a permissive one would show up nowhere else.
+    if [ -n "$want_aa" ]; then
+        local actual
+        actual=$(docker exec "$name" cat /proc/1/attr/current 2>/dev/null)
+        case "$actual" in
+            "$want_aa"*enforce*) ;;
+            *) problems+=("$name: apparmor [$actual] want [$want_aa enforce]") ;;
+        esac
+    fi
+}
+{% endraw %}
+
+# --- Per-service expectations, generated from docker/compose.yaml -----------
+{% set compose = lookup('file', playbook_dir + '/../../docker/compose.yaml') | from_yaml %}
+{% for name, svc in compose.services.items() %}
+{%- set cname = svc.container_name | default(name) %}
+{%- set caps = (svc.cap_add | default([])) | sort | join(' ') %}
+{%- set ro = 'true' if svc.read_only | default(false) else 'false' %}
+{#- plain Jinja on purpose: `select('search')` is an Ansible-only test, and a
+    template that cannot be rendered outside Ansible cannot be tested before it
+    is deployed. -#}
+{%- set optstr = (svc.security_opt | default([])) | join(' ') %}
+{%- set nnp = 'true' if 'no-new-privileges' in optstr else 'false' %}
+{%- set aa = optstr.split('apparmor=')[1].split(' ')[0] if 'apparmor=' in optstr else '' %}
+check_service "{{ cname }}" "{{ caps }}" "{{ ro }}" "{{ nnp }}" "{{ aa }}"
+{% endfor %}
+
+# --- Netdata: the three axes its failures actually show up on ---------------
+# ADR-018. Status and HTTP prove nothing here: the agent stays healthy and
+# serves its dashboard with a plugin dead, and it runs as root instead of
+# uid 201 when it cannot prepare its own directories — silently, both times.
+NETDATA_PLUGINS="NETWORK-VIEWER apps.plugin go.d.plugin sd-jrnl.plugin sd-unit.plugin spawn-plugins"
+NETDATA_MIN_CONTEXTS=270
+
+if [ "$(docker inspect -f '{% raw %}{{.State.Status}}{% endraw %}' netdata 2>/dev/null)" = "running" ]; then
+    uid=$(docker exec netdata awk '/^Uid:/ {print $2}' /proc/1/status 2>/dev/null)
+    [ "$uid" = "201" ] || problems+=("netdata: uid ${uid:-?} not 201")
+
+    procs=$(docker exec netdata ps -eo comm 2>/dev/null)
+    for p in $NETDATA_PLUGINS; do
+        echo "$procs" | grep -qx "$p" || problems+=("netdata: plugin $p missing")
+    done
+
+    contexts=$(docker exec netdata curl -s --max-time 10 \
+        http://127.0.0.1:19999/api/v3/contexts 2>/dev/null \
+        | python3 -c 'import sys, json; print(len(json.load(sys.stdin).get("contexts", {})))' 2>/dev/null)
+    contexts=${contexts:-0}
+    [ "$contexts" -ge "$NETDATA_MIN_CONTEXTS" ] \
+        || problems+=("netdata: $contexts chart contexts, want >= $NETDATA_MIN_CONTEXTS")
+fi
+
+# --- Verdict ---------------------------------------------------------------
+{# bash ${#array[@]} reads as a Jinja comment opener — shield it #}
+if [ {% raw %}${#problems[@]}{% endraw %} -gt 0 ]; then
+    printf '%s\n' "${problems[@]}" >&2
+    notify down "$(printf '%s; ' "${problems[@]}")"
+    exit 1
+fi
+
+notify up "posture OK on $checked containers"

@@ -23,6 +23,32 @@ metrics database sat in the container's writable layer with no volume, so every
 recreate — every image bump, every configuration test — silently restarted the
 history from zero. Both now live on `/mnt/data/services/netdata` (ADR-019).
 
+### The daily posture check
+
+`homelab-posture.sh` (daily, its own Kuma push monitor) asserts that the
+container hardening is still in place — `cap_drop: ALL`, the exact capability
+set per service, `read_only`, `no-new-privileges`, the AppArmor profile the
+kernel actually applied, and netdata's three axes below (issue #33). Nothing
+else would notice a drift: an image update whose entrypoint starts writing
+somewhere new, or a container recreated without its `user:`, looks exactly like
+a healthy stack from the outside.
+
+The expected values are **generated from `docker/compose.yaml`** at deploy time
+rather than maintained by hand, so the check cannot drift from the file it
+checks: adding a service or changing a capability updates the expectation on the
+next deploy. Verified by regressing a real service (navidrome, `read_only`
+removed and recreated) and confirming the report caught it.
+
+Separate from `Pi health` on purpose — a posture drift is not an outage, and it
+should not compete with temperature and disk alerts for attention. It also
+skips entirely while `/mnt/data` is locked, since the whole stack is
+legitimately down in that window.
+
+The health report covers the complementary case at a five-minute cadence:
+**expected containers that are not running at all**. `docker ps --filter
+health=unhealthy` cannot see them, and the heal timer only resurrects containers
+that *exited* — one that fails to come back was invisible to both (issue #34).
+
 ### Checking that Netdata itself is not lying
 
 Netdata is the one service whose breakage is invisible from the outside: the

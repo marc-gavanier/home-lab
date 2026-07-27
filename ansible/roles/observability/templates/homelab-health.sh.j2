@@ -125,6 +125,39 @@ if command -v docker >/dev/null 2>&1; then
     fi
 fi
 
+# --- Expected containers that are not running ---
+# The check above cannot see them: `docker ps --filter health=unhealthy` only
+# lists running containers, and the heal timer only resurrects ones that
+# EXITED. A container that fails to come back is invisible to both. That is how
+# a stopped socket-proxy would go unnoticed while Traefik keeps answering 200
+# from its in-memory routes, blind to every container change (issue #34).
+# The list is generated from docker/compose.yaml, so it cannot drift.
+# Age-gated like the check above: the staged startup brings the waves up over
+# several minutes, and /mnt/data is unlocked by hand, so only alarm past 10 min.
+MISSING_STAMP=/var/lib/homelab-health/missing.stamp
+if command -v docker >/dev/null 2>&1 && mountpoint -q /mnt/data; then
+{% set compose = lookup('file', playbook_dir + '/../../docker/compose.yaml') | from_yaml %}
+    expected="{% for name, svc in compose.services.items() %}{{ svc.container_name | default(name) }} {% endfor %}"
+    running=$(docker ps --format '{% raw %}{{.Names}}{% endraw %}' 2>/dev/null)
+    missing=""
+    for c in $expected; do
+        echo "$running" | grep -qx "$c" || missing="$missing $c"
+    done
+    missing="${missing# }"
+    if [ -n "$missing" ]; then
+        mkdir -p "$(dirname "$MISSING_STAMP")"
+        [ -f "$MISSING_STAMP" ] || date +%s > "$MISSING_STAMP"
+        age=$(( $(date +%s) - $(cat "$MISSING_STAMP" 2>/dev/null || echo 0) ))
+        if [ "$age" -gt 600 ]; then
+            problems+=("not running >10min: $missing")
+        else
+            report+=("not running: $missing")
+        fi
+    else
+        rm -f "$MISSING_STAMP"
+    fi
+fi
+
 # --- Verdict ---
 join() { local out; out=$(printf "%s$1" "${@:2}"); echo "${out%"$1"}"; }
 msg=$(join ', ' "${report[@]}")

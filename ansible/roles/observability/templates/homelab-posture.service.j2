@@ -1,0 +1,9 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Homelab container security posture check
+After=docker.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/homelab-posture.sh

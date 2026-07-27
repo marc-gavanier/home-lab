@@ -1,0 +1,13 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Daily homelab container security posture check
+
+[Timer]
+# Daily, late morning: after the night's unattended-upgrades and any image
+# update, and at an hour where a notification will actually be read.
+OnCalendar=*-*-* 11:00:00
+Persistent=true
+RandomizedDelaySec=10m
+
+[Install]
+WantedBy=timers.target

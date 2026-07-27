@@ -74,6 +74,9 @@ killswitch_keyword: ""     # secret keyword; poweroff fires only on an exact mat
 # Create the push monitor + attach a notification: see
 # knowledge/runbooks/backup-monitoring.md
 homelab_health_kuma_push_url: ""
+# Daily container security posture check (issue #33). Create a "Push" monitor in
+# Kuma named e.g. "Pi security posture" and paste its push URL here.
+homelab_posture_kuma_push_url: ""
 # Uptime Kuma "Push" monitor URL for the weekly lynis security audit
 # (hardening index + warnings; DOWN if the index drops below lynis_min_index).
 # Kuma caps the push heartbeat interval at 24 days, so the audit runs weekly
