@@ -118,12 +118,35 @@ need a human:
 | Security updates    | still pending after **48 h** (age-gated: unattended-upgrades runs daily) |
 | Disk capacity       | `/` or `/mnt/data` ≥ **85 %** full                            |
 | Unhealthy container | a container fails its healthcheck for > **10 min**            |
+| Container missing   | an expected container is not running at all for > **10 min**   |
+| systemd unit failed | anything in `systemctl --failed`                               |
+| systemd restart loop | a unit stuck in `auto-restart` across two consecutive runs   |
+| Expected unit down  | docker, containerd, fail2ban, claude-remote-control or wg-quick@wg0 not `active` |
+| Timer last run      | a `homelab-*` timer whose triggered service did not end in `success` |
 
 The last two close the gaps the rest of the stack cannot see: Netdata graphs
 disk fill but has no notification path, and the heal timer only resurrects
 containers that *exited* — one that stays up while failing its healthcheck
 (notably `nextcloud-notify-push`, whose death silently kills mobile push)
 would otherwise be invisible.
+
+**The unit checks exist because a service can die for hours in silence** (issue
+#52): `claude-remote-control` looped 1 112 times over 5h47 on 2026-07-27 while
+work was going on continuously on this host, and `fail2ban` — sshd jail included
+— was down for six minutes the same morning. Neither was noticed by anything but
+a human happening to look.
+
+`systemctl --failed` alone would have caught **neither**. A unit with
+`Restart=on-failure` and `StartLimitIntervalSec=0` restarts forever and never
+reaches the failed state: it sits in `activating/auto-restart` while `--failed`
+stays empty. That is why the loop check looks at the sub-state instead, and
+reports on the second consecutive sighting so a single legitimate restart does
+not page.
+
+Timer-driven services rest at `inactive/dead`, so their state says nothing — for
+those the signal is the **result of the last run**, and the timer list is
+enumerated rather than hard-coded so a new timer is covered without editing the
+script.
 
 That last alert only reaches containers that *declare* a healthcheck, so a
 missing one is a blind spot rather than a green light. `socket-proxy` was one,
