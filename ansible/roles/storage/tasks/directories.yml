@@ -71,6 +71,18 @@
     - "{{ services_data_dir }}/nextcloud/db"
     - "{{ services_data_dir }}/immich/db"
 
+# Vaultwarden writes a log file here so fail2ban can watch it (#35): the
+# container cannot create the directory itself on first start, and the jail
+# would then sit on a path that never appears — a jail reporting healthy while
+# watching nothing.
+- name: directories | Create the Vaultwarden log directory
+  ansible.builtin.file:
+    path: "{{ services_data_dir }}/vaultwarden/logs"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
 # Netdata keeps its registry and its metrics database here rather than in the
 # container's writable layer, which is what lets it run with a read-only rootfs
 # (issue #32) — and incidentally means its history now survives a recreate. It
