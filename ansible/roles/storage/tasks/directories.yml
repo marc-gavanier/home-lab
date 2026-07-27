@@ -19,6 +19,11 @@
     - "{{ media_dir }}/videos/music-videos"
     - "{{ media_dir }}/photos"
     - "{{ backup_dir }}"
+    # Parents of the database datadirs below: without them Ansible (or Docker)
+    # would create them as root on a fresh provision, where today they belong
+    # to the host user like every other service directory.
+    - "{{ services_data_dir }}/nextcloud"
+    - "{{ services_data_dir }}/immich"
 
 # Ownership here is a capability decision, not housekeeping. Jellyfin and
 # Navidrome run as root *inside* the container, over trees that were created
@@ -42,3 +47,26 @@
   loop:
     - "{{ services_data_dir }}/jellyfin"
     - "{{ services_data_dir }}/navidrome"
+
+# The two databases run as uid 999 from PID 1 (`user: "999:999"` in
+# compose.yaml), which is what lets them hold no capability at all: there is no
+# root phase left to chown the datadir, so the datadir has to arrive already
+# owned by 999. On a fresh provision Docker would create these bind-mount
+# sources as root and Postgres would refuse to start ("data directory has wrong
+# ownership") while MariaDB would fail on its first write — neither has CHOWN
+# to repair it any more (issue #28).
+#
+# No `recurse`: the databases create their own files as 999, and walking a
+# 1.2 GB tree on every deploy would cost far more than it checks. Mode 0700
+# because Postgres requires it, and because a datadir holding every Nextcloud
+# file record has no reason to be world-readable.
+- name: directories | Own the database datadirs as the uid the servers run as
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "999"
+    group: "999"
+    mode: "0700"
+  loop:
+    - "{{ services_data_dir }}/nextcloud/db"
+    - "{{ services_data_dir }}/immich/db"
