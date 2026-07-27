@@ -4,13 +4,13 @@
 # Versions pinned for reproducible control nodes (bump deliberately).
 collections:
   - name: ansible.posix
-    version: 2.1.0
+    version: 2.2.2
   - name: community.crypto
-    version: 3.2.0
+    version: 3.3.0
   - name: community.general
-    version: 12.6.0
+    version: 13.2.0
   - name: community.docker
-    version: 5.2.0
+    version: 5.2.1
 
 roles:
   # CIS Ubuntu 24.04 benchmark (audit use only here — see playbooks/cis-audit.yml)
