@@ -11,6 +11,11 @@ argument_specs:
         required: false
         no_log: true
         description: Uptime Kuma push URL for the Pi power/thermal report (token = secret). Empty/absent = monitoring disabled.
+      homelab_posture_kuma_push_url:
+        type: str
+        required: false
+        no_log: true
+        description: Uptime Kuma push URL for the daily container posture check (token = secret). Empty/absent = disabled.
       lynis_kuma_push_url:
         type: str
         required: false
