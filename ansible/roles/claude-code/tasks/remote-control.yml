@@ -1,7 +1,11 @@
 ---
 # Claude Code Remote Control (always-on, sandboxed, dedicated user).
 # Requires the one-time `claude auth login` as the claude user (see main.yml).
-# Pairing URL: journalctl -u claude-remote-control | grep claude.ai/code
+# Pairing: the environment is registered once and persists across restarts, so
+# it is listed at claude.ai/code and in the mobile app. The URL is NOT in the
+# journal any more — stdout is discarded (see StandardOutput below). To print it
+# again: stop the unit, then run the ExecStart command by hand as the claude
+# user.
 
 - name: remote-control | Create the Claude Code Remote Control systemd service
   ansible.builtin.copy:
@@ -33,11 +37,15 @@
       ExecStart=/home/claude/.local/bin/claude remote-control --name Homelab
       Restart=on-failure
       RestartSec=15
-      StandardOutput=journal
+      # The CLI repaints its banner on stdout once per second — 300 journal
+      # lines a minute, forever, on an SD card. Discard stdout; stderr still
+      # reaches the journal, so real failures remain visible.
+      StandardOutput=null
       StandardError=journal
 
       [Install]
       WantedBy=multi-user.target
+  notify: Restart Claude Remote Control
 
 - name: remote-control | Check whether the claude user is authenticated
   ansible.builtin.stat:
