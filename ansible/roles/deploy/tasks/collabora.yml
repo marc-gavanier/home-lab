@@ -135,19 +135,21 @@
 # opened, which happens in a separate chroot jail. Converting a file exercises
 # that jail end to end, so this is the probe that would have caught the silent
 # no-new-privileges failure described in compose.yaml.
+# No pipe here either, and for the same reason as the urlsrc probe below: this
+# one read `head -c 5 … | grep -q` under `set -o pipefail`, where grep exits on
+# the match and the writer can take SIGPIPE. It never fired in production, but
+# it is the identical race — and a probe that fails at random is worse than one
+# that fails, because the first instinct is to re-run it rather than read it.
 - name: collabora | Verify a document can actually be converted
   ansible.builtin.shell:
-    # /bin/bash on purpose: the module defaults to /bin/sh, which is dash here,
-    # and dash has no `set -o pipefail` — the task then fails in 13 ms with
-    # "Illegal option -o pipefail" without ever running the probe.
     executable: /bin/bash
     cmd: >
-      set -o pipefail;
       printf 'homelab deploy probe\n' > /tmp/collabora-probe.txt &&
       docker cp /tmp/collabora-probe.txt nextcloud:/tmp/collabora-probe.txt &&
       docker exec nextcloud curl -sf -m 90 -o /tmp/collabora-probe.pdf
       -F 'data=@/tmp/collabora-probe.txt' http://collabora:9980/cool/convert-to/pdf &&
-      docker exec nextcloud head -c 5 /tmp/collabora-probe.pdf | grep -q '%PDF-'
+      magic=$(docker exec nextcloud head -c 5 /tmp/collabora-probe.pdf) &&
+      [ "$magic" = '%PDF-' ]
   register: collabora_convert
   changed_when: false
   when: collabora_up
@@ -159,10 +161,12 @@
 # urlsrc it advertises is the public name. It fails if the office.<domain> pin
 # is missing from the Nextcloud container, if Traefik is not routing, or if
 # wopi_url has drifted back to a container name.
-# No pipe on purpose. `curl | grep | head` under `set -o pipefail` returns 141
-# (SIGPIPE) as soon as `head` closes the pipe on a match — so the probe failed
-# precisely when it should have passed, and reported rc=141 with empty output.
-# Matching on a captured string has no such edge.
+# No pipe on purpose. `curl | grep | head` under `set -o pipefail` can return 141:
+# `head` closes the pipe on the match and the writer takes SIGPIPE. It is a
+# *race*, not a certainty — this exact probe, against this exact configuration,
+# failed at 22:00 and passed at 23:18 with nothing changed in between. That is
+# the worst kind of check to own: an intermittent red invites a re-run rather
+# than a read. Matching on a captured string has no such edge.
 - name: collabora | Verify the URL handed to the browser is publicly reachable
   ansible.builtin.shell:
     executable: /bin/bash
