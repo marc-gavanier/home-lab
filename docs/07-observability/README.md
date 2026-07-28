@@ -33,11 +33,18 @@ else would notice a drift: an image update whose entrypoint starts writing
 somewhere new, or a container recreated without its `user:`, looks exactly like
 a healthy stack from the outside.
 
-The expected values are **generated from `docker/compose.yaml`** at deploy time
-rather than maintained by hand, so the check cannot drift from the file it
-checks: adding a service or changing a capability updates the expectation on the
-next deploy. Verified by regressing a real service (navidrome, `read_only`
-removed and recreated) and confirming the report caught it.
+The expected values are **generated from `docker/compose.yaml`** rather than
+maintained by hand, so the check cannot drift from the file it checks: adding a
+service or changing a capability updates the expectation. Verified by regressing
+a real service (navidrome, `read_only` removed and recreated) and confirming the
+report caught it.
+
+**They are generated when the `observability` role templates the script, not
+when the stack is deployed** — the running script holds a snapshot, it does not
+read `compose.yaml`. So a hardening change needs `--tags deploy,observability`:
+deploy only the stack and the check keeps yesterday's expectations and accuses a
+container that is exactly right. Seen on 2026-07-28 after the wg-easy 15
+migration dropped `SYS_MODULE` (ADR-020).
 
 Separate from `Pi health` on purpose — a posture drift is not an outage, and it
 should not compete with temperature and disk alerts for attention. It also
