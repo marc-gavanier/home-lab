@@ -168,6 +168,25 @@ the service *does* beyond answering.
    reboot, or an Ansible deploy — reintroduces the failure. Ansible re-templates
    the file, so a temporary hand-copy is fine, but it must not be left behind.
 
+8. **Changing capabilities, `read_only` or `security_opt` means deploying
+   `observability` too** — `--tags deploy,observability`, not `--tags deploy`.
+   The daily posture check does not read `compose.yaml` at runtime: its
+   expectations are *generated from it* when the observability role templates
+   `homelab-posture.sh`. Deploy only the stack and the script keeps yesterday's
+   expectations, so a container that is exactly right is reported as drifted:
+
+   ```
+   wg-easy: caps [NET_ADMIN NET_RAW] want [NET_ADMIN NET_RAW SYS_MODULE]
+   ```
+
+   Measured on 2026-07-28, when the wg-easy 15 migration dropped `SYS_MODULE`
+   (ADR-020) and a targeted `--tags deploy` left the check accusing a correct
+   container. Harmless but expensive: it looks exactly like a real finding, and
+   the reflex is to go hunting in the container rather than in the expectation.
+   Check the script's own copy first — `grep <service> /usr/local/bin/homelab-posture.sh`
+   against the compose block — before believing a posture finding that arrives
+   right after a deploy.
+
 ## When `compose up` cannot perform the change
 
 Some image bumps need a **data migration that the image will not do for you**.
