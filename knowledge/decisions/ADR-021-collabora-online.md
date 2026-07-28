@@ -123,6 +123,40 @@ setting it reported `changed`, `activate-config` ran next, and the stored value
 was `https://collabora:9980` afterwards. The write succeeded and was undone
 seconds later, in the same play, with nothing in the output suggesting it.
 
+### `wopi_url` is the public name, and that is not a mistake
+
+The obvious configuration — `wopi_url` = `http://collabora:9980`, the container
+name, since that *is* how Nextcloud reaches the server — does not work, and
+fails in a way no server-side check catches. richdocuments fetches the WOPI
+discovery from `wopi_url` (`DiscoveryService::getDiscoveryEndpoint`) and then
+hands the browser the `urlsrc` it finds there **verbatim**, with no rewriting
+(`WOPI\Parser::getUrlSrcValue`). Collabora builds that `urlsrc` from the `Host`
+header of the request it received. Ask it over the container name and it
+answers with the container name.
+
+`public_wopi_url` does not fix this: it feeds the CSP allowlist, not the URL.
+The two then disagree, and the browser refuses the page Nextcloud just built:
+
+```
+Content-Security-Policy: blocked form-action at
+  https://collabora:9980/browser/…/cool.html?WOPISrc=…
+because it violates: form-action 'self' https://office.<domain>
+```
+
+Every server-side signal was green at that moment — container healthy, posture
+0, capabilities 200, a document converting to PDF on demand — and Collabora's
+log showed **no activity at all**, because no request ever arrived. The only
+diagnosis path was the browser console.
+
+So `wopi_url` is `https://office.<domain>`, and Nextcloud's own traffic goes out
+through Traefik and back in. That requires the Nextcloud container to resolve a
+name that exists only in split DNS, hence the second `extra_hosts` pin in its
+compose block — the same mechanism Collabora needs in the other direction.
+
+One consolation: with both URLs equal, `activate-config`'s derivation lands on
+the right value, so the ordering trap above becomes harmless rather than
+load-bearing.
+
 ## Consequences
 
 **A deploy now verifies a conversion, not a status.** The wiring task ends by
