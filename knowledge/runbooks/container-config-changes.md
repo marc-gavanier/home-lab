@@ -199,6 +199,47 @@ the service *does* beyond answering.
    against the compose block — before believing a posture finding that arrives
    right after a deploy.
 
+## Restarting a container that others share a namespace with
+
+`network_mode: "service:<other>"` makes one container live inside another's
+network namespace. **Restarting the host container destroys that namespace**,
+and the guest keeps running, attached to the dead one. It does not exit, does
+not fail its healthcheck, and never recovers on its own.
+
+On this stack the pair is `pihole` and `dnsproxy` (Pi-hole's only DoH upstream,
+reached at `127.0.0.1#5053`). The outcome of restarting Pi-hole alone is a
+**LAN-wide DNS outage**: FTL answers, has nowhere to forward, and every uncached
+query times out. Both containers read `healthy`, `systemctl --failed` is empty,
+and the crash-heal timer is blind because neither exited. The only visible trace
+is in Pi-hole's own log:
+
+```
+WARNING: Connection error (127.0.0.1#5053): TCP connection failed (Connection refused)
+```
+
+Measured on 2026-07-28: adding one hostname to the split-DNS template fired the
+`Restart pihole` handler for the first time since dnsproxy replaced cloudflared,
+and took the house offline. The deploy reported one unrelated failed task.
+
+**Always restart the pair, in order** — the handler now does this, but a manual
+`docker restart pihole` or `docker compose up -d pihole` needs it too:
+
+```bash
+docker restart pihole && docker restart dnsproxy
+```
+
+Before restarting anything, check whether something rides on its namespace:
+
+```bash
+docker ps -q | xargs docker inspect \
+  --format '{{.Name}} {{.HostConfig.NetworkMode}}' | grep container:
+```
+
+The diagnosis order that worked, and the one that did not: the first hypothesis
+was a lost DNAT rule, which cost a round trip — `iptables -t nat -S DOCKER` and
+`ss -lunp` both showed the port path intact. **Read the service's own log before
+theorising about the layer beneath it.**
+
 ## When `compose up` cannot perform the change
 
 Some image bumps need a **data migration that the image will not do for you**.

@@ -255,6 +255,13 @@ services:
       # mechanism as ping in uptime-kuma and pihole-FTL (ADR-017).
       - NET_BIND_SERVICE
     read_only: true          # measured: writes nothing, configured by flags alone
+    # Sharing Pi-hole's netns has a consequence worth stating where it is
+    # created: **restarting Pi-hole silently kills this container's networking**.
+    # Docker tears the namespace down and builds a new one; dnsproxy stays up,
+    # stays healthy, and is attached to the dead one. Pi-hole then has no
+    # upstream and the whole LAN loses DNS while both containers read green.
+    # Always restart the pair, in this order (the deploy handler does):
+    #   docker restart pihole && docker restart dnsproxy
     network_mode: "service:pihole"   # share Pi-hole's netns → reachable at 127.0.0.1#5053
     command:
       - "-l"
