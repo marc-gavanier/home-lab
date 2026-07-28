@@ -73,16 +73,26 @@
   changed_when: false
   when: collabora_up
 
-# wopi_url is how Nextcloud reaches Collabora: container name on the proxy
-# network, plain HTTP, no round trip through Traefik.
-- name: collabora | Re-assert the internal WOPI URL
+# wopi_url must be the PUBLIC name, not the container name, even though this is
+# the URL Nextcloud itself calls. richdocuments fetches the WOPI discovery from
+# it (DiscoveryService::getDiscoveryEndpoint) and then hands the browser the
+# `urlsrc` found inside — verbatim, with no rewriting (WOPI\Parser). Collabora
+# builds that `urlsrc` from the Host header of the request, so pointing this at
+# `http://collabora:9980` makes Nextcloud serve the browser an internal name it
+# cannot resolve. Firefox reports it as its own CSP refusing the load:
+#   blocked form-action at https://collabora:9980/browser/…/cool.html
+#   because it violates: form-action 'self' https://office.<domain>
+# — the allowlist comes from public_wopi_url, the URL from wopi_url, and they
+# disagreed. Nextcloud reaches this name through Traefik thanks to the
+# office.<domain> pin in its compose block. Measured 2026-07-28, issue #16.
+- name: collabora | Re-assert the WOPI URL (public name, see comment)
   ansible.builtin.command:
-    cmd: "docker exec -u www-data nextcloud php occ config:app:set richdocuments wopi_url --value=http://collabora:9980"
+    cmd: "docker exec -u www-data nextcloud php occ config:app:set richdocuments wopi_url --value=https://office.{{ domain }}"
   register: collabora_set
   changed_when: true
   when:
     - collabora_up
-    - ((collabora_conf.stdout | default('{}') | from_json).apps.richdocuments | default({})).wopi_url | default('') != 'http://collabora:9980'
+    - ((collabora_conf.stdout | default('{}') | from_json).apps.richdocuments | default({})).wopi_url | default('') != 'https://office.' ~ domain
 
 # activate-config re-fetches /hosting/capabilities and stores the detected
 # server. Only worth running when something above actually moved — otherwise
@@ -98,11 +108,13 @@
     - collabora_app_install is changed or collabora_app_enable is changed or collabora_set is changed
 
 # AFTER activate-config, never before. activate-config derives public_wopi_url
-# from wopi_url by swapping the scheme and *overwrites* whatever is stored, so
-# setting it earlier is silently undone: the first deploy left
-# `https://collabora:9980` behind — an internal container name handed to the
-# browser, which no client can reach. Measured on 2026-07-28, on a run where
-# the task before it had reported `changed` for this very key.
+# from wopi_url and *overwrites* whatever is stored, so setting it earlier is
+# silently undone — an early version of this file did exactly that and the write
+# was reverted seconds later, in the same play, with `changed` reported for it.
+# Now that wopi_url is already the public name the derived value agrees, so this
+# is a guard rather than a correction; it stays because the derivation is the
+# app's business, not ours. public_wopi_url is what builds the CSP `form-action`
+# allowlist — a mismatch with the urlsrc is refused by the browser, not by us.
 - name: collabora | Re-read the configuration activate-config may have rewritten
   ansible.builtin.command:
     cmd: docker exec -u www-data nextcloud php occ config:list --output=json
@@ -140,6 +152,24 @@
   changed_when: false
   when: collabora_up
 
+# The conversion probe above talks to Collabora directly and would pass happily
+# while the browser gets an address it cannot reach — which is exactly what
+# happened on the first deploy. This one asks the question the *browser* asks:
+# fetch the discovery the way richdocuments does, from wopi_url, and check the
+# urlsrc it advertises is the public name. It fails if the office.<domain> pin
+# is missing from the Nextcloud container, if Traefik is not routing, or if
+# wopi_url has drifted back to a container name.
+- name: collabora | Verify the URL handed to the browser is publicly reachable
+  ansible.builtin.shell:
+    executable: /bin/bash
+    cmd: >
+      set -o pipefail;
+      docker exec nextcloud curl -sf -m 20 https://office.{{ domain }}/hosting/discovery
+      | grep -o 'urlsrc="[^"]*"' | head -1 | grep -q 'https://office.{{ domain }}/'
+  register: collabora_urlsrc
+  changed_when: false
+  when: collabora_up
+
 - name: collabora | Remove the conversion probe artefacts
   ansible.builtin.shell:
     cmd: >
@@ -159,3 +189,15 @@
   when:
     - collabora_up
     - collabora_convert.rc | default(0) != 0
+
+- name: collabora | Fail the deploy when the browser would get an unreachable URL
+  ansible.builtin.fail:
+    msg: >-
+      Collabora works, but the URL Nextcloud hands the browser is not
+      https://office.{{ domain }} — documents will fail to open with a CSP
+      form-action violation while every server-side check stays green. Verify
+      `wopi_url` is the public name and that the nextcloud container pins
+      office.{{ domain }} to the LAN IP (ADR-021).
+  when:
+    - collabora_up
+    - collabora_urlsrc.rc | default(0) != 0

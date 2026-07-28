@@ -405,6 +405,12 @@ services:
     # fails from this container, while TCP/443 to the LAN IP works.)
     extra_hosts:
       - "drive.${DOMAIN}:${PI_LAN_IP}"
+      # richdocuments fetches the WOPI discovery from `wopi_url` and hands the
+      # browser the `urlsrc` it finds there *verbatim* — Collabora builds that
+      # value from the Host header, so wopi_url must be the public name, and
+      # this container must therefore be able to reach it. Split DNS only, so
+      # the pin is what makes it resolvable at all (ADR-021).
+      - "office.${DOMAIN}:${PI_LAN_IP}"
     networks:
       - proxy
       - internal

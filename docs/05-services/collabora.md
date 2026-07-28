@@ -20,10 +20,35 @@ Two halves that are useless apart:
 | `collabora` container | the document server (`coolwsd`), one chroot jail per open document |
 | `richdocuments` app | the Nextcloud-side connector, enabled and configured by the deploy |
 
-Nextcloud reaches the server as `http://collabora:9980` over the `proxy`
-network. The browser reaches it as `https://office.example.com` through Traefik.
-Collabora then calls Nextcloud *back* to fetch and save the file — which is why
-the container pins `drive.example.com` to the Pi's LAN IP (see below).
+**Both halves address the server as `https://office.example.com`** — Nextcloud
+included, even though the container sits one Docker network away. That is
+deliberate and is the single least obvious thing about this service: see
+"The URL trap" below. Collabora then calls Nextcloud *back* to fetch and save
+the file, so each container pins the other's public name to the Pi's LAN IP.
+
+## The URL trap
+
+Setting `wopi_url` to `http://collabora:9980` — the container name, which *is*
+how Nextcloud reaches the server — breaks document opening, and every
+server-side check stays green while it does.
+
+richdocuments fetches the WOPI discovery from `wopi_url` and hands the browser
+the `urlsrc` it finds there **verbatim**. Collabora builds that value from the
+`Host` header, so it answers with whatever name it was asked by. The browser
+then gets `http://collabora:9980/…` and refuses it against the CSP allowlist,
+which comes from `public_wopi_url`:
+
+```
+Content-Security-Policy: blocked form-action at https://collabora:9980/browser/…/cool.html
+because it violates: form-action 'self' https://office.example.com
+```
+
+Symptom: *"Failed to load Nextcloud Office (Collabora)"*, then a plain download
+after a hard refresh. Collabora's log stays **empty** — no request ever arrives.
+Only the browser console shows it.
+
+Both URLs are therefore the public name, and the `office.example.com` pin on the
+Nextcloud container is what lets it reach that name at all.
 
 ## Configuration — owned by the repository
 
