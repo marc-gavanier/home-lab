@@ -12,6 +12,18 @@ ssh -L 51821:127.0.0.1:51821 homelab
 # Then open http://localhost:51821
 ```
 
+**Logging in takes a username since v15: `admin`.** v14 had a password field and
+nothing else, so the reflex is to type the password alone — which returns
+`invalid username or password` and looks like a wrong password. The username is
+`WG_ADMIN_USERNAME` in `/mnt/data/secrets/wg-easy-setup.env`, and a password
+manager autofilling an email address into that field produces the same error.
+
+The password itself did not change across the migration — same vault variable,
+argon2 instead of bcrypt. One consequence of that swap: **bcrypt silently
+truncated at 72 bytes and argon2 does not**, so a stored password longer than 72
+characters used to work in v14 and will now be rejected. If that is the case,
+enter its first 72 characters, or set a shorter `wg_password` and redeploy.
+
 ## What It Does
 
 - Provides encrypted tunnel to the home network from anywhere
