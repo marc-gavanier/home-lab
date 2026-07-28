@@ -41,7 +41,10 @@ argument_specs:
       deploy_services:
         type: str
         required: false
-        description: Space-separated compose services to target (-e deploy_services="a b"). Absent = whole stack.
+        description: >-
+          Space-separated compose services to target. Pass it as JSON when there is more than one —
+          -e '{"deploy_services": "a b"}' — because the key=value form splits on whitespace and would
+          silently keep only the first. Absent = whole stack.
       wg_password:
         type: str
         required: true

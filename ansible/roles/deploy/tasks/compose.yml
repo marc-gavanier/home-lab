@@ -1,7 +1,13 @@
 ---
 # Docker Compose: file, networks, pull, up — via the native compose module
 # (real changed detection per container, no stderr grepping). Optional
-# targeting: -e deploy_services="svc1 svc2" limits pull/up to those services.
+# targeting: -e '{"deploy_services": "svc1 svc2"}' limits pull/up to those
+# services. Use the JSON form whenever there is more than one:
+# `-e deploy_services="a b"` looks right, but the shell strips the quotes and
+# Ansible's key=value parser then splits on whitespace, so only `a` survives and
+# `b` is dropped in silence. The deploy reports success having skipped the very
+# service the run was for — measured 2026-07-28, when the nextcloud half of a
+# two-service deploy never happened and `compose | Deploy services` said `ok`.
 #
 # CAVEAT — adding a BRAND-NEW service: targeting may not pull/create a service
 # that doesn't exist yet (the image isn't fetched, so `up` skips it silently).
