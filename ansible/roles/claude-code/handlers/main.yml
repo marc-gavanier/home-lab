@@ -2,3 +2,14 @@
 - name: Reload bwrap AppArmor profile
   ansible.builtin.command: apparmor_parser -r /etc/apparmor.d/bwrap
   changed_when: true
+
+# Without this, a unit-file edit lands on disk but the running process keeps the
+# old definition until the next reboot — the change looks deployed and is not.
+# Guarded on the credentials fact so it never starts a service that
+# remote-control.yml deliberately keeps stopped (no claude.ai login yet).
+- name: Restart Claude Remote Control
+  ansible.builtin.systemd:
+    name: claude-remote-control.service
+    state: restarted
+    daemon_reload: true
+  when: claude_creds.stat.exists
