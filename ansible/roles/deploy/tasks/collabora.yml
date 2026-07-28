@@ -94,9 +94,36 @@
     - collabora_up
     - ((collabora_conf.stdout | default('{}') | from_json).apps.richdocuments | default({})).wopi_url | default('') != 'https://office.' ~ domain
 
-# activate-config re-fetches /hosting/capabilities and stores the detected
-# server. Only worth running when something above actually moved — otherwise
-# every deploy would report changed.
+# richdocuments serves the browser from a *cached* discovery and never fetches
+# it on demand: CachedRequestService::get() reads the cache and returns null if
+# it is empty. An empty cache therefore means `simplexml_load_string(null)`,
+# then `xpath()` on false — HTTP 500 on /apps/richdocuments/token, a document
+# that loads forever, and nothing wrong anywhere else.
+#
+# That is not hypothetical. A deploy whose activate-config failed (Nextcloud
+# could not yet resolve office.<domain>) left the cache empty; the next two
+# deploys skipped activate-config because the configuration no longer changed,
+# so the cache was never given a second chance. Both runs reported success over
+# a service that could not open a single file. Triggering only on config drift
+# means a *failed* refresh is never retried — so the cache's own contents are
+# part of the condition now.
+#
+# The durable copy lives in appdata (Redis is only a one-hour front), so reading
+# the file is the honest check. If Nextcloud ever moves appdata to object
+# storage this glob stops matching and activate-config runs on every deploy —
+# visible as a permanent `changed`, which is a nuisance rather than a silent
+# failure, and the right way round.
+- name: collabora | Check whether the cached WOPI discovery is usable
+  ansible.builtin.shell:
+    executable: /bin/bash
+    cmd: >
+      out=$(docker exec nextcloud sh -c 'cat /var/www/html/data/appdata_*/richdocuments/remoteData/discovery 2>/dev/null') || exit 1;
+      case "$out" in *'urlsrc="https://office.{{ domain }}/'*) exit 0 ;; *) exit 1 ;; esac
+  register: collabora_discovery_cache
+  changed_when: false
+  failed_when: false
+  when: collabora_up
+
 - name: collabora | Activate the richdocuments configuration  # noqa: no-handler
   ansible.builtin.command:
     cmd: docker exec -u www-data nextcloud php occ richdocuments:activate-config
@@ -105,7 +132,10 @@
   failed_when: collabora_activate.rc != 0
   when:
     - collabora_up
-    - collabora_app_install is changed or collabora_app_enable is changed or collabora_set is changed
+    - >-
+      collabora_app_install is changed or collabora_app_enable is changed
+      or collabora_set is changed
+      or collabora_discovery_cache.rc | default(1) != 0
 
 # AFTER activate-config, never before. activate-config derives public_wopi_url
 # from wopi_url and *overwrites* whatever is stored, so setting it earlier is
@@ -177,6 +207,21 @@
   changed_when: false
   when: collabora_up
 
+# The three probes above all look outward — at Collabora, at Traefik, at the
+# network. None of them reads what richdocuments actually holds, and that is
+# precisely where the last failure lived: every outward check green, the cached
+# discovery empty, and a 500 on the token endpoint. Re-checking the cache after
+# activate-config is what closes that gap.
+- name: collabora | Verify the cached discovery richdocuments will serve
+  ansible.builtin.shell:
+    executable: /bin/bash
+    cmd: >
+      out=$(docker exec nextcloud sh -c 'cat /var/www/html/data/appdata_*/richdocuments/remoteData/discovery 2>/dev/null') || exit 1;
+      case "$out" in *'urlsrc="https://office.{{ domain }}/'*) exit 0 ;; *) exit 1 ;; esac
+  register: collabora_cache_final
+  changed_when: false
+  when: collabora_up
+
 - name: collabora | Remove the conversion probe artefacts
   ansible.builtin.shell:
     cmd: >
@@ -208,3 +253,16 @@
   when:
     - collabora_up
     - collabora_urlsrc.rc | default(0) != 0
+
+- name: collabora | Fail the deploy when the cached discovery is unusable
+  ansible.builtin.fail:
+    msg: >-
+      Collabora is reachable and serves the right URL, but the discovery cached
+      inside richdocuments does not. It never fetches on demand, so an empty or
+      stale cache means HTTP 500 on /apps/richdocuments/token and a document
+      that loads forever, with every other check green. Repair with
+      `docker exec -u www-data nextcloud php occ richdocuments:activate-config`
+      and read its output — a failure there is the real cause (ADR-021).
+  when:
+    - collabora_up
+    - collabora_cache_final.rc | default(0) != 0

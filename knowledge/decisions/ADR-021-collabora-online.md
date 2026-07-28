@@ -157,6 +157,45 @@ One consolation: with both URLs equal, `activate-config`'s derivation lands on
 the right value, so the ordering trap above becomes harmless rather than
 load-bearing.
 
+### The discovery cache is state, and state needs its own trigger
+
+richdocuments never fetches the WOPI discovery on demand.
+`CachedRequestService::get()` reads a cache and returns `null` when it is empty
+— the caller then does `simplexml_load_string(null)` and calls `xpath()` on
+`false`. The visible result is HTTP 500 on `/apps/richdocuments/token`, a
+document that loads forever with no error in the interface, and every other
+signal green.
+
+An empty cache is not an edge case, because only `activate-config` fills it, and
+the first version of this task ran `activate-config` **only when the
+configuration changed**. The sequence that followed was:
+
+1. a deploy set `wopi_url` to the public name, then ran `activate-config`, which
+   **failed** — the Nextcloud container could not yet resolve `office.<domain>`,
+   as the pin arrived in the same run but after this task. The cache was left
+   empty.
+2. the next deploy found `wopi_url` already correct, so nothing was `changed`,
+   so `activate-config` was **skipped**.
+3. so did the one after, which reported `changed=0` — a perfectly idempotent run
+   over a service that could not open a single file.
+
+**A refresh triggered only by configuration drift never retries its own
+failures.** The condition now includes the cache's contents, so a failed refresh
+is repaired by the next deploy instead of being frozen by it.
+
+Four probes now guard this service, and each exists because the previous three
+missed something real:
+
+| Probe | Catches |
+|---|---|
+| `/hosting/capabilities` | coolwsd not listening |
+| a real PDF conversion | kits that cannot spawn (the `no-new-privileges` trap) |
+| the advertised `urlsrc` | a URL the browser cannot reach (the CSP trap) |
+| the cached discovery | richdocuments' own state (this trap) |
+
+The first three all look outward, at Collabora and at the network. Nothing read
+what Nextcloud actually held until a document refused to open.
+
 ## Consequences
 
 **A deploy now verifies a conversion, not a status.** The wiring task ends by
