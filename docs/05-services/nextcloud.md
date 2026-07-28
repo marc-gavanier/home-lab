@@ -26,6 +26,9 @@ Nextcloud runs as **five containers** sharing one data volume:
 - **Browse the media libraries** (photos/music/videos) read-only — see "Media browsing" below
 - Real-time client updates via **notify_push** (no more polling)
 - Productivity apps: Calendar, Contacts, Tasks, Bookmarks, GpxPod, External Sites
+- **Collaborative document editing** through Collabora Online — see
+  [collabora.md](collabora.md). The `richdocuments` connector is enabled and
+  configured by the deploy, not by the admin UI (ADR-021).
 
 ## Hardening & performance
 

@@ -1,0 +1,142 @@
+---
+# Wire Nextcloud's richdocuments app to the Collabora container (ADR-021).
+#
+# richdocuments is the Nextcloud-side connector; the Collabora container is the
+# document server. Neither is useful alone, and the connector keeps its settings
+# in Nextcloud's app config — so, exactly like wg-easy since ADR-020, this
+# repository stays the source of truth by re-asserting them on every deploy
+# rather than letting the admin UI own them.
+#
+# Two of the three values below are ones `richdocuments:activate-config` will
+# invent for itself if they are unset: it derives public_wopi_url from wopi_url
+# by swapping the scheme to https, which yields the *internal* container name in
+# the browser. Setting them explicitly is what stops that.
+
+- name: collabora | List the running containers this wiring needs
+  ansible.builtin.command:
+    cmd: docker ps --filter status=running --format '{% raw %}{{.Names}}{% endraw %}'
+  register: collabora_running
+  changed_when: false
+
+- name: collabora | Skip the wiring unless both containers are up
+  ansible.builtin.set_fact:
+    collabora_up: "{{ ['collabora', 'nextcloud'] | difference(collabora_running.stdout_lines) | length == 0 }}"
+
+# Collabora publishes no port to the host and its image ships no shell, so the
+# probe runs from the Nextcloud container — which is on the same proxy network
+# and carries curl for its own healthcheck. That is also the exact path
+# activate-config will take, so a pass here means a pass there.
+- name: collabora | Wait for the Collabora document server to answer
+  ansible.builtin.command:
+    cmd: docker exec nextcloud curl -sf -m 5 http://collabora:9980/hosting/capabilities
+  register: collabora_probe
+  until: collabora_probe.rc == 0
+  retries: 20
+  delay: 10
+  changed_when: false
+  failed_when: false
+  when: collabora_up
+
+# app:enable only flips an app that is already downloaded, so a fresh provision
+# — where richdocuments has never been fetched from the appstore — needs
+# app:install instead. Both are idempotent once the app is enabled.
+- name: collabora | Get the installed Nextcloud apps
+  ansible.builtin.command:
+    cmd: docker exec -u www-data nextcloud php occ app:list --output=json
+  register: collabora_app_list
+  changed_when: false
+  when: collabora_up
+
+- name: collabora | Download the richdocuments connector when absent
+  ansible.builtin.command:
+    cmd: docker exec -u www-data nextcloud php occ app:install richdocuments
+  register: collabora_app_install
+  changed_when: collabora_app_install.rc == 0
+  when:
+    - collabora_up
+    - "'richdocuments' not in (collabora_app_list.stdout | default('{}') | from_json).enabled"
+    - "'richdocuments' not in (collabora_app_list.stdout | default('{}') | from_json).disabled"
+
+- name: collabora | Enable the richdocuments connector when downloaded but off
+  ansible.builtin.command:
+    cmd: docker exec -u www-data nextcloud php occ app:enable richdocuments
+  register: collabora_app_enable
+  changed_when: "'already enabled' not in collabora_app_enable.stdout"
+  when:
+    - collabora_up
+    - "'richdocuments' in (collabora_app_list.stdout | default('{}') | from_json).disabled"
+
+- name: collabora | Read the current richdocuments configuration
+  ansible.builtin.command:
+    cmd: docker exec -u www-data nextcloud php occ config:list --output=json
+  register: collabora_conf
+  changed_when: false
+  when: collabora_up
+
+# wopi_url is how Nextcloud reaches Collabora (container name on the proxy
+# network, plain HTTP, no round trip through Traefik). public_wopi_url is what
+# the browser is handed, so it must be the public name Traefik serves.
+- name: collabora | Re-assert the richdocuments WOPI settings
+  ansible.builtin.command:
+    cmd: "docker exec -u www-data nextcloud php occ config:app:set richdocuments {{ item.key }} --value={{ item.value }}"
+  loop:
+    - { key: wopi_url, value: "http://collabora:9980" }
+    - { key: public_wopi_url, value: "https://office.{{ domain }}" }
+  loop_control:
+    label: "{{ item.key }}"
+  register: collabora_set
+  changed_when: true
+  when:
+    - collabora_up
+    - ((collabora_conf.stdout | default('{}') | from_json).apps.richdocuments | default({}))[item.key] | default('') != item.value
+
+# activate-config re-fetches /hosting/capabilities and stores the detected
+# server. Only worth running when something above actually moved — otherwise
+# every deploy would report changed.
+- name: collabora | Activate the richdocuments configuration  # noqa: no-handler
+  ansible.builtin.command:
+    cmd: docker exec -u www-data nextcloud php occ richdocuments:activate-config
+  register: collabora_activate
+  changed_when: true
+  failed_when: collabora_activate.rc != 0
+  when:
+    - collabora_up
+    - collabora_app_install is changed or collabora_app_enable is changed or collabora_set is changed
+
+# A served /hosting/capabilities proves only that coolwsd is listening — it is
+# answered by the main process and says nothing about whether a document can be
+# opened, which happens in a separate chroot jail. Converting a file exercises
+# that jail end to end, so this is the probe that would have caught the silent
+# no-new-privileges failure described in compose.yaml.
+- name: collabora | Verify a document can actually be converted
+  ansible.builtin.shell:
+    cmd: >
+      set -o pipefail;
+      printf 'homelab deploy probe\n' > /tmp/collabora-probe.txt &&
+      docker cp /tmp/collabora-probe.txt nextcloud:/tmp/collabora-probe.txt &&
+      docker exec nextcloud curl -sf -m 90 -o /tmp/collabora-probe.pdf
+      -F 'data=@/tmp/collabora-probe.txt' http://collabora:9980/cool/convert-to/pdf &&
+      docker exec nextcloud head -c 5 /tmp/collabora-probe.pdf | grep -q '%PDF-'
+  register: collabora_convert
+  changed_when: false
+  when: collabora_up
+
+- name: collabora | Remove the conversion probe artefacts
+  ansible.builtin.shell:
+    cmd: >
+      rm -f /tmp/collabora-probe.txt;
+      docker exec nextcloud rm -f /tmp/collabora-probe.txt /tmp/collabora-probe.pdf 2>/dev/null;
+      exit 0
+  changed_when: false
+  when: collabora_up
+
+# Deliberately after the cleanup, so a failed probe still leaves no litter.
+- name: collabora | Fail the deploy when Collabora cannot serve a document
+  ansible.builtin.fail:
+    msg: >-
+      Collabora answers but cannot convert a document — the container is up and
+      the kits are not. Check `docker logs collabora` for "Waiting for a new
+      child" (privilege gain blocked) or an exit 70 (missing capability).
+  when:
+    - collabora_up
+    - collabora_convert.rc | default(0) != 0

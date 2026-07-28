@@ -77,6 +77,7 @@ the service *does* beyond answering.
    | Nextcloud | `occ status` plus the age of `core lastcron` |
    | Nextcloud cron | `core lastcron` **must advance** — busybox `crond` calls `setgroups()` before every job, so without `SETGID` it logs "can't set groups" once per run and never executes `cron.php`, with the container still Up (#28) |
    | Netdata | uid of PID 1 = 201, the full plugin list, and the chart-context counts per family — see `docs/07-observability` |
+   | Collabora | convert a file to PDF (`/cool/convert-to/pdf`) — that runs a kit inside a chroot jail; `/hosting/discovery` is answered by the main process and proves nothing about whether a document can open (#16) |
 
    **A probe a cache can satisfy is not a probe.** Swapping Pi-hole's DoH client
    on 2026-07-27, the harness reported success while **no upstream container
@@ -114,6 +115,17 @@ the service *does* beyond answering.
 
    Currently: `pihole-FTL` (chown, net_bind_service, sys_nice), `ping` in
    uptime-kuma and `fping` in netdata (net_raw).
+
+   **The same sweep decides `no-new-privileges`, not just `cap_drop`.** A file
+   capability is a privilege *gain at exec*, which is exactly what the flag
+   blocks — so a binary that shows up here may need the flag left off, and the
+   two questions have one answer. This bit Collabora (#16): `coolwsd` spawns
+   documents through `coolforkit-caps`, and with the flag on the container
+   **stays `running` forever**, serving its discovery endpoint while looping on
+   `Waiting for a new child`. Nothing exits, nothing fails, no document opens.
+   Netdata is the same story with setuid plugins instead (ADR-017). An image
+   whose sweep comes back empty can take the flag safely; one that does not
+   needs the functional probe before you believe either setting.
 
 5. **If the image declares `VOLUME` at the path you are changing, `up -d` is not
    enough.** Compose carries mounts for image-declared volume paths over from

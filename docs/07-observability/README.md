@@ -46,6 +46,14 @@ deploy only the stack and the check keeps yesterday's expectations and accuses a
 container that is exactly right. Seen on 2026-07-28 after the wg-easy 15
 migration dropped `SYS_MODULE` (ADR-020).
 
+Because the expectations are generated per service, a container that legitimately
+carries *fewer* hardening options is described accurately rather than needing an
+exemption list: netdata and Collabora are the only two without
+`no-new-privileges` (both run binaries that must gain privilege after `exec` —
+setuid plugins and file capabilities respectively), and the check now asserts
+they must **not** have it, catching an accidental addition just as readily as a
+removal. Their reasons live in ADR-017 and ADR-021.
+
 Separate from `Pi health` on purpose — a posture drift is not an outage, and it
 should not compete with temperature and disk alerts for attention. It also
 skips entirely while `/mnt/data` is locked, since the whole stack is
@@ -101,6 +109,16 @@ but broken still trips: Nextcloud `/status.php`, Vaultwarden `/alive`,
 Jellyfin `/health`, Navidrome `/ping`, SearXNG `/healthz`, plus Immich,
 Transmission, wg-easy, Traefik on :443, Pi-hole on :53, an ICMP ping of the Pi
 and the BitTorrent peer port.
+
+**Collabora is the one place where this pattern reaches its limit.** Its
+`/hosting/capabilities` endpoint is answered by the main process, so a monitor
+on it stays green while no document can open — the failure mode described in
+ADR-021. The real probe is a document conversion, which is a multipart POST and
+does not fit a Kuma HTTP check. Two other things cover the gap instead: the
+image's own healthcheck flips the container `unhealthy`, which the host health
+report picks up within 10 minutes, and every deploy runs the conversion itself
+and fails if it does not produce a PDF. The Kuma monitor is worth having for
+reachability and TLS expiry; it is not the thing that proves editing works.
 
 TLS certificate expiry notification is enabled on the HTTPS monitors. Traefik
 renews automatically, so this is normally moot — it exists to catch a *silent*

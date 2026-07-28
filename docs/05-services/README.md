@@ -12,6 +12,7 @@ All services run as Docker containers, orchestrated by Docker Compose. Persisten
 | [Pi-hole](pihole.md)            | Local DNS, ad/tracker blocking | Infrastructure | Phase 2 |
 | [WireGuard](wireguard.md)       | VPN remote access              | Infrastructure | Phase 2 |
 | [Nextcloud](nextcloud.md)       | Cloud files, sync, mobile      | Essential      | Phase 3 |
+| [Collabora](collabora.md)       | Collaborative document editing | Productivity   | Phase 5 |
 | [Vaultwarden](vaultwarden.md)   | Password manager               | Essential      | Phase 3 |
 | [Jellyfin](jellyfin.md)         | Video streaming                | Secondary      | Phase 4 |
 | [Navidrome](navidrome.md)       | Music streaming                | Secondary      | Phase 4 |
@@ -43,6 +44,12 @@ All services run as Docker containers, orchestrated by Docker Compose. Persisten
 | Uptime Kuma           | ~80 MB        |
 | Claude Code           | ~300 MB       |
 | SearXNG               | ~200 MB       |
-| **Total**             | **~3.3 GB**   |
+| Collabora Online      | 573 MB        |
+| **Total**             | **~3.9 GB**   |
 
-With 4GB RAM and swap on the HDD, this is feasible but tight. If needed, Immich will be the first to disable.
+Every figure above is an estimate except Collabora's, which is measured at idle
+(ADR-021) — it grows with the number of documents open at once.
+
+The host has **8 GB** since the hardware swap, and sits around 3.9 GB used with
+the full stack running, so this is comfortable rather than tight. The old
+"disable Immich first" plan belonged to the 4 GB board and no longer applies.
