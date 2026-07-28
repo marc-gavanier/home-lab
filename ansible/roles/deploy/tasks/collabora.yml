@@ -159,13 +159,16 @@
 # urlsrc it advertises is the public name. It fails if the office.<domain> pin
 # is missing from the Nextcloud container, if Traefik is not routing, or if
 # wopi_url has drifted back to a container name.
+# No pipe on purpose. `curl | grep | head` under `set -o pipefail` returns 141
+# (SIGPIPE) as soon as `head` closes the pipe on a match — so the probe failed
+# precisely when it should have passed, and reported rc=141 with empty output.
+# Matching on a captured string has no such edge.
 - name: collabora | Verify the URL handed to the browser is publicly reachable
   ansible.builtin.shell:
     executable: /bin/bash
     cmd: >
-      set -o pipefail;
-      docker exec nextcloud curl -sf -m 20 https://office.{{ domain }}/hosting/discovery
-      | grep -o 'urlsrc="[^"]*"' | head -1 | grep -q 'https://office.{{ domain }}/'
+      out=$(docker exec nextcloud curl -sf -m 20 https://office.{{ domain }}/hosting/discovery) || exit 1;
+      case "$out" in *'urlsrc="https://office.{{ domain }}/'*) exit 0 ;; *) exit 1 ;; esac
   register: collabora_urlsrc
   changed_when: false
   when: collabora_up
