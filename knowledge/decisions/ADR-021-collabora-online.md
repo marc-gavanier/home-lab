@@ -111,11 +111,17 @@ stays green.
 
 `roles/deploy/tasks/collabora.yml` re-asserts `wopi_url` and `public_wopi_url`
 on every deploy, comparing before writing. This is not ceremony:
-`richdocuments:activate-config` **invents `public_wopi_url` when it is unset**,
-deriving it from `wopi_url` by swapping the scheme — which hands the browser an
-internal container name. It also writes `wopi_callback_url`. Both were
-discovered only by diffing the config after the sandbox against the snapshot
-taken before it.
+`richdocuments:activate-config` derives `public_wopi_url` from `wopi_url` by
+swapping the scheme, which hands the browser an internal container name. It also
+writes `wopi_callback_url`. Both were discovered by diffing the config after the
+sandbox against the snapshot taken before it.
+
+**And it does not merely fill the value in when unset — it overwrites one that
+is already correct.** So `public_wopi_url` must be set *after* `activate-config`,
+never before. The first production deploy proved it the hard way: the task
+setting it reported `changed`, `activate-config` ran next, and the stored value
+was `https://collabora:9980` afterwards. The write succeeded and was undone
+seconds later, in the same play, with nothing in the output suggesting it.
 
 ## Consequences
 

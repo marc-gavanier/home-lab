@@ -7,9 +7,19 @@
 # changes to split DNS config.
 # =============================================================================
 
+# dnsproxy runs with `network_mode: service:pihole`, so restarting Pi-hole
+# destroys the network namespace dnsproxy is attached to. dnsproxy keeps
+# running, stays healthy, and becomes permanently unreachable at 127.0.0.1#5053
+# — Pi-hole then has no upstream at all and every uncached query times out.
+# LAN-wide DNS outage, with both containers green and nothing in `--failed`;
+# the crash-heal timer cannot see it either, since neither container exited.
+# Measured on 2026-07-28, when adding office.<domain> to the split-DNS template
+# fired this handler for the first time since dnsproxy replaced cloudflared.
+# The two restarts must stay in this order and in one handler: a plain
+# `docker restart pihole` anywhere is now a DNS outage waiting to happen.
 - name: Restart pihole
-  ansible.builtin.command:
-    cmd: docker restart pihole
+  ansible.builtin.shell:
+    cmd: docker restart pihole && docker restart dnsproxy
   changed_when: true
 
 # Traefik reads its static config (entryPoints, ping, ACME) ONLY at startup.

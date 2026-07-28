@@ -31,10 +31,19 @@ the container pins `drive.example.com` to the Pi's LAN IP (see below).
 on every deploy, comparing before writing. A change made in Nextcloud's admin UI
 is reverted on the next deploy, on purpose.
 
-This matters more than it looks: `richdocuments:activate-config` **invents
-`public_wopi_url` if it is unset**, deriving it from `wopi_url` by swapping the
-scheme — which hands the browser the internal container name. Setting it
-explicitly is what prevents that.
+This matters more than it looks: `richdocuments:activate-config` derives
+`public_wopi_url` from `wopi_url` by swapping the scheme — which hands the
+browser the internal container name — and it **overwrites the stored value even
+when that value is already right**. So the deploy sets it *after* running
+`activate-config`, never before. Setting it first looks like it worked and is
+silently undone in the same run.
+
+If document editing ever fails with the browser trying to reach `collabora:9980`,
+this is why. Check it with:
+
+```bash
+docker exec -u www-data nextcloud php occ config:app:get richdocuments public_wopi_url
+```
 
 ## Hardening — and the two exceptions
 

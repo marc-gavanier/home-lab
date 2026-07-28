@@ -73,22 +73,16 @@
   changed_when: false
   when: collabora_up
 
-# wopi_url is how Nextcloud reaches Collabora (container name on the proxy
-# network, plain HTTP, no round trip through Traefik). public_wopi_url is what
-# the browser is handed, so it must be the public name Traefik serves.
-- name: collabora | Re-assert the richdocuments WOPI settings
+# wopi_url is how Nextcloud reaches Collabora: container name on the proxy
+# network, plain HTTP, no round trip through Traefik.
+- name: collabora | Re-assert the internal WOPI URL
   ansible.builtin.command:
-    cmd: "docker exec -u www-data nextcloud php occ config:app:set richdocuments {{ item.key }} --value={{ item.value }}"
-  loop:
-    - { key: wopi_url, value: "http://collabora:9980" }
-    - { key: public_wopi_url, value: "https://office.{{ domain }}" }
-  loop_control:
-    label: "{{ item.key }}"
+    cmd: "docker exec -u www-data nextcloud php occ config:app:set richdocuments wopi_url --value=http://collabora:9980"
   register: collabora_set
   changed_when: true
   when:
     - collabora_up
-    - ((collabora_conf.stdout | default('{}') | from_json).apps.richdocuments | default({}))[item.key] | default('') != item.value
+    - ((collabora_conf.stdout | default('{}') | from_json).apps.richdocuments | default({})).wopi_url | default('') != 'http://collabora:9980'
 
 # activate-config re-fetches /hosting/capabilities and stores the detected
 # server. Only worth running when something above actually moved — otherwise
@@ -103,6 +97,27 @@
     - collabora_up
     - collabora_app_install is changed or collabora_app_enable is changed or collabora_set is changed
 
+# AFTER activate-config, never before. activate-config derives public_wopi_url
+# from wopi_url by swapping the scheme and *overwrites* whatever is stored, so
+# setting it earlier is silently undone: the first deploy left
+# `https://collabora:9980` behind — an internal container name handed to the
+# browser, which no client can reach. Measured on 2026-07-28, on a run where
+# the task before it had reported `changed` for this very key.
+- name: collabora | Re-read the configuration activate-config may have rewritten
+  ansible.builtin.command:
+    cmd: docker exec -u www-data nextcloud php occ config:list --output=json
+  register: collabora_conf2
+  changed_when: false
+  when: collabora_up
+
+- name: collabora | Re-assert the public WOPI URL the browser is handed
+  ansible.builtin.command:
+    cmd: "docker exec -u www-data nextcloud php occ config:app:set richdocuments public_wopi_url --value=https://office.{{ domain }}"
+  changed_when: true
+  when:
+    - collabora_up
+    - ((collabora_conf2.stdout | default('{}') | from_json).apps.richdocuments | default({})).public_wopi_url | default('') != 'https://office.' ~ domain
+
 # A served /hosting/capabilities proves only that coolwsd is listening — it is
 # answered by the main process and says nothing about whether a document can be
 # opened, which happens in a separate chroot jail. Converting a file exercises
@@ -110,6 +125,10 @@
 # no-new-privileges failure described in compose.yaml.
 - name: collabora | Verify a document can actually be converted
   ansible.builtin.shell:
+    # /bin/bash on purpose: the module defaults to /bin/sh, which is dash here,
+    # and dash has no `set -o pipefail` — the task then fails in 13 ms with
+    # "Illegal option -o pipefail" without ever running the probe.
+    executable: /bin/bash
     cmd: >
       set -o pipefail;
       printf 'homelab deploy probe\n' > /tmp/collabora-probe.txt &&
