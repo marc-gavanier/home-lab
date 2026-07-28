@@ -210,16 +210,24 @@ On this stack the pair is `pihole` and `dnsproxy` (Pi-hole's only DoH upstream,
 reached at `127.0.0.1#5053`). The outcome of restarting Pi-hole alone is a
 **LAN-wide DNS outage**: FTL answers, has nowhere to forward, and every uncached
 query times out. Both containers read `healthy`, `systemctl --failed` is empty,
-and the crash-heal timer is blind because neither exited. The only visible trace
-is in Pi-hole's own log:
+and the crash-heal timer is blind because neither exited. On the host itself the
+one explicit trace is in Pi-hole's own log:
 
 ```
 WARNING: Connection error (127.0.0.1#5053): TCP connection failed (Connection refused)
 ```
 
-Measured on 2026-07-28: adding one hostname to the split-DNS template fired the
-`Restart pihole` handler for the first time since dnsproxy replaced cloudflared,
-and took the house offline. The deploy reported one unrelated failed task.
+**The `Pi-hole DNS` Kuma monitor does catch it**, and is the fastest signal —
+it is a `type: dns` check resolving a real name, not a port test, so a listening
+`docker-proxy` does not satisfy it. Measured on 2026-07-28: down at 18:21:50
+with `queryA ETIMEOUT`, three minutes after the restart, back at 18:39:50. It
+was also the *only* monitor to trip: everything else resolves through Docker's
+embedded DNS rather than Pi-hole, so there is no notification storm to hide it.
+Check Kuma before the container logs.
+
+That outage came from adding one hostname to the split-DNS template, which fired
+the `Restart pihole` handler for the first time since dnsproxy replaced
+cloudflared. The deploy itself reported only one unrelated failed task.
 
 **Always restart the pair, in order** — the handler now does this, but a manual
 `docker restart pihole` or `docker compose up -d pihole` needs it too:
