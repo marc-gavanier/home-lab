@@ -58,10 +58,15 @@ Defense in depth — each layer is secured independently. If one layer falls, th
 ### 3. Containers (Docker)
 - Official images only, pinned versions — Renovate-tracked, with
   `osvVulnerabilityAlerts` for off-schedule CVE PRs
-- **`no-new-privileges`** on every container (one exception: Netdata, whose
-  plugins are setuid-root binaries and need that elevation to read other
-  processes' `/proc` for per-app charts — the flag blocks it outright) — blocks
-  privilege escalation via setuid binaries after an app compromise
+- **`no-new-privileges`** on every container but two — blocks privilege
+  escalation via setuid binaries after an app compromise. Both exceptions run a
+  binary that must gain privilege at `exec`, and in both cases the flag fails
+  *silently* rather than loudly:
+  - **Netdata** — setuid-root plugins that read other processes' `/proc` for
+    per-app charts; the flag blocks it outright (ADR-017).
+  - **Collabora** — `coolforkit-caps` carries file capabilities; with the flag
+    on, the container stays `running` and serves its discovery endpoint while
+    no document can ever open (ADR-021).
 - **AppArmor on every container, netdata included.** Every other service runs
   under Docker's `docker-default` profile; netdata ran `unconfined` because
   `apps.plugin` reads the `/proc` of processes belonging to other profiles,
@@ -134,7 +139,7 @@ Defense in depth — each layer is secured independently. If one layer falls, th
 - Isolated Docker networks (`proxy` / `internal` / `socketproxy`); the DB tier
   lives on `internal` only — never proxied, never published
 - No directly exposed service ports — everything routes through Traefik (vpn-only)
-- **Read-only rootfs on 17 of the 21 services** (ADR-019, issue #32) — a
+- **Read-only rootfs on 17 of the 22 services** (ADR-019, issue #32) — a
   compromised process cannot rewrite the code it runs, drop a binary, or persist
   anything outside the paths we declared. Every writable path is explicit: a
   sized `tmpfs` for state meant to be lost (PID files, sockets, caches,
@@ -145,15 +150,22 @@ Defense in depth — each layer is secured independently. If one layer falls, th
   (`/run/mysqld`), never the parent, or the image's own runtime directories
   disappear and the server aborts; and Docker mounts `tmpfs` `noexec`, which
   breaks any init system that stages executables there.
-- **The four exceptions all write into directories the image itself populates**,
-  and each is stated in its own block: pihole (`setcap` on its own binary —
-  read-only leaves the container *Up* with the resolver dead, the failure mode
-  we most want to avoid), nextcloud (`redis-session.ini` among 21 shipped
-  `.ini` files), socket-proxy (`haproxy.cfg` beside its template), transmission
-  (starts read-only but silently stops honouring `PUID`/`PGID` and the `UMASK`
-  that came from a CIS finding). The available workarounds — a `tmpfs` over a
-  populated directory, or a host copy of image content — would each mask the
-  next image update, trading a visible limit for an invisible one.
+- **Four of the five exceptions write into directories the image itself
+  populates**, and each is stated in its own block: pihole (`setcap` on its own
+  binary — read-only leaves the container *Up* with the resolver dead, the
+  failure mode we most want to avoid), nextcloud (`redis-session.ini` among 21
+  shipped `.ini` files), socket-proxy (`haproxy.cfg` beside its template),
+  transmission (starts read-only but silently stops honouring `PUID`/`PGID` and
+  the `UMASK` that came from a CIS finding). The available workarounds — a
+  `tmpfs` over a populated directory, or a host copy of image content — would
+  each mask the next image update, trading a visible limit for an invisible one.
+- **The fifth, Collabora, is the only one that is a priced trade rather than a
+  structural block** (ADR-021). Read-only *works* there. But without
+  `CAP_SYS_ADMIN` Collabora copies each document jail instead of bind-mounting
+  it — 759 MB — and under `read_only` that copy lives in `tmpfs`: the container
+  measured **1.257 GiB of RAM instead of 573 MiB**. Granting `SYS_ADMIN` to
+  avoid the copy is a worse bargain than either. So the 759 MB sits on a 5 TB
+  disk and the RAM stays free.
 
 ### 4. Application
 - Strong passwords generated via Vaultwarden

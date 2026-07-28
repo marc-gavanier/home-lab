@@ -92,7 +92,9 @@ wait_healthy vaultwarden 120
 up nextcloud-db nextcloud-redis nextcloud nextcloud-cron nextcloud-notify-push transmission
 wait_healthy nextcloud 240
 
-# Wave 3 — Immich stack, Jellyfin, Netdata (heavy; no gating after the last wave)
-up immich-redis immich-db immich-machine-learning immich-server jellyfin netdata
+# Wave 3 — Immich stack, Jellyfin, Netdata, Collabora (heavy; no gating after
+# the last wave). Collabora belongs here rather than with Nextcloud: it takes
+# ~80 s to serve, and nothing needs it until someone opens a document.
+up immich-redis immich-db immich-machine-learning immich-server jellyfin netdata collabora
 
 log "staged startup complete — all waves dispatched"

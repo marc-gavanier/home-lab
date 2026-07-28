@@ -8,6 +8,9 @@
 # Applied to every service (aliased in each block): block privilege escalation
 # via setuid binaries after container start (no-new-privileges). Does NOT remove
 # explicitly-granted capabilities — wg-easy/netdata keep theirs.
+# Two services deliberately omit it, netdata and collabora, because each runs a
+# binary that must gain privilege at exec (setuid plugins, file capabilities).
+# Both failures are silent, so each block says so where the omission lives.
 x-security-opt: &no-new-privs
   - no-new-privileges:true
 
@@ -558,6 +561,57 @@ services:
       - "traefik.http.routers.notify-push.middlewares=notify-push-strip"
       - "traefik.http.services.notify-push.loadbalancer.server.port=7867"
 
+  # --- Collabora Online (collaborative editing inside Nextcloud) ---
+  collabora:
+    image: collabora/code:26.04.2.4.1
+    container_name: collabora
+    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    # NO no-new-privileges here (the second exception after netdata, and for the
+    # same underlying reason: a binary that must gain privilege after exec).
+    # coolwsd spawns documents through `coolforkit-caps`, which carries file
+    # capabilities; no-new-privileges blocks that gain and the failure is silent
+    # — the container stays `running` and loops on "Waiting for a new child"
+    # forever, serving /hosting/discovery the whole time. Measured in the #16
+    # sandbox. The image's own healthcheck does catch it (unhealthy after ~3
+    # checks), which is why it is left enabled below.
+    cap_drop: *cap-drop-all
+    cap_add:
+      # Exactly the three the sandbox proved necessary: removing any one of them
+      # leaves coolwsd unable to spawn its forkit and it exits 70 at startup.
+      # MKNOD is NOT among them, despite Collabora's own documentation.
+      - SYS_CHROOT             # each document runs in its own chroot jail
+      - CHOWN                  # jail contents are re-owned as they are built
+      - FOWNER                 # …and their modes adjusted, across uids
+    # No read_only. It *works* (leaf tmpfs on child-roots/cache/.cache), but
+    # without CAP_SYS_ADMIN coolmount cannot create its mount namespace, so
+    # Collabora falls back from bind-mounting each jail to copying it: 759 MB of
+    # jail tree. On the writable layer that lands on /mnt/data (3.7 TB free); in
+    # tmpfs it is RAM, and the container measured 1.257 GiB instead of 573 MiB.
+    # Granting SYS_ADMIN to avoid the copy is not a trade worth making on a stack
+    # where 12 of 21 containers hold no capability at all. See ADR-021.
+    environment:
+      # WOPI hosts allowed to embed this server. Without an entry here Collabora
+      # refuses the Nextcloud origin outright.
+      aliasgroup1: https://drive.${DOMAIN}:443
+      # TLS is terminated by Traefik; coolwsd itself speaks plain HTTP and must
+      # be told so, or it answers TLS on the plain port and every request fails.
+      extra_params: --o:ssl.enable=false --o:ssl.termination=true
+    # Collabora calls Nextcloud back over the public hostname (the WOPI callback
+    # is autodetected from the browsing URL). From a container that name does not
+    # resolve *at all* — the host is not a Pi-hole client, and the name exists
+    # only in split DNS — so without this pin every document fails to open while
+    # the container stays green. Measured, not assumed (issue #16).
+    extra_hosts:
+      - "drive.${DOMAIN}:${PI_LAN_IP}"
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.collabora.rule=Host(`office.${DOMAIN}`)"
+      - "traefik.http.routers.collabora.entrypoints=websecure"
+      - "traefik.http.routers.collabora.tls.certresolver=letsencrypt"
+      - "traefik.http.services.collabora.loadbalancer.server.port=9980"
+
   # --- Vaultwarden ---
   vaultwarden:
     image: vaultwarden/server:1.37.0
@@ -972,7 +1026,8 @@ services:
       # cap_net_raw) and no ping collector is configured. Add it back the day one
       # is, or the collector will fail at exec with nothing else looking wrong.
     security_opt:
-      # NO no-new-privileges here (the one exception): the plugins are setuid
+      # NO no-new-privileges here (one of two exceptions, with collabora — whose
+      # coolforkit-caps needs the same gain via file capabilities): the plugins are setuid
       # root (4755, verified — not file capabilities as this comment previously
       # claimed) and need that elevation to read other processes' /proc for
       # per-app charts. no-new-privileges blocks the setuid gain outright and

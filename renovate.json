@@ -23,6 +23,12 @@
       "dependencyDashboardApproval": true
     },
     {
+      "description": "Collabora majors track the LibreOffice core and are paired with a richdocuments version on the Nextcloud side; a mismatch breaks document editing while the container stays healthy. Read the release notes and check the connector before merging (ADR-021).",
+      "matchPackageNames": ["collabora/code"],
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    },
+    {
       "description": "Immich pins are managed manually (one-way DB migrations, server & ML must move together — see feedback 2026-07)",
       "matchPackageNames": ["ghcr.io/immich-app/immich-server", "ghcr.io/immich-app/immich-machine-learning", "ghcr.io/immich-app/postgres"],
       "enabled": false
