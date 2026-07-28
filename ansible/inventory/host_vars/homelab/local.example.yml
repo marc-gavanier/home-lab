@@ -29,7 +29,7 @@ ddns_kuma_push_url: ""
 pihole_password: ""
 
 # --- WireGuard ---
-wg_password: ""  # Max 72 chars (bcrypt limit), will be hashed by Ansible
+wg_password: ""  # wg-easy admin password, plaintext; v15 hashes it with argon2
 
 # --- Nextcloud ---
 # No admin password here: the container no longer self-installs, so the admin

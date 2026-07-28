@@ -17,9 +17,10 @@
       "groupName": "minor & patch updates"
     },
     {
-      "description": "wg-easy 15 is a rewrite, not an upgrade: it drops nearly every environment variable, moves the config from wg0.json to SQLite, and migrates through an interactive setup wizard. A merged PR would ride the next deploy and bring the VPN up with no peers — taking the offsite Pi, which is only reachable through that tunnel, out of reach. Hold at 14 until issue #48 is done.",
+      "description": "wg-easy majors stay individual and are never merged blind: 14 to 15 was a rewrite whose only import path is an HTTP call the deploy must make itself (roles/deploy/tasks/wg_easy_migrate.yml, ADR-020). The 15 hold is lifted, but a major here still means reading the release notes before merging — this container is the VPN and the only route to the offsite Pi.",
       "matchPackageNames": ["ghcr.io/wg-easy/wg-easy"],
-      "allowedVersions": "<15"
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
     },
     {
       "description": "Immich pins are managed manually (one-way DB migrations, server & ML must move together — see feedback 2026-07)",

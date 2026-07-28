@@ -46,7 +46,10 @@ argument_specs:
         type: str
         required: true
         no_log: true
-        description: wg-easy UI password (bcrypt-hashed at deploy time).
+        description: >-
+          wg-easy admin password. Since v15 it is written in plaintext to
+          /mnt/data/secrets/wg-easy-setup.env (0600 root, encrypted volume) and
+          hashed by wg-easy itself with argon2 — v15 takes no precomputed hash.
       vaultwarden_admin_token:
         type: str
         required: true

@@ -6,43 +6,10 @@
     database: passwd
     key: "{{ ansible_user }}"
 
-# --- WireGuard password (wg-easy needs bcrypt) ---
-# bcrypt salts are random: rehashing every run would rewrite .env every run.
-# Keep the deployed hash when it still matches the vault password.
-
-- name: hashes | Install python3-bcrypt on Pi
-  ansible.builtin.apt:
-    name: python3-bcrypt
-    state: present
-
-- name: hashes | Read deployed WireGuard password hash (idempotence)
-  ansible.builtin.shell:
-    cmd: >-
-      set -o pipefail;
-      grep -oP '(?<=^WG_PASSWORD_HASH=).*' /mnt/data/secrets/homelab.env
-      2>/dev/null | sed 's/\$\$/$/g' || true
-    executable: /bin/bash
-  register: wg_hash_current
-  changed_when: false
-  no_log: true
-
-- name: hashes | Generate WireGuard bcrypt hash (stable while the password is unchanged)
-  ansible.builtin.command:
-    cmd: >-
-      python3 -c "import os, bcrypt;
-      pwd = os.environ['P'].encode(); cur = os.environ['C'].encode();
-      ok = cur.startswith(b'$2') and len(cur) == 60 and bcrypt.checkpw(pwd, cur);
-      print(cur.decode() if ok else bcrypt.hashpw(pwd, bcrypt.gensalt()).decode())"
-  environment:
-    P: "{{ wg_password }}"
-    C: "{{ wg_hash_current.stdout | default('') }}"
-  register: wg_hash_result
-  changed_when: false
-  no_log: true
-
-- name: hashes | Set WireGuard password hash fact
-  ansible.builtin.set_fact:
-    wg_password_hash: "{{ wg_hash_result.stdout }}"
+# No WireGuard bcrypt block any more: wg-easy 15 takes a plaintext password
+# (through the setup API, or INIT_PASSWORD) and hashes it itself with argon2.
+# `wg_password` is still the vault variable — it now reaches the Pi through
+# /mnt/data/secrets/wg-easy-setup.env instead of a hash in .env (ADR-020).
 
 # --- Vaultwarden admin token (Argon2id, deterministic via fixed salt) ---
 

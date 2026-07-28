@@ -1,0 +1,26 @@
+---
+# Keep this repository — not the wg-easy web UI — the source of truth for the
+# VPN settings (ADR-020).
+#
+# v15 moved its configuration out of the environment and into SQLite, edited
+# through a browser. Without this, the endpoint host, the Pi-hole DNS and the
+# allowed IPs would live only in a database nobody reviews, and a change made in
+# the UI would drift from the repo in silence. Re-asserting them on every deploy
+# is what preserves the infra-as-code model across the rewrite.
+#
+# Runs after `compose up`: it talks to the live container. It no-ops while
+# wg-easy is stopped or still on v14, so it is safe on every deploy.
+
+- name: wg_easy_config | Install the settings re-assertion script
+  ansible.builtin.template:
+    src: homelab-wg-easy-config.sh.j2
+    dest: /usr/local/sbin/homelab-wg-easy-config.sh
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: wg_easy_config | Re-assert the VPN settings from the repository
+  ansible.builtin.command: /usr/local/sbin/homelab-wg-easy-config.sh
+  register: wg_easy_config
+  changed_when: wg_easy_config.rc == 2
+  failed_when: wg_easy_config.rc not in [0, 2]
