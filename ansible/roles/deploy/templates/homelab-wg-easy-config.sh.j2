@@ -1,0 +1,96 @@
+#!/bin/bash
+# {{ ansible_managed }}
+#
+# Re-assert wg-easy 15's settings from this repository on every deploy.
+#
+# v15 keeps its configuration in SQLite, edited through a web UI. Left alone,
+# that is a frontal regression of the infra-as-code model: the endpoint host,
+# the Pi-hole DNS and the allowed IPs would live in a database nobody reviews,
+# and a change made in the browser would drift from the repo in silence. This
+# script is what keeps the repository the source of truth (ADR-020).
+#
+# It also repairs the one thing the 14 -> 15 import gets wrong: `migrate` leaves
+# `host` empty and DNS on Cloudflare's 1.1.1.1, which would take every newly
+# generated client config off Pi-hole.
+#
+# Exit codes, consumed by Ansible: 0 already correct, 2 updated, 1 failed.
+
+set -euo pipefail
+
+SETUP_ENV="/mnt/data/secrets/wg-easy-setup.env"
+API="http://127.0.0.1:51821"
+
+log() { echo "[wg-easy-config] $*"; }
+die() { echo "[wg-easy-config] ERROR: $*" >&2; exit 1; }
+
+# Nothing to assert if the service is not up yet (first deploy, or a deploy
+# targeted at other services). Not an error.
+if [ "$(docker inspect -f '{{ "{{" }}.State.Running{{ "}}" }}' wg-easy 2>/dev/null || echo false)" != "true" ]; then
+    log "wg-easy is not running — skipping"
+    exit 0
+fi
+
+# Still on v14: it takes its settings from the environment, so there is no API
+# config to assert and this script must stay out of the way until the migration.
+if [ ! -f "{{ services_data_dir }}/wireguard/wg-easy.db" ]; then
+    log "no SQLite database yet (still v14) — skipping"
+    exit 0
+fi
+
+[ -r "$SETUP_ENV" ] || die "$SETUP_ENV missing or unreadable"
+set -a
+# shellcheck disable=SC1090
+. "$SETUP_ENV"
+set +a
+
+COOKIE="$(mktemp)"
+trap 'rm -f "$COOKIE"' EXIT
+
+curl -sf -c "$COOKIE" -X POST "$API/api/session" -H 'Content-Type: application/json' \
+    --data-binary @<(python3 -c "
+import json,os
+print(json.dumps({'username': os.environ['WG_ADMIN_USERNAME'],
+                  'password': os.environ['WG_ADMIN_PASSWORD'],
+                  'remember': False}))") \
+    >/dev/null || die "cannot authenticate (is WG_ADMIN_PASSWORD still correct?)"
+
+CURRENT="$(curl -sf -b "$COOKIE" "$API/api/admin/userconfig")" \
+    || die "cannot read the current user config"
+
+# Compare before writing, so an unchanged deploy reports unchanged. Only the
+# fields this repository owns are compared: the rest is v15's business.
+if python3 - "$CURRENT" <<'PY'
+import json, os, sys
+cur = json.loads(sys.argv[1])
+want = {
+    "host": os.environ["WG_HOST"],
+    "port": int(os.environ["WG_PORT"]),
+    "defaultDns": [x.strip() for x in os.environ["WG_DNS"].split(",")],
+    "defaultAllowedIps": [x.strip() for x in os.environ["WG_ALLOWED_IPS"].split(",")],
+    "defaultMtu": int(os.environ.get("WG_MTU", "1420")),
+    "defaultPersistentKeepalive": int(os.environ.get("WG_PERSISTENT_KEEPALIVE", "0")),
+}
+sys.exit(0 if all(cur.get(k) == v for k, v in want.items()) else 1)
+PY
+then
+    log "settings already match the repository"
+    exit 0
+fi
+
+log "settings drifted from the repository — rewriting them"
+curl -sf -b "$COOKIE" -X POST "$API/api/admin/userconfig" \
+    -H 'Content-Type: application/json' \
+    --data-binary @<(python3 -c "
+import json,os
+print(json.dumps({
+  'host': os.environ['WG_HOST'], 'port': int(os.environ['WG_PORT']),
+  'defaultMtu': int(os.environ.get('WG_MTU','1420')),
+  'defaultPersistentKeepalive': int(os.environ.get('WG_PERSISTENT_KEEPALIVE','0')),
+  'defaultDns': [x.strip() for x in os.environ['WG_DNS'].split(',')],
+  'defaultAllowedIps': [x.strip() for x in os.environ['WG_ALLOWED_IPS'].split(',')],
+  'defaultJC': 7, 'defaultJMin': 10, 'defaultJMax': 1000,
+  'defaultI1': '', 'defaultI2': '', 'defaultI3': '', 'defaultI4': '', 'defaultI5': ''}))") \
+    >/dev/null || die "the update call failed"
+
+log "settings restored from the repository"
+exit 2

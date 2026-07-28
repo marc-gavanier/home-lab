@@ -168,6 +168,36 @@ the service *does* beyond answering.
    reboot, or an Ansible deploy — reintroduces the failure. Ansible re-templates
    the file, so a temporary hand-copy is fine, but it must not be left behind.
 
+## When `compose up` cannot perform the change
+
+Some image bumps need a **data migration that the image will not do for you**.
+wg-easy 15 is the case that taught this (ADR-020): the configuration moves from
+`wg0.json` to SQLite, and the only import path is an HTTP call that must happen
+*before* the setup is marked complete. Start the new image on the old data
+directory and it finds no database, reopens its setup wizard, and brings up **no
+tunnel at all** — with the container green and nothing in `systemctl --failed`.
+
+The trap is that the change looks like a one-line image bump in `compose.yaml`,
+so it rides the next deploy — or a Renovate merge — with no migration anywhere.
+Three rules came out of it:
+
+- **Put the migration inside the deploy path, not beside it.** A documented
+  manual step before `compose up` is a step someone will skip. The wg-easy
+  migration runs as an Ansible task placed *between* the compose file copy and
+  `compose up`, self-guarded so it is a no-op once done.
+- **Stage it on a copy and verify before touching production.** Copy the data
+  directory, run the migration against a throwaway container that publishes
+  nothing, and assert the result carries what matters — for a VPN, the same
+  server key and the same peer set. The live service keeps running the whole
+  time; downtime becomes the container swap, seconds, instead of the migration.
+- **Remove the container, do not stop it.** The crash-heal timer resurrects
+  containers it finds exited, every two minutes. A `stop` during a swap can be
+  undone mid-flight, on the new image, against a half-migrated directory. Use
+  `docker compose rm -sf <svc>` — a removed container is invisible to the timer.
+
+And hold the version until then: a Renovate rule with `allowedVersions` costs
+nothing and buys the time to do the above properly.
+
 ## Restoring quickly
 
 ```bash

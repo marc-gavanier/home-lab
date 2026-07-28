@@ -273,14 +273,13 @@ services:
 
   # --- WireGuard VPN ---
   wg-easy:
-    image: ghcr.io/wg-easy/wg-easy:14
+    image: ghcr.io/wg-easy/wg-easy:15.3.0
     container_name: wg-easy
     restart: unless-stopped   # Tier 0: auto-start at boot (see stack-startup role)
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     cap_add:
       - NET_ADMIN
-      - SYS_MODULE
       # wg-quick shells out to iptables for the NAT/forward rules, and iptables
       # opens a raw socket to talk to netfilter. Without NET_RAW it fails with
       # "can't initialize iptables table `nat': Permission denied", wg-quick
@@ -288,26 +287,38 @@ services:
       # with it. Verified in a sandbox: with NET_RAW, wg0 comes up in 5 s and
       # the MASQUERADE rule is installed.
       #
+      # v14 also needed SYS_MODULE; v15 does not. Measured in the #48 sandbox:
+      # the interface comes up with all peers on NET_ADMIN + NET_RAW alone.
+      #
       # No DAC_OVERRIDE on purpose, with a caveat: /mnt/data/services/wireguard
-      # is owned by the host user while wg0.conf/wg0.json inside it are root's,
-      # so the in-place rewrites wg-easy performs when clients change do work
+      # is owned by the host user while the files inside it are root's, so the
+      # in-place rewrites wg-easy performs when clients change do work
       # (measured), but creating a *new* file there would be denied. Chowning
       # that directory to root would remove the caveat without a capability.
       - NET_RAW
     read_only: true
     tmpfs:
-      - /run:size=8m           # xtables.lock; wg0.conf lives on the bind mount
+      - /run:size=8m           # xtables.lock; the SQLite DB is on the bind mount
+      - /tmp:size=8m           # node scratch; both were mounted when measured
     sysctls:
       - net.ipv4.conf.all.src_valid_mark=1
       - net.ipv4.ip_forward=1
     ports:
       - "51820:51820/udp"
       - "127.0.0.1:51821:51821"  # Web UI, localhost only (access via SSH tunnel)
+    # v15 keeps its configuration in SQLite, not in the environment: WG_HOST,
+    # PASSWORD_HASH, WG_DEFAULT_DNS and WG_ALLOWED_IPS no longer exist. Ansible
+    # keeps ownership by re-asserting them through the admin API on every deploy
+    # (roles/deploy/tasks/wg_easy_config.yml) — see ADR-020.
     environment:
-      WG_HOST: ${WG_HOST}
-      PASSWORD_HASH: ${WG_PASSWORD_HASH}
-      WG_DEFAULT_DNS: ${PI_LAN_IP}
-      WG_ALLOWED_IPS: 0.0.0.0/0
+      # Traefik terminates TLS; without this v15 refuses to serve over HTTP.
+      INSECURE: "true"
+      # This host has no global IPv6 (no address, no default route). Left on,
+      # v15 emits ip6tables rules through its bundled LEGACY iptables binaries,
+      # the ip6_tables module is absent from a host running the nf_tables
+      # backend, wg-quick exits 3 and NO tunnel comes up — while the container
+      # stays green. Measured in the #48 sandbox. See ADR-020.
+      DISABLE_IPV6: "true"
     volumes:
       - ${SERVICES_DATA_DIR}/wireguard:/etc/wireguard
     networks:

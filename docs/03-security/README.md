@@ -122,9 +122,13 @@ Defense in depth — each layer is secured independently. If one layer falls, th
   `/run/secrets/` via each image's own convention (`*_FILE`, `FILE__*`), leaving
   only a path in `inspect` (ADR-016). This covers the Cloudflare DNS-01 token
   too — a `Zone:DNS:Edit` token being worth more than any DB password, since
-  DNS control means issuing certificates. One value is still passed inline:
-  wg-easy's `PASSWORD_HASH`, a bcrypt hash, unavoidable (v14 reads
-  `process.env` with no file fallback)
+  DNS control means issuing certificates. **No secret is passed inline any
+  more**: wg-easy's `PASSWORD_HASH` was the last one, and v15 removed it — the
+  admin password now sits in `/mnt/data/secrets/wg-easy-setup.env`
+  (`0600 root:root`), read by the host and never by a container (ADR-020). It
+  is plaintext there, because v15 hashes with argon2 itself and accepts no
+  precomputed hash; keeping it out of `homelab.env`, which is group-readable by
+  docker and mounted into containers, is what limits the exposure
 - **Security headers + rate-limit on every HTTPS router** — HSTS, SAMEORIGIN,
   nosniff and a per-IP rate cap applied at the Traefik entrypoint
 - Isolated Docker networks (`proxy` / `internal` / `socketproxy`); the DB tier

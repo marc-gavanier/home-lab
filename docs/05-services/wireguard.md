@@ -33,11 +33,28 @@ ssh -L 51821:127.0.0.1:51821 homelab
 
 The VPN appears as a regular network connection in system settings.
 
+## Configuration — where it lives, and why it is not in `.env`
+
+Since v15 (ADR-020) wg-easy keeps its settings in **SQLite**, not in the
+environment: `WG_HOST`, `PASSWORD_HASH`, `WG_DEFAULT_DNS` and `WG_ALLOWED_IPS`
+no longer exist. To keep this repository the source of truth rather than the web
+UI, the deploy re-asserts them through the admin API on every run
+(`roles/deploy/tasks/wg_easy_config.yml`), comparing before writing.
+
+The values come from `/mnt/data/secrets/wg-easy-setup.env` (`0600 root:root`,
+encrypted volume). It carries a **plaintext** admin password: v15 hashes with
+argon2 itself and takes no precomputed hash. That is why it is not in
+`homelab.env`, which is group-readable by docker and mounted into containers.
+
+Changing a setting means editing the repository and deploying — a change made in
+the web UI is reverted on the next deploy, on purpose.
+
 ## Data
 
-| Path                            | Content                          |
-|---------------------------------|----------------------------------|
-| `/mnt/data/services/wireguard/` | Server keys, peer configurations |
+| Path                            | Content                                     |
+|---------------------------------|---------------------------------------------|
+| `/mnt/data/services/wireguard/` | `wg-easy.db` (server key, peers), `wg0.conf` |
+| `/mnt/data/backups/wg-easy-v14/` | Pre-migration `wg0.json`, kept as a rollback |
 
 ## Restore
 

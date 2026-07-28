@@ -31,6 +31,9 @@
 - name: Enforce the Pi-hole admin password (v6 quirk)
   ansible.builtin.import_tasks: pihole.yml
 
+- name: Re-assert the wg-easy settings (v15 keeps them in SQLite, not the env)
+  ansible.builtin.import_tasks: wg_easy_config.yml
+
 - name: Post-configure Nextcloud (occ, apps, external storage)
   ansible.builtin.import_tasks: nextcloud.yml
 
