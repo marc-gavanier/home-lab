@@ -932,6 +932,12 @@ services:
   # =============================================================================
 
   # --- Uptime Kuma ---
+  # Upgrades are NOT routine here: Kuma runs knex migrations at start and exits 1
+  # before listening if one fails, and since this container is the monitoring,
+  # that failure raises no alarm. 2.5.0 needed a manual intervention to start at
+  # all (fix-stat-daily-overflow aborts the SQLite table rebuild). Renovate holds
+  # it off the weekly batch; back the DB up and read the runbook first:
+  # knowledge/runbooks/uptime-kuma-migration-failure.md
   uptime-kuma:
     image: louislam/uptime-kuma:2.5.0
     container_name: uptime-kuma
