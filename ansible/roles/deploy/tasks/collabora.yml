@@ -170,17 +170,31 @@
 # the match and the writer can take SIGPIPE. It never fired in production, but
 # it is the identical race — and a probe that fails at random is worse than one
 # that fails, because the first instinct is to re-run it rather than read it.
+# Retried, because this probe is expensive by design and runs in the worst
+# possible window. Without CAP_SYS_ADMIN, Collabora cannot bind-mount a jail and
+# copies 759 MB of tree per document instead (a deliberate trade — see the
+# collabora block in compose.yaml and ADR-021). That copy takes ~21s on an idle
+# Pi, but this task runs in the same play as `docker compose pull`, and under
+# that disk contention coolwsd gave up and closed the connection at 65s on
+# 2026-08-02: curl 52, empty reply, deploy aborted — with backup/wireguard/
+# offsite/ddns left unrun behind it, while Collabora was in fact perfectly fine.
+# Raising the timeout alone would not have helped: the server hung up first, well
+# inside curl's own limit. A second attempt, once the pulls are done and the
+# systemtemplate is in page cache, is what actually converges.
 - name: collabora | Verify a document can actually be converted
   ansible.builtin.shell:
     executable: /bin/bash
     cmd: >
       printf 'homelab deploy probe\n' > /tmp/collabora-probe.txt &&
       docker cp /tmp/collabora-probe.txt nextcloud:/tmp/collabora-probe.txt &&
-      docker exec nextcloud curl -sf -m 90 -o /tmp/collabora-probe.pdf
+      docker exec nextcloud curl -sf -m 120 -o /tmp/collabora-probe.pdf
       -F 'data=@/tmp/collabora-probe.txt' http://collabora:9980/cool/convert-to/pdf &&
       magic=$(docker exec nextcloud head -c 5 /tmp/collabora-probe.pdf) &&
       [ "$magic" = '%PDF-' ]
   register: collabora_convert
+  until: collabora_convert.rc == 0
+  retries: 2
+  delay: 30
   changed_when: false
   when: collabora_up
 
