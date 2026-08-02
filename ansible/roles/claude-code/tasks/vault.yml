@@ -152,6 +152,11 @@
       ExecStop=/bin/sh -c '/bin/fusermount -u /home/claude/vault || /bin/fusermount -uz /home/claude/vault'
       Restart=on-failure
       RestartSec=10
+  notify:
+    # Remote Control too: its working directory lives inside this mount, so a
+    # replaced mount leaves the running process on a dead one.
+    - Restart vault mount
+    - Restart Claude Remote Control
 
 # noqa command-instead-of-module: the systemd module cannot manage add-wants links.
 - name: vault | Start the vault mount whenever the encrypted volume mounts  # noqa: command-instead-of-module
