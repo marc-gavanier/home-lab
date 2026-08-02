@@ -3,6 +3,20 @@
   ansible.builtin.command: apparmor_parser -r /etc/apparmor.d/bwrap
   changed_when: true
 
+# Same trap as the Remote Control handler below: a unit-file edit plus a bare
+# daemon-reload leaves the RUNNING rclone on the old definition, so the ExecStop
+# fix would not take effect until the next reboot. Restarting is what makes it
+# real, and it is safe now that ExecStop falls back to a lazy unmount.
+#
+# Declared BEFORE the Remote Control handler on purpose: handlers run in
+# DECLARATION order, not notification order, and Remote Control has to be
+# restarted after the mount it works inside is back up.
+- name: Restart vault mount
+  ansible.builtin.systemd:
+    name: vault-mount.service
+    state: restarted
+    daemon_reload: true
+
 # Without this, a unit-file edit lands on disk but the running process keeps the
 # old definition until the next reboot — the change looks deployed and is not.
 # Guarded on the credentials fact so it never starts a service that

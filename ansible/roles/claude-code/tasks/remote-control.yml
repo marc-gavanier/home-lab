@@ -23,6 +23,17 @@
       # NOT covered by Restart=). Instead we soft-want the mount, gate startup on
       # it being present (ExecStartPre), and let Restart=on-failure retry until
       # the mount appears — self-healing across a slow boot.
+      #
+      # PartOf, however, we DO want: when vault-mount stops or restarts, this
+      # unit has to go with it. This is what stops the 2026-07-31 failure at its
+      # source rather than cleaning up after it — After= orders this unit's stop
+      # BEFORE the mount's, so the working directory is released and ExecStop's
+      # plain unmount succeeds instead of failing with EBUSY. It also covers the
+      # restarts Ansible does not drive, which is how that outage started:
+      # unattended-upgrades restarting systemd at 06:38.
+      # PartOf propagates stop/restart only, never start, so it does NOT
+      # reintroduce the dependency-failure problem described just above.
+      PartOf=vault-mount.service
       StartLimitIntervalSec=0
 
       [Service]
