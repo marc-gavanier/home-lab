@@ -1,10 +1,17 @@
 ---
 # Transmission runtime settings that cannot be set from the compose file.
 #
-# The linuxserver image exposes no environment variable for NAT-PMP/UPnP, and
-# Transmission rewrites settings.json on shutdown — editing the file under a
-# running daemon is silently reverted. RPC is the only durable path, and it is
-# the same one the web UI uses, so the value lands in settings.json immediately.
+# The linuxserver image exposes no environment variable for NAT-PMP/UPnP, so
+# this takes both paths, and it needs both:
+#
+#   - RPC changes the RUNNING daemon at once, but does NOT write settings.json.
+#     Transmission only persists its settings on a clean shutdown.
+#   - The file edit is what survives a SIGKILL or a crash-heal restart, where no
+#     clean shutdown ever happens and the old value would be read back.
+#
+# Editing the file is safe only because the RPC call has already put the daemon
+# on the same value: a later clean shutdown then writes back what we wrote, and
+# the two cannot disagree. Doing the file edit alone would be reverted.
 
 - name: transmission | List the running containers this wiring needs
   ansible.builtin.command:
@@ -50,3 +57,24 @@
   when:
     - transmission_up
     - "'Port forwarding enabled: Yes' in transmission_portmap.stdout | default('')"
+
+# Ordered after the RPC call on purpose — see the header. On a host where the
+# container is down this still runs, which is what makes the setting hold across
+# a provision that never gets to talk to the daemon. Guarded on the file
+# existing: on a first provision Transmission has not written it yet, and
+# lineinfile would fail rather than skip.
+- name: transmission | Check whether settings.json exists yet
+  ansible.builtin.stat:
+    path: "{{ services_data_dir }}/transmission/config/settings.json"
+  register: transmission_settings
+
+# backrefs means a no-op when the value is already false, so this stays quiet on
+# every deploy after the first.
+- name: transmission | Persist it in settings.json so a hard restart cannot revive it
+  ansible.builtin.lineinfile:
+    path: "{{ services_data_dir }}/transmission/config/settings.json"
+    regexp: '^(\s*)"port-forwarding-enabled":\s*true,'
+    line: '\1"port-forwarding-enabled": false,'
+    backrefs: true
+    state: present
+  when: transmission_settings.stat.exists
