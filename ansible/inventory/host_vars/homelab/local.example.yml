@@ -37,6 +37,16 @@ wg_password: ""  # wg-easy admin password, plaintext; v15 hashes it with argon2
 nextcloud_db_password: ""
 nextcloud_db_root_password: ""
 
+# --- LibreSign (PDF signing, ADR-022) ---
+# Identity of the root certificate every signature is issued from. Not secret —
+# it is printed inside each signed PDF — but the common name is usually a
+# person's name, which is why it lives here rather than in group_vars.
+# Read ONLY when the CA is generated, which happens once: changing these later
+# has no effect, and regenerating is what the deploy exists to prevent.
+libresign_cert_cn: ""   # e.g. "Firstname Lastname" — what a reader sees
+libresign_cert_o: ""    # organization, e.g. "Home Lab"
+libresign_cert_c: ""    # two-letter country, e.g. "FR"
+
 # --- Vaultwarden ---
 vaultwarden_admin_token: ""
 # 16+ random bytes in hex (e.g. `openssl rand -hex 16`). Stable salt for
