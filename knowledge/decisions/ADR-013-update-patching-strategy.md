@@ -55,8 +55,31 @@ deliberate reboot posture.
 2. **`needrestart` in automatic mode** (`$nrconf{restart}='a'`, `docker.service`
    blacklisted). Restarts host daemons still mapping a patched library right
    after the upgrade — closing the userspace window **reboot-free**. Docker is
-   excluded so it never bounces the ~19 containers (staged startup, ADR-007);
-   container userspace is Renovate's lane.
+   excluded so *needrestart* never bounces the ~19 containers (staged startup,
+   ADR-007); container userspace is Renovate's lane.
+
+   > **Amended 2026-08-02 — the blacklist is narrower than this claimed.** The
+   > sentence used to read "Docker is excluded so it never bounces the ~19
+   > containers", which overstates what a needrestart blacklist can do. It stops
+   > *needrestart* from restarting `docker.service` after some other package
+   > upgraded a library Docker maps. It does nothing when **Docker itself is the
+   > package being upgraded**: `docker-ce`'s own postinst restarts the daemon,
+   > and every container with it.
+   >
+   > Observed the same evening. A convergence run upgraded `docker-ce`
+   > 29.6.2 → 29.7.1 at 22:13:02; `docker.service` stopped 21 seconds later and
+   > took all 22 containers down. `homelab-stack-startup` re-ran the waves
+   > unprompted and the stack was fully healthy again by 22:16:27 — 3.5 minutes,
+   > no intervention, which is exactly the behaviour ADR-007 exists to provide.
+   >
+   > **The invariant this ADR relies on still holds, but it comes from
+   > elsewhere.** Docker ships from its own repository, which is *not* in
+   > `Unattended-Upgrades::Allowed-Origins` — `o=Docker` is marked not allowed
+   > and pinned at -32768. So a Docker upgrade, and the stack bounce it causes,
+   > can only happen inside a deliberate `apt dist-upgrade`: an Ansible run, with
+   > an operator watching. It cannot happen unattended at 06:00. That is the
+   > property worth protecting, and it is now in the verification list below
+   > rather than being inferred from the needrestart config.
 3. **Bounded-latency reboot policy** for the irreducible kernel/core-lib residue,
    tiered by *reachability*, not raw CVSS:
    - **Routine** kernel/core-lib bump (no active exploitation, or an LPE with no
@@ -102,6 +125,17 @@ deliberate reboot posture.
 
 - `needrestart -b` after an upgrade shows no stale services; confirm
   `docker.service` is *not* auto-restarted.
+- **Docker must stay outside the unattended lane**, since upgrading it bounces
+  every container. The needrestart blacklist does not give this — the origin
+  filter does:
+
+  ```bash
+  sudo unattended-upgrade --dry-run -d 2>&1 | grep -i docker
+  # expected: "Marking not allowed <...o=Docker...> with -32768 pin"
+  ```
+
+  If that line ever disappears, a stack-wide restart becomes possible at 06:00
+  with nobody watching.
 - `apt-config dump Unattended-Upgrade::Automatic-Reboot` → `false` on homelab,
   `true` on offsite.
 - Simulate a held update → Kuma "Pi health" goes DOWN after the 48 h threshold.
