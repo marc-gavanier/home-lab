@@ -136,9 +136,20 @@
       User=claude
       Group=claude
       Environment=RCLONE_CONFIG=/mnt/data/secrets/claude/rclone.conf
+      # When a stop could not unmount, the dead endpoint stays in /proc/mounts
+      # and rclone then refuses to start: "directory already mounted". Nothing
+      # ever cleared it, so the restart loop could not converge — Remote Control
+      # was down from 2026-07-31 06:39 until it was unmounted by hand. Clear a
+      # stale endpoint before every start; '-' so a clean start is not a failure.
+      # (--allow-non-empty is NOT the fix: it mounts over the dead endpoint.)
+      ExecStartPre=-/bin/fusermount -uz /home/claude/vault
       ExecStart=/usr/bin/rclone mount nextcloud:Notes /home/claude/vault \
         --vfs-cache-mode writes --vfs-write-back 2s --dir-cache-time 30s
-      ExecStop=/bin/fusermount -u /home/claude/vault
+      # A plain -u fails with EBUSY whenever a process sits inside the mount, and
+      # one always does: claude-remote-control holds its working directory there.
+      # An unattended-upgrades systemd restart is enough to hit it. Fall back to a
+      # lazy unmount so stopping always leaves a clean mount table.
+      ExecStop=/bin/sh -c '/bin/fusermount -u /home/claude/vault || /bin/fusermount -uz /home/claude/vault'
       Restart=on-failure
       RestartSec=10
 
