@@ -76,6 +76,40 @@
     path: /home/claude/.claude/.credentials.json
   register: claude_creds
 
+# PartOf above drags this unit down whenever the mount stops — that is what keeps
+# the unmount clean — but PartOf NEVER propagates start. A stop/start of
+# vault-mount would therefore leave Remote Control cleanly stopped, and a CLEAN
+# stop is not covered by Restart=on-failure: it would sit there silently dead,
+# which is the failure shape this whole change exists to remove. Wants= on the
+# mount closes the loop, and the ordering is already handled by this unit's
+# After=vault-mount.service.
+#
+# It is a drop-in written from HERE rather than a line in vault-mount.service
+# because only this file knows whether the one-time claude.ai login has happened.
+# Without it Remote Control must stay stopped, and pulling it in from the mount
+# would defeat that deliberate gate.
+- name: remote-control | Create the vault-mount drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/vault-mount.service.d
+    state: directory
+    mode: "0755"
+
+- name: remote-control | Pull Remote Control up with the vault mount
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/vault-mount.service.d/10-remote-control.conf
+    mode: "0644"
+    content: |
+      # Managed by the claude-code role — see tasks/remote-control.yml
+      [Unit]
+      Wants=claude-remote-control.service
+  when: claude_creds.stat.exists
+
+- name: remote-control | Drop the pull-in while the claude.ai login is not done
+  ansible.builtin.file:
+    path: /etc/systemd/system/vault-mount.service.d/10-remote-control.conf
+    state: absent
+  when: not claude_creds.stat.exists
+
 - name: remote-control | Enable Remote Control (started only once claude.ai login is done)
   ansible.builtin.systemd:
     name: claude-remote-control.service
