@@ -220,3 +220,36 @@ Both write sources are bounded so they can never fill the SD card:
 - journald: persistent but capped at `SystemMaxUse=200M`, via a drop-in
   (`ansible/roles/base/tasks/logging.yml`). Persistence is deliberate — the
   boot logs are what the "unexplained poweroff" runbook reads.
+
+## Reading the UFW log
+
+`UFW BLOCK` lines are the closest thing this host has to an intrusion signal, and
+they are readable — which was not true until 2026-08-02, when Transmission's
+NAT-PMP was emitting 3 739 blocked packets a day, 86% of the log, and burying
+everything else.
+
+```bash
+sudo journalctl --since "24 hours ago" -k | grep "UFW BLOCK" \
+  | grep -oP 'SRC=\K[0-9.]+' | sort | uniq -c | sort -rn
+```
+
+What is normal, so that what is not stands out:
+
+| Source        | Port | Why it is there                                              |
+|---------------|------|--------------------------------------------------------------|
+| `192.168.1.1` | —    | the router's IGMP multicast to 224.0.0.1. Constant, harmless |
+| `10.8.0.x`    | 853  | a VPN client probing DoT. See below                          |
+| LAN addresses | misc | occasional device chatter                                    |
+
+**Do not re-investigate the port 853 entries.** They are Android's Private DNS in
+automatic mode: the device probes its DNS server on 853, gets nothing, and falls
+back to plain DNS on 53. Measured on 2026-08-02 — the same client had made 2 135
+queries to Pi-hole over the previous 24 h, so filtering applies to it in full.
+It is noise, not a bypass. Offering DoT on the Pi would silence it and encrypt
+that hop, but that is a feature, not a fix.
+
+**The baseline.** Over 24 h on 2026-08-02, after the Transmission fix: two packets
+from the internet, both from a Meta range. fail2ban held zero failures and zero
+bans across its three jails, and seven days of SSH logs contained no failed
+attempt. Almost nothing hostile reaches this host, because almost nothing is
+forwarded to it — see the amended attack-surface note in ADR-013.
