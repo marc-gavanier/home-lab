@@ -13,6 +13,7 @@ All services run as Docker containers, orchestrated by Docker Compose. Persisten
 | [WireGuard](wireguard.md)       | VPN remote access              | Infrastructure | Phase 2 |
 | [Nextcloud](nextcloud.md)       | Cloud files, sync, mobile      | Essential      | Phase 3 |
 | [Collabora](collabora.md)       | Collaborative document editing | Productivity   | Phase 5 |
+| [LibreSign](libresign.md)       | PDF signing (Nextcloud app)    | Productivity   | Phase 5 |
 | [Vaultwarden](vaultwarden.md)   | Password manager               | Essential      | Phase 3 |
 | [Jellyfin](jellyfin.md)         | Video streaming                | Secondary      | Phase 4 |
 | [Navidrome](navidrome.md)       | Music streaming                | Secondary      | Phase 4 |
@@ -49,6 +50,10 @@ All services run as Docker containers, orchestrated by Docker Compose. Persisten
 
 Every figure above is an estimate except Collabora's, which is measured at idle
 (ADR-021) — it grows with the number of documents open at once.
+
+LibreSign has no line of its own: it is a Nextcloud app, and the JVM it spawns
+to sign a PDF exits with the signature. It does cost **185 MB of disk** on
+`/mnt/data` for the JRE and jars it downloads (ADR-022).
 
 The host has **8 GB** since the hardware swap, and sits around 3.9 GB used with
 the full stack running, so this is comfortable rather than tight. The old

@@ -29,6 +29,9 @@ Nextcloud runs as **five containers** sharing one data volume:
 - **Collaborative document editing** through Collabora Online — see
   [collabora.md](collabora.md). The `richdocuments` connector is enabled and
   configured by the deploy, not by the admin UI (ADR-021).
+- **PDF signing** through LibreSign — see [libresign.md](libresign.md). Signatures
+  are issued from a self-signed CA the deploy generates once, and only once
+  (ADR-022).
 
 ## Hardening & performance
 

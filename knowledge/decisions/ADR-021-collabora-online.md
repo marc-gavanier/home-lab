@@ -231,3 +231,6 @@ a mismatch breaks editing while the container stays healthy.
 
 **LibreSign, the third part of #16, is deliberately out of scope.** Its Java and
 CFSSL prerequisites are a different problem and deserve their own sandbox.
+
+*Followed up in ADR-022: the Java prerequisite was real and is downloaded at
+runtime; the CFSSL one had already been superseded by an OpenSSL engine.*

@@ -95,9 +95,17 @@ log "Running restic backup..."
 # /mnt/data/secrets holds the credential files (.env, backup.env, wg0.conf…)
 # whose /opt/homelab entries are now symlinks — restic stores symlinks as
 # links, so the real directory must be listed for DR to restore the secrets.
+# The excluded directory is LibreSign's binary cache — a JRE, JSignPdf and
+# pdftk, 185 MB measured, downloaded from GitHub by `occ libresign:install` and
+# re-downloadable with it (ADR-022). Backing them up would send a copy offsite
+# over the parents' uplink for something a single command rebuilds.
+# Scoped to the architecture directory on purpose: the root CA, including
+# ca-key.pem, sits in a sibling directory under libresign/ and MUST stay in the
+# backup — losing it invalidates every signature ever issued here.
 restic backup \
     --verbose \
     --tag auto \
+    --exclude '/mnt/data/services/nextcloud/data/data/appdata_*/libresign/aarch64' \
     /mnt/data/services \
     /mnt/data/media \
     /mnt/data/backups/dumps \

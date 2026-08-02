@@ -108,6 +108,21 @@ argument_specs:
         required: true
         no_log: true
         description: Transmission web UI password.
+      libresign_cert_cn:
+        type: str
+        required: false
+        description: >-
+          Common name of the LibreSign root certificate (group_vars default "Home Lab").
+          Printed inside every signed PDF. Only read at generation time — the CA is created
+          once and regenerating it would orphan the signatures already issued (ADR-022).
+      libresign_cert_o:
+        type: str
+        required: false
+        description: Organization of the LibreSign root certificate (group_vars default "Home Lab").
+      libresign_cert_c:
+        type: str
+        required: false
+        description: Two-letter country of the LibreSign root certificate (group_vars default FR).
       searxng_secret_key:
         type: str
         required: true
