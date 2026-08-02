@@ -78,15 +78,50 @@ journalctl -u claude-remote-control -f             # expect "Connected · vault"
 Then in the app, pick the environment the service just logged — and remove any stale
 duplicate (see the ghost-environments warning above).
 
+## Troubleshooting: both units loop forever → stale FUSE endpoint
+
+**Symptom** (seen 2026-07-31, 54h of downtime): Kuma reports the Pi health check down with
+`restart loop: vault-mount.service` and `claude-remote-control.service (activating)`. Unlike
+the 401 above, this one **never recovers on its own** — the retry loop cannot converge:
+
+```bash
+journalctl -u vault-mount -n 20            # "Fatal error: directory already mounted"
+journalctl -u claude-remote-control -n 20  # status=200/CHDIR, "Transport endpoint is not connected"
+grep vault /proc/mounts                    # entry present, but the mount answers ENOTCONN
+```
+
+**Cause.** A stop that could not unmount left a dead endpoint behind: `fusermount -u` fails
+with `EBUSY` while any process sits inside the mount, and Remote Control always does — its
+`WorkingDirectory` is the vault. rclone then refuses to mount over the corpse, and Remote
+Control fails its `chdir` before `ExecStartPre` even runs. On 2026-07-31 the trigger was
+unattended-upgrades restarting the unit at 06:38.
+
+**Fix — clear the dead endpoint** (needs root; `-z` is the point, a plain `-u` will fail again):
+
+```bash
+sudo systemctl stop claude-remote-control vault-mount
+sudo fusermount -uz /home/claude/vault
+grep vault /proc/mounts || echo CLEAN            # must be CLEAN before restarting
+sudo systemctl start vault-mount                 # Remote Control is pulled up with it
+sudo -u claude sh -c 'cd ~/vault && ls'          # probe the function, not the unit state
+```
+
+> This should no longer happen. `vault-mount` now clears a stale endpoint before every start
+> and falls back to a lazy unmount on stop, and Remote Control is `PartOf=` the mount so it
+> is stopped *first*, releasing the working directory. Verified by killing rclone with
+> `SIGKILL` (so `ExecStop` never runs): the mount recovers unattended in ~13 s. If you land
+> here anyway, the mount table is the thing to look at first.
+
 ## Data
 
-| Path                                                | Content                                              |
-|-----------------------------------------------------|------------------------------------------------------|
-| `/home/claude/vault`                                | rclone WebDAV mount of `nextcloud:Notes` (the vault) |
-| `/home/claude/.claude`                              | Claude Code config + credentials                     |
-| `/home/claude/.claude/{commands,agents}`            | Custom commands & subagents (role-mirrored)          |
-| `/etc/systemd/system/vault-mount.service`           | rclone mount of the vault                            |
-| `/etc/systemd/system/claude-remote-control.service` | always-on Remote Control                             |
+| Path                                                               | Content                                              |
+|--------------------------------------------------------------------|------------------------------------------------------|
+| `/home/claude/vault`                                               | rclone WebDAV mount of `nextcloud:Notes` (the vault) |
+| `/home/claude/.claude`                                             | Claude Code config + credentials                     |
+| `/home/claude/.claude/{commands,agents}`                           | Custom commands & subagents (role-mirrored)          |
+| `/etc/systemd/system/vault-mount.service`                          | rclone mount of the vault                            |
+| `/etc/systemd/system/claude-remote-control.service`                | always-on Remote Control                             |
+| `/etc/systemd/system/vault-mount.service.d/10-remote-control.conf` | pulls Remote Control up with the mount (login-gated) |
 
 > **Slow boot is self-healing.** The Remote Control unit *soft-wants* `vault-mount` (not
 > `Requires=`) and gates startup on the vault actually being mounted (`ExecStartPre`),
@@ -94,6 +129,13 @@ duplicate (see the ghost-environments warning above).
 > boot; the service keeps retrying until it's ready instead of failing permanently (a hard
 > `Requires=` dependency-job failure is *not* covered by `Restart=`). See the comments in
 > the role's `tasks/main.yml`.
+>
+> **The two units move together.** Remote Control is `PartOf=vault-mount.service`, so it goes
+> down *with* the mount — and, thanks to `After=`, *before* it, which is what releases the
+> working directory and lets the unmount succeed. `PartOf` never propagates start, so the
+> mount carries a `Wants=` drop-in to bring Remote Control back up. Both directions are
+> needed: without the first the mount leaks a dead endpoint, without the second Remote
+> Control stays silently stopped after a `stop`/`start` of the mount.
 
 ## Restore
 
