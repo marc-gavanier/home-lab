@@ -1,0 +1,52 @@
+---
+# Transmission runtime settings that cannot be set from the compose file.
+#
+# The linuxserver image exposes no environment variable for NAT-PMP/UPnP, and
+# Transmission rewrites settings.json on shutdown — editing the file under a
+# running daemon is silently reverted. RPC is the only durable path, and it is
+# the same one the web UI uses, so the value lands in settings.json immediately.
+
+- name: transmission | List the running containers this wiring needs
+  ansible.builtin.command:
+    cmd: docker ps --filter status=running --format '{% raw %}{{.Names}}{% endraw %}'
+  register: transmission_running
+  changed_when: false
+
+- name: transmission | Skip the wiring unless the container is up
+  ansible.builtin.set_fact:
+    transmission_up: "{{ 'transmission' in transmission_running.stdout_lines }}"
+
+# NAT-PMP here is not merely useless, it is misdirected: the daemon asks the
+# DOCKER bridge gateway (172.18.0.1 — this Pi) for a port mapping, not the
+# router, and UFW drops the request. It has therefore never opened anything.
+# What it did do is emit 3 739 blocked packets a day, which is 86% of the UFW
+# log and as many journal writes on the SD card — enough noise to bury the two
+# genuinely external packets that arrive in the same 24 h. Inbound peers reach
+# 51413 through the static forward, not through this.
+# No pipe on purpose, and for the reason collabora.yml already records: `cmd |
+# grep` under pipefail can return 141 when grep exits on the match before the
+# writer is done. The whole session summary is small — read it and match in
+# Ansible rather than in a shell.
+- name: transmission | Read the current port-forwarding state
+  ansible.builtin.command:
+    cmd: >
+      docker exec transmission sh -c
+      'transmission-remote 127.0.0.1:9091
+      -n "{{ transmission_user | default("admin") }}:$(cat /run/secrets/transmission_password)"
+      -si'
+  register: transmission_portmap
+  changed_when: false
+  failed_when: false
+  when: transmission_up
+
+- name: transmission | Turn NAT-PMP/UPnP off (it asks the Docker gateway, and UFW drops it)
+  ansible.builtin.command:
+    cmd: >
+      docker exec transmission sh -c
+      'transmission-remote 127.0.0.1:9091
+      -n "{{ transmission_user | default("admin") }}:$(cat /run/secrets/transmission_password)"
+      --no-portmap'
+  changed_when: true
+  when:
+    - transmission_up
+    - "'Port forwarding enabled: Yes' in transmission_portmap.stdout | default('')"
