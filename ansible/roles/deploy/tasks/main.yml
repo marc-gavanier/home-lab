@@ -40,6 +40,9 @@
 - name: Wire Nextcloud to the Collabora document server (ADR-021)
   ansible.builtin.import_tasks: collabora.yml
 
+- name: Apply Transmission runtime settings the compose file cannot set
+  ansible.builtin.import_tasks: transmission.yml
+
 - name: Set up the local restic backup and nightly timer
   ansible.builtin.import_tasks: backup.yml
 
