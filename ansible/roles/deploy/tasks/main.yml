@@ -40,6 +40,9 @@
 - name: Wire Nextcloud to the Collabora document server (ADR-021)
   ansible.builtin.import_tasks: collabora.yml
 
+- name: Set up PDF signing inside Nextcloud (ADR-022)
+  ansible.builtin.import_tasks: libresign.yml
+
 - name: Apply Transmission runtime settings the compose file cannot set
   ansible.builtin.import_tasks: transmission.yml
 

@@ -47,3 +47,13 @@ backup_dir: "{{ data_mount_point }}/backups"
 # --- Backup ---
 restic_password: ""  # TODO: set via vault or env var, NEVER in plain text
 backup_schedule: "0 3 * * *"  # Daily at 3 AM
+
+# --- PDF signing (LibreSign, ADR-022) ---
+# Identity of the root certificate every signature is issued from. Not a
+# secret — it is printed inside each signed PDF — but the real common name is
+# a person's name, so it lives in local.yml like the domain does. Changing
+# these after the CA exists has no effect: the certificate is generated once
+# and regenerating it would orphan every signature already issued.
+libresign_cert_cn: "Home Lab"
+libresign_cert_o: "Home Lab"
+libresign_cert_c: "FR"

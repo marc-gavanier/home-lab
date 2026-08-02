@@ -392,6 +392,19 @@ services:
       OVERWRITECLIURL: https://drive.${DOMAIN}
       REDIS_HOST: nextcloud-redis
       NEXTCLOUD_MAINTENANCE_WINDOW_START: "4"
+      # For the JVM LibreSign spawns to sign PDFs, not for PHP (ADR-022).
+      # The image sets no locale, so Java 21 derives its *native* encoding from
+      # the environment and lands on ANSI_X3.4-1968 — plain ASCII. Measured in
+      # the running container:
+      #   native.encoding = ANSI_X3.4-1968   sun.jnu.encoding = ANSI_X3.4-1968
+      # file.encoding is UTF-8 regardless since JEP 400, which is why this is
+      # easy to miss: strings inside the JVM are fine, while the *boundary* is
+      # not — sun.jnu.encoding is what decodes the arguments and file paths
+      # handed to JSignPdf. Every accented character in a document name or a
+      # signature reason crosses that boundary. With these two set, the same
+      # command reports UTF-8 for all four encodings.
+      LANG: C.UTF-8
+      LC_ALL: C.UTF-8
     volumes:
       - ${SERVICES_DATA_DIR}/nextcloud/data:/var/www/html
       # Media libraries mounted read-only for browsing via External Storage
