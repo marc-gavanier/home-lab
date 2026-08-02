@@ -31,12 +31,25 @@
       Group=claude
       WorkingDirectory=/home/claude/vault
       Environment=HOME=/home/claude
-      # Wait for the vault to actually be mounted before launching; fail (and let
-      # systemd retry) if it isn't there yet.
-      ExecStartPre=/bin/sh -c 'grep -q " /home/claude/vault " /proc/mounts'
+      # Two distinct ways the vault can be unusable, and they need two gates:
+      #
+      #  - NOT MOUNTED YET (slow boot): the mount point exists as an empty local
+      #    directory, so the WorkingDirectory chdir SUCCEEDS. Without the
+      #    /proc/mounts check Claude would happily work in it and write notes to
+      #    the SD card instead of Nextcloud. That is what this gate is for.
+      #  - STALE ENDPOINT (a stop that could not unmount): the entry IS still in
+      #    /proc/mounts, so this gate cannot see it. systemd catches that one
+      #    first — the chdir fails with 200/CHDIR (ENOTCONN) before ExecStartPre
+      #    ever runs, which is why it looped 8 854 times over 54h on 2026-07-31.
+      #    Fixed at the source, in vault-mount.service, which now clears a dead
+      #    endpoint before mounting. The readability probe below is belt and
+      #    braces for a mount that is listed and connected but unusable.
+      ExecStartPre=/bin/sh -c 'grep -q " /home/claude/vault " /proc/mounts && ls -1 /home/claude/vault >/dev/null'
       ExecStart=/home/claude/.local/bin/claude remote-control --name Homelab
       Restart=on-failure
-      RestartSec=15
+      # 15s meant ~240 journal writes an hour on the SD card while the vault was
+      # broken. The retry only has to outlast a slow boot, not be prompt.
+      RestartSec=30
       # The CLI repaints its banner on stdout once per second — 300 journal
       # lines a minute, forever, on an SD card. Discard stdout; stderr still
       # reaches the journal, so real failures remain visible.
