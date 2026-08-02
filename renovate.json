@@ -29,6 +29,11 @@
       "dependencyDashboardApproval": true
     },
     {
+      "description": "Uptime Kuma runs DB migrations on start and exits 1 if one fails — 2.5.0 did exactly that on 2026-08-02 (fix-stat-daily-overflow, 'no such savepoint: trx6'), leaving the box unmonitored while the heal timer retried every two minutes. Held at 2.4.0. Updates stay visible on the dashboard but are never merged blind: back up the DB first (ops/kuma-dump.sh plus a sqlite .backup) and read the migration notes.",
+      "matchPackageNames": ["louislam/uptime-kuma"],
+      "dependencyDashboardApproval": true
+    },
+    {
       "description": "Immich pins are managed manually (one-way DB migrations, server & ML must move together — see feedback 2026-07)",
       "matchPackageNames": ["ghcr.io/immich-app/immich-server", "ghcr.io/immich-app/immich-machine-learning", "ghcr.io/immich-app/postgres"],
       "enabled": false

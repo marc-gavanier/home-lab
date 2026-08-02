@@ -933,7 +933,15 @@ services:
 
   # --- Uptime Kuma ---
   uptime-kuma:
-    image: louislam/uptime-kuma:2.5.0
+    # Held at 2.4.0: 2.5.0 cannot start on this database. Its
+    # 2026-07-22-0000-fix-stat-daily-overflow.js migration aborts with
+    # "ROLLBACK TO SAVEPOINT trx6 - SQLITE_ERROR: no such savepoint: trx6",
+    # the server exits 1, and the crash-heal timer then retries the migration
+    # every two minutes. Deployed and hit on 2026-08-02; the rollback is clean
+    # because the migration rolls itself back — the DB stayed on the 2.4.0
+    # schema, integrity ok, 20 monitors intact. Revisit when upstream ships a
+    # fixed migration; keep the pre-upgrade copy until then.
+    image: louislam/uptime-kuma:2.4.0
     container_name: uptime-kuma
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
