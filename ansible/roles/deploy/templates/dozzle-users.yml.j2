@@ -9,9 +9,11 @@
 # bcrypt salt, so the hash itself is what gets stored.
 #
 # Regenerate with:
-#   docker run --rm amir20/dozzle:v10.6.14 \
-#     generate <user> --password '<password>' --email <email> --name '<name>'
+#   docker run -it --rm amir20/dozzle:v10.6.14 \
+#     generate <user> --email <email> --name '<name>'
 # then copy the `password:` line into dozzle_admin_password_hash in the vault.
+# It prompts rather than taking --password, keeping it out of shell history, and
+# caps at 72 BYTES: bcrypt reads no further and this CLI refuses to truncate.
 users:
   {{ dozzle_admin_user }}:
     email: {{ dozzle_admin_email }}

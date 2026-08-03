@@ -76,8 +76,11 @@ searxng_logo: ""
 # --- Dozzle (container logs in the browser) ---
 # bcrypt hash of the UI password — the hash, not the password. Generate it with
 # the image's own CLI, then paste the `password:` value here:
-#   docker run --rm amir20/dozzle:v10.6.14 \
-#     generate admin --password '<password>' --email admin@localhost --name 'Admin'
+#   docker run -it --rm amir20/dozzle:v10.6.14 \
+#     generate admin --email admin@localhost --name 'Admin'
+# It prompts for the password, which keeps it out of shell history. Max 72 BYTES
+# — bcrypt reads no further and Dozzle refuses rather than truncating, so a long
+# generated passphrase fails with "password length exceeds 72 bytes".
 # The user/e-mail/name defaults live in group_vars/all.yml; override them there
 # or here if the generated file should carry different ones.
 dozzle_admin_password_hash: ""  # e.g. "$2a$11$…"
