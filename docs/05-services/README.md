@@ -47,10 +47,12 @@ All services run as Docker containers, orchestrated by Docker Compose. Persisten
 | Claude Code           | ~300 MB       |
 | SearXNG               | ~200 MB       |
 | Collabora Online      | 573 MB        |
+| Dozzle                | 30 MB         |
 | **Total**             | **~3.9 GB**   |
 
-Every figure above is an estimate except Collabora's, which is measured at idle
-(ADR-021) — it grows with the number of documents open at once.
+Every figure above is an estimate except two, both measured at idle: Collabora's
+573 MB (ADR-021), which grows with the number of documents open at once, and
+Dozzle's 30 MB (ADR-023), which does not — it holds no logs, it streams them.
 
 LibreSign has no line of its own: it is a Nextcloud app, and the JVM it spawns
 to sign a PDF exits with the signature. It does cost **185 MB of disk** on
