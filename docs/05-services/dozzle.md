@@ -31,9 +31,18 @@ new string on every run and report `changed` forever. Regenerate the hash with t
 own CLI and paste it into `dozzle_admin_password_hash` in the vaulted `local.yml`:
 
 ```bash
-docker run --rm amir20/dozzle:v10.6.14 \
-  generate admin --password '<password>' --email admin@localhost --name 'Admin'
+docker run -it --rm amir20/dozzle:v10.6.14 \
+  generate admin --email admin@localhost --name 'Admin'
 ```
+
+Omitting `--password` makes it prompt, which keeps the password out of shell history.
+
+**The password must be 72 bytes or less.** bcrypt consumes only the first 72 bytes, and
+Dozzle's Go implementation refuses rather than truncating silently:
+`FTL Failed to hash password error="bcrypt: password length exceeds 72 bytes"`. Bytes, not
+characters — an accented character costs two in UTF-8. This bites exactly the setup that
+should be safest, a long generated passphrase from the password manager next door. It costs
+nothing: 72 characters against bcrypt at cost 11 is far beyond reach.
 
 ## How It Reads Docker
 

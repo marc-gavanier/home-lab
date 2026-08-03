@@ -77,6 +77,13 @@ pinned salt (ADR-016) — available there because Argon2 accepts one, and not he
 because the `dozzle generate` CLI does not expose the bcrypt salt. So the hash
 itself is the stored secret.
 
+One constraint travels with that choice, and it surfaced while setting the password:
+bcrypt reads only the first 72 bytes, and Dozzle's implementation **refuses** rather than
+truncating — `bcrypt: password length exceeds 72 bytes`, fatal. Bytes, not characters. The
+trap is that it fires on the most careful setup rather than the sloppiest: a long generated
+passphrase pulled from the Vaultwarden instance one subdomain over. Capping at 72 costs
+nothing against bcrypt at cost 11.
+
 The file is bind-mounted **as a file**, not through its directory. A directory
 bind mount is resolved in the container's namespace, which is how SearXNG ran for
 weeks on a self-generated stub config (issue #27).
