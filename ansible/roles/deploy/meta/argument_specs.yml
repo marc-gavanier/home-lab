@@ -143,7 +143,8 @@ argument_specs:
           bcrypt hash of the Dozzle UI password, rendered verbatim into
           /mnt/data/secrets/docker/dozzle_users.yml. Stored pre-hashed because bcrypt salts at
           random and hashing at deploy time would report changed on every run — generate it with
-          `docker run --rm amir20/dozzle:<tag> generate <user> --password '<pw>' …`.
+          `docker run -it --rm amir20/dozzle:<tag> generate <user> --email … --name …`, which
+          prompts for the password and caps it at 72 bytes (bcrypt reads no further).
       searxng_secret_key:
         type: str
         required: true
