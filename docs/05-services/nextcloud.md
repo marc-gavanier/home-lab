@@ -29,9 +29,13 @@ Nextcloud runs as **five containers** sharing one data volume:
 - **Collaborative document editing** through Collabora Online — see
   [collabora.md](collabora.md). The `richdocuments` connector is enabled and
   configured by the deploy, not by the admin UI (ADR-021).
-- **PDF signing** through LibreSign — see [libresign.md](libresign.md). Signatures
-  are issued from a self-signed CA the deploy generates once, and only once
-  (ADR-022).
+- **Stamping a signature image onto a PDF** with the built-in viewer — image
+  stamp, freehand ink and free text, saved back to the file. Nothing to install,
+  and it is what an administrative form actually asks for.
+- **Verifiable PDF signing** through LibreSign — see [libresign.md](libresign.md).
+  Signatures are issued from a self-signed CA the deploy generates once, and only
+  once (ADR-022). Heavier than the stamp above, and only worth it when the
+  signature has to withstand scrutiny.
 
 ## Hardening & performance
 
