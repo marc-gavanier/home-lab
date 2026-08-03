@@ -84,6 +84,16 @@ services:
     cap_drop: *cap-drop-all
     environment:
       CONTAINERS: 1   # Traefik reads the container list; EVENTS/PING default on
+      # Dozzle calls GET /info at startup and treats a 403 as "no engine": it
+      # logs "Could not connect to any Docker Engine" and **exits 1**. Measured
+      # on a throwaway pair — same image, same flags, INFO=0 exits 1 and INFO=1
+      # reaches "Connected to Docker". Worth naming because the failure looks
+      # like a broken socket path rather than a missing permission, and because
+      # the cost is shared: Traefik and Netdata gain /info too. What that
+      # endpoint returns is daemon metadata — kernel, OS, storage driver,
+      # container counts, registry config — with no Env array and no secret in
+      # it, and Netdata already reports all of it by design.
+      INFO: 1         # Dozzle: fatal at startup without it
       POST: 0         # deny all writes (default, made explicit)
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -1116,3 +1126,67 @@ services:
       - "traefik.http.routers.netdata.entrypoints=websecure"
       - "traefik.http.routers.netdata.tls.certresolver=letsencrypt"
       - "traefik.http.services.netdata.loadbalancer.server.port=19999"
+
+  # --- Dozzle (container logs in the browser) ---
+  # Fills the gap Netdata and Kuma leave: metrics and uptime were reachable
+  # without SSH, logs were not. Reads the daemon through the same read-only
+  # socket-proxy as Traefik and Netdata — never the raw docker.sock.
+  dozzle:
+    image: amir20/dozzle:v10.6.14
+    container_name: dozzle
+    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    security_opt: *no-new-privs
+    cap_drop: *cap-drop-all
+    read_only: true
+    # No tmpfs. `docker diff` on a live probe showed an empty write set — the
+    # only entries were /data and the users file, both artefacts of the bind
+    # mount below. Dozzle is a single Go binary serving from its own image and
+    # keeping no state on disk; the auth session is a cookie, not a file.
+    user: "65534:65534"        # nobody — it speaks TCP to the proxy, so no docker group
+    environment:
+      DOCKER_HOST: tcp://socket-proxy:2375
+      # Logs are the point, and they are also the most quietly sensitive surface
+      # in the stack: every other container's stdout in one page — session ids,
+      # e-mail addresses, tokens an app decided to log. `vpn-only` already gates
+      # it like everything else, so this is the second lock, for the case where
+      # the perimeter itself is what failed (a stolen WireGuard key, a
+      # compromised LAN device). Credentials come from the file below.
+      DOZZLE_AUTH_PROVIDER: simple
+      DOZZLE_NO_ANALYTICS: "true"
+      # The default polls GitHub for newer Dozzle releases on a schedule. Version
+      # bumps arrive through Renovate on the pin above, so the call buys nothing
+      # and is one more outbound connection from a container that needs none.
+      DOZZLE_RELEASE_CHECK_MODE: manual
+      # DOZZLE_ENABLE_ACTIONS / DOZZLE_ENABLE_SHELL stay at their default false.
+      # Both need POST on the socket-proxy, which is 0 — so enabling either here
+      # would put start/stop/restart buttons and an in-browser shell in the UI
+      # that fail against the proxy rather than work. The proxy is the boundary;
+      # this is a log viewer, not a control panel.
+    volumes:
+      # The FILE, not the directory around it: a directory bind mount here would
+      # be resolved in the container's namespace and is exactly how #27 left
+      # SearXNG with a dangling link for weeks. 0444 from the LUKS secrets dir,
+      # rendered by the deploy role — it carries the bcrypt hash of the admin
+      # password, so it is a secret by ADR-011's definition even though Dozzle
+      # wants it at a fixed path rather than under /run/secrets.
+      - /mnt/data/secrets/docker/dozzle_users.yml:/data/users.yml:ro
+    # The binary's own subcommand rather than a port probe: it performs a real
+    # HTTP request to /healthcheck on the listener, so a Dozzle that is up but
+    # no longer serving fails it. Nothing else in the image can run it — there is
+    # no shell, no wget, no curl.
+    healthcheck:
+      test: ["CMD", "/dozzle", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      - socket-proxy
+    networks:
+      - proxy
+      - socketproxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dozzle.rule=Host(`logs.${DOMAIN}`)"
+      - "traefik.http.routers.dozzle.entrypoints=websecure"
+      - "traefik.http.routers.dozzle.tls.certresolver=letsencrypt"
+      - "traefik.http.services.dozzle.loadbalancer.server.port=8080"

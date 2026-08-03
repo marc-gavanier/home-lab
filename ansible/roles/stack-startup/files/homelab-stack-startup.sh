@@ -85,7 +85,9 @@ log "staged startup begin"
 wait_healthy pihole 300
 
 # Wave 1 — light services
-up vaultwarden uptime-kuma searxng navidrome
+# Dozzle belongs here: it depends on socket-proxy, which Docker already
+# auto-started with Tier 0, and `compose up` honours that dependency anyway.
+up vaultwarden uptime-kuma searxng navidrome dozzle
 wait_healthy vaultwarden 120
 
 # Wave 2 — Nextcloud stack + Transmission (medium)

@@ -21,6 +21,7 @@ All services run as Docker containers, orchestrated by Docker Compose. Persisten
 | [Transmission](transmission.md) | BitTorrent client              | Secondary      | Phase 4 |
 | [Netdata](netdata.md)           | System monitoring              | Observability  | Phase 5 |
 | [Uptime Kuma](uptime-kuma.md)   | Availability monitoring        | Observability  | Phase 5 |
+| [Dozzle](dozzle.md)             | Container logs in the browser  | Observability  | Phase 5 |
 | [Claude Code](claude-code.md)   | AI agent for the notes vault   | Productivity   | Phase 5 |
 | [SearXNG](searxng.md)           | Private metasearch engine      | Productivity   | Phase 5 |
 

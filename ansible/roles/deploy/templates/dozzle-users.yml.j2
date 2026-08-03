@@ -1,0 +1,21 @@
+# {{ ansible_managed }}
+# Dozzle simple-auth credentials, mounted read-only at /data/users.yml.
+#
+# The hash is vaulted and rendered verbatim, never computed here: bcrypt salts
+# itself at random, so hashing the password at deploy time would produce a
+# different string on every run and report `changed` forever. Vaultwarden
+# solves the same problem the other way, with a pinned salt (ADR-016) — that
+# works because Argon2 takes one; the `dozzle generate` CLI does not expose the
+# bcrypt salt, so the hash itself is what gets stored.
+#
+# Regenerate with:
+#   docker run --rm amir20/dozzle:v10.6.14 \
+#     generate <user> --password '<password>' --email <email> --name '<name>'
+# then copy the `password:` line into dozzle_admin_password_hash in the vault.
+users:
+  {{ dozzle_admin_user }}:
+    email: {{ dozzle_admin_email }}
+    name: {{ dozzle_admin_name }}
+    password: "{{ dozzle_admin_password_hash }}"
+    filter: ""
+    roles: ""

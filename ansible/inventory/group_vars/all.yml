@@ -57,3 +57,10 @@ backup_schedule: "0 3 * * *"  # Daily at 3 AM
 libresign_cert_cn: "Home Lab"
 libresign_cert_o: "Home Lab"
 libresign_cert_c: "FR"
+
+# --- Container logs (Dozzle) ---
+# Identity shown in the Dozzle UI. The password hash is not here: it is the one
+# secret of the three and belongs in the vaulted local.yml.
+dozzle_admin_user: "admin"
+dozzle_admin_email: "admin@localhost"
+dozzle_admin_name: "Admin"
