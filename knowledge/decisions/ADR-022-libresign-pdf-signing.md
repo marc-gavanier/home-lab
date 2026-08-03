@@ -160,6 +160,17 @@ not just found on disk — the check that catches a JRE the container's libc
 cannot load — and `libresign:configure:check` must report no `error` row. `info`
 rows do not fail the deploy; that is what makes the poppler note above a note.
 
+**LibreSign is not the answer to "put my signature on this PDF".** Found the
+evening it went live, by trying to use it: its request-then-sign ceremony exists
+to collect signatures from *other people*, and there is no shortcut through it
+for a solo stamp. Nextcloud's own PDF viewer already does that — `editorStamp`
+with *Add image*, plus freehand ink and free text, in the deployed
+`files_pdfviewer` templates, gated by no setting. So the two coexist by purpose,
+not by preference: the viewer for the image an administrative form expects,
+LibreSign for a signature that has to be verifiable. Worth stating in the ADR
+because the obvious reading of "we deployed a PDF signing tool" is the wrong
+one, and the cheaper tool was installed all along.
+
 **No Uptime Kuma monitor.** LibreSign has no endpoint of its own; it is up
 exactly when Nextcloud is, and that is already monitored. The failure modes it
 does have are configuration ones, and the deploy is what checks those.

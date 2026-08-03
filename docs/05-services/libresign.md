@@ -3,11 +3,38 @@
 Digital signature of PDFs inside Nextcloud — sign a document yourself, or send
 it to someone else for signature, without it leaving the Pi.
 
+## Read this first: you probably want the built-in viewer
+
+For **pasting a signature image onto a PDF** — the thing an administrative form
+means when it asks for a signature — LibreSign is the wrong tool and always
+will be. Nextcloud's own PDF viewer already does it, with nothing to install:
+open the PDF, switch to edit mode, and its toolbar offers an **image stamp**
+(*Add image*), **freehand ink** (drawable with a finger on a phone) and **free
+text**. Save, and the modified PDF is written back to Nextcloud.
+
+The three tools are in the deployed `files_pdfviewer` templates — `editorStamp`
+with `editorStampAddImage`, `editorInk`, `editorFreeText`. No admin setting
+gates them; the app's only setting is `enable_scripting` (JavaScript embedded in
+PDFs), which is `no` and unrelated.
+
+| | Built-in viewer | LibreSign |
+|---|---|---|
+| What it produces | an image on a page | a cryptographic signature |
+| Can it be tampered with | yes — move it, delete it, copy it elsewhere | no — any later edit breaks the signature |
+| Steps | open, stamp, save | create a request, add signers, place elements, sign with the certificate password |
+| Prerequisite | none | a personal certificate issued from the root CA |
+
+**Use LibreSign when the signature has to be verifiable** — when someone else
+signs, or when you need to be able to prove the document has not moved since.
+Its request-then-sign ceremony exists because it is built to collect signatures
+from other people; it is not overhead you can skip for a solo stamp.
+
 ## Access
 
 - No address of its own. Open `https://drive.example.com` (VPN required, like
-  everything else) and pick **LibreSign** in the top bar, or use *Sign* in a
-  PDF's context menu in Files.
+  everything else) and pick **LibreSign** in the top bar, or use *Open in
+  LibreSign* in a PDF's context menu in Files (it asks for an *envelope* name —
+  the v14 grouping for the files of one request).
 
 ## Architecture
 
@@ -37,6 +64,24 @@ generation time**: editing them later changes nothing at all.
 
 Losing `ca-key.pem` does not invalidate documents already signed — it means no
 new signer certificate can ever be issued under the same root.
+
+### The root CA does not sign anything — you still need a personal certificate
+
+Nothing announces this, and it is where a first attempt stalls: the CA is the
+authority that *issues* certificates, so a fresh account has none of its own and
+LibreSign parks it in an "incomplete certification" state where the sign button
+leads nowhere.
+
+The fix is one step, in LibreSign itself: **create a password for your
+certificate**. That password protects your private key, is asked again at every
+signature, and creating it is what mints your personal certificate from the root
+CA. Then draw or upload your signature graphic (two kinds: signature and
+initial), and you can sign.
+
+When adding yourself as a signer, identify by **Nextcloud account**, not by
+email. Both methods are enabled by default, but the email one sends a link and
+assumes a configured SMTP — waiting for a mail that will never leave is the
+other way this stalls.
 
 ## What the signature proves, and what it does not
 
