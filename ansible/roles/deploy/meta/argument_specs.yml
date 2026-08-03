@@ -123,6 +123,27 @@ argument_specs:
         type: str
         required: false
         description: Two-letter country of the LibreSign root certificate (group_vars default FR).
+      dozzle_admin_user:
+        type: str
+        required: false
+        description: Dozzle simple-auth username (group_vars default admin).
+      dozzle_admin_email:
+        type: str
+        required: false
+        description: E-mail shown for the Dozzle user (group_vars default admin@localhost).
+      dozzle_admin_name:
+        type: str
+        required: false
+        description: Display name shown for the Dozzle user (group_vars default Admin).
+      dozzle_admin_password_hash:
+        type: str
+        required: true
+        no_log: true
+        description: >-
+          bcrypt hash of the Dozzle UI password, rendered verbatim into
+          /mnt/data/secrets/docker/dozzle_users.yml. Stored pre-hashed because bcrypt salts at
+          random and hashing at deploy time would report changed on every run — generate it with
+          `docker run --rm amir20/dozzle:<tag> generate <user> --password '<pw>' …`.
       searxng_secret_key:
         type: str
         required: true

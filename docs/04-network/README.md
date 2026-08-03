@@ -15,17 +15,22 @@ Internet → ISP Router (IPv4 full stack, port forwarding)
 
 All services are **VPN-only**. The `vpn-only` middleware is applied globally on Traefik's `websecure` entrypoint — any request not coming from the LAN (192.168.1.0/24), WireGuard subnet (10.8.0.0/24), or a Docker bridge network (172.16.0.0/12) gets `403 Forbidden`.
 
-| Subdomain              | Service     |
-|------------------------|-------------|
-| `drive.example.com`    | Nextcloud   |
-| `vault.example.com`    | Vaultwarden |
-| `videos.example.com`   | Jellyfin    |
-| `music.example.com`    | Navidrome   |
-| `photos.example.com`   | Immich      |
-| `dns.example.com`      | Pi-hole     |
-| `services.example.com` | Uptime Kuma |
-| `system.example.com`   | Netdata     |
-| `vpn.example.com`      | WireGuard   |
+| Subdomain              | Service      |
+|------------------------|--------------|
+| `drive.example.com`    | Nextcloud    |
+| `vault.example.com`    | Vaultwarden  |
+| `videos.example.com`   | Jellyfin     |
+| `music.example.com`    | Navidrome    |
+| `photos.example.com`   | Immich       |
+| `share.example.com`    | Transmission |
+| `office.example.com`   | Collabora    |
+| `search.example.com`   | SearXNG      |
+| `dns.example.com`      | Pi-hole      |
+| `services.example.com` | Uptime Kuma  |
+| `system.example.com`   | Netdata      |
+| `logs.example.com`     | Dozzle       |
+| `proxy.example.com`    | Traefik      |
+| `vpn.example.com`      | WireGuard    |
 
 ### DNS
 

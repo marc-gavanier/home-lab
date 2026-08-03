@@ -73,6 +73,15 @@ searxng_branding: false
 # when searxng_branding is true. Empty = keep the stock logo.
 searxng_logo: ""
 
+# --- Dozzle (container logs in the browser) ---
+# bcrypt hash of the UI password — the hash, not the password. Generate it with
+# the image's own CLI, then paste the `password:` value here:
+#   docker run --rm amir20/dozzle:v10.6.14 \
+#     generate admin --password '<password>' --email admin@localhost --name 'Admin'
+# The user/e-mail/name defaults live in group_vars/all.yml; override them there
+# or here if the generated file should carry different ones.
+dozzle_admin_password_hash: ""  # e.g. "$2a$11$…"
+
 # --- Kill switch (remote poweroff via ntfy) ---
 killswitch_ntfy_topic: ""  # long random topic, e.g. `openssl rand -hex 16` (acts as a secret)
 killswitch_keyword: ""     # secret keyword; poweroff fires only on an exact match
