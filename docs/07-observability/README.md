@@ -107,9 +107,9 @@ The authoritative inventory is the Kuma database itself; export it with
 Real health endpoints rather than a bare `200 on /`, so a service that is up
 but broken still trips: Nextcloud `/status.php`, Vaultwarden `/alive`,
 Jellyfin `/health`, Navidrome `/ping`, SearXNG `/healthz`, Dozzle
-`/healthcheck`, Calibre-Web `/login`, plus Immich, Transmission, wg-easy,
-Traefik on :443, Pi-hole on :53, an ICMP ping of the Pi and the BitTorrent peer
-port.
+`/healthcheck`, Calibre-Web `/login`, Collabora `/hosting/capabilities`, plus
+IT-Tools, Immich, Transmission, wg-easy, Traefik on :443, Pi-hole on :53, an ICMP
+ping of the Pi and the BitTorrent peer port.
 
 Dozzle is where that rule stopped being a principle and became a measurement.
 Stop its socket-proxy and it keeps serving `/` exactly as before — container
@@ -127,10 +127,10 @@ ADR-021. The real probe is a document conversion, which is a multipart POST and
 does not fit a Kuma HTTP check. Two other things cover the gap instead: the
 image's own healthcheck flips the container `unhealthy`, which the host health
 report picks up within 10 minutes, and every deploy runs the conversion itself
-and fails if it does not produce a PDF. **Collabora has no Kuma monitor today**
-(checked against `ops/kuma-dump.sh` on 2026-08-05); one would be worth having for
-reachability and TLS expiry, but it would not be the thing that proves editing
-works.
+and fails if it does not produce a PDF. A Kuma monitor on `/hosting/capabilities`
+was added on 2026-08-05 — it had been described here for months without existing,
+which the `ops/kuma-dump.sh` inventory exposed. It covers reachability and TLS
+expiry; it is not the thing that proves editing works.
 
 **Calibre-Web** is the second, and worse in one respect: its own healthcheck
 lies. While measuring its capability requirements, two variants that could not
