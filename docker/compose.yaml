@@ -1190,3 +1190,54 @@ services:
       - "traefik.http.routers.dozzle.entrypoints=websecure"
       - "traefik.http.routers.dozzle.tls.certresolver=letsencrypt"
       - "traefik.http.services.dozzle.loadbalancer.server.port=8080"
+
+  # --- IT-Tools (offline dev toolbox) ---
+  it-tools:
+    # Pinned to a DIGEST on a moving tag, which is unusual here and deliberate.
+    # Upstream stopped cutting releases: the newest is 2024.10.22, and its image
+    # ships Alpine 3.20 (past end of support) with nginx 1.26.2. The repository
+    # itself is alive, so `nightly` — a build of main, not an unstable channel in
+    # this project — is where the maintenance went: Alpine 3.23, nginx 1.28.2.
+    # Serving a 21-month-old base to replace third-party web tools would defeat
+    # the point of self-hosting this. The digest restores what the tag gives up:
+    # the deployed artefact cannot change underneath us, and Renovate raises a PR
+    # when the digest moves. Re-read the release situation at the next bump — if
+    # nightly goes stale too (it was last built 2026-02-13), that is the signal to
+    # drop this service rather than pin it deeper (ADR-024).
+    image: corentinth/it-tools:nightly@sha256:f07d246567e1ceb65e29b0a2ea155a70d7b05e9a35cfc534a2eee7b1f53df64b
+    container_name: it-tools
+    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    security_opt: *no-new-privs
+    # Zero capabilities, including NET_BIND_SERVICE, even though nginx listens on
+    # :80 as uid 101. Docker sets net.ipv4.ip_unprivileged_port_start=0 inside the
+    # container, so the bind needs no capability at all — measured, not assumed:
+    # the container serves 200 with `--cap-drop ALL` and nothing added.
+    cap_drop: *cap-drop-all
+    read_only: true            # measured: `docker diff` write set is empty
+    user: "101:101"            # nginx user in the image
+    tmpfs:
+      # These need uid/gid, unlike every other tmpfs in this file. A tmpfs is
+      # mounted root-owned 0755 by default, so uid 101 cannot create
+      # /var/cache/nginx/client_temp and nginx exits 1 at startup with
+      # "mkdir() ... failed (13: Permission denied)" — a failure that reads like
+      # a read-only filesystem problem and is not one.
+      - /var/cache/nginx:size=16m,uid=101,gid=101
+      - /var/run:size=4m,uid=101,gid=101
+      - /tmp:size=8m,uid=101,gid=101
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - proxy
+    # No second lock, unlike Dozzle. Every tool here runs in the browser: the
+    # server parses nothing, stores nothing and never sees what is pasted into a
+    # JWT decoder. `vpn-only` on the entrypoint is the whole perimeter, and there
+    # is no server-side secret behind it to defend.
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.it-tools.rule=Host(`tools.${DOMAIN}`)"
+      - "traefik.http.routers.it-tools.entrypoints=websecure"
+      - "traefik.http.routers.it-tools.tls.certresolver=letsencrypt"
+      - "traefik.http.services.it-tools.loadbalancer.server.port=80"

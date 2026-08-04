@@ -24,6 +24,7 @@ All services run as Docker containers, orchestrated by Docker Compose. Persisten
 | [Dozzle](dozzle.md)             | Container logs in the browser  | Observability  | Phase 5 |
 | [Claude Code](claude-code.md)   | AI agent for the notes vault   | Productivity   | Phase 5 |
 | [SearXNG](searxng.md)           | Private metasearch engine      | Productivity   | Phase 5 |
+| [IT-Tools](it-tools.md)         | Offline developer toolbox      | Productivity   | Phase 5 |
 
 > Notes live in **Obsidian** (a client app on PC/mobile, synced via Nextcloud), managed by
 > Claude Code on the Pi — see [ADR-005](../../knowledge/decisions/ADR-005-obsidian-notes-system.md).
@@ -48,11 +49,14 @@ All services run as Docker containers, orchestrated by Docker Compose. Persisten
 | SearXNG               | ~200 MB       |
 | Collabora Online      | 573 MB        |
 | Dozzle                | 30 MB         |
+| IT-Tools              | 4 MB          |
 | **Total**             | **~3.9 GB**   |
 
-Every figure above is an estimate except two, both measured at idle: Collabora's
-573 MB (ADR-021), which grows with the number of documents open at once, and
-Dozzle's 30 MB (ADR-023), which does not — it holds no logs, it streams them.
+Every figure above is an estimate except three, all measured at idle: Collabora's
+573 MB (ADR-021), which grows with the number of documents open at once; Dozzle's
+30 MB (ADR-023), which does not — it holds no logs, it streams them; and IT-Tools'
+4 MB (ADR-024), which is nginx serving static files and nothing else. The service
+shortlist had budgeted 50 MB for it.
 
 LibreSign has no line of its own: it is a Nextcloud app, and the JVM it spawns
 to sign a PDF exits with the signature. It does cost **185 MB of disk** on

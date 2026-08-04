@@ -87,7 +87,9 @@ wait_healthy pihole 300
 # Wave 1 — light services
 # Dozzle belongs here: it depends on socket-proxy, which Docker already
 # auto-started with Tier 0, and `compose up` honours that dependency anyway.
-up vaultwarden uptime-kuma searxng navidrome dozzle
+# IT-Tools is the cheapest member by an order of magnitude (4 MB, static nginx,
+# no dependency of any kind), so it costs this wave nothing.
+up vaultwarden uptime-kuma searxng navidrome dozzle it-tools
 wait_healthy vaultwarden 120
 
 # Wave 2 — Nextcloud stack + Transmission (medium)
