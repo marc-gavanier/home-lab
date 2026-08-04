@@ -111,7 +111,7 @@ Defense in depth — each layer is secured independently. If one layer falls, th
   general one: it removes the root phase rather than feeding it, so `CHOWN`,
   `SETUID`, `SETGID` and `FOWNER` go with it — five capabilities to zero, per
   service. SearXNG shed its when the defect behind it was fixed (issue #27).
-- **The four that keep it are structural, not accidental**: pihole's root phase
+- **The five that keep it are structural, not accidental**: pihole's root phase
   is where `setcap` runs on FTL; Nextcloud's apache must bind `:80` as root, and
   a non-root PID 1 has an empty permitted set, so `user:` would cost the port
   rather than the capability; transmission's s6 init *is* the root phase
@@ -120,6 +120,14 @@ Defense in depth — each layer is secured independently. If one layer falls, th
   price of the change is that those five services can no longer fix their own
   data directory's ownership, so the storage role owns it explicitly and the
   restore runbook says so.
+
+  **Calibre-Web is the fifth, added 2026-08-05**, and it is transmission's case
+  again: the same linuxserver s6 init, the same `PUID`/`PGID` mechanism, the same
+  five capabilities. The alternative was tested rather than assumed — `user:` was
+  tried three ways and each failed further along (s6 refuses a `/run` it does not
+  own; an owned tmpfs is `noexec`; with `exec` set, `/app` is root-owned in the
+  image and the app never serves). Removing this root phase needs an upstream
+  change, not a compose setting (ADR-025).
 - **Secrets injected as files, not environment variables** — the socket-proxy
   still allows `GET /containers/{id}/json`, whose response carries every
   container's `Env` array, so an env-injected password would be readable by a

@@ -96,9 +96,11 @@ wait_healthy vaultwarden 120
 up nextcloud-db nextcloud-redis nextcloud nextcloud-cron nextcloud-notify-push transmission
 wait_healthy nextcloud 240
 
-# Wave 3 — Immich stack, Jellyfin, Netdata, Collabora (heavy; no gating after
-# the last wave). Collabora belongs here rather than with Nextcloud: it takes
-# ~80 s to serve, and nothing needs it until someone opens a document.
-up immich-redis immich-db immich-machine-learning immich-server jellyfin netdata collabora
+# Wave 3 — Immich stack, Jellyfin, Netdata, Collabora, Calibre-Web (heavy; no
+# gating after the last wave). Collabora belongs here rather than with
+# Nextcloud: it takes ~80 s to serve, and nothing needs it until someone opens a
+# document. Calibre-Web is here for the same reason — its s6 init takes ~90 s
+# before the login page answers, and nothing in the stack depends on it.
+up immich-redis immich-db immich-machine-learning immich-server jellyfin netdata collabora calibre-web
 
 log "staged startup complete — all waves dispatched"

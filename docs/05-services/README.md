@@ -25,6 +25,7 @@ All services run as Docker containers, orchestrated by Docker Compose. Persisten
 | [Claude Code](claude-code.md)   | AI agent for the notes vault   | Productivity   | Phase 5 |
 | [SearXNG](searxng.md)           | Private metasearch engine      | Productivity   | Phase 5 |
 | [IT-Tools](it-tools.md)         | Offline developer toolbox      | Productivity   | Phase 5 |
+| [Calibre-Web](calibre-web.md)   | Ebook library, OPDS            | Secondary      | Phase 5 |
 
 > Notes live in **Obsidian** (a client app on PC/mobile, synced via Nextcloud), managed by
 > Claude Code on the Pi — see [ADR-005](../../knowledge/decisions/ADR-005-obsidian-notes-system.md).
@@ -50,18 +51,26 @@ All services run as Docker containers, orchestrated by Docker Compose. Persisten
 | Collabora Online      | 573 MB        |
 | Dozzle                | 30 MB         |
 | IT-Tools              | 4 MB          |
-| **Total**             | **~3.9 GB**   |
+| Calibre-Web           | 353 MB        |
+| **Total**             | **~4.3 GB**   |
 
-Every figure above is an estimate except three, all measured at idle: Collabora's
+Every figure above is an estimate except four, all measured at idle: Collabora's
 573 MB (ADR-021), which grows with the number of documents open at once; Dozzle's
-30 MB (ADR-023), which does not — it holds no logs, it streams them; and IT-Tools'
-4 MB (ADR-024), which is nginx serving static files and nothing else. The service
-shortlist had budgeted 50 MB for it.
+30 MB (ADR-023), which does not — it holds no logs, it streams them; IT-Tools'
+4 MB (ADR-024), which is nginx serving static files and nothing else; and
+Calibre-Web's 353 MB (ADR-025). The last two are where estimates went furthest
+wrong in opposite directions — the shortlist budgeted 50 MB for IT-Tools and
+150-250 MB for Calibre-Web.
+
+Calibre-Web is also the largest image in the stack at **1.74 GB** unpacked, since
+it bundles a full Calibre for format conversion. That lands on `/mnt/data`, not
+the SD card: Docker's data root is `/mnt/data/docker`.
 
 LibreSign has no line of its own: it is a Nextcloud app, and the JVM it spawns
 to sign a PDF exits with the signature. It does cost **185 MB of disk** on
 `/mnt/data` for the JRE and jars it downloads (ADR-022).
 
-The host has **8 GB** since the hardware swap, and sits around 3.9 GB used with
-the full stack running, so this is comfortable rather than tight. The old
+The host has **8 GB** since the hardware swap, and sat around 3.9 GB used with
+the full stack running before Calibre-Web joined it, so this is comfortable
+rather than tight — re-measure on the host rather than trusting the sum. The old
 "disable Immich first" plan belonged to the 4 GB board and no longer applies.
