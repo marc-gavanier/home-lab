@@ -1241,3 +1241,72 @@ services:
       - "traefik.http.routers.it-tools.entrypoints=websecure"
       - "traefik.http.routers.it-tools.tls.certresolver=letsencrypt"
       - "traefik.http.services.it-tools.loadbalancer.server.port=80"
+
+  # --- Calibre-Web-Automated (ebook library + OPDS) ---
+  calibre-web:
+    image: crocodilestick/calibre-web-automated:v4.0.6
+    container_name: calibre-web
+    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    # NO read_only, and not for lack of trying: `docker diff` on a running
+    # container shows **1797** entries, because the image patches its own source
+    # tree and writes Python bytecode caches under /app at every start. Unlike
+    # transmission below, there is no polite degradation to weigh — it simply
+    # cannot start.
+    security_opt: *no-new-privs
+    cap_drop: *cap-drop-all
+    cap_add:
+      # The same five as transmission, for the same reason, and measured the
+      # same way. This is a linuxserver-style s6 image: the init runs as root,
+      # chowns /config, /calibre-library and /cwa-book-ingest, then drops to
+      # PUID/PGID. Six variants were tried before settling here (ADR-025):
+      #   - zero caps                     → /config/client_secrets.json denied, never serves
+      #   - CHOWN+SETUID+SETGID           → reports **healthy** while /app cache is missing
+      #   - the above + DAC_OVERRIDE      → reports **healthy** while `install` fails on
+      #                                     /config/processed_books/* (needs FOWNER)
+      #   - user: "1000:1000", zero caps  → s6 preinit: "/run belongs to uid 0 … we're
+      #                                     lacking the privileges to fix it", exit 100
+      #   - the above + owned /run tmpfs  → exit 126, tmpfs is noexec by default
+      #   - the above + exec on the tmpfs → s6 starts, then /app is root-owned in the
+      #                                     image and the app never serves
+      # So `user:` cannot remove the root phase here — the image would have to
+      # ship /app owned by the app uid, and it does not. Two of those variants
+      # sat at `healthy` while broken, which is why the Kuma monitor does not
+      # trust this container's own healthcheck (see docs/05-services/calibre-web.md).
+      - CHOWN
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
+      - FOWNER
+    environment:
+      PUID: ${PUID}
+      PGID: ${PGID}
+      TZ: ${TZ}
+    volumes:
+      # The Calibre library itself, alongside music/photos/videos and inside the
+      # restic set for free. CWA is the OWNER of this tree, not a reader of it:
+      # it rewrites metadata.db on first run (measured — the md5 changes), so
+      # editing the same library from desktop Calibre would silently fork the
+      # two. The desktop copy is a cold archive now (ADR-025).
+      - /mnt/data/media/books:/calibre-library
+      - ${SERVICES_DATA_DIR}/calibre-web:/config
+      # Drop an .epub here and CWA imports it into the library. Transient by
+      # design: files are moved out on success, so this is normally empty.
+      - /mnt/data/media/books-ingest:/cwa-book-ingest
+    networks:
+      - proxy
+    # Deliberately NOT the image's own healthcheck, which is what `docker ps`
+    # reports: two of the capability variants above reached "healthy" with a
+    # broken install. This probes the login page, which is served by the same
+    # process that serves the library.
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:8083/login"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s       # measured: first boot creates app.db and takes ~90 s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.calibre-web.rule=Host(`books.${DOMAIN}`)"
+      - "traefik.http.routers.calibre-web.entrypoints=websecure"
+      - "traefik.http.routers.calibre-web.tls.certresolver=letsencrypt"
+      - "traefik.http.services.calibre-web.loadbalancer.server.port=8083"
