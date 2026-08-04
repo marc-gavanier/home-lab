@@ -106,9 +106,15 @@ The authoritative inventory is the Kuma database itself; export it with
 
 Real health endpoints rather than a bare `200 on /`, so a service that is up
 but broken still trips: Nextcloud `/status.php`, Vaultwarden `/alive`,
-Jellyfin `/health`, Navidrome `/ping`, SearXNG `/healthz`, plus Immich,
-Transmission, wg-easy, Traefik on :443, Pi-hole on :53, an ICMP ping of the Pi
-and the BitTorrent peer port.
+Jellyfin `/health`, Navidrome `/ping`, SearXNG `/healthz`, Dozzle
+`/healthcheck`, plus Immich, Transmission, wg-easy, Traefik on :443, Pi-hole on
+:53, an ICMP ping of the Pi and the BitTorrent peer port.
+
+Dozzle is where that rule stopped being a principle and became a measurement.
+Stop its socket-proxy and it keeps serving `/` exactly as before — container
+`Up`, page loading, and nothing in it — while `/healthcheck` turns 500
+(ADR-023). The first version of that ADR pointed the monitor at `/`, which would
+have stayed green through the one failure worth catching.
 
 **Collabora is the one place where this pattern reaches its limit.** Its
 `/hosting/capabilities` endpoint is answered by the main process, so a monitor
