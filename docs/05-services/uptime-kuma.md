@@ -29,6 +29,8 @@ Uses Pi-hole as DNS (`dns: [${PI_LAN_IP}]` in compose) so that domain lookups fo
 | Immich                    | Keyword  | `https://photos.example.com/api/server/ping`  |
 | SearXNG                   | HTTP(s)  | `https://search.example.com/healthz`          |
 | Dozzle                    | HTTP(s)  | `https://logs.example.com/healthcheck`        |
+| IT-Tools                  | HTTP(s)  | `https://tools.example.com/`                  |
+| Calibre-Web               | HTTP(s)  | `https://books.example.com/login`             |
 | Transmission              | HTTP(s)  | `https://share.example.com/transmission/web`  |
 | WireGuard                 | HTTP(s)  | `https://vpn.example.com`                     |
 | Traefik HTTPS             | TCP Port | `192.168.1.100:443`                           |
@@ -51,6 +53,18 @@ on success, and Kuma alarms when the push does not arrive.
 The **Target** column names the endpoint on purpose. A bare `200 on /` would keep a
 service green while it is broken — the case measured on Dozzle, which serves its page
 unchanged after losing the Docker API and only flips `/healthcheck` to 500 (ADR-023).
+
+Three entries deserve a note, because they look like exceptions to that rule and are
+not the same kind of thing:
+
+- **IT-Tools** is checked on `/`, and that is correct: it is a static page with no
+  backend that can fail independently (ADR-024).
+- **Calibre-Web** is checked on `/login` because `/` answers 302, which falls outside
+  `200-299`. But green here proves reachability only — the library can be unreadable
+  while the login page is served, and proving otherwise needs an authenticated request
+  Kuma cannot make (ADR-025).
+- **Collabora** has no row at all: its reachable endpoint stays green while no document
+  can open, so the real check is the conversion the deploy performs (ADR-021).
 
 This table is a readable summary, not the source of truth. The authoritative inventory
 is Kuma's own database — export it with `ops/kuma-dump.sh` (read-only, WAL-safe), which
