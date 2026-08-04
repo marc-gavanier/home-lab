@@ -1272,6 +1272,12 @@ services:
       # ship /app owned by the app uid, and it does not. Two of those variants
       # sat at `healthy` while broken, which is why the Kuma monitor does not
       # trust this container's own healthcheck (see docs/05-services/calibre-web.md).
+      #
+      # And root is NOT confined to init, unlike transmission below: cps.py does
+      # run as uid 1000, but cwa-ingest-service, metadata-change-detector,
+      # cwa-auto-zipper and svc-cron stay root for the container's whole life.
+      # The first of those parses whatever lands in the ingest folder, so treat
+      # that folder as a trusted path (ADR-025).
       - CHOWN
       - SETUID
       - SETGID

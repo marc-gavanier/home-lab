@@ -37,8 +37,13 @@ Two side effects worth recording:
 - It lands in the restic set for free, since `/mnt/data/media` is already backed
   up — **+2.1 GB** to local and offsite targets, no change to `backup.sh`.
 - `rsync -a` faithfully preserved the source's `777` permissions, which came from
-  some long-ago copy off a foreign filesystem. Normalised to 755/644 owned by
-  `marc-gavanier:gpio`, matching `music` and `photos`.
+  some long-ago copy off a foreign filesystem. Normalised to 755/644. The group
+  was then reset by CWA's own init, which chowns its three mounts to
+  `PUID`:`PGID` — and Ansible derives `PGID` from `ansible_user`'s primary group
+  (1003), not from `gpio` (1000). So the library ends up
+  `marc-gavanier:marc-gavanier`, exactly like `transmission/config`, rather than
+  matching the `marc-gavanier:gpio` of `music` and `photos`. Fighting the init
+  over this would be pointless: it re-applies on every start.
 
 ### The hardening bar cannot be met, and the failure is upstream
 
@@ -70,14 +75,28 @@ three ways and does not apply here. It would need the image to ship `/app` owned
 by the app uid. That is an upstream change, not a compose setting.
 
 **So this is the fifth service keeping `DAC_OVERRIDE`**, after pihole, Nextcloud,
-transmission and netdata. It is deliberately the same case as transmission: the
-same linuxserver-style s6 init, where `PUID`/`PGID` *is* the root-phase
-mechanism. Accepting it is a posture change and is recorded as one rather than
-being absorbed quietly.
+transmission and netdata. Accepting it is a posture change and is recorded as one
+rather than being absorbed quietly.
 
-What bounds the exposure: the application process runs as uid 1000, not root; the
+**It is not quite transmission's case, and the difference was found by looking
+rather than reasoning.** Both are linuxserver-style s6 images where `PUID`/`PGID`
+is the root-phase mechanism, and in both the network-facing process drops to uid
+1000 (`python3 cps.py` here, `transmission-daemon` there). But transmission keeps
+only its s6 *supervisors* as root, while this image keeps four working longruns
+as root for the container's entire life: `cwa-ingest-service`,
+`metadata-change-detector`, `cwa-auto-zipper` and `svc-cron`.
+
+`cwa-ingest-service` is the one that matters. It is a root bash loop watching the
+ingest folder and handing files to the Calibre tooling — so **a book dropped into
+`/mnt/data/media/books-ingest` is untrusted input parsed by root-owned code**,
+with all five capabilities available to it. The ingest folder is therefore a
+trusted path by policy, and that is documented for the operator rather than left
+implicit.
+
+What bounds the exposure: the network-facing application runs as uid 1000; the
 container never sees the Docker socket; it is on the `proxy` network only; and
-`vpn-only` gates it like everything else.
+`vpn-only` gates it like everything else. But "root only during init" would have
+been a false claim, and an earlier draft of this ADR made it.
 
 ### A live default credential that cannot be automated away
 

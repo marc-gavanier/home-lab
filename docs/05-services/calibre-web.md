@@ -87,9 +87,24 @@ version:
   with `exec` set s6 finally starts only to find `/app` root-owned in the image.
   It would take an upstream change to fix.
 
-What limits the blast radius: the application process itself runs as uid 1000,
-not root; the container has no access to the Docker socket; it sits on the
-`proxy` network only; and it is behind `vpn-only` like everything else.
+- **Root is not confined to the init phase**, which is where this is worse than
+  Transmission and worth stating plainly. The web application does drop —
+  `python3 /app/calibre-web-automated/cps.py` runs as uid 1000 — but four s6
+  longruns stay root for the container's whole life: `cwa-ingest-service`,
+  `metadata-change-detector`, `cwa-auto-zipper` and `svc-cron`. Transmission, by
+  comparison, keeps only its s6 *supervisors* as root; `transmission-daemon`
+  itself runs as uid 1000.
+
+  The consequence to keep in mind: a file dropped into
+  `/mnt/data/media/books-ingest` is untrusted input parsed by root-owned code
+  inside the container, with those five capabilities available to it. Treat the
+  ingest folder as a trusted path — drop your own books there, not files from
+  strangers.
+
+What limits the blast radius: the web application serving the network-facing
+surface runs as uid 1000; the container has no access to the Docker socket; it
+sits on the `proxy` network only; and it is behind `vpn-only` like everything
+else.
 
 ## Health
 
