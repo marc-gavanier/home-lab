@@ -67,7 +67,15 @@ laptop on the LAN.
 
 Verified rather than assumed — an unauthenticated `GET /` returns **307** to the
 login page, and a `POST /api/token` with the generated credentials returns 200.
-The Kuma monitor therefore expects 307, not 200.
+
+That 307 is evidence for the lock. It is **not** what the availability monitor
+should watch, and this ADR first concluded that it was — wrongly. Dozzle goes on
+answering `/` unchanged after losing the Docker API altogether: the container
+stays `Up`, the page still loads, and it shows nothing. A monitor on `/` would
+stay green through the exact failure it exists to catch. Measured on a throwaway
+pair — with the socket-proxy stopped, `/` answered as before while
+`/healthcheck` turned **500**. The Kuma monitor therefore targets
+`/healthcheck` and expects 200 (corrected 2026-08-04).
 
 The password is stored **bcrypt-hashed** in the vault and rendered verbatim.
 Hashing at deploy time was the obvious shape and is wrong: bcrypt salts itself at

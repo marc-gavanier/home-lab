@@ -96,5 +96,12 @@ brings the container up.
 - Healthcheck: the binary's own `dozzle healthcheck` subcommand, which performs a real HTTP
   request against its listener — a process that is up but no longer serving fails it. It is
   the only option: the image has no shell, no `wget` and no `curl`.
-- Uptime Kuma: HTTP monitor on `https://logs.example.com`, expecting **307** (the redirect
-  to the login page) rather than 200 — an unauthenticated probe never reaches the UI.
+- Uptime Kuma: HTTP monitor on `https://logs.example.com/healthcheck`, expecting **200**.
+  It needs no credentials, so the probe is a plain unauthenticated GET.
+
+  **Not the root**, and that is the whole point. Dozzle keeps serving its pages after it
+  has lost the Docker API entirely: the container stays `Up`, the UI still loads, and it
+  simply shows nothing. Measured on a throwaway pair — stopping the socket-proxy left `/`
+  answering exactly as before (200 there, 307 here where auth is on) and flipped
+  `/healthcheck` to **500**. A monitor on `/` would stay green through the one failure it
+  exists to catch.

@@ -20,19 +20,42 @@ Uses Pi-hole as DNS (`dns: [${PI_LAN_IP}]` in compose) so that domain lookups fo
 
 ## Monitors Configured
 
-| Monitor       | Type     | Target                                        |
-|---------------|----------|-----------------------------------------------|
-| Nextcloud     | HTTP(s)  | `https://drive.example.com/status.php`        |
-| Vaultwarden   | HTTP(s)  | `https://vault.example.com/alive`             |
-| Jellyfin      | HTTP(s)  | `https://videos.example.com/health`           |
-| Navidrome     | HTTP(s)  | `https://music.example.com/ping`              |
-| Immich        | HTTP(s)  | `https://photos.example.com`                  |
-| Traefik HTTPS | TCP Port | `192.168.1.100:443`                           |
-| Pi-hole DNS   | DNS      | Resolver `192.168.1.100`, query `example.com` |
-| WireGuard     | HTTP(s)  | `https://vpn.example.com`                     |
-| Pi (ping)     | Ping     | `192.168.1.100`                               |
+| Monitor                   | Type     | Target                                        |
+|---------------------------|----------|-----------------------------------------------|
+| Nextcloud                 | HTTP(s)  | `https://drive.example.com/status.php`        |
+| Vaultwarden               | HTTP(s)  | `https://vault.example.com/alive`             |
+| Jellyfin                  | HTTP(s)  | `https://videos.example.com/health`           |
+| Navidrome                 | HTTP(s)  | `https://music.example.com/ping`              |
+| Immich                    | Keyword  | `https://photos.example.com/api/server/ping`  |
+| SearXNG                   | HTTP(s)  | `https://search.example.com/healthz`          |
+| Dozzle                    | HTTP(s)  | `https://logs.example.com/healthcheck`        |
+| Transmission              | HTTP(s)  | `https://share.example.com/transmission/web`  |
+| WireGuard                 | HTTP(s)  | `https://vpn.example.com`                     |
+| Traefik HTTPS             | TCP Port | `192.168.1.100:443`                           |
+| Transmission BT Peer Port | TCP Port | `transmission:51413`                          |
+| Pi-hole DNS               | DNS      | Resolver `192.168.1.100`, query `example.com` |
+| Pi (ping)                 | Ping     | `192.168.1.100`                               |
+| Backup                    | Push     | `backup.sh`, daily 03:00                      |
+| Offsite backup            | Push     | `backup.sh` copy stage, daily 03:00           |
+| Offsite check             | Push     | `offsite-check.sh`, Sun 06:00                 |
+| Offsite health            | Push     | `offsite-health.sh`, on the offsite Pi        |
+| Pi health                 | Push     | `homelab-health.sh`, every 5 min              |
+| Pi Lynis audit            | Push     | `homelab-lynis-report.sh`, weekly             |
+| Pi restic prune+check     | Push     | `local-maintenance.sh`, Sun 05:00             |
+| Pi security posture       | Push     | `homelab-posture.sh`, daily 11:00             |
 
-Defaults for all monitors: 60s interval, 3 retries.
+Defaults for the active checks: 60s interval, 3 retries, accepted codes `200-299`,
+TLS expiry notification on. The push monitors are dead-man's switches: the job pushes
+on success, and Kuma alarms when the push does not arrive.
+
+The **Target** column names the endpoint on purpose. A bare `200 on /` would keep a
+service green while it is broken — the case measured on Dozzle, which serves its page
+unchanged after losing the Docker API and only flips `/healthcheck` to 500 (ADR-023).
+
+This table is a readable summary, not the source of truth. The authoritative inventory
+is Kuma's own database — export it with `ops/kuma-dump.sh` (read-only, WAL-safe), which
+is also what this table was rebuilt from. Monitors are added by hand in the UI: Kuma is
+v2, and the mature Ansible tooling still targets v1 only.
 
 ## Notifications
 
