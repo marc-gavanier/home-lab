@@ -121,9 +121,13 @@ Defense in depth — each layer is secured independently. If one layer falls, th
   data directory's ownership, so the storage role owns it explicitly and the
   restore runbook says so.
 
-  **Calibre-Web is the fifth, added 2026-08-05**, and it is transmission's case
-  again: the same linuxserver s6 init, the same `PUID`/`PGID` mechanism, the same
-  five capabilities. The alternative was tested rather than assumed — `user:` was
+  **Calibre-Web is the fifth, added 2026-08-05**: the same linuxserver s6 init,
+  the same `PUID`/`PGID` mechanism, the same five capabilities — but **not** the
+  same root profile, which only showed up on inspection. Transmission keeps just
+  its s6 supervisors as root and its daemon runs as uid 1000; Calibre-Web also
+  keeps four working longruns as root permanently, one of them the ingest service
+  that parses dropped ebook files. Its web application does run as uid 1000. The
+  alternative was tested rather than assumed — `user:` was
   tried three ways and each failed further along (s6 refuses a `/run` it does not
   own; an owned tmpfs is `noexec`; with `exec` set, `/app` is root-owned in the
   image and the app never serves). Removing this root phase needs an upstream
