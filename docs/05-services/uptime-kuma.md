@@ -20,31 +20,32 @@ Uses Pi-hole as DNS (`dns: [${PI_LAN_IP}]` in compose) so that domain lookups fo
 
 ## Monitors Configured
 
-| Monitor                   | Type     | Target                                        |
-|---------------------------|----------|-----------------------------------------------|
-| Nextcloud                 | HTTP(s)  | `https://drive.example.com/status.php`        |
-| Vaultwarden               | HTTP(s)  | `https://vault.example.com/alive`             |
-| Jellyfin                  | HTTP(s)  | `https://videos.example.com/health`           |
-| Navidrome                 | HTTP(s)  | `https://music.example.com/ping`              |
-| Immich                    | Keyword  | `https://photos.example.com/api/server/ping`  |
-| SearXNG                   | HTTP(s)  | `https://search.example.com/healthz`          |
-| Dozzle                    | HTTP(s)  | `https://logs.example.com/healthcheck`        |
-| IT-Tools                  | HTTP(s)  | `https://tools.example.com/`                  |
-| Calibre-Web               | HTTP(s)  | `https://books.example.com/login`             |
-| Transmission              | HTTP(s)  | `https://share.example.com/transmission/web`  |
-| WireGuard                 | HTTP(s)  | `https://vpn.example.com`                     |
-| Traefik HTTPS             | TCP Port | `192.168.1.100:443`                           |
-| Transmission BT Peer Port | TCP Port | `transmission:51413`                          |
-| Pi-hole DNS               | DNS      | Resolver `192.168.1.100`, query `example.com` |
-| Pi (ping)                 | Ping     | `192.168.1.100`                               |
-| Backup                    | Push     | `backup.sh`, daily 03:00                      |
-| Offsite backup            | Push     | `backup.sh` copy stage, daily 03:00           |
-| Offsite check             | Push     | `offsite-check.sh`, Sun 06:00                 |
-| Offsite health            | Push     | `offsite-health.sh`, on the offsite Pi        |
-| Pi health                 | Push     | `homelab-health.sh`, every 5 min              |
-| Pi Lynis audit            | Push     | `homelab-lynis-report.sh`, weekly             |
-| Pi restic prune+check     | Push     | `local-maintenance.sh`, Sun 05:00             |
-| Pi security posture       | Push     | `homelab-posture.sh`, daily 11:00             |
+| Monitor                   | Type     | Target                                            |
+|---------------------------|----------|---------------------------------------------------|
+| Nextcloud                 | HTTP(s)  | `https://drive.example.com/status.php`            |
+| Vaultwarden               | HTTP(s)  | `https://vault.example.com/alive`                 |
+| Jellyfin                  | HTTP(s)  | `https://videos.example.com/health`               |
+| Navidrome                 | HTTP(s)  | `https://music.example.com/ping`                  |
+| Immich                    | Keyword  | `https://photos.example.com/api/server/ping`      |
+| SearXNG                   | HTTP(s)  | `https://search.example.com/healthz`              |
+| Dozzle                    | HTTP(s)  | `https://logs.example.com/healthcheck`            |
+| IT-Tools                  | HTTP(s)  | `https://tools.example.com`                       |
+| Calibre-Web               | HTTP(s)  | `https://books.example.com/login`                 |
+| Collabora                 | HTTP(s)  | `https://office.example.com/hosting/capabilities` |
+| Transmission              | HTTP(s)  | `https://share.example.com/transmission/web`      |
+| WireGuard                 | HTTP(s)  | `https://vpn.example.com`                         |
+| Traefik HTTPS             | TCP Port | `192.168.1.100:443`                               |
+| Transmission BT Peer Port | TCP Port | `transmission:51413`                              |
+| Pi-hole DNS               | DNS      | Resolver `192.168.1.100`, query `example.com`     |
+| Pi (ping)                 | Ping     | `192.168.1.100`                                   |
+| Backup                    | Push     | `backup.sh`, daily 03:00                          |
+| Offsite backup            | Push     | `backup.sh` copy stage, daily 03:00               |
+| Offsite check             | Push     | `offsite-check.sh`, Sun 06:00                     |
+| Offsite health            | Push     | `offsite-health.sh`, on the offsite Pi            |
+| Pi health                 | Push     | `homelab-health.sh`, every 5 min                  |
+| Pi Lynis audit            | Push     | `homelab-lynis-report.sh`, weekly                 |
+| Pi restic prune+check     | Push     | `local-maintenance.sh`, Sun 05:00                 |
+| Pi security posture       | Push     | `homelab-posture.sh`, daily 11:00                 |
 
 Defaults for the active checks: 60s interval, 3 retries, accepted codes `200-299`,
 TLS expiry notification on. The push monitors are dead-man's switches: the job pushes
@@ -63,8 +64,11 @@ not the same kind of thing:
   `200-299`. But green here proves reachability only — the library can be unreadable
   while the login page is served, and proving otherwise needs an authenticated request
   Kuma cannot make (ADR-025).
-- **Collabora** has no row at all: its reachable endpoint stays green while no document
-  can open, so the real check is the conversion the deploy performs (ADR-021).
+- **Collabora** is checked on `/hosting/capabilities`, which the main process answers —
+  so it stays green while no document can open. The real check is the conversion every
+  deploy performs, plus the image's own healthcheck flipping the container `unhealthy`
+  (ADR-021). The monitor is worth having for reachability and TLS expiry, and is not
+  evidence that editing works.
 
 This table is a readable summary, not the source of truth. The authoritative inventory
 is Kuma's own database — export it with `ops/kuma-dump.sh` (read-only, WAL-safe), which
