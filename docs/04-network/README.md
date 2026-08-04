@@ -25,6 +25,7 @@ All services are **VPN-only**. The `vpn-only` middleware is applied globally on 
 | `share.example.com`    | Transmission |
 | `office.example.com`   | Collabora    |
 | `search.example.com`   | SearXNG      |
+| `tools.example.com`    | IT-Tools     |
 | `dns.example.com`      | Pi-hole      |
 | `services.example.com` | Uptime Kuma  |
 | `system.example.com`   | Netdata      |
