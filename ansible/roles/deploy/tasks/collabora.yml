@@ -113,12 +113,39 @@
 # storage this glob stops matching and activate-config runs on every deploy —
 # visible as a permanent `changed`, which is a nuisance rather than a silent
 # failure, and the right way round.
+# Testing the host alone is not enough, and an upgrade is what proved it. The
+# urlsrc carries a build hash — .../browser/<hash>/cool.html — that changes with
+# the Collabora version while the host does not. On 2026-08-12, upgrading
+# 26.04.2.4.1 to 26.04.3.1.1 left the cache advertising the old build: the host
+# check still passed, activate-config was skipped, and richdocuments kept handing
+# browsers a stale token. Documents still opened (coolwsd serves any hash and
+# rewrites its own asset paths to the current build — verified byte-identical),
+# but coolwsd logged `Client - server version mismatch, disabling browser cache`
+# on every request, so each document open re-downloaded the whole editor. Silent,
+# and invisible to all four probes below. So the build is part of the check now.
+#
+# Bash's own =~ rather than `grep -o … | head -1`: that pipe is the SIGPIPE race
+# this file already refuses twice, and a guard that fails at random would trigger
+# activate-config at random.
+#
+# Two deliberate asymmetries. A live discovery that cannot be fetched exits 0 —
+# the cache is not the thing that is broken, and the dedicated urlsrc probe below
+# fails loudly on a genuinely unreachable server, so churning activate-config on a
+# network blip would only add noise. A live discovery that parses no build at all
+# exits 1: if Collabora ever changes the URL shape, this runs activate-config on
+# every deploy, which is the same nuisance-over-silence trade the appdata glob
+# above already makes.
 - name: collabora | Check whether the cached WOPI discovery is usable
   ansible.builtin.shell:
     executable: /bin/bash
     cmd: >
       out=$(docker exec nextcloud sh -c 'cat /var/www/html/data/appdata_*/richdocuments/remoteData/discovery 2>/dev/null') || exit 1;
-      case "$out" in *'urlsrc="https://office.{{ domain }}/'*) exit 0 ;; *) exit 1 ;; esac
+      case "$out" in *'urlsrc="https://office.{{ domain }}/'*) ;; *) exit 1 ;; esac;
+      live=$(docker exec nextcloud curl -sf -m 20 https://office.{{ domain }}/hosting/discovery) || exit 0;
+      [[ "$live" =~ browser/([0-9a-f]+)/ ]] || exit 1;
+      live_build="${BASH_REMATCH[1]}";
+      [[ "$out" =~ browser/([0-9a-f]+)/ ]] || exit 1;
+      [ "${BASH_REMATCH[1]}" = "$live_build" ]
   register: collabora_discovery_cache
   changed_when: false
   failed_when: false
