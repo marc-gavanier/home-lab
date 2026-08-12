@@ -207,6 +207,42 @@ longer reaching the Docker socket would pass a port test.
 
 A weekly Lynis run pushes its hardening score to a separate monitor.
 
+### DDNS (push dead-man's switch)
+
+`cloudflare-ddns.sh` keeps the `vpn.<domain>` A record pointing at the current
+public IP, every 15 minutes. It pushes on **every** run, including the common
+no-change one, and pushes `down` with a specific reason on each failure path
+(no public IP, zone lookup, create, update). Heartbeat 1080 s — the 900 s period
+plus a 180 s grace, the same period-plus-margin shape the other push monitors
+use — with one retry, so a single transient Cloudflare error does not page.
+
+**What it adds is narrower than it looks, and worth stating.** A DDNS run that
+*fails* was already caught within 5 minutes: the host-health timer check
+enumerates `homelab-*` timers and reports any whose last run did not end in
+`success`, and `homelab-ddns.service` is one of them. An expired token, a
+Cloudflare API change, a rate limit — all of those exit non-zero and were
+covered, faster than this monitor's 36-minute worst case.
+
+What was **not** covered is the timer that stops running at all. A disabled,
+stopped or masked timer leaves the last recorded result at `success`
+indefinitely, so the result check stays green over a job that no longer
+happens. Silence is the only signal for that, and only a dead-man's switch
+reads silence.
+
+Neither check proves the published record is *correct*. Verifying that the A
+record matches the real public IP needs a probe from outside the LAN, which is
+a different piece of work. Note also that the WireGuard HTTP monitor does not
+help here despite watching `vpn.<domain>`: Kuma resolves through Pi-hole, split
+DNS pins that name to the LAN IP, so the monitor tests the internal path and is
+structurally blind to the public record DDNS maintains.
+
+The cost of a stale record is asymmetric. Remote access breaks immediately and
+silently — a device off the LAN resolves the old address and the tunnel never
+comes up. The offsite Pi also loses its link home, since its `Endpoint` is a
+hostname WireGuard resolves once at bring-up; that failure *is* caught, but
+indirectly, as a backup alarm up to a day later pointing at the wrong
+subsystem.
+
 ### Backups (push dead-man's switches)
 
 Every leg of the backup chain pushes on success, and the Kuma monitor alarms
