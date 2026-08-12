@@ -8,9 +8,9 @@ collections:
   - name: community.crypto
     version: 3.3.0
   - name: community.general
-    version: 13.2.0
+    version: 13.3.0
   - name: community.docker
-    version: 5.2.1
+    version: 5.2.2
 
 roles:
   # CIS Ubuntu 24.04 benchmark (audit use only here — see playbooks/cis-audit.yml)

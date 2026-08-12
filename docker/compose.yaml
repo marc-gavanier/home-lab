@@ -252,7 +252,7 @@ services:
   # image exits at once with "dns-proxy feature is no longer supported", so the
   # container this stack depended on stopped existing rather than breaking.
   dnsproxy:
-    image: adguard/dnsproxy:v0.83.1
+    image: adguard/dnsproxy:v0.83.2
     container_name: dnsproxy
     restart: unless-stopped   # Tier 0: Pi-hole's only upstream — must stay up
     security_opt: *no-new-privs
@@ -599,7 +599,7 @@ services:
 
   # --- Collabora Online (collaborative editing inside Nextcloud) ---
   collabora:
-    image: collabora/code:26.04.2.4.1
+    image: collabora/code:26.04.3.1.1
     container_name: collabora
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     # NO no-new-privileges here (the second exception after netdata, and for the
@@ -1132,7 +1132,7 @@ services:
   # without SSH, logs were not. Reads the daemon through the same read-only
   # socket-proxy as Traefik and Netdata — never the raw docker.sock.
   dozzle:
-    image: amir20/dozzle:v10.6.14
+    image: amir20/dozzle:v10.7.1
     container_name: dozzle
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
