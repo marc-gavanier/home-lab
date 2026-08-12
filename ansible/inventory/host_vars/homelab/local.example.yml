@@ -22,7 +22,9 @@ traefik_acme_email: "admin@example.com"
 # Create at Cloudflare → My Profile → API Tokens → "Edit zone DNS" template
 # (permissions Zone:DNS:Edit + Zone:Read), scoped to your zone only.
 cloudflare_dns_api_token: "cf-scoped-dns-edit-token"
-# Optional: Uptime Kuma push URL for the DDNS updater (empty = no monitor).
+# Uptime Kuma push URL for the DDNS updater (empty = no monitor, e.g. on a
+# fresh install where Kuma does not exist yet). Paste it with the query string
+# Kuma shows — the script strips it and supplies its own status and msg.
 ddns_kuma_push_url: ""
 
 # --- Pi-hole ---

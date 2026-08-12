@@ -39,6 +39,7 @@ Uses Pi-hole as DNS (`dns: [${PI_LAN_IP}]` in compose) so that domain lookups fo
 | Pi-hole DNS               | DNS      | Resolver `192.168.1.100`, query `example.com`     |
 | Pi (ping)                 | Ping     | `192.168.1.100`                                   |
 | Backup                    | Push     | `backup.sh`, daily 03:00                          |
+| DDNS                      | Push     | `cloudflare-ddns.sh`, every 15 min                |
 | Offsite backup            | Push     | `backup.sh` copy stage, daily 03:00               |
 | Offsite check             | Push     | `offsite-check.sh`, Sun 06:00                     |
 | Offsite health            | Push     | `offsite-health.sh`, on the offsite Pi            |
