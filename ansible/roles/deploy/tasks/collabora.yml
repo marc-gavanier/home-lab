@@ -181,6 +181,24 @@
 # Raising the timeout alone would not have helped: the server hung up first, well
 # inside curl's own limit. A second attempt, once the pulls are done and the
 # systemtemplate is in page cache, is what actually converges.
+#
+# Scoped, because the cost above is paid whether or not the run has anything to do
+# with Collabora. On 2026-08-12 a dozzle-only deploy — `deploy_services=dozzle`,
+# Collabora untouched and up for nine days — still copied the tree, took 30% of all
+# container I/O, drove full I/O pressure to 59%, and failed its first attempt at the
+# 100s `per_document.limit_load_secs`. It converged on the retry, so the deploy
+# passed, but nothing about that work was useful: the probe was verifying a service
+# the run had not modified. A full deploy still runs it, and so does any run that
+# touches Collabora, Nextcloud, or rewrites the connector config — which is where an
+# end-to-end check earns its cost.
+- name: collabora | Decide whether the end-to-end conversion probe is worth its cost
+  ansible.builtin.set_fact:
+    collabora_convert_probe: >-
+      {{ deploy_services is not defined
+         or 'collabora' in deploy_services.split()
+         or 'nextcloud' in deploy_services.split()
+         or collabora_activate is changed }}
+
 - name: collabora | Verify a document can actually be converted
   ansible.builtin.shell:
     executable: /bin/bash
@@ -193,10 +211,15 @@
       [ "$magic" = '%PDF-' ]
   register: collabora_convert
   until: collabora_convert.rc == 0
-  retries: 2
-  delay: 30
+  # Four attempts a minute apart, not three at thirty seconds. The 2026-08-12 run
+  # needed a second attempt; a minute of quiet is what lets the disk actually drain,
+  # and a healthy Collabora passes first time and pays none of it.
+  retries: 3
+  delay: 60
   changed_when: false
-  when: collabora_up
+  when:
+    - collabora_up
+    - collabora_convert_probe
 
 # The conversion probe above talks to Collabora directly and would pass happily
 # while the browser gets an address it cannot reach — which is exactly what
@@ -249,9 +272,15 @@
 - name: collabora | Fail the deploy when Collabora cannot serve a document
   ansible.builtin.fail:
     msg: >-
-      Collabora answers but cannot convert a document — the container is up and
-      the kits are not. Check `docker logs collabora` for "Waiting for a new
-      child" (privilege gain blocked) or an exit 70 (missing capability).
+      Collabora answers but cannot convert a document. Two causes, and they are
+      told apart in `docker logs collabora`. A broken container logs "Waiting for
+      a new child" (privilege gain blocked) or exits 70 (missing capability) — the
+      kits never start. A saturated disk logs "taking too much time" on the
+      link/copy and "taking too long to load … per_document.limit_load_secs" — the
+      kits start and lose the race, because without CAP_SYS_ADMIN every document
+      copies 759 MB of tree (ADR-021). Check `/proc/pressure/io` before touching
+      anything: if `full avg60` is high, Collabora is a victim of the load, not its
+      cause, and the probe simply ran in the worst possible window.
   when:
     - collabora_up
     - collabora_convert.rc | default(0) != 0
