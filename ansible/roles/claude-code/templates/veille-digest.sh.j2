@@ -1,0 +1,176 @@
+#!/usr/bin/env bash
+# {{ ansible_managed }}
+# =============================================================================
+# Daily tech-watch digest — Miniflux -> claude -p -> Obsidian vault
+# =============================================================================
+# Reads everything unread in Miniflux, has Claude Code summarise it against
+# Marc's editorial line, writes one note per day into the vault, then marks the
+# summarised entries read so the next run starts from a clean slate.
+#
+# Runs as the `claude` user: the same one Remote Control uses, whose ~/.claude
+# already holds a claude.ai login. That is why no API key and no long-lived
+# OAuth token are needed here (issue #15 assumed one; `claude -p` proved to work
+# with the existing session credentials).
+#
+# The SCRIPT writes the note, not Claude: the model only emits markdown on
+# stdout. Deterministic frontmatter, and the job needs no write tool at all.
+# =============================================================================
+set -euo pipefail
+
+MINIFLUX_HOST="rss.{{ domain }}"
+MINIFLUX_IP="{{ homelab_ip }}"
+API_KEY_FILE="/mnt/data/secrets/claude/miniflux_api_key"
+VAULT="/home/claude/vault"
+DIGEST_DIR="${VAULT}/Domaines/Veille technologique"
+PROMPT_FILE="/home/claude/.local/share/veille/prompt.md"
+CLAUDE_BIN="/home/claude/.local/bin/claude"
+LOG="/home/claude/.local/share/veille/digest.log"
+KUMA_PUSH_URL="{{ veille_digest_kuma_push_url | default('') }}"
+
+# Cap on how many entries reach the model in one run. Sized well above a normal
+# day (~120 feeds, mostly sparse release feeds) so it only trips on a backlog —
+# a week away, or the first run after an OPML import. What it drops is REPORTED,
+# never silently swallowed: a truncated digest that reads as exhaustive is worse
+# than no digest.
+MAX_ENTRIES={{ veille_digest_max_entries | default(400) }}
+
+# Per-entry content budget. Titles alone lose the "is this a breaking change or a
+# typo fix" signal, full articles blow the context on a busy day.
+CONTENT_CHARS={{ veille_digest_content_chars | default(600) }}
+
+mkdir -p "$(dirname "$LOG")" "$DIGEST_DIR"
+log() { printf '[%s] %s\n' "$(date -u +%FT%TZ)" "$*" | tee -a "$LOG"; }
+
+# The vault's CLAUDE.md requires every folder to carry a presentation note named
+# after it — that is what Obsidian shows when you click the folder. Written once,
+# never overwritten, so hand edits survive.
+PRESENTATION="${DIGEST_DIR}/Veille technologique.md"
+if [ ! -e "$PRESENTATION" ]; then
+    cat > "$PRESENTATION" <<'PRESENTATION_EOF'
+---
+type: domaine
+tags: [veille, linkedin]
+---
+
+# Veille technologique
+
+Responsabilité continue : suivre ce qui bouge sur la stack, le craft, la
+souveraineté numérique et la sécurité, sans y passer de temps de lecture.
+
+Les notes datées de ce dossier sont générées **automatiquement** chaque matin par
+`homelab-veille-digest.timer` sur le Pi : le job lit tout ce qui est non lu dans
+Miniflux, le fait synthétiser par Claude, écrit la note, puis marque les entrées
+lues. Ce dossier est donc le seul endroit où la veille est consultable.
+
+Deux sections par note :
+
+1. **Ce qui a changé** : sécurité, ruptures, versions notables.
+2. **Angles de post** : ce qui pourrait devenir un post, avec la thèse et le
+   créneau. Souvent vide, et c'est normal.
+
+Une note ne se corrige pas : si la synthèse dérape, c'est le prompt qu'il faut
+reprendre, dans `ansible/roles/claude-code/templates/` du dépôt home-lab.
+PRESENTATION_EOF
+    log "created ${PRESENTATION}"
+fi
+
+notify() { # $1=up|down  $2=message
+    [ -n "$KUMA_PUSH_URL" ] || return 0
+    curl -fsS -m 10 -o /dev/null \
+        --data-urlencode "status=$1" --data-urlencode "msg=$2" \
+        "$KUMA_PUSH_URL" 2>>"$LOG" || log "WARNING: Kuma push failed"
+}
+
+fail() { log "ERROR: $*"; notify down "$*"; exit 1; }
+trap 'fail "digest aborted (rc=$?) — see $LOG"' ERR
+
+[ -r "$API_KEY_FILE" ] || fail "missing API key at $API_KEY_FILE"
+[ -r "$PROMPT_FILE" ]  || fail "missing prompt at $PROMPT_FILE"
+API_KEY="$(cat "$API_KEY_FILE")"
+
+# The Pi's own resolver is NOT Pi-hole (systemd-resolved points elsewhere), so
+# rss.<domain> does not resolve on the host even though every LAN client can.
+# Pinning it here is what makes the job independent of the host's resolver —
+# and it goes through Traefik, so it exercises the same path a browser does.
+mf() { # $1=method  $2=path  [$3=body]
+    local method="$1" path="$2" body="${3:-}"
+    # Args in an array, not a ${body:+...} expansion: the JSON body contains
+    # spaces, and an unquoted expansion would word-split it into broken curl
+    # arguments the moment a request carries one.
+    local -a args=(-fsS -m 60
+        --resolve "${MINIFLUX_HOST}:443:${MINIFLUX_IP}"
+        -H "X-Auth-Token: ${API_KEY}"
+        -X "$method")
+    if [ -n "$body" ]; then
+        args+=(-H "Content-Type: application/json" -d "$body")
+    fi
+    curl "${args[@]}" "https://${MINIFLUX_HOST}${path}"
+}
+
+log "fetching unread entries"
+ENTRIES="$(mf GET "/v1/entries?status=unread&direction=asc&limit=${MAX_ENTRIES}")"
+TOTAL="$(jq -r '.total' <<<"$ENTRIES")"
+FETCHED="$(jq -r '.entries | length' <<<"$ENTRIES")"
+log "unread=${TOTAL} fetched=${FETCHED}"
+
+if [ "$FETCHED" -eq 0 ]; then
+    log "nothing unread — no digest written"
+    notify up "rien de neuf"
+    exit 0
+fi
+
+DROPPED=$(( TOTAL > FETCHED ? TOTAL - FETCHED : 0 ))
+# `[ ... ] && log ...` would be a trap here: when the test is false the AND-list
+# returns 1, and under `set -e` that aborts the whole run. Every conditional in
+# this script is an `if` for that reason.
+if [ "$DROPPED" -gt 0 ]; then
+    log "WARNING: ${DROPPED} entries beyond the cap, left unread for the next run"
+fi
+
+# Compact rendering for the model: category and feed give it the editorial pillar
+# without having to guess from the title. HTML is stripped rather than escaped —
+# the model gains nothing from markup and it costs context.
+INPUT="$(jq -r --argjson n "$CONTENT_CHARS" '
+  .entries[]
+  | "## \(.title)\n"
+  + "- flux : \(.feed.category.title // "?") / \(.feed.title)\n"
+  + "- date : \(.published_at)\n"
+  + "- lien : \(.url)\n"
+  + "- extrait : " + ((.content // "") | gsub("<[^>]*>"; " ") | gsub("\\s+"; " ") | .[0:$n]) + "\n"
+' <<<"$ENTRIES")"
+
+TODAY="$(date +%F)"
+NOTE="${DIGEST_DIR}/${TODAY} - veille.md"
+
+log "running claude -p on ${FETCHED} entries"
+# --print with no tools: the model reads stdin and writes markdown to stdout.
+# Nothing here needs the filesystem, so nothing here gets it.
+BODY="$(printf '%s\n\n---\n\n# Entrées\n\n%s\n' "$(cat "$PROMPT_FILE")" "$INPUT" \
+    | "$CLAUDE_BIN" -p 2>>"$LOG")" || fail "claude -p failed"
+
+[ -n "${BODY//[[:space:]]/}" ] || fail "claude -p returned an empty digest"
+
+{
+    printf -- '---\ntype: note\ncree: %s\nmaj: %s\ntags: [veille, linkedin]\n---\n\n' "$TODAY" "$TODAY"
+    printf '# Veille du %s\n\n' "$TODAY"
+    printf '_%s entrées lues' "$FETCHED"
+    if [ "$DROPPED" -gt 0 ]; then
+        printf ', %s au-delà du plafond reportées au prochain passage' "$DROPPED"
+    fi
+    printf '. Généré automatiquement, voir [[Veille technologique]]._\n\n'
+    printf '%s\n' "$BODY"
+} > "$NOTE"
+log "wrote ${NOTE}"
+
+# Mark read only what was actually summarised. Anything past the cap stays unread
+# on purpose, so a backlog drains over several runs instead of vanishing.
+IDS="$(jq -c '[.entries[].id]' <<<"$ENTRIES")"
+mf PUT "/v1/entries" "{\"entry_ids\": ${IDS}, \"status\": \"read\"}" >/dev/null
+log "marked ${FETCHED} entries read"
+
+MSG="${FETCHED} entrées résumées"
+if [ "$DROPPED" -gt 0 ]; then
+    MSG="${MSG}, ${DROPPED} reportées"
+fi
+notify up "$MSG"
+log "done"

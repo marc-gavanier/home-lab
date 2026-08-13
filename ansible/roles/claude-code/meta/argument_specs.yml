@@ -17,3 +17,32 @@ argument_specs:
         required: true
         no_log: true
         description: Nextcloud app-password for the rclone WebDAV remote (stored obscured on the encrypted volume).
+      miniflux_api_key:
+        type: str
+        required: false
+        no_log: true
+        description: >-
+          Miniflux API key for the daily tech-watch digest (ADR-027). Created by hand in
+          Miniflux under Settings → API Keys; there is no way to generate one over the API.
+          Empty disables only the key file, not the units — the job then fails loudly rather
+          than silently doing nothing.
+      veille_digest_kuma_push_url:
+        type: str
+        required: false
+        description: >-
+          Uptime Kuma push URL for the digest dead-man's switch. Empty = no monitoring, and
+          a job that stops running becomes invisible.
+      veille_digest_hour:
+        type: str
+        required: false
+        description: 'Digest schedule as HH:MM (default 06:30). Changing it restarts the timer.'
+      veille_digest_max_entries:
+        type: int
+        required: false
+        description: >-
+          Cap on entries sent to the model in one run (default 400). Anything beyond it stays
+          unread for the next run and is reported in the note, never dropped silently.
+      veille_digest_content_chars:
+        type: int
+        required: false
+        description: Per-entry content budget in characters, HTML stripped (default 600).

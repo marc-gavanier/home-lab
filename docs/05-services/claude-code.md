@@ -137,6 +137,63 @@ sudo -u claude sh -c 'cd ~/vault && ls'          # probe the function, not the u
 > needed: without the first the mount leaks a dead endpoint, without the second Remote
 > Control stays silently stopped after a `stop`/`start` of the mount.
 
+## Daily Tech-Watch Digest
+
+The same `claude` user runs one scheduled job: a daily digest that reads everything unread
+in [Miniflux](miniflux.md), has Claude summarise it, and writes a note into the vault
+(ADR-027). It exists because the 121 feeds in Miniflux were never meant to be read by a
+human — the reader is a corpus, this job is the interface.
+
+| Unit / file | Role |
+|---|---|
+| `homelab-veille-digest.timer` | daily at 06:30, `Persistent=true` |
+| `homelab-veille-digest.service` | oneshot, `User=claude`, `RuntimeMaxSec=900` |
+| `~claude/.local/share/veille/digest.sh` | Miniflux API → `claude -p` → vault → mark read |
+| `~claude/.local/share/veille/prompt.md` | the prompt — **this is the tuning surface** |
+| `/mnt/data/secrets/claude/miniflux_api_key` | 0400, claude-owned |
+
+Output lands in `Domaines/Veille technologique/AAAA-MM-JJ - veille.md`, in two sections:
+what changed, and zero to three post angles. Not `Inbox/` — the vault's own `CLAUDE.md`
+warns it must not become a dumping ground, which a daily automated note would guarantee.
+
+**No API key and no OAuth token for Claude itself.** Issue #15 specified a long-lived
+`claude setup-token`; measuring showed `claude -p` works with the claude.ai session
+credentials already in `~claude/.claude`, so the one secret that would have expired
+silently once a year does not exist.
+
+**The script writes the note, the model does not.** Claude reads stdin and emits markdown
+on stdout; the shell composes the frontmatter and writes the file. The frontmatter stays
+deterministic, and the job needs no write tool at all.
+
+**What is capped is reported.** At most 400 entries per run; the rest stay *unread* for the
+next run, and the count carried over appears in both the note and the Kuma message. A
+digest truncated in silence reads exactly like a complete one.
+
+`RuntimeMaxSec=900` is not decorative: on 2026-08-13 six abandoned interactive `claude`
+sessions held 1.5 GB of RAM and 525 MB of swap on this host for up to eleven days. Those
+were visible. An unattended timer job that never exits would not be.
+
+### Manual steps
+
+Both are irreducible — neither API supports them:
+
+1. **Miniflux API key** — *Settings → API Keys → Create*, then into `miniflux_api_key` in
+   the vaulted `local.yml`.
+2. **Kuma push monitor** — type *Push*, then its URL into `veille_digest_kuma_push_url`.
+
+### Operating it
+
+```sh
+systemctl list-timers homelab-veille-digest.timer   # next run
+systemctl start homelab-veille-digest.service       # run now
+journalctl -u homelab-veille-digest.service -n 50   # what happened
+sudo -u claude tail -30 ~claude/.local/share/veille/digest.log
+```
+
+If a digest reads badly, fix the **prompt**, not the note: edit
+`ansible/roles/claude-code/templates/veille-digest-prompt.md.j2` and redeploy. Notes are
+outputs, not sources.
+
 ## Restore
 
 Nothing service-specific to restore: the **vault content lives in Nextcloud** (backed up
