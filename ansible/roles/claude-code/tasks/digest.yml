@@ -79,8 +79,16 @@
       # `claude` sessions held 1.5 GB of RAM and 525 MB of swap on this host for
       # up to eleven days. Those were interactive and someone eventually noticed.
       # A timer-driven job that never exits would do the same thing unwatched, so
-      # it gets a ceiling well above a normal run (measured in minutes).
-      RuntimeMaxSec=900
+      # it gets a ceiling well above a normal run (37 s measured on 30 entries).
+      #
+      # TimeoutStartSec, NOT RuntimeMaxSec: with Type=oneshot systemd ignores
+      # RuntimeMaxSec outright — "has no effect in combination with Type=oneshot,
+      # Ignoring" in the journal, which is easy to miss among the start lines.
+      # Worse, Type=oneshot defaults TimeoutStartSec to INFINITY, so the first
+      # version of this unit had no ceiling at all while claiming one. A oneshot
+      # service is "starting" for its whole life, so the start timeout is what
+      # bounds it. Caught on the first manual run.
+      TimeoutStartSec=900
       # No Restart=: a failed run is reported to Kuma and retried tomorrow.
       # Retrying a digest that just burned tokens on a bad response buys nothing.
 
