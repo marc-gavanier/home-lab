@@ -149,7 +149,8 @@ human — the reader is a corpus, this job is the interface.
 | `homelab-veille-digest.timer` | daily at 06:30, `Persistent=true` |
 | `homelab-veille-digest.service` | oneshot, `User=claude`, `TimeoutStartSec=900` |
 | `~claude/.local/share/veille/digest.sh` | Miniflux API → `claude -p` → vault → mark read |
-| `~claude/.local/share/veille/prompt.md` | the prompt — **this is the tuning surface** |
+| `~claude/.local/share/veille/prompt.md` | the prompt, Ansible-owned default |
+| `<vault>/Domaines/Veille technologique/prompt.local.md` | optional hand-written override — **wins when present** |
 | `/mnt/data/secrets/claude/miniflux_api_key` | 0400, claude-owned |
 
 Output lands in `Domaines/Veille technologique/AAAA-MM-JJ - veille.md`, in two sections:
@@ -195,9 +196,21 @@ journalctl -u homelab-veille-digest.service -n 50   # what happened
 sudo -u claude tail -30 ~claude/.local/share/veille/digest.log
 ```
 
-If a digest reads badly, fix the **prompt**, not the note: edit
-`ansible/roles/claude-code/templates/veille-digest-prompt.md.j2` and redeploy. Notes are
-outputs, not sources.
+If a digest reads badly, fix the **prompt**, not the note. Notes are outputs, not sources.
+
+Two ways, and the fast one needs no deploy:
+
+- **Override, in the vault.** Create `Domaines/Veille technologique/prompt.local.md` and it
+  wins from the next run — Ansible never touches the vault, so there is no conflict to
+  resolve, ever. It syncs through Nextcloud, so it is editable from Obsidian on a phone,
+  which is where you are at 06:30 when a digest reads badly. Seed it with
+  `cp ~claude/.local/share/veille/prompt.md "<vault>/Domaines/Veille technologique/prompt.local.md"`.
+- **Default, in the repo.** Edit `veille-digest-prompt.md.j2` and redeploy. This is where a
+  tweak worth keeping belongs — the override is not version-controlled.
+
+The override wins **silently**; nothing warns that the repo default has moved on. The
+journal does log which prompt a run used, which is the first thing to check when a digest
+suddenly reads differently.
 
 > **Re-running is not free.** The job marks entries read once summarised, so a bad digest
 > cannot simply be replayed — the entries have left the unread pool. Resurrecting them
