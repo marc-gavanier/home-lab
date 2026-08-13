@@ -85,7 +85,7 @@ miniflux_admin_password: ""
 # in ~/.claude. No token here (inference-only tokens can't do Remote Control).
 rclone_webdav_pass: ""  # A Nextcloud app-password for rclone WebDAV access
 
-# --- Veille : digest quotidien (ADR-027) ---
+# --- Daily tech-watch digest (ADR-027) ---
 # Miniflux API key, created BY HAND in Miniflux → Settings → API Keys (the API
 # cannot mint its own). Read by the digest job as the `claude` user. The same
 # session credentials above cover Claude itself: no OAuth token is needed.
