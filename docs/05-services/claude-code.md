@@ -149,8 +149,8 @@ human — the reader is a corpus, this job is the interface.
 | `homelab-veille-digest.timer` | daily at 06:30, `Persistent=true` |
 | `homelab-veille-digest.service` | oneshot, `User=claude`, `TimeoutStartSec=900` |
 | `~claude/.local/share/veille/digest.sh` | Miniflux API → `claude -p` → vault → mark read |
-| `~claude/.local/share/veille/prompt.md` | the prompt, Ansible-owned default |
-| `<vault>/Domaines/Veille technologique/prompt.local.md` | optional hand-written override — **wins when present** |
+| `~claude/.local/share/veille/prompt.md` | generic English default, Ansible-owned |
+| `<vault>/Domaines/Veille technologique/prompt.local.md` | personal override — **wins when present** |
 | `/mnt/data/secrets/claude/miniflux_api_key` | 0400, claude-owned |
 
 Output lands in `Domaines/Veille technologique/AAAA-MM-JJ - veille.md`, in two sections:
@@ -200,13 +200,14 @@ If a digest reads badly, fix the **prompt**, not the note. Notes are outputs, no
 
 Two ways, and the fast one needs no deploy:
 
-- **Override, in the vault.** Create `Domaines/Veille technologique/prompt.local.md` and it
-  wins from the next run — Ansible never touches the vault, so there is no conflict to
-  resolve, ever. It syncs through Nextcloud, so it is editable from Obsidian on a phone,
-  which is where you are at 06:30 when a digest reads badly. Seed it with
-  `cp ~claude/.local/share/veille/prompt.md "<vault>/Domaines/Veille technologique/prompt.local.md"`.
-- **Default, in the repo.** Edit `veille-digest-prompt.md.j2` and redeploy. This is where a
-  tweak worth keeping belongs — the override is not version-controlled.
+- **Override, in the vault.** `Domaines/Veille technologique/prompt.local.md` wins from the
+  next run — Ansible never touches the vault, so there is no conflict to resolve, ever. It
+  syncs through Nextcloud, so Obsidian edits it from a phone, which is where you are at
+  06:30 when a digest reads badly. **This is where anything personal goes**: the stack to
+  filter against, the editorial slots, the voice rules. This repository is public.
+- **Default, in the repo.** `veille-digest-prompt.md.j2` is deliberately **generic and in
+  English** — it must produce a usable digest for anyone running this role, with no override
+  present. Edit it for structural fixes, never to add personal context.
 
 The override wins **silently**; nothing warns that the repo default has moved on. The
 journal does log which prompt a run used, which is the first thing to check when a digest

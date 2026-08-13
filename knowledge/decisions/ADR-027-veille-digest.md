@@ -50,18 +50,38 @@ justify.
 `veille-digest-prompt.md.j2` is separate from the script because it is the part meant to be
 tuned. Adjusting the tone of a summary should not require reading shell.
 
-The prompt encodes the real editorial line, read from the vault: the five weekly slots, and
-the rules from the voice profile that matter here — aim at the thesis rather than the
-example, never assert anything Marc could not stand behind, prefer a measurement to a cited
-authority. Above all it establishes that **zero post angles is a valid answer**: most days
-produce none, and a digest that invents them to fill space becomes noise people stop
-reading.
+#### The default is generic, the personal version lives in the vault
 
-The prompt is written in **French**, unlike the rest of this repository, and deliberately:
-it produces notes for a French vault read by a French speaker. Translating it would make
-the output language drift from everything around it.
+The split is not only about editing comfort. **This repository is public.** Marc's voice
+profile, his day-to-day stack, his weekly publishing calendar and the rules he writes by are
+not repository material — they are personal working notes that happen to be expressible as a
+prompt.
 
-#### A hand-written override wins, and it lives in the vault
+So the two files carry different things:
+
+| | Repo default | Vault override |
+|---|---|---|
+| Language | English | French |
+| Audience | anyone running this role | Marc |
+| Content | prioritise, group, do not invent | plus his stack, slots and voice rules |
+| Public | yes | no |
+
+The default has to stand on its own: with no override it must still produce a useful digest,
+so it carries the whole structure — security first, breaking changes, notable releases, the
+rest collapsed into one bullet — and the rules that are not personal (assert nothing the
+sources do not say, no superlatives, prefer a measurement to an authority, be short when the
+day is empty). It says nothing about who reads it.
+
+The override adds the person: the stack to filter against, the five weekly slots, and the
+second section that turns entries into post angles. It establishes that **zero angles is a
+valid answer** — most days produce none, and a digest that invents them becomes noise people
+stop reading.
+
+It is written in French because it produces notes for a French vault read by a French
+speaker. The repo default stays English like the rest of the repository, and the two never
+have to agree on language because they never both apply.
+
+#### The override wins, and Ansible cannot reach it
 
 `ansible.builtin.template` is authoritative by design, and this role leans on that hard —
 it *purges* slash commands deleted from the repo so the host cannot drift from git. That is
