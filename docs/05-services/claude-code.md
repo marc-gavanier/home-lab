@@ -137,7 +137,7 @@ sudo -u claude sh -c 'cd ~/vault && ls'          # probe the function, not the u
 > needed: without the first the mount leaks a dead endpoint, without the second Remote
 > Control stays silently stopped after a `stop`/`start` of the mount.
 
-## Daily Tech-Watch Digest
+## Daily Feed Digest
 
 The same `claude` user runs one scheduled job: a daily digest that reads everything unread
 in [Miniflux](miniflux.md), has Claude summarise it, and writes a note into the vault
@@ -146,14 +146,14 @@ human — the reader is a corpus, this job is the interface.
 
 | Unit / file | Role |
 |---|---|
-| `homelab-veille-digest.timer` | daily at 06:30, `Persistent=true` |
-| `homelab-veille-digest.service` | oneshot, `User=claude`, `TimeoutStartSec=900` |
-| `~claude/.local/share/veille/digest.sh` | Miniflux API → `claude -p` → vault → mark read |
-| `~claude/.local/share/veille/prompt.md` | generic English default, Ansible-owned |
-| `<vault>/Domaines/Veille technologique/prompt.local.md` | personal override — **wins when present** |
+| `homelab-feed-digest.timer` | daily at 06:30, `Persistent=true` |
+| `homelab-feed-digest.service` | oneshot, `User=claude`, `TimeoutStartSec=900` |
+| `~claude/.local/share/feed-digest/digest.sh` | Miniflux API → `claude -p` → vault → mark read |
+| `~claude/.local/share/feed-digest/prompt.md` | generic English default, Ansible-owned |
+| `<vault>/<folder>/prompt.local.md` | personal override — **wins when present** |
 | `/mnt/data/secrets/claude/miniflux_api_key` | 0400, claude-owned |
 
-Output lands in `Domaines/Veille technologique/AAAA-MM-JJ - veille.md`, in two sections:
+Output lands in `<folder>/YYYY-MM-DD - <suffix>.md`, in two sections:
 what changed, and zero to three post angles. Not `Inbox/` — the vault's own `CLAUDE.md`
 warns it must not become a dumping ground, which a daily automated note would guarantee.
 
@@ -185,27 +185,27 @@ Both are irreducible — neither API supports them:
 
 1. **Miniflux API key** — *Settings → API Keys → Create*, then into `miniflux_api_key` in
    the vaulted `local.yml`.
-2. **Kuma push monitor** — type *Push*, then its URL into `veille_digest_kuma_push_url`.
+2. **Kuma push monitor** — type *Push*, then its URL into `feed_digest_kuma_push_url`.
 
 ### Operating it
 
 ```sh
-systemctl list-timers homelab-veille-digest.timer   # next run
-systemctl start homelab-veille-digest.service       # run now
-journalctl -u homelab-veille-digest.service -n 50   # what happened
-sudo -u claude tail -30 ~claude/.local/share/veille/digest.log
+systemctl list-timers homelab-feed-digest.timer   # next run
+systemctl start homelab-feed-digest.service       # run now
+journalctl -u homelab-feed-digest.service -n 50   # what happened
+sudo -u claude tail -30 ~claude/.local/share/feed-digest/digest.log
 ```
 
 If a digest reads badly, fix the **prompt**, not the note. Notes are outputs, not sources.
 
 Two ways, and the fast one needs no deploy:
 
-- **Override, in the vault.** `Domaines/Veille technologique/prompt.local.md` wins from the
+- **Override, in the vault.** `<folder>/prompt.local.md` wins from the
   next run — Ansible never touches the vault, so there is no conflict to resolve, ever. It
   syncs through Nextcloud, so Obsidian edits it from a phone, which is where you are at
   06:30 when a digest reads badly. **This is where anything personal goes**: the stack to
   filter against, the editorial slots, the voice rules. This repository is public.
-- **Default, in the repo.** `veille-digest-prompt.md.j2` is deliberately **generic and in
+- **Default, in the repo.** `feed-digest-prompt.md.j2` is deliberately **generic and in
   English** — it must produce a usable digest for anyone running this role, with no override
   present. Edit it for structural fixes, never to add personal context.
 
@@ -216,7 +216,7 @@ suddenly reads differently.
 > **Re-running is not free.** The job marks entries read once summarised, so a bad digest
 > cannot simply be replayed — the entries have left the unread pool. Resurrecting them
 > takes an API call, written down in
-> [`knowledge/runbooks/veille-digest.md`](../../knowledge/runbooks/veille-digest.md) along
+> [`knowledge/runbooks/feed-digest.md`](../../knowledge/runbooks/feed-digest.md) along
 > with the Kuma setup values, the failure tree and how a backlog drains.
 
 ## Restore
@@ -228,4 +228,4 @@ sandbox, mounts and services; the only manual step is the one-time `claude` logi
 See also: `knowledge/research/obsidian-claude-mobile-workflow.md`,
 `knowledge/runbooks/restore-from-backup.md`,
 `knowledge/runbooks/cloud-init-hosts-pin.md`,
-`knowledge/runbooks/veille-digest.md`.
+`knowledge/runbooks/feed-digest.md`.

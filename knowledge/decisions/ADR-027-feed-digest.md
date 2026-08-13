@@ -1,4 +1,4 @@
-# ADR-027 — A daily tech-watch digest, and the token that turned out to be unnecessary
+# ADR-027 — A daily feed digest, and the token that turned out to be unnecessary
 
 **Date**: 2026-08-13
 **Status**: accepted — implemented and verified end to end on the Pi
@@ -47,7 +47,7 @@ justify.
 
 ### The prompt lives in its own file
 
-`veille-digest-prompt.md.j2` is separate from the script because it is the part meant to be
+`feed-digest-prompt.md.j2` is separate from the script because it is the part meant to be
 tuned. Adjusting the tone of a summary should not require reading shell.
 
 #### The default is generic, the personal version lives in the vault
@@ -61,9 +61,8 @@ So the two files carry different things:
 
 | | Repo default | Vault override |
 |---|---|---|
-| Language | English | French |
-| Audience | anyone running this role | Marc |
-| Content | prioritise, group, do not invent | plus his stack, slots and voice rules |
+| Audience | anyone running this role | the person reading the digest |
+| Content | prioritise, group, do not invent | plus their stack, slots and writing rules |
 | Public | yes | no |
 
 The default has to stand on its own: with no override it must still produce a useful digest,
@@ -72,14 +71,13 @@ rest collapsed into one bullet — and the rules that are not personal (assert n
 sources do not say, no superlatives, prefer a measurement to an authority, be short when the
 day is empty). It says nothing about who reads it.
 
-The override adds the person: the stack to filter against, the five weekly slots, and the
-second section that turns entries into post angles. It establishes that **zero angles is a
-valid answer** — most days produce none, and a digest that invents them becomes noise people
-stop reading.
+The override adds the person: the stack to filter against, the publishing slots, and a
+second section that turns entries into things worth writing about. It establishes that
+**zero such items is a valid answer** — most days produce none, and a digest that invents
+them becomes noise people stop reading.
 
-It is written in French because it produces notes for a French vault read by a French
-speaker. The repo default stays English like the rest of the repository, and the two never
-have to agree on language because they never both apply.
+The two never have to agree on anything, including output language, because they never both
+apply.
 
 #### The override wins, and Ansible cannot reach it
 
@@ -89,8 +87,8 @@ right for infrastructure. A prompt is not infrastructure: it is tuning, adjusted
 a digest reads badly, from whatever device is at hand.
 
 So the repo keeps full ownership of the default at
-`~claude/.local/share/veille/prompt.md`, and the script prefers
-`Domaines/Veille technologique/prompt.local.md` when it exists. The two can never collide:
+`~claude/.local/share/feed-digest/prompt.md`, and the script prefers
+`<folder>/prompt.local.md` when it exists. The two can never collide:
 Ansible has no reason to write into the vault, and the override is out of its reach by
 construction.
 
@@ -137,10 +135,10 @@ truncated in silence reads exactly like a complete one, which is the worst of bo
 ### The note goes in `Domaines/`, not `Inbox/`
 
 The vault's `CLAUDE.md` applies PARA and warns that the Inbox must not become a dumping
-ground. A daily automated drop would make it one within two weeks. Tech watch is a
-continuing responsibility with no end, hence `Domaines/Veille technologique/`, with its
-presentation note like every folder in the vault and dated notes named
-`AAAA-MM-JJ - veille.md`.
+ground. A daily automated drop would make it one within two weeks. Feed digest is a
+continuing responsibility with no end, hence a folder of its own, with a
+presentation note like every folder in that vault and dated notes named
+`YYYY-MM-DD - <suffix>.md`.
 
 ## Verification
 
@@ -165,4 +163,4 @@ suggesting a figure Marc could measure himself rather than an authority to cite.
 
 Issue #15 (digest sub-project), ADR-026 (Miniflux), ADR-023 (Dozzle), ADR-011 (secrets on
 LUKS), ADR-016 (secrets out of the environment),
-`knowledge/runbooks/veille-digest.md`, `docs/05-services/claude-code.md`.
+`knowledge/runbooks/feed-digest.md`, `docs/05-services/claude-code.md`.

@@ -1,10 +1,9 @@
-# Runbook — Daily tech-watch digest (Miniflux → Claude → vault)
+# Runbook — Daily feed digest (Miniflux → Claude → vault)
 
-`homelab-veille-digest.timer` runs at 06:30 every day: it reads everything unread in
-Miniflux, has Claude Code summarise it, writes `Domaines/Veille technologique/AAAA-MM-JJ -
-veille.md` into the Obsidian vault, then **marks the summarised entries read**.
+`homelab-feed-digest.timer` runs at 06:30 every day: it reads everything unread in
+Miniflux, has Claude Code summarise it, writes one dated note into the Obsidian vault, then **marks the summarised entries read**.
 
-Design and rationale live in [ADR-027](../decisions/ADR-027-veille-digest.md) and
+Design and rationale live in [ADR-027](../decisions/ADR-027-feed-digest.md) and
 [docs/05-services/claude-code.md](../../docs/05-services/claude-code.md). This page is only
 about operating it.
 
@@ -41,7 +40,7 @@ Kuma never calls the job, it waits to *be* called, and goes red when nobody does
 the only kind of monitor that can watch a once-a-day job.
 
 1. **Add New Monitor** → Monitor Type: **Push**.
-2. Friendly Name: `Veille quotidienne`.
+2. Friendly Name: `Feed digest`.
 3. **Heartbeat Interval**: `90000` s (25 h) — one daily run plus an hour of grace, which
    absorbs the timer's `RandomizedDelaySec=300` and clock drift. Below 24 h the monitor
    would go red every afternoon simply because the next run has not happened yet.
@@ -53,7 +52,7 @@ the only kind of monitor that can watch a once-a-day job.
 6. Into the vaulted `local.yml`, next to the Miniflux key:
    ```yaml
    miniflux_api_key: "..."
-   veille_digest_kuma_push_url: "https://<uptime-kuma>/api/push/<token>"
+   feed_digest_kuma_push_url: "https://<uptime-kuma>/api/push/<token>"
    ```
 7. Deploy: `ansible-playbook playbooks/site.yml --tags claude-code --ask-vault-pass`
 
@@ -71,11 +70,11 @@ mf -H "Content-Type: application/json" -X PUT \
 
 # 2. Re-run (as root, the unit runs as claude on its own)
 exit
-sudo systemctl start homelab-veille-digest.service
+sudo systemctl start homelab-feed-digest.service
 
 # 3. Read the result
-sudo journalctl -u homelab-veille-digest.service -n 20 --no-pager -o cat
-sudo -u claude cat "/home/claude/vault/Domaines/Veille technologique/$(date +%F) - veille.md"
+sudo journalctl -u homelab-feed-digest.service -n 20 --no-pager -o cat
+sudo -u claude cat "/home/claude/vault/<folder>/$(date +%F) - <suffix>.md"
 ```
 
 The note is **overwritten** for the same day, so replaying does not pile up files.
@@ -87,8 +86,8 @@ are two of them, and the override always wins:
 
 | File | Owner | Survives a deploy |
 |---|---|---|
-| `~claude/.local/share/veille/prompt.md` — generic, English | Ansible, rewritten every deploy | no |
-| `<vault>/Domaines/Veille technologique/prompt.local.md` — personal | you | **yes** |
+| `~claude/.local/share/feed-digest/prompt.md` — generic, English | Ansible, rewritten every deploy | no |
+| `<vault>/<folder>/prompt.local.md` — personal | you | **yes** |
 
 Work on the override: no deploy needed, it applies from the next run, and being in the
 vault it is editable from Obsidian on any device.
@@ -97,7 +96,7 @@ vault it is editable from Obsidian on any device.
 editorial slots, the writing rules. This repository is public, and the default is
 deliberately generic so it stays publishable.
 
-Fold a change back into `veille-digest-prompt.md.j2` only when it is *structural* (ordering,
+Fold a change back into `feed-digest-prompt.md.j2` only when it is *structural* (ordering,
 grouping, a rule that holds for anyone). The override is **not version-controlled**, only
 backed up with the vault.
 
@@ -111,10 +110,10 @@ is the first line to look for when a digest suddenly reads differently.
 Work down the list; each command's healthy answer is given.
 
 ```sh
-systemctl list-timers homelab-veille-digest.timer   # NEXT in the future, LAST recent
-systemctl is-enabled homelab-veille-digest.timer    # enabled
-sudo journalctl -u homelab-veille-digest.service -n 40 --no-pager -o cat
-sudo -u claude tail -40 /home/claude/.local/share/veille/digest.log
+systemctl list-timers homelab-feed-digest.timer   # NEXT in the future, LAST recent
+systemctl is-enabled homelab-feed-digest.timer    # enabled
+sudo journalctl -u homelab-feed-digest.service -n 40 --no-pager -o cat
+sudo -u claude tail -40 /home/claude/.local/share/feed-digest/digest.log
 ```
 
 | Symptom in the journal | Cause | Fix |
@@ -131,7 +130,7 @@ already carries the answer.
 
 ## Draining a backlog
 
-At most **400 entries** per run (`veille_digest_max_entries`). Anything beyond stays
+At most **400 entries** per run (`feed_digest_max_entries`). Anything beyond stays
 **unread** on purpose, so a backlog drains over several runs rather than vanishing. The
 carry-over is reported in two places — never silently:
 
@@ -164,12 +163,12 @@ to repair on our side.
 
 Rule of thumb: a feed that has failed for a week with a 403 or a DNS error is dead, delete
 it. A feed failing with a timeout is worth keeping. Deleting is done in the UI, and the
-OPML in `~/Downloads/miniflux-veille.opml` should be edited to match so a re-import does
+OPML in your OPML file should be edited to match so a re-import does
 not bring the corpse back.
 
 ## Related
 
-- [ADR-027](../decisions/ADR-027-veille-digest.md) — design decisions
+- [ADR-027](../decisions/ADR-027-feed-digest.md) — design decisions
 - [ADR-026](../decisions/ADR-026-miniflux-rss.md) — Miniflux itself
 - [backup-monitoring.md](backup-monitoring.md) — the same Push-monitor pattern
 - [docs/05-services/claude-code.md](../../docs/05-services/claude-code.md) — the `claude` user, vault mount, Remote Control

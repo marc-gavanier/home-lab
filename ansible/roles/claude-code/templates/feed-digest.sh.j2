@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # {{ ansible_managed }}
 # =============================================================================
-# Daily tech-watch digest — Miniflux -> claude -p -> Obsidian vault
+# Daily feed digest — Miniflux -> claude -p -> Obsidian vault
 # =============================================================================
-# Reads everything unread in Miniflux, has Claude Code summarise it against
-# Marc's editorial line, writes one note per day into the vault, then marks the
-# summarised entries read so the next run starts from a clean slate.
+# Reads everything unread in Miniflux, has Claude Code summarise it, writes one
+# note per day into the vault, then marks the summarised entries read so the next
+# run starts from a clean slate.
 #
 # Runs as the `claude` user: the same one Remote Control uses, whose ~/.claude
 # already holds a claude.ai login. That is why no API key and no long-lived
@@ -21,77 +21,87 @@ MINIFLUX_HOST="rss.{{ domain }}"
 MINIFLUX_IP="{{ homelab_ip }}"
 API_KEY_FILE="/mnt/data/secrets/claude/miniflux_api_key"
 VAULT="/home/claude/vault"
-DIGEST_DIR="${VAULT}/Domaines/Veille technologique"
-PROMPT_DEFAULT="/home/claude/.local/share/veille/prompt.md"
+
+# Everything the note shows is a variable with a generic English default, so this
+# script carries no opinion about the reader's vault layout or language. Override
+# in local.yml (see meta/argument_specs.yml for the full list).
+FOLDER="{{ feed_digest_folder | default('Digest') }}"
+NOTE_SUFFIX="{{ feed_digest_note_suffix | default('digest') }}"
+NOTE_TAGS="{{ feed_digest_tags | default('digest') }}"
+# %s is the date. Substituted literally, never through printf, so a stray % in an
+# operator-supplied string cannot turn into a format directive.
+TITLE_FMT="{{ feed_digest_note_title | default('Digest %s') }}"
+LABEL_READ="{{ feed_digest_label_read | default('entries read') }}"
+LABEL_CARRIED="{{ feed_digest_label_carried | default('beyond the cap, carried over to the next run') }}"
+# %s is the folder name, rendered as a wiki link back to the presentation note.
+FOOTER_FMT="{{ feed_digest_note_footer | default('Generated automatically, see [[%s]].') }}"
+
+DIGEST_DIR="${VAULT}/${FOLDER}"
+# FOLDER may be a path ("Domaines/Tech watch"), so the presentation note and the
+# wiki link need its LAST segment: Obsidian links by note name, not by path, and
+# "${DIGEST_DIR}/${FOLDER}.md" would nest the folder inside itself.
+FOLDER_NAME="${FOLDER##*/}"
+PROMPT_DEFAULT="/home/claude/.local/share/feed-digest/prompt.md"
 CLAUDE_BIN="/home/claude/.local/bin/claude"
-LOG="/home/claude/.local/share/veille/digest.log"
-KUMA_PUSH_URL="{{ veille_digest_kuma_push_url | default('') }}"
+LOG="/home/claude/.local/share/feed-digest/digest.log"
+KUMA_PUSH_URL="{{ feed_digest_kuma_push_url | default('') }}"
 
 # Cap on how many entries reach the model in one run. Sized well above a normal
 # day (~120 feeds, mostly sparse release feeds) so it only trips on a backlog —
 # a week away, or the first run after an OPML import. What it drops is REPORTED,
 # never silently swallowed: a truncated digest that reads as exhaustive is worse
 # than no digest.
-MAX_ENTRIES={{ veille_digest_max_entries | default(400) }}
+MAX_ENTRIES={{ feed_digest_max_entries | default(400) }}
 
 # Per-entry content budget. Titles alone lose the "is this a breaking change or a
 # typo fix" signal, full articles blow the context on a busy day.
-CONTENT_CHARS={{ veille_digest_content_chars | default(600) }}
+CONTENT_CHARS={{ feed_digest_content_chars | default(600) }}
 
 mkdir -p "$(dirname "$LOG")" "$DIGEST_DIR"
 log() { printf '[%s] %s\n' "$(date -u +%FT%TZ)" "$*" | tee -a "$LOG"; }
 
-# The vault's CLAUDE.md requires every folder to carry a presentation note named
-# after it — that is what Obsidian shows when you click the folder. Written once,
-# never overwritten, so hand edits survive.
-PRESENTATION="${DIGEST_DIR}/Veille technologique.md"
+# Some vaults expect every folder to carry a note named after it — that is what
+# Obsidian shows when you click the folder. Written once and never overwritten, so
+# a hand-written replacement survives every deploy; delete it if your vault has no
+# such convention and it will not come back until the folder is recreated.
+PRESENTATION="${DIGEST_DIR}/${FOLDER_NAME}.md"
 if [ ! -e "$PRESENTATION" ]; then
-    cat > "$PRESENTATION" <<'PRESENTATION_EOF'
+    cat > "$PRESENTATION" <<PRESENTATION_EOF
 ---
-type: domaine
-tags: [veille, linkedin]
+type: note
+tags: [${NOTE_TAGS}]
 ---
 
-# Veille technologique
+# ${FOLDER_NAME}
 
-Responsabilité continue : suivre ce qui bouge sur la stack, le craft, la
-souveraineté numérique et la sécurité, sans y passer de temps de lecture.
+Dated notes in this folder are written **automatically** by
+\`homelab-feed-digest.timer\`: the job reads everything unread in Miniflux, has
+Claude summarise it, writes the note, then marks those entries read. This folder
+is therefore the only place the digest is readable.
 
-Les notes datées de ce dossier sont générées **automatiquement** chaque matin par
-`homelab-veille-digest.timer` sur le Pi : le job lit tout ce qui est non lu dans
-Miniflux, le fait synthétiser par Claude, écrit la note, puis marque les entrées
-lues. Ce dossier est donc le seul endroit où la veille est consultable.
+A note is an output, never a source. If a digest reads badly, do not edit the
+note, fix the prompt and replay it.
 
-Deux sections par note :
+## Tuning the prompt
 
-1. **Ce qui a changé** : sécurité, ruptures, versions notables.
-2. **Angles de post** : ce qui pourrait devenir un post, avec la thèse et le
-   créneau. Souvent vide, et c'est normal.
+The default prompt ships with the home-lab repository, in English and
+deliberately generic: that repository is public, so nothing personal lives in it.
+It is rewritten on every deploy.
 
-Une note ne se corrige pas : si la synthèse dérape, c'est le prompt qu'il faut
-reprendre.
+Anything specific to you belongs in \`prompt.local.md\` **in this folder**: what
+to filter for, what matters, how the summary should read. When that file exists it
+wins, and nothing will ever overwrite it.
 
-## Régler le prompt
+It sits in the vault, so Obsidian edits it from any device, phone included. That
+is the point: the moment to fix a prompt is the morning a digest disappoints.
 
-Le prompt par défaut vient du dépôt home-lab, en anglais et **volontairement
-générique** : le dépôt est public, donc rien de personnel n'y figure. Il est
-réécrit à chaque déploiement.
+To start from the current default, on the host:
 
-Tout ce qui te concerne vit dans `prompt.local.md` **dans ce dossier** : la stack
-sur laquelle filtrer, les créneaux éditoriaux, les règles d'écriture. S'il existe,
-il gagne, et rien ne viendra jamais le modifier.
+    cp ~/.local/share/feed-digest/prompt.md "~/vault/${FOLDER}/prompt.local.md"
 
-Il est dans le vault, donc éditable depuis Obsidian sur n'importe quel appareil,
-téléphone compris. C'est fait pour : le bon moment pour corriger un prompt, c'est
-le matin où la synthèse déraille.
-
-Pour partir de la version courante, depuis le Pi :
-
-    cp ~/.local/share/veille/prompt.md ~/vault/Domaines/Veille\ technologique/prompt.local.md
-
-Le fichier reprend la main dès le passage suivant, sans redéploiement. Il n'est
-pas versionné : si une modification vaut d'être gardée, reporte-la dans
-`ansible/roles/claude-code/templates/veille-digest-prompt.md.j2`.
+It takes over on the next run, with no redeploy. It is **not version-controlled**
+— it rides the vault's backups. Anything worth keeping should be folded back into
+\`ansible/roles/claude-code/templates/feed-digest-prompt.md.j2\`.
 PRESENTATION_EOF
     log "created ${PRESENTATION}"
 fi
@@ -118,7 +128,7 @@ trap 'fail "digest aborted (rc=$?) — see $LOG"' ERR
 # the VAULT wins when it exists. The two never collide: Ansible has no reason to
 # touch the vault, and the override is reachable from Obsidian on any device,
 # phone included. Seed one with:
-#   cp ~/.local/share/veille/prompt.md "<vault>/Domaines/Veille technologique/prompt.local.md"
+#   cp ~/.local/share/feed-digest/prompt.md "<vault>/<folder>/prompt.local.md"
 #
 # The override wins silently by explicit choice: no staleness warning when the
 # repo default moves on. Which file is in use IS logged, because a digest that
@@ -161,7 +171,7 @@ log "unread=${TOTAL} fetched=${FETCHED}"
 
 if [ "$FETCHED" -eq 0 ]; then
     log "nothing unread — no digest written"
-    notify up "rien de neuf"
+    notify up "nothing new"
     exit 0
 fi
 
@@ -186,24 +196,30 @@ INPUT="$(jq -r --argjson n "$CONTENT_CHARS" '
 ' <<<"$ENTRIES")"
 
 TODAY="$(date +%F)"
-NOTE="${DIGEST_DIR}/${TODAY} - veille.md"
+NOTE="${DIGEST_DIR}/${TODAY} - ${NOTE_SUFFIX}.md"
 
 log "running claude -p on ${FETCHED} entries"
 # --print with no tools: the model reads stdin and writes markdown to stdout.
 # Nothing here needs the filesystem, so nothing here gets it.
-BODY="$(printf '%s\n\n---\n\n# Entrées\n\n%s\n' "$(cat "$PROMPT_FILE")" "$INPUT" \
+BODY="$(printf '%s\n\n---\n\n# Entries\n\n%s\n' "$(cat "$PROMPT_FILE")" "$INPUT" \
     | "$CLAUDE_BIN" -p 2>>"$LOG")" || fail "claude -p failed"
 
 [ -n "${BODY//[[:space:]]/}" ] || fail "claude -p returned an empty digest"
 
+# Operator-supplied strings are substituted, never passed to printf as a format:
+# a stray % in a translated label would otherwise be read as a directive and eat
+# the next argument.
+TITLE="${TITLE_FMT//%s/$TODAY}"
+FOOTER="${FOOTER_FMT//%s/$FOLDER_NAME}"
+
 {
-    printf -- '---\ntype: note\ncree: %s\nmaj: %s\ntags: [veille, linkedin]\n---\n\n' "$TODAY" "$TODAY"
-    printf '# Veille du %s\n\n' "$TODAY"
-    printf '_%s entrées lues' "$FETCHED"
+    printf -- '---\ntype: note\ncree: %s\nmaj: %s\ntags: [%s]\n---\n\n' "$TODAY" "$TODAY" "$NOTE_TAGS"
+    printf '# %s\n\n' "$TITLE"
+    printf '_%s %s' "$FETCHED" "$LABEL_READ"
     if [ "$DROPPED" -gt 0 ]; then
-        printf ', %s au-delà du plafond reportées au prochain passage' "$DROPPED"
+        printf ', %s %s' "$DROPPED" "$LABEL_CARRIED"
     fi
-    printf '. Généré automatiquement, voir [[Veille technologique]]._\n\n'
+    printf '. %s_\n\n' "$FOOTER"
     printf '%s\n' "$BODY"
 } > "$NOTE"
 log "wrote ${NOTE}"
@@ -214,9 +230,9 @@ IDS="$(jq -c '[.entries[].id]' <<<"$ENTRIES")"
 mf PUT "/v1/entries" "{\"entry_ids\": ${IDS}, \"status\": \"read\"}" >/dev/null
 log "marked ${FETCHED} entries read"
 
-MSG="${FETCHED} entrées résumées"
+MSG="${FETCHED} entries summarised"
 if [ "$DROPPED" -gt 0 ]; then
-    MSG="${MSG}, ${DROPPED} reportées"
+    MSG="${MSG}, ${DROPPED} carried over"
 fi
 notify up "$MSG"
 log "done"

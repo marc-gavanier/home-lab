@@ -31,8 +31,16 @@
 # A timer whose unit file changed keeps its OLD schedule until reloaded: the
 # calendar is parsed at load time, so an edited OnCalendar= looks deployed and
 # fires at the previous hour. Restarting re-reads it.
-- name: Restart veille digest timer
+- name: Restart feed digest timer
   ansible.builtin.systemd:
-    name: homelab-veille-digest.timer
+    name: homelab-feed-digest.timer
     state: restarted
+    daemon_reload: true
+
+# Removing a unit file leaves systemd holding its old definition until reloaded:
+# `list-unit-files` keeps showing the deleted unit, and a stale enablement symlink
+# can still fire it. Only needed while the pre-rename migration in digest.yml is
+# still doing something.
+- name: Reload systemd after removing the pre-rename units
+  ansible.builtin.systemd_service:
     daemon_reload: true

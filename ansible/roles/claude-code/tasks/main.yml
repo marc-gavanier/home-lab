@@ -37,5 +37,5 @@
 - name: Install the Remote Control service
   ansible.builtin.import_tasks: remote-control.yml
 
-- name: Install the daily tech-watch digest
+- name: Install the daily feed digest
   ansible.builtin.import_tasks: digest.yml
