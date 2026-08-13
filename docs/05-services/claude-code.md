@@ -199,6 +199,12 @@ If a digest reads badly, fix the **prompt**, not the note: edit
 `ansible/roles/claude-code/templates/veille-digest-prompt.md.j2` and redeploy. Notes are
 outputs, not sources.
 
+> **Re-running is not free.** The job marks entries read once summarised, so a bad digest
+> cannot simply be replayed — the entries have left the unread pool. Resurrecting them
+> takes an API call, written down in
+> [`knowledge/runbooks/veille-digest.md`](../../knowledge/runbooks/veille-digest.md) along
+> with the Kuma setup values, the failure tree and how a backlog drains.
+
 ## Restore
 
 Nothing service-specific to restore: the **vault content lives in Nextcloud** (backed up
@@ -207,4 +213,5 @@ sandbox, mounts and services; the only manual step is the one-time `claude` logi
 
 See also: `knowledge/research/obsidian-claude-mobile-workflow.md`,
 `knowledge/runbooks/restore-from-backup.md`,
-`knowledge/runbooks/cloud-init-hosts-pin.md`.
+`knowledge/runbooks/cloud-init-hosts-pin.md`,
+`knowledge/runbooks/veille-digest.md`.
