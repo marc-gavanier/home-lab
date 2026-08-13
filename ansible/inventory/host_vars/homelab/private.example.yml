@@ -1,0 +1,37 @@
+# =============================================================================
+# Private overrides — copy to private.yml and adjust
+# =============================================================================
+# cp private.example.yml private.yml
+# private.yml is gitignored, and NOT vaulted.
+#
+# This is the third tier of the inventory, and it exists because the other two
+# do not fit values that are personal without being secret:
+#
+#   main.yml   committed and PUBLIC — fine for ports, wrong for anything that
+#              identifies you or your habits
+#   local.yml  gitignored and VAULTED — right for secrets, needless friction for
+#              a label you will want to tweak (every edit is `ansible-vault edit`)
+#   private.yml  gitignored, plain text — private, editable, no ceremony
+#
+# Ansible loads every file in host_vars/<host>/, so nothing else is needed.
+# =============================================================================
+
+# --- Daily feed digest (ADR-027) ---
+# The job ships generic English defaults so it works for anyone. Everything below
+# only changes what the note looks like; none of it is secret.
+#
+# Vault-relative folder the digest writes into. May contain slashes; its last
+# segment names the presentation note and the wiki link. This is also where the
+# prompt override (prompt.local.md) is looked up.
+feed_digest_folder: "Digest"
+# Daily note name: "YYYY-MM-DD - <suffix>.md"
+feed_digest_note_suffix: "digest"
+# Frontmatter tags of the daily note, comma-separated.
+feed_digest_tags: "digest"
+# H1 of the note; %s is replaced by the date.
+feed_digest_note_title: "Digest %s"
+# Wording of the metadata line under the title.
+feed_digest_label_read: "entries read"
+feed_digest_label_carried: "beyond the cap, carried over to the next run"
+# %s is replaced by the folder's last segment.
+feed_digest_note_footer: "Generated automatically, see [[%s]]."
