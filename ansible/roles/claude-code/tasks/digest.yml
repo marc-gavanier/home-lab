@@ -7,41 +7,6 @@
 # showed `claude -p` works with the existing session credentials, so the most
 # fragile piece of the design (a secret expiring once a year, silently) is gone.
 
-# --- Migration: the feature was called `veille` until 2026-08-13 ---------------
-# Renaming the units without this would leave the OLD timer enabled and armed,
-# running the OLD script from a directory the repo no longer manages: two digests
-# a day, one of them un-updatable and invisible to git. Ansible creates, it never
-# removes what it stopped naming, so the removal has to be explicit.
-#
-# Safe to keep indefinitely and cheap to run: after the first pass every task
-# below reports ok. Drop it once no host can still carry the old names.
-- name: digest | Detect the pre-rename units
-  ansible.builtin.stat:
-    path: "/etc/systemd/system/homelab-veille-digest.{{ item }}"
-  register: legacy_units
-  loop: [service, timer]
-
-- name: digest | Stop and disable the pre-rename units
-  ansible.builtin.systemd_service:
-    name: "homelab-veille-digest.{{ item.item }}"
-    state: stopped
-    enabled: false
-  loop: "{{ legacy_units.results }}"
-  loop_control:
-    label: "homelab-veille-digest.{{ item.item }}"
-  when: item.stat.exists
-
-- name: digest | Remove the pre-rename units and working directory
-  ansible.builtin.file:
-    path: "{{ item }}"
-    state: absent
-  loop:
-    - /etc/systemd/system/homelab-veille-digest.service
-    - /etc/systemd/system/homelab-veille-digest.timer
-    - /home/claude/.local/share/veille
-  notify: Reload systemd after removing the pre-rename units
-# --- end migration -------------------------------------------------------------
-
 - name: digest | Create the digest working directory
   ansible.builtin.file:
     path: /home/claude/.local/share/feed-digest
