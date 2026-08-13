@@ -1,0 +1,114 @@
+---
+# Daily tech-watch digest: Miniflux -> claude -p -> Obsidian vault (ADR-027).
+#
+# No API key and no long-lived OAuth token: this runs as the `claude` user, whose
+# ~/.claude already carries the claude.ai login Remote Control needs. Issue #15
+# specified a `claude setup-token` OAuth token stored in the vault; measuring
+# showed `claude -p` works with the existing session credentials, so the most
+# fragile piece of the design (a secret expiring once a year, silently) is gone.
+
+- name: digest | Create the digest working directory
+  ansible.builtin.file:
+    path: /home/claude/.local/share/veille
+    state: directory
+    owner: claude
+    group: claude
+    mode: "0750"
+
+# The prompt lives in its own file rather than inside the script on purpose: it
+# is the part that gets tuned, and tuning it should not mean re-reading shell.
+- name: digest | Render the digest prompt
+  ansible.builtin.template:
+    src: veille-digest-prompt.md.j2
+    dest: /home/claude/.local/share/veille/prompt.md
+    owner: claude
+    group: claude
+    mode: "0640"
+
+- name: digest | Render the digest script
+  ansible.builtin.template:
+    src: veille-digest.sh.j2
+    dest: /home/claude/.local/share/veille/digest.sh
+    owner: claude
+    group: claude
+    mode: "0750"
+
+# 0400 and claude-owned: the script reads it, nothing else needs to. It sits on
+# the LUKS volume with the rclone password, under the 0700 directory vault.yml
+# creates (ADR-011).
+- name: digest | Write the Miniflux API key
+  ansible.builtin.copy:
+    dest: /mnt/data/secrets/claude/miniflux_api_key
+    content: "{{ miniflux_api_key }}"
+    owner: claude
+    group: claude
+    mode: "0400"
+  no_log: true
+  when: miniflux_api_key | default('') | length > 0
+
+- name: digest | Create the digest systemd service
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/homelab-veille-digest.service
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Daily tech-watch digest (Miniflux -> Claude -> vault)
+      # Same soft dependency as claude-remote-control.service, for the same
+      # reason documented there: a hard Requires= on the mount makes a slow boot
+      # kill the unit permanently. Wants= + a /proc/mounts gate lets a run that
+      # fires before the mount is ready fail cleanly and be retried tomorrow.
+      After=network-online.target vault-mount.service
+      Wants=network-online.target vault-mount.service
+      RequiresMountsFor=/mnt/data
+
+      [Service]
+      Type=oneshot
+      User=claude
+      Group=claude
+      # NOT the vault: a WorkingDirectory that is an unmounted rclone endpoint
+      # fails the unit at chdir with 200/CHDIR before ExecStartPre can report
+      # anything useful. The script addresses the vault by absolute path.
+      WorkingDirectory=/home/claude
+      Environment=HOME=/home/claude
+      # The mount point exists as an empty local directory when rclone is not up,
+      # so writing the note would silently land on the SD card instead of
+      # Nextcloud. This gate is what makes that impossible.
+      ExecStartPre=/bin/sh -c 'grep -q " /home/claude/vault " /proc/mounts && ls -1 /home/claude/vault >/dev/null'
+      ExecStart=/home/claude/.local/share/veille/digest.sh
+      # The hard stop, and it is not theoretical: on 2026-08-13 six abandoned
+      # `claude` sessions held 1.5 GB of RAM and 525 MB of swap on this host for
+      # up to eleven days. Those were interactive and someone eventually noticed.
+      # A timer-driven job that never exits would do the same thing unwatched, so
+      # it gets a ceiling well above a normal run (measured in minutes).
+      RuntimeMaxSec=900
+      # No Restart=: a failed run is reported to Kuma and retried tomorrow.
+      # Retrying a digest that just burned tokens on a bad response buys nothing.
+
+      [Install]
+      WantedBy=multi-user.target
+
+- name: digest | Create the digest systemd timer
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/homelab-veille-digest.timer
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Daily tech-watch digest at {{ veille_digest_hour | default('06:30') }}
+
+      [Timer]
+      OnCalendar=*-*-* {{ veille_digest_hour | default('06:30') }}:00
+      # Catches up after a reboot or a Pi that was off at the scheduled time —
+      # the digest is a daily record, missing one because of an outage is a loss.
+      Persistent=true
+      RandomizedDelaySec=300
+
+      [Install]
+      WantedBy=timers.target
+  notify: Restart veille digest timer
+
+- name: digest | Enable the digest timer
+  ansible.builtin.systemd_service:
+    name: homelab-veille-digest.timer
+    enabled: true
+    state: started
+    daemon_reload: true

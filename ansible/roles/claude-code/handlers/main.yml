@@ -27,3 +27,12 @@
     state: restarted
     daemon_reload: true
   when: claude_creds.stat.exists
+
+# A timer whose unit file changed keeps its OLD schedule until reloaded: the
+# calendar is parsed at load time, so an edited OnCalendar= looks deployed and
+# fires at the previous hour. Restarting re-reads it.
+- name: Restart veille digest timer
+  ansible.builtin.systemd:
+    name: homelab-veille-digest.timer
+    state: restarted
+    daemon_reload: true
