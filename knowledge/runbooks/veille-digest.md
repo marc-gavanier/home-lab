@@ -87,21 +87,19 @@ are two of them, and the override always wins:
 
 | File | Owner | Survives a deploy |
 |---|---|---|
-| `~claude/.local/share/veille/prompt.md` | Ansible, rewritten every deploy | no |
-| `<vault>/Domaines/Veille technologique/prompt.local.md` | you | **yes** |
+| `~claude/.local/share/veille/prompt.md` — generic, English | Ansible, rewritten every deploy | no |
+| `<vault>/Domaines/Veille technologique/prompt.local.md` — personal | you | **yes** |
 
-For a quick iteration, work on the override — no deploy needed, it applies from the next
-run, and it is in the vault so Obsidian edits it from any device:
+Work on the override: no deploy needed, it applies from the next run, and being in the
+vault it is editable from Obsidian on any device.
 
-```sh
-sudo -u claude cp /home/claude/.local/share/veille/prompt.md \
-  "/home/claude/vault/Domaines/Veille technologique/prompt.local.md"
-```
+**Anything personal belongs there and only there** — the stack to filter against, the
+editorial slots, the writing rules. This repository is public, and the default is
+deliberately generic so it stays publishable.
 
-When a change is worth keeping, fold it back into
-`ansible/roles/claude-code/templates/veille-digest-prompt.md.j2` and redeploy with
-`--tags claude-code`: the override is **not version-controlled**, only backed up with the
-vault.
+Fold a change back into `veille-digest-prompt.md.j2` only when it is *structural* (ordering,
+grouping, a rule that holds for anyone). The override is **not version-controlled**, only
+backed up with the vault.
 
 Nothing warns you that the repo default has moved on while an override is in place — that
 is deliberate, a daily "your override is old" line would be tuned out within a week. The
