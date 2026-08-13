@@ -64,3 +64,9 @@ libresign_cert_c: "FR"
 dozzle_admin_user: "admin"
 dozzle_admin_email: "admin@localhost"
 dozzle_admin_name: "Admin"
+
+# --- RSS reader (Miniflux, ADR-026) ---
+# Login of the admin account created at first start. Not a secret; the password
+# is, and belongs in the vaulted local.yml. Note this is read ONLY while the
+# account does not exist — renaming it later has no effect, the old user stays.
+miniflux_admin_user: "admin"

@@ -49,6 +49,14 @@ secrets:
     file: /mnt/data/secrets/docker/transmission_password
   vaultwarden_admin_token_hash:
     file: /mnt/data/secrets/docker/vaultwarden_admin_token_hash
+  miniflux_db_password:
+    file: /mnt/data/secrets/docker/miniflux_db_password
+  # The whole DSN, not a password inside it: Miniflux takes its connection
+  # string as one value, so the string is what has to stay off `environment:`.
+  miniflux_database_url:
+    file: /mnt/data/secrets/docker/miniflux_database_url
+  miniflux_admin_password:
+    file: /mnt/data/secrets/docker/miniflux_admin_password
 
 networks:
   proxy:
@@ -1316,3 +1324,100 @@ services:
       - "traefik.http.routers.calibre-web.entrypoints=websecure"
       - "traefik.http.routers.calibre-web.tls.certresolver=letsencrypt"
       - "traefik.http.services.calibre-web.loadbalancer.server.port=8083"
+
+  # --- Miniflux (RSS reader) ---
+  miniflux:
+    image: miniflux/miniflux:2.3.3
+    container_name: miniflux
+    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    security_opt: *no-new-privs
+    cap_drop: *cap-drop-all
+    read_only: true
+    # No tmpfs at all, and that is measured rather than hoped for: `docker diff`
+    # on a probe that ran the 132 migrations, created the admin account and
+    # served /healthcheck came back with an EMPTY write set. Miniflux is one Go
+    # binary on a distroless base and keeps everything it owns in Postgres.
+    user: "65534:65534"        # nobody — already the image's own default, restated
+                               # here so a base-image change cannot move it silently
+    depends_on:
+      miniflux-db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL_FILE: /run/secrets/miniflux_database_url
+      RUN_MIGRATIONS: "1"
+      # Idempotent by design: Miniflux logs "user already exists" and carries on
+      # when the account is there, so this stays on across deploys instead of
+      # being a first-boot flag someone has to remember to remove.
+      CREATE_ADMIN: "1"
+      ADMIN_USERNAME: ${MINIFLUX_ADMIN_USER}
+      ADMIN_PASSWORD_FILE: /run/secrets/miniflux_admin_password
+      # Upstream's default is 127.0.0.1:8080, which inside a container means the
+      # process answers only itself and Traefik gets connection refused.
+      LISTEN_ADDR: 0.0.0.0:8080
+      BASE_URL: https://rss.${DOMAIN}
+    secrets:
+      - miniflux_database_url
+      - miniflux_admin_password
+    networks:
+      - proxy
+      - internal
+    # The binary's own subcommand, like Dozzle, and here there is no alternative:
+    # the image is distroless — no shell, no curl, no wget — so a CMD-SHELL probe
+    # cannot run at all. It issues a real HTTP request against the listener, so a
+    # Miniflux that is up but no longer serving fails it.
+    healthcheck:
+      test: ["CMD", "/usr/bin/miniflux", "-healthcheck", "auto"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.miniflux.rule=Host(`rss.${DOMAIN}`)"
+      - "traefik.http.routers.miniflux.entrypoints=websecure"
+      - "traefik.http.routers.miniflux.tls.certresolver=letsencrypt"
+      - "traefik.http.services.miniflux.loadbalancer.server.port=8080"
+
+  miniflux-db:
+    # Postgres 18, not the 16 immich-db is pinned to. This database is Miniflux's
+    # alone — nothing reads it across services — so there is no schema to match,
+    # and 18 is what upstream's own compose ships.
+    image: postgres:18-alpine
+    container_name: miniflux-db
+    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    security_opt: *no-new-privs
+    cap_drop: *cap-drop-all
+    read_only: true
+    # Same reasoning as immich-db and nextcloud-db: running as the final uid from
+    # PID 1 removes the entrypoint's root phase, so there is no chown left to
+    # need a capability for.
+    user: "999:999"
+    tmpfs:
+      # Both carry uid/gid, unlike immich-db's Debian-based image, and both
+      # failures were observed rather than anticipated. A tmpfs mounts root-owned
+      # 0755; the alpine entrypoint chmods its socket directory before dropping
+      # privilege, so without the uid the container exits on
+      #   chmod: /var/run/postgresql: Operation not permitted
+      # and then, once that is fixed, on
+      #   mktemp: : Read-only file system
+      # because initdb wants a scratch directory the read-only rootfs denies.
+      - /run/postgresql:uid=999,gid=999
+      - /tmp:size=64m,uid=999,gid=999
+    environment:
+      POSTGRES_USER: ${MINIFLUX_DB_USER}
+      POSTGRES_PASSWORD_FILE: /run/secrets/miniflux_db_password
+      POSTGRES_DB: ${MINIFLUX_DB_NAME}
+    secrets:
+      - miniflux_db_password
+    volumes:
+      # /var/lib/postgresql, NOT the /var/lib/postgresql/data that immich-db
+      # mounts: Postgres 18 moved PGDATA to /var/lib/postgresql/18/docker and
+      # declares the PARENT as its volume. Mounting the old path would leave the
+      # real datadir inside the container, where every recreate destroys it.
+      - ${SERVICES_DATA_DIR}/miniflux/db:/var/lib/postgresql
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d ${MINIFLUX_DB_NAME} -U ${MINIFLUX_DB_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 3

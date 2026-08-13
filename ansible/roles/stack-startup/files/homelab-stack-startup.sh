@@ -89,7 +89,11 @@ wait_healthy pihole 300
 # auto-started with Tier 0, and `compose up` honours that dependency anyway.
 # IT-Tools is the cheapest member by an order of magnitude (4 MB, static nginx,
 # no dependency of any kind), so it costs this wave nothing.
-up vaultwarden uptime-kuma searxng navidrome dozzle it-tools
+# Miniflux brings its own Postgres, which is why it is named before it here even
+# though `compose up` would resolve the depends_on anyway — the wave lists what
+# it starts. Together they are ~90 MB and the database is small enough that its
+# healthcheck passes well inside this wave.
+up vaultwarden uptime-kuma searxng navidrome dozzle it-tools miniflux-db miniflux
 wait_healthy vaultwarden 120
 
 # Wave 2 — Nextcloud stack + Transmission (medium)

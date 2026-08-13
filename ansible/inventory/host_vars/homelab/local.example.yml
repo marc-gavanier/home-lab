@@ -61,6 +61,25 @@ immich_db_password: ""
 # --- Transmission ---
 transmission_password: ""
 
+# --- Miniflux (RSS reader, ADR-026) ---
+# Postgres password. Written twice by the deploy role: bare for the database,
+# and again inside the connection string Miniflux reads, because Miniflux takes
+# a whole DSN rather than a password to slot into one.
+miniflux_db_password: ""
+# Admin account password, used ONLY at first start (CREATE_ADMIN). Changing it
+# here later does not rotate the account — Miniflux reads it only while the user
+# is absent. Rotate through Settings → Password in the web UI, then update this
+# so a rebuild-from-scratch matches. The username default lives in
+# group_vars/all.yml (miniflux_admin_user).
+#
+# MAX 72 BYTES — same bcrypt ceiling as dozzle_admin_password_hash above, and it
+# fails the same way: Miniflux refuses rather than truncating, exits 1 with
+# "bcrypt: password length exceeds 72 bytes", and the heal timer then retries the
+# same failure every two minutes. A password-manager passphrase will overshoot
+# this without warning (a 128-byte one did, 2026-08-13). Note BYTES, not
+# characters: accented or non-Latin characters cost 2-4 bytes each in UTF-8.
+miniflux_admin_password: ""
+
 # --- Claude Code (on the Pi) ---
 # Auth is manual: `claude auth login` (claude.ai) on the Pi — credentials persist
 # in ~/.claude. No token here (inference-only tokens can't do Remote Control).

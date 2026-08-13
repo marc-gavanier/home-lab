@@ -31,6 +31,7 @@ Uses Pi-hole as DNS (`dns: [${PI_LAN_IP}]` in compose) so that domain lookups fo
 | Dozzle                    | HTTP(s)  | `https://logs.example.com/healthcheck`            |
 | IT-Tools                  | HTTP(s)  | `https://tools.example.com`                       |
 | Calibre-Web               | HTTP(s)  | `https://books.example.com/login`                 |
+| Miniflux                  | HTTP(s)  | `https://rss.example.com/healthcheck`             |
 | Collabora                 | HTTP(s)  | `https://office.example.com/hosting/capabilities` |
 | Transmission              | HTTP(s)  | `https://share.example.com/transmission/web`      |
 | WireGuard                 | HTTP(s)  | `https://vpn.example.com`                         |
@@ -70,6 +71,17 @@ not the same kind of thing:
   deploy performs, plus the image's own healthcheck flipping the container `unhealthy`
   (ADR-021). The monitor is worth having for reachability and TLS expiry, and is not
   evidence that editing works.
+
+**Miniflux is the counter-example, and it was measured rather than assumed.** A second
+monitor on `/` was specified for it on the theory that `/healthcheck` would answer from
+the process alone and stay green with Postgres down. Stopping `miniflux-db` disproved
+that: `/healthcheck` returns **503** and `/` returns 500 — Miniflux's healthcheck pings
+the database, so one monitor already covers both the process and its storage, and the
+second was dropped before it was ever created (ADR-026).
+
+Worth noting what the same test showed about container health: `docker ps` still
+reported `healthy` while the service was returning 503, because the 30 s interval had
+not re-run. That is the argument for having a Kuma monitor at all — not for having two.
 
 This table is a readable summary, not the source of truth. The authoritative inventory
 is Kuma's own database — export it with `ops/kuma-dump.sh` (read-only, WAL-safe), which

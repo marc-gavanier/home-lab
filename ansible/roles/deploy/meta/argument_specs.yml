@@ -108,6 +108,37 @@ argument_specs:
         required: true
         no_log: true
         description: Transmission web UI password.
+      miniflux_db_name:
+        type: str
+        required: false
+        description: Miniflux Postgres database name (inline default miniflux).
+      miniflux_db_user:
+        type: str
+        required: false
+        description: Miniflux Postgres user (inline default miniflux).
+      miniflux_db_password:
+        type: str
+        required: true
+        no_log: true
+        description: >-
+          Miniflux Postgres password. Written twice: bare into
+          /mnt/data/secrets/docker/miniflux_db_password for the database container, and again
+          inside the composed DSN in miniflux_database_url, because Miniflux reads a whole
+          connection string rather than a password (ADR-026).
+      miniflux_admin_user:
+        type: str
+        required: false
+        description: Miniflux admin username (group_vars default admin).
+      miniflux_admin_password:
+        type: str
+        required: true
+        no_log: true
+        description: >-
+          Miniflux admin password, created at first start via CREATE_ADMIN. Max 72 BYTES —
+          bcrypt reads no further and Miniflux exits 1 with "password length exceeds 72 bytes"
+          rather than truncating, which the heal timer then retries every two minutes. Changing
+          it here does NOT change the account afterwards — Miniflux only reads it when the user
+          does not yet exist; use the web UI to rotate it (ADR-026).
       libresign_cert_cn:
         type: str
         required: false
