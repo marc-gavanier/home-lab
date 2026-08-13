@@ -27,6 +27,7 @@ All services are **VPN-only**. The `vpn-only` middleware is applied globally on 
 | `search.example.com`   | SearXNG      |
 | `tools.example.com`    | IT-Tools     |
 | `books.example.com`    | Calibre-Web  |
+| `rss.example.com`      | Miniflux     |
 | `dns.example.com`      | Pi-hole      |
 | `services.example.com` | Uptime Kuma  |
 | `system.example.com`   | Netdata      |

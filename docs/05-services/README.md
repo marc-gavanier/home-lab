@@ -26,6 +26,7 @@ All services run as Docker containers, orchestrated by Docker Compose. Persisten
 | [SearXNG](searxng.md)           | Private metasearch engine      | Productivity   | Phase 5 |
 | [IT-Tools](it-tools.md)         | Offline developer toolbox      | Productivity   | Phase 5 |
 | [Calibre-Web](calibre-web.md)   | Ebook library, OPDS            | Secondary      | Phase 5 |
+| [Miniflux](miniflux.md)         | RSS reader, release tracking   | Productivity   | Phase 5 |
 
 > Notes live in **Obsidian** (a client app on PC/mobile, synced via Nextcloud), managed by
 > Claude Code on the Pi — see [ADR-005](../../knowledge/decisions/ADR-005-obsidian-notes-system.md).
@@ -52,15 +53,18 @@ All services run as Docker containers, orchestrated by Docker Compose. Persisten
 | Dozzle                | 30 MB         |
 | IT-Tools              | 4 MB          |
 | Calibre-Web           | 353 MB        |
-| **Total**             | **~4.3 GB**   |
+| Miniflux + PostgreSQL | 77 MB         |
+| **Total**             | **~4.4 GB**   |
 
-Every figure above is an estimate except four, all measured at idle: Collabora's
+Every figure above is an estimate except five, all measured at idle: Collabora's
 573 MB (ADR-021), which grows with the number of documents open at once; Dozzle's
 30 MB (ADR-023), which does not — it holds no logs, it streams them; IT-Tools'
-4 MB (ADR-024), which is nginx serving static files and nothing else; and
-Calibre-Web's 353 MB (ADR-025). The last two are where estimates went furthest
-wrong in opposite directions — the shortlist budgeted 50 MB for IT-Tools and
-150-250 MB for Calibre-Web.
+4 MB (ADR-024), which is nginx serving static files and nothing else;
+Calibre-Web's 353 MB (ADR-025); and Miniflux's 77 MB (ADR-026), of which the Go
+binary is only **14 MB** — the Postgres beside it costs four times the reader.
+IT-Tools and Calibre-Web are where estimates went furthest wrong in opposite
+directions — the shortlist budgeted 50 MB for IT-Tools and 150-250 MB for
+Calibre-Web.
 
 Calibre-Web is also the largest image in the stack at **1.74 GB** unpacked, since
 it bundles a full Calibre for format conversion. That lands on `/mnt/data`, not
