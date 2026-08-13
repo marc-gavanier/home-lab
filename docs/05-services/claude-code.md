@@ -179,6 +179,19 @@ journal, buried among the start lines), and oneshot defaults `TimeoutStartSec` t
 *infinity*, so the first version of this unit advertised a ceiling it did not have. A
 oneshot service is "starting" for its whole life; the start timeout is the bound.
 
+### Configuration
+
+| File | Encrypted | Published | Holds |
+|---|---|---|---|
+| `host_vars/<host>/local.yml` | yes | no | the Miniflux API key, the Kuma push URL |
+| `host_vars/<host>/private.yml` | **no** | no | folder, note suffix, tags, title, wording |
+| `<vault>/<folder>/prompt.local.md` | no | no | the personal prompt |
+
+`private.yml` exists because the inventory otherwise offers only *public and plain* or
+*private and encrypted*, and none of these values is a secret — encrypting a label just
+means `ansible-vault edit` every time you want to reword it. Ansible loads every file in
+`host_vars/<host>/`, so adding it needed nothing but a `.gitignore` line.
+
 ### Manual steps
 
 Both are irreducible — neither API supports them:

@@ -7,6 +7,9 @@ docker/.env
 # Ansible
 ansible/*.retry
 ansible/inventory/host_vars/*/local.yml
+# Private but NOT secret: personal values that need no encryption and must not
+# be published either (folder names, labels, anything identifying).
+ansible/inventory/host_vars/*/private.yml
 ansible/inventory/host_vars/*/vault.yml
 
 # OS

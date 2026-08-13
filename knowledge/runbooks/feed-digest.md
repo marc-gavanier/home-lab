@@ -49,11 +49,17 @@ the only kind of monitor that can watch a once-a-day job.
 5. **Save**, copy the **Push URL**, and keep only the base form
    `https://<uptime-kuma>/api/push/<token>` — **drop any trailing
    `?status=up&msg=OK&ping=`**, the script appends its own parameters.
-6. Into the vaulted `local.yml`, next to the Miniflux key:
-   ```yaml
-   miniflux_api_key: "..."
-   feed_digest_kuma_push_url: "https://<uptime-kuma>/api/push/<token>"
-   ```
+6. Two files, because two kinds of value:
+   - **`local.yml`** (gitignored, vaulted) for the secrets — the API key and the push
+     URL, which carries a token:
+     ```yaml
+     miniflux_api_key: "..."
+     feed_digest_kuma_push_url: "https://<uptime-kuma>/api/push/<token>"
+     ```
+   - **`private.yml`** (gitignored, plain text) for what the note looks like — folder,
+     note suffix, tags, title, wording. None of it is secret, so none of it needs
+     `ansible-vault edit` every time you tweak a label; and none of it belongs in the
+     public `main.yml` either. Copy `private.example.yml` to start.
 7. Deploy: `ansible-playbook playbooks/site.yml --tags claude-code --ask-vault-pass`
 
 ## Replaying a digest
