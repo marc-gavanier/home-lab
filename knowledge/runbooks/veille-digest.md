@@ -80,10 +80,33 @@ sudo -u claude cat "/home/claude/vault/Domaines/Veille technologique/$(date +%F)
 
 The note is **overwritten** for the same day, so replaying does not pile up files.
 
-To tune the prompt rather than the code, edit
+### Tuning the prompt
+
+The prompt is a separate file precisely so this loop never requires reading shell. There
+are two of them, and the override always wins:
+
+| File | Owner | Survives a deploy |
+|---|---|---|
+| `~claude/.local/share/veille/prompt.md` | Ansible, rewritten every deploy | no |
+| `<vault>/Domaines/Veille technologique/prompt.local.md` | you | **yes** |
+
+For a quick iteration, work on the override — no deploy needed, it applies from the next
+run, and it is in the vault so Obsidian edits it from any device:
+
+```sh
+sudo -u claude cp /home/claude/.local/share/veille/prompt.md \
+  "/home/claude/vault/Domaines/Veille technologique/prompt.local.md"
+```
+
+When a change is worth keeping, fold it back into
 `ansible/roles/claude-code/templates/veille-digest-prompt.md.j2` and redeploy with
-`--tags claude-code` before step 2. The prompt is deliberately a separate file so this
-loop never requires reading shell.
+`--tags claude-code`: the override is **not version-controlled**, only backed up with the
+vault.
+
+Nothing warns you that the repo default has moved on while an override is in place — that
+is deliberate, a daily "your override is old" line would be tuned out within a week. The
+journal does say which prompt each run used (`using the vault override prompt`), and that
+is the first line to look for when a digest suddenly reads differently.
 
 ## The digest did not run (Kuma red, no note)
 

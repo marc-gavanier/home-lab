@@ -61,6 +61,31 @@ The prompt is written in **French**, unlike the rest of this repository, and del
 it produces notes for a French vault read by a French speaker. Translating it would make
 the output language drift from everything around it.
 
+#### A hand-written override wins, and it lives in the vault
+
+`ansible.builtin.template` is authoritative by design, and this role leans on that hard —
+it *purges* slash commands deleted from the repo so the host cannot drift from git. That is
+right for infrastructure. A prompt is not infrastructure: it is tuning, adjusted the morning
+a digest reads badly, from whatever device is at hand.
+
+So the repo keeps full ownership of the default at
+`~claude/.local/share/veille/prompt.md`, and the script prefers
+`Domaines/Veille technologique/prompt.local.md` when it exists. The two can never collide:
+Ansible has no reason to write into the vault, and the override is out of its reach by
+construction.
+
+Putting the override **in the vault** rather than next to the default is the part worth
+justifying. It syncs through Nextcloud, so it is editable from Obsidian on any device,
+phone included — and 06:30 is when the digest lands, which is exactly when a bad prompt
+announces itself. The cost is that the override is not version-controlled; it is covered by
+restic like the rest of the vault, and anything worth keeping should be folded back into
+the template.
+
+The override wins **silently**: no staleness warning when the repo default moves on. That
+was a deliberate call — a recurring "your override is old" line in a daily job is noise that
+gets tuned out. Which prompt is in use *is* logged, because a digest that suddenly reads
+differently is otherwise very hard to explain.
+
 ### What is capped is reported
 
 The job sends at most 400 entries per run. Beyond that, entries **stay unread** for the next

@@ -22,7 +22,7 @@ MINIFLUX_IP="{{ homelab_ip }}"
 API_KEY_FILE="/mnt/data/secrets/claude/miniflux_api_key"
 VAULT="/home/claude/vault"
 DIGEST_DIR="${VAULT}/Domaines/Veille technologique"
-PROMPT_FILE="/home/claude/.local/share/veille/prompt.md"
+PROMPT_DEFAULT="/home/claude/.local/share/veille/prompt.md"
 CLAUDE_BIN="/home/claude/.local/bin/claude"
 LOG="/home/claude/.local/share/veille/digest.log"
 KUMA_PUSH_URL="{{ veille_digest_kuma_push_url | default('') }}"
@@ -69,7 +69,26 @@ Deux sections par note :
    créneau. Souvent vide, et c'est normal.
 
 Une note ne se corrige pas : si la synthèse dérape, c'est le prompt qu'il faut
-reprendre, dans `ansible/roles/claude-code/templates/` du dépôt home-lab.
+reprendre.
+
+## Régler le prompt
+
+Le prompt par défaut vient du dépôt home-lab et est réécrit à chaque déploiement.
+Pour l'ajuster sans qu'Ansible ne l'écrase, crée un fichier `prompt.local.md`
+**dans ce dossier** : s'il existe, il gagne, et rien ne viendra jamais le
+modifier.
+
+Il est dans le vault, donc éditable depuis Obsidian sur n'importe quel appareil,
+téléphone compris. C'est fait pour : le bon moment pour corriger un prompt, c'est
+le matin où la synthèse déraille.
+
+Pour partir de la version courante, depuis le Pi :
+
+    cp ~/.local/share/veille/prompt.md ~/vault/Domaines/Veille\ technologique/prompt.local.md
+
+Le fichier reprend la main dès le passage suivant, sans redéploiement. Il n'est
+pas versionné : si une modification vaut d'être gardée, reporte-la dans
+`ansible/roles/claude-code/templates/veille-digest-prompt.md.j2`.
 PRESENTATION_EOF
     log "created ${PRESENTATION}"
 fi
@@ -85,7 +104,31 @@ fail() { log "ERROR: $*"; notify down "$*"; exit 1; }
 trap 'fail "digest aborted (rc=$?) — see $LOG"' ERR
 
 [ -r "$API_KEY_FILE" ] || fail "missing API key at $API_KEY_FILE"
-[ -r "$PROMPT_FILE" ]  || fail "missing prompt at $PROMPT_FILE"
+
+# Prompt selection. `ansible.builtin.template` is authoritative by design — this
+# role even PURGES commands deleted from the repo, so the host cannot drift from
+# git — and that is right for infrastructure. A prompt is not infrastructure, it
+# is tuning: it gets adjusted the morning a digest reads badly, from whatever
+# device is at hand.
+#
+# So the repo keeps full ownership of the default, and a hand-written override in
+# the VAULT wins when it exists. The two never collide: Ansible has no reason to
+# touch the vault, and the override is reachable from Obsidian on any device,
+# phone included. Seed one with:
+#   cp ~/.local/share/veille/prompt.md "<vault>/Domaines/Veille technologique/prompt.local.md"
+#
+# The override wins silently by explicit choice: no staleness warning when the
+# repo default moves on. Which file is in use IS logged, because a digest that
+# suddenly reads differently is otherwise very hard to explain.
+PROMPT_OVERRIDE="${DIGEST_DIR}/prompt.local.md"
+if [ -r "$PROMPT_OVERRIDE" ]; then
+    PROMPT_FILE="$PROMPT_OVERRIDE"
+    log "using the vault override prompt"
+else
+    PROMPT_FILE="$PROMPT_DEFAULT"
+fi
+[ -r "$PROMPT_FILE" ] || fail "missing prompt at $PROMPT_FILE"
+
 API_KEY="$(cat "$API_KEY_FILE")"
 
 # The Pi's own resolver is NOT Pi-hole (systemd-resolved points elsewhere), so
