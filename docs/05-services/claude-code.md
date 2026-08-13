@@ -147,7 +147,7 @@ human — the reader is a corpus, this job is the interface.
 | Unit / file | Role |
 |---|---|
 | `homelab-veille-digest.timer` | daily at 06:30, `Persistent=true` |
-| `homelab-veille-digest.service` | oneshot, `User=claude`, `RuntimeMaxSec=900` |
+| `homelab-veille-digest.service` | oneshot, `User=claude`, `TimeoutStartSec=900` |
 | `~claude/.local/share/veille/digest.sh` | Miniflux API → `claude -p` → vault → mark read |
 | `~claude/.local/share/veille/prompt.md` | the prompt — **this is the tuning surface** |
 | `/mnt/data/secrets/claude/miniflux_api_key` | 0400, claude-owned |
@@ -169,9 +169,14 @@ deterministic, and the job needs no write tool at all.
 next run, and the count carried over appears in both the note and the Kuma message. A
 digest truncated in silence reads exactly like a complete one.
 
-`RuntimeMaxSec=900` is not decorative: on 2026-08-13 six abandoned interactive `claude`
+`TimeoutStartSec=900` is not decorative: on 2026-08-13 six abandoned interactive `claude`
 sessions held 1.5 GB of RAM and 525 MB of swap on this host for up to eleven days. Those
 were visible. An unattended timer job that never exits would not be.
+
+**Not `RuntimeMaxSec`** — systemd ignores it under `Type=oneshot` (it says so in the
+journal, buried among the start lines), and oneshot defaults `TimeoutStartSec` to
+*infinity*, so the first version of this unit advertised a ceiling it did not have. A
+oneshot service is "starting" for its whole life; the start timeout is the bound.
 
 ### Manual steps
 

@@ -69,10 +69,17 @@ pire des deux mondes.
 
 ### Trois gardes, dont deux nées d'incidents du jour
 
-- **`RuntimeMaxSec=900`.** Le 2026-08-13, six sessions `claude` abandonnées retenaient
+- **`TimeoutStartSec=900`.** Le 2026-08-13, six sessions `claude` abandonnées retenaient
   1,5 Go de RAM et 525 Mo de swap sur cet hôte, certaines depuis onze jours, et avaient
   saturé le swap. Elles étaient interactives, donc quelqu'un a fini par le voir. Un job
   déclenché par timer qui ne sortirait jamais ferait la même chose sans témoin.
+
+  **La première version écrivait `RuntimeMaxSec`, que systemd ignore avec
+  `Type=oneshot`** — un avertissement dans le journal, noyé entre les lignes de
+  démarrage. Et comme `Type=oneshot` fixe `TimeoutStartSec` à l'infini par défaut, le
+  garde le plus mis en avant de cet ADR ne bornait strictement rien tout en prétendant le
+  contraire. Attrapé au premier passage manuel, par la lecture du journal. Un service
+  oneshot est « en démarrage » toute sa vie : c'est le timeout de démarrage qui le borne.
 - **La garde `/proc/mounts`.** Reprise telle quelle de `claude-remote-control.service`.
   Quand le montage rclone n'est pas là, le point de montage existe comme répertoire local
   vide : sans cette garde, la note serait écrite sur la carte SD au lieu de Nextcloud, et
