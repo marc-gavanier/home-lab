@@ -22,27 +22,63 @@ argument_specs:
         required: false
         no_log: true
         description: >-
-          Miniflux API key for the daily tech-watch digest (ADR-027). Created by hand in
+          Miniflux API key for the daily feed digest (ADR-027). Created by hand in
           Miniflux under Settings → API Keys; there is no way to generate one over the API.
           Empty disables only the key file, not the units — the job then fails loudly rather
           than silently doing nothing.
-      veille_digest_kuma_push_url:
+      feed_digest_kuma_push_url:
         type: str
         required: false
         description: >-
           Uptime Kuma push URL for the digest dead-man's switch. Empty = no monitoring, and
           a job that stops running becomes invisible.
-      veille_digest_hour:
+      feed_digest_hour:
         type: str
         required: false
         description: 'Digest schedule as HH:MM (default 06:30). Changing it restarts the timer.'
-      veille_digest_max_entries:
+      feed_digest_max_entries:
         type: int
         required: false
         description: >-
           Cap on entries sent to the model in one run (default 400). Anything beyond it stays
           unread for the next run and is reported in the note, never dropped silently.
-      veille_digest_content_chars:
+      feed_digest_content_chars:
         type: int
         required: false
         description: Per-entry content budget in characters, HTML stripped (default 600).
+      feed_digest_folder:
+        type: str
+        required: false
+        description: >-
+          Vault-relative folder the digest writes into, may contain slashes
+          (default "Digest"). Its last segment names the presentation note and the wiki link.
+      feed_digest_note_suffix:
+        type: str
+        required: false
+        description: 'Suffix of the daily note, as "YYYY-MM-DD - <suffix>.md" (default "digest").'
+      feed_digest_tags:
+        type: str
+        required: false
+        description: Frontmatter tags of the daily note, comma-separated (default "digest").
+      feed_digest_note_title:
+        type: str
+        required: false
+        description: >-
+          H1 of the daily note; %s is replaced by the date (default "Digest %s"). Substituted
+          literally rather than through printf, so a stray % cannot become a format directive.
+      feed_digest_label_read:
+        type: str
+        required: false
+        description: Wording after the entry count in the note's metadata line (default "entries read").
+      feed_digest_label_carried:
+        type: str
+        required: false
+        description: >-
+          Wording after the carried-over count, shown only when the cap was hit
+          (default "beyond the cap, carried over to the next run").
+      feed_digest_note_footer:
+        type: str
+        required: false
+        description: >-
+          Closing sentence of the metadata line; %s is replaced by the folder's last segment
+          (default "Generated automatically, see [[%s]].").

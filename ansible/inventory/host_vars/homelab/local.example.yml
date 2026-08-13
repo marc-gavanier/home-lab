@@ -85,14 +85,14 @@ miniflux_admin_password: ""
 # in ~/.claude. No token here (inference-only tokens can't do Remote Control).
 rclone_webdav_pass: ""  # A Nextcloud app-password for rclone WebDAV access
 
-# --- Daily tech-watch digest (ADR-027) ---
+# --- Daily feed digest (ADR-027) ---
 # Miniflux API key, created BY HAND in Miniflux → Settings → API Keys (the API
 # cannot mint its own). Read by the digest job as the `claude` user. The same
 # session credentials above cover Claude itself: no OAuth token is needed.
 miniflux_api_key: ""
 # Uptime Kuma "Push" monitor URL for the digest dead-man's switch. Empty =
 # disabled, and a digest that stops running becomes invisible.
-veille_digest_kuma_push_url: ""
+feed_digest_kuma_push_url: ""
 
 # --- SearXNG (private metasearch) ---
 searxng_secret_key: ""  # openssl rand -hex 32

@@ -1,5 +1,5 @@
 ---
-# Daily tech-watch digest: Miniflux -> claude -p -> Obsidian vault (ADR-027).
+# Daily feed digest: Miniflux -> claude -p -> Obsidian vault (ADR-027).
 #
 # No API key and no long-lived OAuth token: this runs as the `claude` user, whose
 # ~/.claude already carries the claude.ai login Remote Control needs. Issue #15
@@ -7,9 +7,44 @@
 # showed `claude -p` works with the existing session credentials, so the most
 # fragile piece of the design (a secret expiring once a year, silently) is gone.
 
+# --- Migration: the feature was called `veille` until 2026-08-13 ---------------
+# Renaming the units without this would leave the OLD timer enabled and armed,
+# running the OLD script from a directory the repo no longer manages: two digests
+# a day, one of them un-updatable and invisible to git. Ansible creates, it never
+# removes what it stopped naming, so the removal has to be explicit.
+#
+# Safe to keep indefinitely and cheap to run: after the first pass every task
+# below reports ok. Drop it once no host can still carry the old names.
+- name: digest | Detect the pre-rename units
+  ansible.builtin.stat:
+    path: "/etc/systemd/system/homelab-veille-digest.{{ item }}"
+  register: legacy_units
+  loop: [service, timer]
+
+- name: digest | Stop and disable the pre-rename units
+  ansible.builtin.systemd_service:
+    name: "homelab-veille-digest.{{ item.item }}"
+    state: stopped
+    enabled: false
+  loop: "{{ legacy_units.results }}"
+  loop_control:
+    label: "homelab-veille-digest.{{ item.item }}"
+  when: item.stat.exists
+
+- name: digest | Remove the pre-rename units and working directory
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/systemd/system/homelab-veille-digest.service
+    - /etc/systemd/system/homelab-veille-digest.timer
+    - /home/claude/.local/share/veille
+  notify: Reload systemd after removing the pre-rename units
+# --- end migration -------------------------------------------------------------
+
 - name: digest | Create the digest working directory
   ansible.builtin.file:
-    path: /home/claude/.local/share/veille
+    path: /home/claude/.local/share/feed-digest
     state: directory
     owner: claude
     group: claude
@@ -19,16 +54,16 @@
 # is the part that gets tuned, and tuning it should not mean re-reading shell.
 - name: digest | Render the digest prompt
   ansible.builtin.template:
-    src: veille-digest-prompt.md.j2
-    dest: /home/claude/.local/share/veille/prompt.md
+    src: feed-digest-prompt.md.j2
+    dest: /home/claude/.local/share/feed-digest/prompt.md
     owner: claude
     group: claude
     mode: "0640"
 
 - name: digest | Render the digest script
   ansible.builtin.template:
-    src: veille-digest.sh.j2
-    dest: /home/claude/.local/share/veille/digest.sh
+    src: feed-digest.sh.j2
+    dest: /home/claude/.local/share/feed-digest/digest.sh
     owner: claude
     group: claude
     mode: "0750"
@@ -48,11 +83,11 @@
 
 - name: digest | Create the digest systemd service
   ansible.builtin.copy:
-    dest: /etc/systemd/system/homelab-veille-digest.service
+    dest: /etc/systemd/system/homelab-feed-digest.service
     mode: "0644"
     content: |
       [Unit]
-      Description=Daily tech-watch digest (Miniflux -> Claude -> vault)
+      Description=Daily feed digest (Miniflux -> Claude -> vault)
       # Same soft dependency as claude-remote-control.service, for the same
       # reason documented there: a hard Requires= on the mount makes a slow boot
       # kill the unit permanently. Wants= + a /proc/mounts gate lets a run that
@@ -74,7 +109,7 @@
       # so writing the note would silently land on the SD card instead of
       # Nextcloud. This gate is what makes that impossible.
       ExecStartPre=/bin/sh -c 'grep -q " /home/claude/vault " /proc/mounts && ls -1 /home/claude/vault >/dev/null'
-      ExecStart=/home/claude/.local/share/veille/digest.sh
+      ExecStart=/home/claude/.local/share/feed-digest/digest.sh
       # The hard stop, and it is not theoretical: on 2026-08-13 six abandoned
       # `claude` sessions held 1.5 GB of RAM and 525 MB of swap on this host for
       # up to eleven days. Those were interactive and someone eventually noticed.
@@ -97,14 +132,14 @@
 
 - name: digest | Create the digest systemd timer
   ansible.builtin.copy:
-    dest: /etc/systemd/system/homelab-veille-digest.timer
+    dest: /etc/systemd/system/homelab-feed-digest.timer
     mode: "0644"
     content: |
       [Unit]
-      Description=Daily tech-watch digest at {{ veille_digest_hour | default('06:30') }}
+      Description=Daily feed digest at {{ feed_digest_hour | default('06:30') }}
 
       [Timer]
-      OnCalendar=*-*-* {{ veille_digest_hour | default('06:30') }}:00
+      OnCalendar=*-*-* {{ feed_digest_hour | default('06:30') }}:00
       # Catches up after a reboot or a Pi that was off at the scheduled time —
       # the digest is a daily record, missing one because of an outage is a loss.
       Persistent=true
@@ -112,11 +147,11 @@
 
       [Install]
       WantedBy=timers.target
-  notify: Restart veille digest timer
+  notify: Restart feed digest timer
 
 - name: digest | Enable the digest timer
   ansible.builtin.systemd_service:
-    name: homelab-veille-digest.timer
+    name: homelab-feed-digest.timer
     enabled: true
     state: started
     daemon_reload: true
