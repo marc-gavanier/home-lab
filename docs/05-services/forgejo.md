@@ -137,10 +137,11 @@ Both points this service was deployed with open are now closed, on the Pi:
 **The write set is `/tmp` and nothing else.** `docker diff` after a full mirror clone
 of 425 commits — every branch plus the `refs/pull/*/head` refs — returned the *same*
 seven entries as an idle boot, five of them mount points. Git writes exclusively into
-the bind mount. Once the redundant `/etc/gitea` mount was removed the write set settled
-at **three entries**, all of them the secret mount. Hence `read_only: true` with one tmpfs on `/tmp`, carrying `uid=1000`
-because a tmpfs mounts root-owned `0755` and the container holds no capability to work
-around that.
+the bind mount. Once the redundant `/etc/gitea` mount was removed, the write set
+settled at **three entries**, all of them the secret mount.
+
+Hence `read_only: true` with one tmpfs on `/tmp`, carrying `uid=1000` because a tmpfs
+mounts root-owned `0755` and the container holds no capability to work around that.
 
 Verified again after enabling it, which is the part that matters — a Forgejo that
 *starts* read-only does not prove it can still forge an object:
