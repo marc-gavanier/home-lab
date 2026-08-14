@@ -57,6 +57,11 @@ secrets:
     file: /mnt/data/secrets/docker/miniflux_database_url
   miniflux_admin_password:
     file: /mnt/data/secrets/docker/miniflux_admin_password
+  # Forgejo has no CREATE_ADMIN equivalent — the account is made by a one-shot
+  # CLI call on first deploy, which reads the password from this file rather
+  # than taking it as an argument on the host.
+  forgejo_admin_password:
+    file: /mnt/data/secrets/docker/forgejo_admin_password
 
 networks:
   proxy:
@@ -1421,3 +1426,83 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+
+  # --- Forgejo (private git forge, GitHub pull-mirror) ---
+  forgejo:
+    # The ROOTLESS variant, not the default image, and the difference is
+    # structural rather than cosmetic. The standard image starts as root, chowns
+    # its data directory and drops to uid 1000 through su-exec — a sequence that
+    # needs SETUID/SETGID back and a writable image layer to do it in. The
+    # rootless image is already uid 1000 at PID 1, so it meets this stack's
+    # baseline (no-new-privileges + cap_drop ALL) with nothing added back.
+    # It pays for that with different paths: data lives in /var/lib/gitea and
+    # config in /etc/gitea, NOT the /data that every tutorial mounts (ADR-028).
+    image: codeberg.org/forgejo/forgejo:16.0.2-rootless
+    container_name: forgejo
+    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    security_opt: *no-new-privs
+    cap_drop: *cap-drop-all
+    # NOT read_only yet, deliberately, and this is the one thing left to close
+    # after the first deploy. Forgejo regenerates /etc/gitea/app.ini from the
+    # FORGEJO__* variables at every start and git itself writes temporaries all
+    # over its object store, but the real write set has never been measured on
+    # this host. The house rule is `docker diff` on the live container, then
+    # declare the paths (issue #32) — a guessed tmpfs list is how a `git push`
+    # breaks six weeks later, far from the change that caused it.
+    read_only: false
+    user: "1000:1000"          # `git` in the rootless image. USER_UID/USER_GID
+                               # are inert here: the uid is fixed at build time,
+                               # they only exist for the root-entrypoint variant.
+    environment:
+      FORGEJO__server__ROOT_URL: https://git.${DOMAIN}/
+      FORGEJO__server__HTTP_PORT: "3000"
+      # Git over SSH stays off. The only planned use is a pull-mirror, which
+      # Forgejo drives OUTBOUND over HTTPS, and cloning from the LAN works over
+      # HTTPS too. Leaving it on would publish port 2222 for a door nothing
+      # knocks on. Turn it on the day this stops being a mirror and starts being
+      # a remote people push to.
+      FORGEJO__server__DISABLE_SSH: "true"
+      # The web installer is a single unauthenticated form that creates the first
+      # admin account — whoever reaches it first owns the forge. It is locked
+      # before the container ever answers a request, and the admin is created by
+      # CLI instead (see docs/05-services/forgejo.md). vpn-only would already
+      # gate it; this is the second lock, because the first one is a middleware
+      # and middlewares can be misconfigured.
+      FORGEJO__security__INSTALL_LOCK: "true"
+      FORGEJO__service__DISABLE_REGISTRATION: "true"
+      # SQLite rather than a Postgres sidecar: one user, one mirror job, no
+      # concurrency to speak of, and it saves ~70 MB plus a container. The cost
+      # is that a live .db cannot be snapshotted safely by restic — backup.sh
+      # therefore takes it through SQLite's Online Backup API, exactly as it
+      # already does for Vaultwarden (ADR-028).
+      FORGEJO__database__DB_TYPE: sqlite3
+      FORGEJO__database__PATH: /var/lib/gitea/data/forgejo.db
+    secrets:
+      # Mounted so the first-run admin-create command can read the password from
+      # inside the container instead of it being typed on the host, where it
+      # would land in shell history.
+      - forgejo_admin_password
+    volumes:
+      - ${SERVICES_DATA_DIR}/forgejo/data:/var/lib/gitea
+      - ${SERVICES_DATA_DIR}/forgejo/config:/etc/gitea
+    networks:
+      # proxy only — SQLite means no database peer to reach on `internal`, and
+      # the mirror pulls leave northbound to GitHub like any other egress.
+      - proxy
+    healthcheck:
+      # /api/healthz reports component status rather than just proving the router
+      # answers, so a Forgejo whose database has gone away fails it.
+      # VERIFY ON FIRST DEPLOY: this assumes busybox `wget` is in the rootless
+      # image. If it is not, the container goes permanently unhealthy and the
+      # heal timer will fight it every 2 minutes — check before walking away.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/api/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 120s       # first boot runs the schema migrations
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.forgejo.rule=Host(`git.${DOMAIN}`)"
+      - "traefik.http.routers.forgejo.entrypoints=websecure"
+      - "traefik.http.routers.forgejo.tls.certresolver=letsencrypt"
+      - "traefik.http.services.forgejo.loadbalancer.server.port=3000"

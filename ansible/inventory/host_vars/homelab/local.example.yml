@@ -80,6 +80,14 @@ miniflux_db_password: ""
 # characters: accented or non-Latin characters cost 2-4 bytes each in UTF-8.
 miniflux_admin_password: ""
 
+# --- Forgejo (private git forge, ADR-028) ---
+# Admin account password. Read ONLY by the one-shot `forgejo admin user create`
+# on first deploy — Forgejo has no CREATE_ADMIN equivalent, so the account is not
+# made declaratively and changing this later rotates nothing. Rotate in the web
+# UI (Settings → Account), then update this so a rebuild-from-scratch matches.
+# No 72-byte ceiling here: Forgejo hashes with pbkdf2 by default, not bcrypt.
+forgejo_admin_password: ""
+
 # --- Claude Code (on the Pi) ---
 # Auth is manual: `claude auth login` (claude.ai) on the Pi — credentials persist
 # in ~/.claude. No token here (inference-only tokens can't do Remote Control).
