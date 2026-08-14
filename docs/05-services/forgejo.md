@@ -58,11 +58,22 @@ Forgejo keeps its own `APP_DATA_PATH` one level below that.
 
 ## First Deploy
 
-Deploy targeted, as always:
+Deploy targeted, as always (from `ansible/`):
 
 ```sh
 ansible-playbook playbooks/site.yml --tags deploy -e deploy_services=forgejo --ask-vault-pass
 ```
+
+**This run bounces DNS.** Adding `git.<domain>` to Pi-hole's split-DNS config
+notifies the `Restart pihole` handler, which restarts Pi-hole *and* dnsproxy
+(dnsproxy runs with `network_mode: service:pihole`). The templating task is not
+scoped by `deploy_services`, so this happens even on a targeted run — expect a
+short resolution gap for the whole house, and do not run it in the middle of
+something that needs DNS.
+
+`forgejo_admin_password` must already be in the vaulted `local.yml` — the deploy
+role declares it `required: true`, so the run fails validation without it, and so
+does a deploy of any *other* service once this branch has landed.
 
 Then, **on the Pi**, create the admin account. Forgejo has no `CREATE_ADMIN`
 environment variable — the account cannot be made declaratively the way Miniflux's is,

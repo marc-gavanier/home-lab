@@ -99,6 +99,12 @@ init the wave has to absorb.
 Backups need no new path — `/mnt/data/services` is already taken wholesale — only the
 `.backup` line above.
 
+`git.<domain>` joins Pi-hole's split-DNS config, without which the name resolves
+nowhere on the LAN or VPN. That line has a cost that is easy to miss: templating it
+notifies the `Restart pihole` handler, which bounces Pi-hole *and* dnsproxy, and the
+task is not scoped by `deploy_services` — so deploying Forgejo costs the house a short
+DNS gap even though the deploy is targeted at one unrelated container.
+
 **Two things are deliberately unfinished and must be closed on the first deploy:**
 
 1. **`read_only` is `false`.** Forgejo regenerates `/etc/gitea/app.ini` from the
