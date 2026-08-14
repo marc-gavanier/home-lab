@@ -93,7 +93,10 @@ wait_healthy pihole 300
 # though `compose up` would resolve the depends_on anyway — the wave lists what
 # it starts. Together they are ~90 MB and the database is small enough that its
 # healthcheck passes well inside this wave.
-up vaultwarden uptime-kuma searxng navidrome dozzle it-tools miniflux-db miniflux
+# Forgejo is here rather than in wave 3 despite a 120 s start_period: it is one
+# Go binary on SQLite with no peer to wait for, and nothing gates on it — the
+# start_period covers schema migrations, not a slow init this wave has to absorb.
+up vaultwarden uptime-kuma searxng navidrome dozzle it-tools miniflux-db miniflux forgejo
 wait_healthy vaultwarden 120
 
 # Wave 2 — Nextcloud stack + Transmission (medium)

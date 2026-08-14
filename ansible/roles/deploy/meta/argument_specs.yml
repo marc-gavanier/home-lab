@@ -139,6 +139,16 @@ argument_specs:
           rather than truncating, which the heal timer then retries every two minutes. Changing
           it here does NOT change the account afterwards — Miniflux only reads it when the user
           does not yet exist; use the web UI to rotate it (ADR-026).
+      forgejo_admin_password:
+        type: str
+        required: true
+        no_log: true
+        description: >-
+          Forgejo admin password. Unlike Miniflux there is no CREATE_ADMIN equivalent, so it is
+          only ever read by the one-shot `forgejo admin user create` run once on first deploy
+          (docs/05-services/forgejo.md); changing it here afterwards does nothing, rotate in the
+          web UI. Written to /mnt/data/secrets/docker/forgejo_admin_password and mounted into the
+          container so the command never puts it in the operator's shell history (ADR-028).
       libresign_cert_cn:
         type: str
         required: false

@@ -89,6 +89,22 @@ if [ -f "$VAULTWARDEN_DB" ]; then
         || log "WARNING: Vaultwarden DB backup failed"
 fi
 
+# Forgejo SQLite — same reasoning, and it matters more here than it looks.
+# The point of this service is to be the copy that survives losing GitHub, so a
+# backup of it that restores to a torn WAL would defeat the whole exercise. The
+# git object stores under /var/lib/gitea are plain files restic handles fine; it
+# is only the database (users, mirror settings, issues) that needs the Online
+# Backup API. Runs host-side because the rootless image ships no sqlite3 CLI.
+# The doubled segment below is not a typo: the host directory forgejo/data is
+# mounted at /var/lib/gitea, and Forgejo keeps its own APP_DATA_PATH one level
+# under that (/var/lib/gitea/data), so the database lands in forgejo/data/data/.
+FORGEJO_DB="/mnt/data/services/forgejo/data/data/forgejo.db"
+if [ -f "$FORGEJO_DB" ]; then
+    log "Backing up Forgejo database (sqlite3 .backup)..."
+    sqlite3 "$FORGEJO_DB" ".backup '$DUMP_DIR/forgejo.sqlite3'" 2>> "$BACKUP_LOG" \
+        || log "WARNING: Forgejo DB backup failed"
+fi
+
 # --- Restic backup ---
 
 log "Running restic backup..."

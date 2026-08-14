@@ -27,6 +27,7 @@ All services run as Docker containers, orchestrated by Docker Compose. Persisten
 | [IT-Tools](it-tools.md)         | Offline developer toolbox      | Productivity   | Phase 5 |
 | [Calibre-Web](calibre-web.md)   | Ebook library, OPDS            | Secondary      | Phase 5 |
 | [Miniflux](miniflux.md)         | RSS reader, release tracking   | Productivity   | Phase 5 |
+| [Forgejo](forgejo.md)           | Self-hosted git, GitHub mirror | Secondary      | Pending |
 
 > Notes live in **Obsidian** (a client app on PC/mobile, synced via Nextcloud), managed by
 > Claude Code on the Pi — see [ADR-005](../../knowledge/decisions/ADR-005-obsidian-notes-system.md).
