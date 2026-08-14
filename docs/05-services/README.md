@@ -55,14 +55,17 @@ All services run as Docker containers, orchestrated by Docker Compose. Persisten
 | IT-Tools              | 4 MB          |
 | Calibre-Web           | 353 MB        |
 | Miniflux + PostgreSQL | 77 MB         |
-| **Total**             | **~4.4 GB**   |
+| Forgejo               | 101 MB        |
+| **Total**             | **~4.5 GB**   |
 
-Every figure above is an estimate except five, all measured at idle: Collabora's
+Every figure above is an estimate except six, all measured at idle: Collabora's
 573 MB (ADR-021), which grows with the number of documents open at once; Dozzle's
 30 MB (ADR-023), which does not — it holds no logs, it streams them; IT-Tools'
 4 MB (ADR-024), which is nginx serving static files and nothing else;
 Calibre-Web's 353 MB (ADR-025); and Miniflux's 77 MB (ADR-026), of which the Go
-binary is only **14 MB** — the Postgres beside it costs four times the reader.
+binary is only **14 MB** — the Postgres beside it costs four times the reader;
+and Forgejo's **101 MB** (ADR-028), below the 120-160 MB the shortlist budgeted,
+for a forge holding a full mirror in 6.9 MB of disk.
 IT-Tools and Calibre-Web are where estimates went furthest wrong in opposite
 directions — the shortlist budgeted 50 MB for IT-Tools and 150-250 MB for
 Calibre-Web.
