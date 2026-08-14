@@ -88,8 +88,8 @@ and Dozzle there is no 72-byte ceiling to trip over.
 A pull-mirror of a public repository needs no credential. Mirroring private ones
 would require a GitHub PAT living in the vault and rotating on GitHub's schedule —
 real ongoing cost, for repositories that were not the reason this service exists.
-Decided 2026-08-14: **public only**. Revisit by adding the token, not by changing the
-architecture.
+Decided 2026-08-14: **public only, and no token at all** — see the consequences
+below for what that costs and why it was accepted anyway.
 
 Mirrors are created by hand in the web UI, following the same precedent as the Uptime
 Kuma monitors: the API exists, but three or four mirrors do not justify the
@@ -127,13 +127,18 @@ the Pi rather than argued from the workstation:
    `healthy` on the first deploy, and `/api/healthz` answers 200 through Traefik with
    `database:ping` and `cache:ping` both passing.
 
-**One limitation is worth recording, because it was underestimated when "no token"
-was decided.** On GitHub the access token also unlocks the API, so a tokenless mirror
-carries the **git repository only** — code, branches, tags and `refs/pull/*/head`.
-Issues and pull request discussions are **not** mirrored. For a repository where much
-of the reasoning lives in issues (this one included), the safety net catches the code
-and drops the argument behind it. Accepted for now; adding a read-only PAT later
-changes nothing structural and does not require recreating the mirror.
+**The scope of "no token" was underestimated when it was decided, and the correction
+is worth recording.** On GitHub the access token also unlocks the API, so a tokenless
+mirror carries the **git repository only** — code, branches, tags and
+`refs/pull/*/head`. Issues and pull request discussions are **not** mirrored. For a
+repository where much of the reasoning lives in issues (this one included), the safety
+net catches the code and drops the argument behind it.
+
+Put to the operator with that correction on 2026-08-14, and **settled: no token.** The
+requirement is the sources; losing the issue history with the account is accepted.
+This is a decision, not a deferral — **do not re-propose the PAT.** If the requirement
+ever changes, adding one is a repository setting and does not need the mirror
+recreated.
 
 ## Alternatives rejected
 
