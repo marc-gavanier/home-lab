@@ -31,7 +31,6 @@
     # 1000:1000 above is exactly what it needs (ADR-028).
     - "{{ services_data_dir }}/forgejo"
     - "{{ services_data_dir }}/forgejo/data"
-    - "{{ services_data_dir }}/forgejo/config"
 
 # Ownership here is a capability decision, not housekeeping. Jellyfin and
 # Navidrome run as root *inside* the container, over trees that were created
