@@ -8,9 +8,8 @@ branches, tags — on the encrypted volume, inside the backup set, replicated of
 A local clone on a workstation is not that copy. It holds whatever branch was last
 checked out, on one disk, with no history of what else existed.
 
-> **Status: not yet deployed.** Written and reviewed on the workstation; the first
-> deploy still has to close two open points, marked **VERIFY** below. Nothing in this
-> file has been observed on the Pi yet (ADR-028).
+> **Deployed 2026-08-14** and verified on the Pi: healthy behind Traefik, read-only
+> rootfs, mirroring 425 commits of `home-lab` (ADR-028).
 
 ## Access
 
@@ -34,23 +33,32 @@ via `su-exec` — which on this stack would mean handing SETUID and SETGID back 
 The rootless image does **not** use `/data`. Everything written about Forgejo on the
 internet mounts `/data`, and it will appear to work:
 
-| | Rootless image | What tutorials say |
-|-----------------|----------------------|--------------------|
+| | Rootless image (verified) | What tutorials say |
+|------------------|-----------------------------------|--------------------|
 | Data | `/var/lib/gitea` | `/data` |
-| Config | `/etc/gitea` | `/data/gitea/conf` |
+| Config | `/var/lib/gitea/custom/conf/app.ini` | `/data/gitea/conf` |
 | `USER_UID`/`GID` | inert (fixed at build) | used |
 
 A `/data` mount produces a container that starts, serves, and stores every repository
-in a layer the next `compose up` discards. On the host the two mounts are:
+in a layer the next `compose up` discards.
+
+**`/etc/gitea` is a red herring.** It is the path the upstream documentation points
+at, and mounting it here was a mistake: `GITEA_APP_INI` is
+`/var/lib/gitea/custom/conf/app.ini`, so the configuration already lives inside the
+data volume. The `/etc/gitea` mount was tried and stayed **empty** through a boot, a
+425-commit clone and a fetch, then removed. There is exactly one mount:
 
 ```
-/mnt/data/services/forgejo/data    -> /var/lib/gitea
-/mnt/data/services/forgejo/config  -> /etc/gitea
+/mnt/data/services/forgejo/data  ->  /var/lib/gitea
 ```
 
-Both are created `1000:1000` by the storage role, and that is not cosmetic: the
+It is created `1000:1000` by the storage role, and that is not cosmetic: the
 container holds no capability to chown anything, so a root-owned mount leaves it
 unable to write its own database.
+
+To hand-edit configuration, edit `data/custom/conf/app.ini` under that mount — but
+note that anything also expressed as a `FORGEJO__*` variable is rewritten from the
+environment at every start.
 
 Note the database path reads `forgejo/data/data/forgejo.db` on the host. The doubled
 segment is correct — the host `data` directory is the `/var/lib/gitea` mount, and
@@ -66,8 +74,8 @@ ansible-playbook playbooks/site.yml --tags storage,deploy,stack-startup \
 ```
 
 `deploy` alone is not enough and fails in a way that looks like a permissions bug:
-the two host directories are created by the **storage** role, so without its tag
-Docker creates them itself as root, and a container that is uid 1000 with no CHOWN
+the host data directory is created by the **storage** role, so without its tag
+Docker creates it itself as root, and a container that is uid 1000 with no CHOWN
 capability cannot write its own database. The **stack-startup** tag installs the
 wave script — skip it and Forgejo works now but never comes back after a reboot.
 
@@ -91,39 +99,64 @@ environment variable — the account cannot be made declaratively the way Minifl
 and the web installer that would normally create it is locked (see below):
 
 ```sh
-docker exec -u 1000 forgejo forgejo admin user create \
-    --admin --username marc --email you@example.com \
-    --password "$(cat /run/secrets/forgejo_admin_password)"
+docker exec forgejo sh -c 'forgejo admin user create \
+    --admin --username marc-gavanier --fullname "Marc Gavanier" \
+    --email you@example.com --must-change-password=false \
+    --password "$(cat /run/secrets/forgejo_admin_password)"'
 ```
+
+Three details that are each easy to get wrong:
+
+- **`sh -c` with single quotes is required.** Without it the `$(cat …)` expands on the
+  *host*, where that path does not exist — the account is created with an empty
+  password and nothing warns you.
+- **`--must-change-password=false`.** The default forces a password change at first
+  login, which desynchronises the vault from the account immediately.
+- **The username cannot contain spaces.** `marc-gavanier` matches the GitHub handle so
+  mirror paths line up (`git.<domain>/marc-gavanier/home-lab`); the human-readable
+  name goes in `--fullname`.
 
 The password is read from the mounted secret inside the container rather than typed,
 so it never reaches the host's shell history. Minimum length is 8 characters. Forgejo
 hashes with **pbkdf2**, not bcrypt — there is no 72-byte ceiling here, unlike Miniflux
-and Dozzle.
+and Dozzle, so a 128-byte generated password is fine.
 
-### VERIFY before walking away
+> Do **not** try to verify the password by passing it to another command. BusyBox
+> `wget` rejects `--password=` and echoes the whole argument back in its error, which
+> puts the secret in the terminal and in any session transcript. The verification that
+> matters is logging into the web UI.
 
-Two things could not be settled from the workstation. Both need the running container:
+### What was measured on 2026-08-14
 
-**1. Does the healthcheck's `wget` exist?** The probe assumes busybox `wget` is in the
-rootless image. If it is not, the container reports unhealthy forever and the heal
-timer fights it every two minutes.
+Both points this service was deployed with open are now closed, on the Pi:
+
+**busybox `wget` is present**, so the healthcheck is sound — the container came up
+`healthy` on the first deploy and `/api/healthz` answers 200 through Traefik, with
+`database:ping` and `cache:ping` both reporting `pass`.
+
+**The write set is `/tmp` and nothing else.** `docker diff` after a full mirror clone
+of 425 commits — every branch plus the `refs/pull/*/head` refs — returned the *same*
+seven entries as an idle boot, five of them mount points. Git writes exclusively into
+the bind mount. Hence `read_only: true` with one tmpfs on `/tmp`, carrying `uid=1000`
+because a tmpfs mounts root-owned `0755` and the container holds no capability to work
+around that.
+
+Verified again after enabling it, which is the part that matters — a Forgejo that
+*starts* read-only does not prove it can still forge an object:
 
 ```sh
-docker inspect --format '{{.State.Health.Status}}' forgejo   # want: healthy
-docker exec forgejo wget --help >/dev/null 2>&1 && echo "wget present"
+docker inspect forgejo --format '{{.HostConfig.ReadonlyRootfs}}'   # true
+docker exec forgejo sh -c 'touch /usr/local/x'                     # Read-only file system
+R=/var/lib/gitea/git/repositories/<owner>/<repo>.git
+docker exec forgejo sh -c "git -C $R remote update --prune"        # what the sync runs
+docker exec forgejo sh -c "git -C $R fsck --no-progress"           # exit 0
 ```
 
-**2. What is the real write set?** `read_only` is deliberately `false` for now.
-Once the service has run, served a page and completed a mirror pull:
+That fetch pulled a real new commit, moved the branch and the PR refs, passed `fsck`,
+and left the image layer at five mount-point entries.
 
-```sh
-docker diff forgejo
-```
-
-Then declare the paths it actually writes as `tmpfs` entries and flip `read_only` to
-`true`, per issue #32. Do not guess the list from this document — measure it. A guessed
-tmpfs is how a `git push` breaks six weeks later, far from the change that caused it.
+If you change the image, re-measure rather than trusting this section: a guessed tmpfs
+list is how a `git push` breaks six weeks later, far from the change that caused it.
 
 ## Setting Up a Mirror
 
@@ -132,14 +165,21 @@ The API exists, but three or four mirrors do not justify automating it.
 
 1. `+` → **New Migration** → **GitHub**
 2. Clone address: the repository URL, e.g. `https://github.com/you/home-lab`
-3. Tick **This repository will be a mirror**
-4. Leave the token field empty — see below
-5. Set the mirror interval (`8h` is a reasonable default)
+3. Under **Migration options**, tick **This repository will be a mirror**
+4. Leave the access token empty — see below
 
-**Public repositories only.** A pull-mirror of a public repository needs no
-credential. Mirroring private ones would need a GitHub PAT in the vault, rotating on
-GitHub's schedule — decided against on 2026-08-14 (ADR-028). If that changes, add the
-token; the architecture does not need to change.
+The **interval is not on this form**. It is set afterwards in the repository's
+*Settings → Mirror*, and defaults to 8h.
+
+**Public repositories only, and know what that leaves out.** A pull-mirror of a public
+repository needs no credential — but on GitHub the token also unlocks the API, so
+without one the mirror carries the **git repository only**: code, branches, tags, and
+the `refs/pull/*/head` refs. **Issues and pull request discussions are not mirrored.**
+
+That is a real gap for this stack, where a good deal of the reasoning lives in issues
+rather than in code. It was accepted on 2026-08-14 to avoid a PAT in the vault
+(ADR-028); adding one later changes nothing structural and does not require recreating
+the mirror.
 
 Forgejo pulls on its own schedule from then on. Nothing pushes to Forgejo, and nothing
 here writes back to GitHub.
@@ -153,7 +193,7 @@ here writes back to GitHub.
   ever answers a request. This is why the admin is created by CLI.
 - **Registration is disabled** (`DISABLE_REGISTRATION=true`).
 - **SSH is disabled**, so no second port is published.
-- Zero capabilities, `no-new-privileges`, uid 1000. `read_only` pending (above).
+- Zero capabilities, `no-new-privileges`, uid 1000, read-only rootfs (measured above).
 
 ## Backup
 

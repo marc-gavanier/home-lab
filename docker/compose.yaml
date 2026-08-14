@@ -1435,8 +1435,9 @@ services:
     # needs SETUID/SETGID back and a writable image layer to do it in. The
     # rootless image is already uid 1000 at PID 1, so it meets this stack's
     # baseline (no-new-privileges + cap_drop ALL) with nothing added back.
-    # It pays for that with different paths: data lives in /var/lib/gitea and
-    # config in /etc/gitea, NOT the /data that every tutorial mounts (ADR-028).
+    # It pays for that with a different data path: /var/lib/gitea, NOT the /data
+    # that every tutorial mounts, which would store every repository in a layer
+    # the next `compose up` discards (ADR-028).
     image: codeberg.org/forgejo/forgejo:16.0.2-rootless
     container_name: forgejo
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
@@ -1489,8 +1490,13 @@ services:
       # would land in shell history.
       - forgejo_admin_password
     volumes:
+      # One mount, not two. /etc/gitea is what the documentation points at and it
+      # is a red herring for this image: GITEA_APP_INI is
+      # /var/lib/gitea/custom/conf/app.ini, so the configuration is already
+      # inside this volume. A /etc/gitea bind mount was tried and stayed empty
+      # through boot, a 425-commit clone and a fetch — removed rather than kept
+      # as decoration.
       - ${SERVICES_DATA_DIR}/forgejo/data:/var/lib/gitea
-      - ${SERVICES_DATA_DIR}/forgejo/config:/etc/gitea
     networks:
       # proxy only — SQLite means no database peer to reach on `internal`, and
       # the mirror pulls leave northbound to GitHub like any other egress.

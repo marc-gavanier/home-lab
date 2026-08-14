@@ -1,7 +1,7 @@
 # ADR-028 — Forgejo as a GitHub pull-mirror, rootless and on SQLite
 
 **Date**: 2026-08-14
-**Status**: proposed — written on the workstation, **not yet deployed or measured**
+**Status**: accepted — deployed and measured on the Pi 2026-08-14
 
 ## Context
 
@@ -38,13 +38,18 @@ of `cap_drop: ALL` (ADR-017), plus a writable image layer to do it in. The rootl
 variant is already uid 1000 at PID 1, so it meets the baseline with nothing added.
 
 The price is paid in paths, and it is the single most common way to get this service
-wrong: the rootless image keeps data in **`/var/lib/gitea`** and configuration in
-**`/etc/gitea`**, not the `/data` that every tutorial mounts. `USER_UID`/`USER_GID`
-are inert here — the uid is fixed at build time. A `/data` mount would produce a
-container that starts, serves, and quietly stores everything in a layer that the next
-`compose up` throws away.
+wrong: the rootless image keeps data in **`/var/lib/gitea`**, not the `/data` that
+every tutorial mounts. `USER_UID`/`USER_GID` are inert here — the uid is fixed at
+build time. A `/data` mount would produce a container that starts, serves, and quietly
+stores everything in a layer that the next `compose up` throws away.
 
-Because the container holds no capability to chown anything, the two host directories
+The upstream documentation also points at `/etc/gitea` for configuration, and this ADR
+originally mounted it. **That was wrong**: `GITEA_APP_INI` is
+`/var/lib/gitea/custom/conf/app.ini`, so configuration already lives inside the data
+volume. The mount stayed empty through a boot, a 425-commit clone and a fetch, and was
+removed. One mount, not two.
+
+Because the container holds no capability to chown anything, the host data directory
 must exist as `1000:1000` *before* it starts. They are created in the storage role's
 1000-owned loop rather than left to Docker, which would make them root-owned.
 
@@ -105,23 +110,29 @@ notifies the `Restart pihole` handler, which bounces Pi-hole *and* dnsproxy, and
 task is not scoped by `deploy_services` — so deploying Forgejo costs the house a short
 DNS gap even though the deploy is targeted at one unrelated container.
 
-**Two things are deliberately unfinished and must be closed on the first deploy:**
+**Both points left open at write time were closed on the first deploy**, measured on
+the Pi rather than argued from the workstation:
 
-1. **`read_only` is `false`.** Forgejo regenerates `/etc/gitea/app.ini` from the
-   `FORGEJO__*` variables at every start, and git writes temporaries throughout its
-   object store, but the real write set has never been measured on this host. The
-   house rule is `docker diff` on the live container, then declare the paths (issue
-   #32). A guessed tmpfs list is how a `git push` breaks six weeks later, far from
-   the change that caused it. It is written as an explicit `read_only: false`
-   rather than an omitted key, so it reads as unfinished rather than as one of the
-   services that cannot have it: 21 of 28 declare `read_only: true` today, and
-   closing this one makes 22.
-2. **The healthcheck assumes busybox `wget`** is present in the rootless image. If it
-   is not, the container goes permanently unhealthy and the heal timer will fight it
-   every two minutes. Verify before walking away from it.
+1. **`read_only: true`.** `docker diff` after a full mirror clone of 425 commits —
+   every branch plus the `refs/pull/*/head` refs — returned the *same* seven entries
+   as an idle boot, five of them mount points. Git writes exclusively into the bind
+   mount. One tmpfs on `/tmp` covers `GITEA_TEMP`, carrying `uid=1000` because a tmpfs
+   mounts root-owned `0755` and the container holds no capability to work around it —
+   the failure that already bit IT-Tools and both Postgres instances. Re-verified
+   *after* enabling it, which is the part that matters: a fetch pulled a real new
+   commit, moved the branch and PR refs, and passed `fsck`. That takes the stack from
+   21 of 28 services with a read-only rootfs to 22.
+2. **busybox `wget` is present**, so the healthcheck is sound: the container came up
+   `healthy` on the first deploy, and `/api/healthz` answers 200 through Traefik with
+   `database:ping` and `cache:ping` both passing.
 
-Neither could be settled from the workstation: both need the container running on the
-Pi, and this stack does not document things as working before they are tested there.
+**One limitation is worth recording, because it was underestimated when "no token"
+was decided.** On GitHub the access token also unlocks the API, so a tokenless mirror
+carries the **git repository only** — code, branches, tags and `refs/pull/*/head`.
+Issues and pull request discussions are **not** mirrored. For a repository where much
+of the reasoning lives in issues (this one included), the safety net catches the code
+and drops the argument behind it. Accepted for now; adding a read-only PAT later
+changes nothing structural and does not require recreating the mirror.
 
 ## Alternatives rejected
 
