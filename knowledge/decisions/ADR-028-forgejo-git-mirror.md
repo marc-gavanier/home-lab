@@ -116,7 +116,8 @@ the Pi rather than argued from the workstation:
 1. **`read_only: true`.** `docker diff` after a full mirror clone of 425 commits —
    every branch plus the `refs/pull/*/head` refs — returned the *same* seven entries
    as an idle boot, five of them mount points. Git writes exclusively into the bind
-   mount. One tmpfs on `/tmp` covers `GITEA_TEMP`, carrying `uid=1000` because a tmpfs
+   mount. With the redundant `/etc/gitea` mount since removed, the live write set is
+   **three entries**, all of them the secret mount — the image layer is untouched. One tmpfs on `/tmp` covers `GITEA_TEMP`, carrying `uid=1000` because a tmpfs
    mounts root-owned `0755` and the container holds no capability to work around it —
    the failure that already bit IT-Tools and both Postgres instances. Re-verified
    *after* enabling it, which is the part that matters: a fetch pulled a real new
