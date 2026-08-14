@@ -1442,17 +1442,23 @@ services:
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
-    # NOT read_only yet, deliberately, and this is the one thing left to close
-    # after the first deploy. Forgejo regenerates /etc/gitea/app.ini from the
-    # FORGEJO__* variables at every start and git itself writes temporaries all
-    # over its object store, but the real write set has never been measured on
-    # this host. The house rule is `docker diff` on the live container, then
-    # declare the paths (issue #32) — a guessed tmpfs list is how a `git push`
-    # breaks six weeks later, far from the change that caused it.
-    read_only: false
+    # Measured, not assumed: `docker diff` after a full mirror clone of 425
+    # commits — every branch plus the pull/*/head refs — returned the SAME seven
+    # entries as an idle boot, five of which are mount points. Git writes nothing
+    # to the image layer; it all lands in the bind mount below.
+    read_only: true
     user: "1000:1000"          # `git` in the rootless image. USER_UID/USER_GID
                                # are inert here: the uid is fixed at build time,
                                # they only exist for the root-entrypoint variant.
+    tmpfs:
+      # The single writable path the measurement found: GITEA_TEMP=/tmp/gitea,
+      # which Forgejo creates itself at 0700. The uid is not optional — a tmpfs
+      # mounts root-owned 0755, and uid 1000 holds no capability to work around
+      # that, so without it the container cannot create its own temp directory.
+      # Same failure that bit IT-Tools and the Postgres instances.
+      # 128m is a ceiling, not an allocation: measured usage after the initial
+      # clone was 8 KB, and tmpfs only occupies what it holds.
+      - /tmp:size=128m,uid=1000,gid=1000
     environment:
       FORGEJO__server__ROOT_URL: https://git.${DOMAIN}/
       FORGEJO__server__HTTP_PORT: "3000"
