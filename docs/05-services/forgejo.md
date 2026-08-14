@@ -58,11 +58,22 @@ Forgejo keeps its own `APP_DATA_PATH` one level below that.
 
 ## First Deploy
 
-Deploy targeted, as always (from `ansible/`):
+Deploy targeted, as always (from `ansible/`) — but **three tags, not just `deploy`**:
 
 ```sh
-ansible-playbook playbooks/site.yml --tags deploy -e deploy_services=forgejo --ask-vault-pass
+ansible-playbook playbooks/site.yml --tags storage,deploy,stack-startup \
+    -e deploy_services=forgejo --ask-vault-pass
 ```
+
+`deploy` alone is not enough and fails in a way that looks like a permissions bug:
+the two host directories are created by the **storage** role, so without its tag
+Docker creates them itself as root, and a container that is uid 1000 with no CHOWN
+capability cannot write its own database. The **stack-startup** tag installs the
+wave script — skip it and Forgejo works now but never comes back after a reboot.
+
+Re-running the storage role on a provisioned host is safe: the mount and swap units
+are `state: started` rather than `restarted`, and the LUKS setup is probe-guarded to
+first run only.
 
 **This run bounces DNS.** Adding `git.<domain>` to Pi-hole's split-DNS config
 notifies the `Restart pihole` handler, which restarts Pi-hole *and* dnsproxy
