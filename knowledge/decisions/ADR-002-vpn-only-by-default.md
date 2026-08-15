@@ -27,6 +27,13 @@ Anything else gets `403 Forbidden`.
 
 ### Pros
 - **Minimized attack surface**: only WireGuard (51820/UDP) and Traefik HTTP/HTTPS (80, 443) are exposed to the internet; HTTPS rejects every non-VPN/LAN request
+
+  > **Amended 2026-08-15.** The perimeter moved twice since this was written and
+  > this line followed neither. 80/443 stopped being forwarded in late July 2026,
+  > so Traefik is no longer reachable from the internet at all; and Transmission's
+  > peer port (51413, tcp+udp) is forwarded and was never listed. The decision
+  > itself is untouched — VPN-only is still the rule, and it is now enforced by a
+  > closed port rather than by a middleware. See ADR-013 for the measurements.
 - **CVE protection**: a future vulnerability in Nextcloud/Vaultwarden/etc. can only be exploited by an authenticated VPN client (defense in depth)
 - **No enumeration**: bots scanning the public IP get `403`, can't discover what services are hosted
 - **Secure by default**: every new service added to compose inherits the protection — no risk of forgetting the middleware on a new router

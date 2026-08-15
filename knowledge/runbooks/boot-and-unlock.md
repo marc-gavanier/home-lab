@@ -60,7 +60,7 @@ What to expect and do when the Pi comes back up. Design rationale in
 5. **Verify** (optional):
 
    ```bash
-   docker ps --format '{{.Names}}\t{{.Status}}' | sort   # 19 containers, healthy
+   docker ps --format '{{.Names}}\t{{.Status}}' | sort   # 28 containers, healthy
    swapon --show                                         # /mnt/data/swapfile (HDD)
    ```
 

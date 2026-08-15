@@ -21,7 +21,8 @@ This home lab is built on a Raspberry Pi 4 Model B with the goal of providing a 
                        │
 ┌──────────────────────┴──────────────────────────┐
 │              ISP Router (NAT/Firewall)            │
-│         Open ports: 80, 443, 51820/udp           │
+│      Forwarded: 51820/udp (WG), 51413 (peer)     │
+│      80/443: NOT forwarded since late July 2026   │
 └──────────────────────┬──────────────────────────┘
                        │ Ethernet
 ┌──────────────────────┴──────────────────────────┐

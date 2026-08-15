@@ -21,7 +21,8 @@ Three facts shape the answer:
   `generic`/cloud flavors), so live kernel patching — the one thing that would
   remove the reboot requirement — is unavailable on both Pis.
 - The exposed attack surface is tiny: **51820/udp** (WireGuard, silent drop) and
-  **51413/udp** (Transmission's peer port, open by design for seeding). SSH is
+  **51413** (Transmission's peer port, open by design for seeding — **tcp** as
+  well as udp, see the second amendment below). SSH is
   not internet-exposed. The only remotely-reachable pre-auth kernel code is the
   WireGuard module + the netstack; almost every kernel CVE is a local-privilege
   escalation, irrelevant until an attacker already has a foothold.
@@ -36,6 +37,19 @@ Three facts shape the answer:
   > elicited. Second, **51413/udp was missing entirely** and is genuinely open —
   > `transmission-remote -pt` confirms it. An ADR about attack surface that omits
   > an open port is the more serious of the two errors.
+  >
+  > **Amended again 2026-08-15, and the lesson is about propagation.** Both
+  > corrections above were right and both stayed here. `CLAUDE.md`,
+  > `docs/00-architecture`, `docs/03-security` and `docs/04-network` went on
+  > advertising 80/443 as the exposed surface and omitting 51413 for another
+  > fortnight, until an audit probed the ports rather than reading the summaries.
+  > Amending the ADR is not the end of the job; the summaries that quote it are
+  > where anyone actually looks.
+  >
+  > One measurement refined: 51413 was recorded here as udp. Probed from the
+  > offsite uplink with a control, **tcp is open too** — expected for a BitTorrent
+  > peer port, which listens on both, but worth stating rather than inferring.
+  > 80 and 443 both time out from the same vantage point in the same second.
   >
   > What this changes for the argument: nothing, and rather in its favour. Over
   > 24 h the host blocked 4 320 packets, of which **two** came from the internet;

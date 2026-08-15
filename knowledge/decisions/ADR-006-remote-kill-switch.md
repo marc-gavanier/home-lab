@@ -10,7 +10,9 @@ The Pi hosts sensitive self-hosted data (Vaultwarden, Nextcloud, Immich, backups
 If the hardware is stolen, or in any situation calling for an immediate remote
 shutdown ("panic" off), there must be a way to power it off from anywhere —
 **without** opening an inbound port, which would contradict the perimeter rules
-(only 80/443 and 51820/udp exposed, see [ADR-002](ADR-002-vpn-only-by-default.md)).
+(see [ADR-002](ADR-002-vpn-only-by-default.md), amended — the forwarded set is
+51820/udp and 51413, not 80/443). The constraint below is what matters here and
+it is unaffected: whatever the perimeter is, this must not add to it.
 
 Constraints:
 - No new inbound port, no public listener on the Pi.

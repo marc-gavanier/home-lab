@@ -101,7 +101,9 @@ Append-only means no automatic pruning. On site (or via SSH), with the repo
 password fetched from Vaultwarden AT THAT MOMENT (never store it on the Pi):
 
 ```bash
-sudo apt install restic                    # not installed by default here
+# restic and sqlite3 are installed by the offsite-backup role since ddc44c5 —
+# they were added the day a real recovery attempt found them missing. Verify
+# rather than assume on a freshly rebuilt host: command -v restic
 sudo systemctl stop rest-server            # free the repo
 sudo restic -r /mnt/backup/restic forget \
     --keep-daily 7 --keep-weekly 4 --keep-monthly 12 --prune
