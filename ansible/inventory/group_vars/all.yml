@@ -46,7 +46,13 @@ backup_dir: "{{ data_mount_point }}/backups"
 
 # --- Backup ---
 restic_password: ""  # TODO: set via vault or env var, NEVER in plain text
-backup_schedule: "0 3 * * *"  # Daily at 3 AM
+# No backup_schedule here on purpose. One used to sit at this line holding
+# "0 3 * * *" — the correct time, read by nothing. Editing it to move the
+# backup changed nothing and the deploy still reported green. The schedules are
+# systemd OnCalendar expressions, which cron syntax cannot express anyway, and
+# they live with the units that use them: roles/deploy/tasks/backup.yml for the
+# nightly run and the weekly maintenance, roles/deploy/tasks/offsite.yml for the
+# offsite check.
 
 # --- PDF signing (LibreSign, ADR-022) ---
 # Identity of the root certificate every signature is issued from. Not a

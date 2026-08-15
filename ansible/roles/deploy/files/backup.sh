@@ -143,6 +143,62 @@ docker exec miniflux-db pg_dump \
     "${MINIFLUX_DB_NAME:-miniflux}" \
     > "$DUMP_DIR/miniflux.sql" 2>> "$BACKUP_LOG" || log "WARNING: Miniflux DB dump failed"
 
+# --- Dump assertions ---
+# Every dump above degrades to `|| log WARNING` and leaves the exit code
+# untouched, so a failure sails straight past: restic snapshots whatever is in
+# DUMP_DIR, the run pushes `up "completed"`, and the cleanup at the bottom of
+# this script deletes the evidence. Three months of logs show zero occurrences
+# — this is a design gap, not an incident, and it costs ten lines to close.
+#
+# The floor is deliberately crude. The point is to catch the file that is ABSENT
+# and the one that is TRUNCATED — a redirected dump whose command died mid-write
+# leaves a short file behind, and that is precisely what restores into a broken
+# database. Modelling expected growth would buy nothing and break on a quiet day.
+#
+# Checked BEFORE the restic run, so what gets asserted is what gets snapshotted.
+# The verdict is deferred to the end: a missing dump must not cost us the
+# backup of everything else. The snapshot is taken, and then the run reports
+# DOWN so the operator finds out the same night.
+assert_dump() { # $1=filename  $2=minimum bytes
+    local f="$DUMP_DIR/$1" size
+    if [ ! -f "$f" ]; then
+        log "ERROR: expected dump $1 is missing"
+        return 1
+    fi
+    size=$(stat -c %s "$f")
+    if [ "$size" -lt "$2" ]; then
+        log "ERROR: dump $1 is only $size bytes (floor $2) — truncated?"
+        return 1
+    fi
+    log "dump $1 ok ($size bytes)"
+}
+
+dump_failures=0
+check_dump() { assert_dump "$@" || dump_failures=$((dump_failures + 1)); }
+
+check_dump nextcloud.sql 10240
+check_dump miniflux.sql 10240
+if [ -f "$VAULTWARDEN_DB" ]; then check_dump vaultwarden.sqlite3 10240; fi
+if [ -f "$FORGEJO_DB" ];     then check_dump forgejo.sqlite3     10240; fi
+if [ -f "$KUMA_DB" ];        then check_dump uptime-kuma.sqlite3 10240; fi
+
+# Immich is not dumped here — it runs its own scheduled backup into the restic
+# set — so its failure mode is not a missing file but a STALE one. keepLastAmount
+# only prunes when a new dump is written, so if that job ever stops, the last
+# seven sit there indefinitely and every snapshot keeps carrying a dump of
+# arbitrary age. Nothing would look wrong anywhere. Same staleness guard as the
+# SMART self-test check, for the same reason: the absence of a fresh artefact is
+# the signal, not the absence of an artefact.
+IMMICH_BACKUP_DIR="/mnt/data/services/immich/upload/backups"
+if [ -d "$IMMICH_BACKUP_DIR" ]; then
+    if [ -n "$(find "$IMMICH_BACKUP_DIR" -name 'immich-db-backup-*.sql.gz' -mmin -2880 -print -quit)" ]; then
+        log "Immich database dump is fresh (<48h)"
+    else
+        log "ERROR: no Immich database dump newer than 48h in $IMMICH_BACKUP_DIR"
+        dump_failures=$((dump_failures + 1))
+    fi
+fi
+
 # --- Restic backup ---
 
 log "Running restic backup..."
@@ -218,3 +274,13 @@ restic forget \
 rm -rf "$DUMP_DIR"
 
 log "=== Backup completed ==="
+
+# Deferred verdict from the dump assertions above. Everything else has already
+# run — the snapshot exists, it went offsite, retention was applied — so this
+# only decides what the monitor is told. Non-zero makes the EXIT trap push DOWN
+# instead of "completed", which is the whole point: the night a dump goes
+# missing should not look like the night before.
+if [ "$dump_failures" -gt 0 ]; then
+    log "ERROR: $dump_failures dump check(s) failed — the snapshot is incomplete"
+    exit 1
+fi
