@@ -1,0 +1,33 @@
+---
+# Nextcloud notify_push -> its own Uptime Kuma push monitor.
+#
+# The one service in the stack whose failure is invisible from every angle the
+# other monitors watch: the container stays up, Traefik keeps routing, Nextcloud
+# keeps serving, and the clients silently fall back to 30s polling. Only the
+# app's own self-test can tell the difference, so the probe runs it.
+#
+# Separate from the health report on purpose, like the posture check: a push
+# server that lost Redis is not an outage, and folding it into the signal that
+# carries temperature and disk alerts would bury it.
+
+- name: notify-push | Install the notify_push self-test script
+  ansible.builtin.template:
+    src: homelab-notify-push.sh.j2
+    dest: /usr/local/bin/homelab-notify-push.sh
+    mode: "0750"
+
+- name: notify-push | Install the notify_push self-test service and timer
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: /etc/systemd/system/{{ item }}
+    mode: "0644"
+  loop:
+    - homelab-notify-push.service
+    - homelab-notify-push.timer
+
+- name: notify-push | Enable the notify_push self-test timer
+  ansible.builtin.systemd:
+    name: homelab-notify-push.timer
+    enabled: true
+    state: started
+    daemon_reload: true

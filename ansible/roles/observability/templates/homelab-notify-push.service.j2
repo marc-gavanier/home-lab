@@ -1,0 +1,14 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Nextcloud notify_push self-test
+After=docker.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/homelab-notify-push.sh
+# Exit 1 means "self-test failed and the result was pushed to Kuma", not "the
+# probe broke" — same contract as homelab-posture.service. Without this,
+# systemd marks the unit failed for reporting correctly, and the health check
+# on failed units then raises a second, misleading alarm.
+SuccessExitStatus=1

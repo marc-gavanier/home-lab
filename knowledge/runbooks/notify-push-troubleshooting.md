@@ -82,6 +82,21 @@ docker exec nextcloud-notify-push cat /proc/1/cmdline   # should show .../notify
 ✓ push server is running the same version as the app
 ```
 
+## You should not be reading this because you noticed
+
+`homelab-notify-push.timer` runs `occ notify_push:self-test` every hour and
+pushes the result to its own Kuma monitor, precisely because this failure has no
+symptoms — the clients drop to 30s polling and everything keeps working. The
+failing step travels in the push message, so the Discord alert names it and the
+section above maps it to a fix.
+
+To check by hand, or straight after applying one:
+
+```bash
+docker exec -u www-data nextcloud php occ notify_push:self-test
+sudo systemctl start homelab-notify-push.service   # re-push the result now
+```
+
 ## Reverse proxy reminder
 
 Traefik routes `Host(drive.example.com) && PathPrefix(/push)` to the

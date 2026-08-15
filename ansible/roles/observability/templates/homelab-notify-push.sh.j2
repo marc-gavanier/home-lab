@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# {{ ansible_managed }}
+# =============================================================================
+# Homelab Pi — Nextcloud notify_push self-test
+# =============================================================================
+# notify_push fails silently by construction: when the push connection breaks,
+# the desktop and mobile clients fall back to polling every 30s. Files keep
+# syncing, nothing logs an error, and the only symptom is a Pi quietly doing
+# more work than it should. That is why this needs an active probe and not a
+# monitor — there is nothing to observe from the outside.
+#
+# An HTTP check cannot stand in for it. The binary answers 404 on `/` and 400
+# on `/test/cookie` whether or not it can reach Redis, load mount info, or be
+# trusted as a proxy (measured 2026-08-15), so a status-code probe stays green
+# through every failure that matters.
+#
+# The six steps this runs are the ones that have actually broken here — the
+# 403 through the DNS hairpin, the untrusted reverse proxy, the missing trusted
+# domain (knowledge/runbooks/notify-push-troubleshooting.md). All of them
+# depend on proxy and DNS configuration this repo changes regularly, which is
+# also why the cadence is hourly: the failure follows a deploy rather than
+# arriving on its own, and should surface within the hour of causing it.
+# One occ call, measured at 2.0s. No-ops when no push URL is configured.
+
+set -uo pipefail
+
+KUMA_PUSH_URL='{{ notify_push_kuma_push_url | default("") }}'
+KUMA_PUSH_URL="${KUMA_PUSH_URL%%\?*}"   # strip a pasted example query (see homelab-health.sh)
+
+notify() {
+    [ -n "$KUMA_PUSH_URL" ] || return 0
+    curl -fsS -m 10 --retry 2 -G "$KUMA_PUSH_URL" \
+        --data-urlencode "status=$1" --data-urlencode "msg=$2" >/dev/null 2>&1 || true
+}
+
+# Same reasoning as the posture check: /mnt/data is unlocked by hand after a
+# reboot, so until then the stack is legitimately down and there is nothing to
+# test. Alarming here would cry wolf on every boot.
+if ! mountpoint -q /mnt/data; then
+    notify up "/mnt/data locked — self-test skipped"
+    exit 0
+fi
+
+if ! docker ps --format '{% raw %}{{.Names}}{% endraw %}' | grep -qx nextcloud; then
+    notify up "nextcloud not running — self-test skipped"
+    exit 0
+fi
+
+out=$(docker exec -u www-data nextcloud php occ notify_push:self-test 2>&1)
+rc=$?
+
+# Two different failures, and both have to be caught. A non-zero exit means the
+# command could not run at all; a ✗ line means it ran and a step failed. The
+# failing lines go into the push message, so the Discord alert names the step
+# instead of just saying something broke.
+failed=$(printf '%s\n' "$out" | grep '✗' | tr '\n' ';' | sed 's/;$//')
+
+if [ "$rc" -ne 0 ] || [ -n "$failed" ]; then
+    notify down "${failed:-self-test exited $rc: $(printf '%s' "$out" | tail -1)}"
+    exit 1
+fi
+
+# Count the passing steps rather than asserting six of them: an app version
+# that adds a seventh check would otherwise read as a regression.
+passed=$(printf '%s\n' "$out" | grep -c '✓')
+
+# Context, never an alarm. Zero connections is the normal state when every
+# client is asleep, so it says something about usage, not about health.
+conns=$(docker exec -u www-data nextcloud php occ notify_push:metrics 2>/dev/null \
+        | awk -F': ' '/Active connection count/ {print $2}')
+
+notify up "self-test ok (${passed} checks), ${conns:-?} active connection(s)"

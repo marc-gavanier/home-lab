@@ -16,6 +16,11 @@ argument_specs:
         required: false
         no_log: true
         description: Uptime Kuma push URL for the daily container posture check (token = secret). Empty/absent = disabled.
+      notify_push_kuma_push_url:
+        type: str
+        required: false
+        no_log: true
+        description: Uptime Kuma push URL for the hourly Nextcloud notify_push self-test (token = secret). Empty/absent = disabled.
       lynis_kuma_push_url:
         type: str
         required: false
