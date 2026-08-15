@@ -88,6 +88,8 @@ docker exec -i nextcloud-db mariadb -u nextcloud -p"$NEXTCLOUD_DB_PASSWORD" next
 docker exec -u www-data nextcloud php occ maintenance:mode --off
 
 # Immich (PostgreSQL) — see "Restore Immich" below (special search_path handling)
+# Miniflux (PostgreSQL), Forgejo (SQLite) — see their own sections below: both
+# need the target reset or the service stopped first, not just an import.
 ```
 
 ## Restore Vaultwarden (SQLite)
@@ -156,6 +158,89 @@ docker compose up -d immich-server immich-ml immich-redis
 Sanity-check: log in, confirm the timeline and search (VectorChord) work. The
 photo/video files themselves live in `services/immich/upload` and `media/photos`
 — restore those from a snapshot too if they were lost.
+
+## Restore Miniflux (PostgreSQL)
+
+The nightly backup writes a plain-SQL `pg_dump` to
+`/mnt/data/backups/dumps/miniflux.sql` (captured in the snapshot). Restore that,
+**not** the datadir under `services/miniflux/db`: the datadir is in the restic
+set, but restic walks it file by file while Postgres writes, so the copy in a
+snapshot can be a torn cluster. The dump carries no `--clean`, so it has to be
+loaded into a freshly-initialised database.
+
+> `down`, not `stop`: the crash-heal timer brings back containers it finds
+> exited, so a merely stopped service can return mid-restore
+> (`homelab-stack-heal.sh`).
+
+```bash
+restic restore latest --target /tmp/restore --include /mnt/data/backups/dumps
+
+cd /opt/homelab
+
+# 1. Remove both containers — the reader too, so nothing writes during the load:
+docker compose down miniflux miniflux-db
+
+# 2. Reset the datadir so the entrypoint re-runs initdb. Clear the parent, not
+#    db/18/docker: Postgres 18 keeps PGDATA one level below the mounted volume.
+rm -rf /mnt/data/services/miniflux/db/*
+
+# 3. Bring the database back up empty and wait until it is healthy:
+docker compose up -d miniflux-db
+until [ "$(docker inspect -f '{{.State.Health.Status}}' miniflux-db)" = healthy ]; do sleep 2; done
+
+# 4. Load the dump — atomic, abort on first error:
+docker exec -i miniflux-db psql \
+    --dbname=miniflux --username=miniflux \
+    --single-transaction --set ON_ERROR_STOP=on \
+  < /tmp/restore/mnt/data/backups/dumps/miniflux.sql
+
+# 5. Start the reader again:
+docker compose up -d miniflux
+```
+
+(Role and database are both `miniflux` unless `miniflux_db_user` /
+`miniflux_db_name` were overridden in `local.yml`.)
+
+Sanity-check: log in at `https://rss.<domain>` and confirm the feed list and the
+unread counts. Nothing else to restore — Miniflux keeps all of its state in
+Postgres, which is why its container needs no writable filesystem at all.
+
+## Restore Forgejo (SQLite)
+
+Two halves, and both are needed. The database
+(`/mnt/data/backups/dumps/forgejo.sqlite3`, a consistent `sqlite3 .backup` copy)
+holds the users, the repository list and the mirror settings; the repositories
+themselves are plain files under `services/forgejo/data/git/repositories` that
+restic restores directly. Restore only one and you get a forge that lists
+repositories it cannot serve, or serves repositories it does not list.
+
+```bash
+restic restore latest --target /tmp/restore \
+  --include /mnt/data/backups/dumps \
+  --include /mnt/data/services/forgejo
+
+cd /opt/homelab
+docker compose down forgejo
+
+# Repositories and config — skip if only the database was lost:
+rsync -a --delete /tmp/restore/mnt/data/services/forgejo/ /mnt/data/services/forgejo/
+
+# Database. The doubled data/data is the rootless layout, not a typo: the host
+# directory forgejo/data is mounted at /var/lib/gitea, and APP_DATA_PATH sits
+# one level under that. Drop any stale WAL/SHM so SQLite reopens cleanly.
+rm -f /mnt/data/services/forgejo/data/data/forgejo.db-wal \
+      /mnt/data/services/forgejo/data/data/forgejo.db-shm
+cp /tmp/restore/mnt/data/backups/dumps/forgejo.sqlite3 \
+   /mnt/data/services/forgejo/data/data/forgejo.db
+
+chown -R 1000:1000 /mnt/data/services/forgejo   # `git` in the rootless image
+docker compose up -d forgejo
+```
+
+Sanity-check: log in at `https://git.<domain>`, then Repository → Settings →
+Mirror Settings → *Synchronize Now*. There are no mirror credentials to restore:
+the pull runs tokenless by decision (ADR-028), which also means issues and pull
+requests were never mirrored — only the git objects come back.
 
 ## Full disaster recovery
 
