@@ -48,7 +48,10 @@ the only kind of monitor that can watch a once-a-day job.
 4. Tick your existing notification channel.
 5. **Save**, copy the **Push URL**, and keep only the base form
    `https://<uptime-kuma>/api/push/<token>` — **drop any trailing
-   `?status=up&msg=OK&ping=`**, the script appends its own parameters.
+   `?status=up&msg=OK&ping=`**, the script appends its own parameters. Since
+   2026-08-15 `notify()` strips that suffix itself, so pasting it no longer breaks
+   anything — but keep the habit: a URL that says `status=up` in plain text invites
+   the next reader to trust it.
 6. Two files, because two kinds of value:
    - **`local.yml`** (gitignored, vaulted) for the secrets — the API key and the push
      URL, which carries a token:
@@ -133,6 +136,27 @@ sudo -u claude tail -40 /home/claude/.local/share/feed-digest/digest.log
 
 A run that fails pushes `status=down` to Kuma with the message, so the notification usually
 already carries the answer.
+
+## Kuma is green but the message is always `OK`
+
+The dangerous variant, because nothing looks wrong. It means the push is landing but the
+parameters the script sends are being ignored, so `status=down` never gets through either:
+the monitor can only ever be green, and a broken digest reports success. Read the message,
+not the colour — a healthy beat says `N entrées résumées, M reportées`.
+
+```sh
+sudo grep -n 'curl -fsS' /home/claude/.local/share/feed-digest/digest.sh   # must contain -G
+```
+
+Two causes, both fixed on 2026-08-15 and both worth re-checking if the file was hand-edited:
+`curl` without `-G` sends the parameters as a request body that Kuma does not read, and a
+Push URL pasted with its `?status=up&msg=OK&ping=` suffix overrides whatever the request
+carries. `notify()` now forces `-G` and strips the suffix.
+
+A monitor that has never received a real beat is the same failure one step earlier: a single
+`OK` at creation time (the operator's test `curl`) then nothing. Check before trusting it —
+`SELECT datetime(time), status, msg FROM heartbeat WHERE monitor_id=<id> ORDER BY time DESC`
+against a read-only copy of `kuma.db`, per [uptime-kuma.md](../../docs/05-services/uptime-kuma.md).
 
 ## Draining a backlog
 

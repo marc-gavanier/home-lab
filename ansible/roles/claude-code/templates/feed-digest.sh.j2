@@ -107,10 +107,22 @@ PRESENTATION_EOF
 fi
 
 notify() { # $1=up|down  $2=message
-    [ -n "$KUMA_PUSH_URL" ] || return 0
-    curl -fsS -m 10 -o /dev/null \
+    local url="$KUMA_PUSH_URL"
+    [ -n "$url" ] || return 0
+    # -G matters more than it looks: without it curl sends the parameters as a
+    # request body, and Kuma reads none of them. Measured 2026-08-15 — the push
+    # arrived, the monitor turned green, and the message was not the one sent.
+    # The strip is the other half. Kuma's own UI hands out a Push URL with a
+    # ready-made ?status=up&msg=OK&ping= suffix, and the URL's query wins over
+    # anything the request carries: one pasted verbatim pins EVERY push to
+    # up/OK, so `fail` below would report success on the day the digest breaks.
+    # Both halves are needed — the same pair guards backup.sh and the six other
+    # push scripts. Step 5 of knowledge/runbooks/feed-digest.md still says to
+    # paste the base form; this makes obeying it optional rather than critical.
+    url="${url%%\?*}"
+    curl -fsS -m 10 -o /dev/null -G \
         --data-urlencode "status=$1" --data-urlencode "msg=$2" \
-        "$KUMA_PUSH_URL" 2>>"$LOG" || log "WARNING: Kuma push failed"
+        "$url" 2>>"$LOG" || log "WARNING: Kuma push failed"
 }
 
 fail() { log "ERROR: $*"; notify down "$*"; exit 1; }
