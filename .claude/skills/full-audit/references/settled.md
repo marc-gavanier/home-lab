@@ -85,18 +85,23 @@ and verified in a later sweep.
 
 | Finding | Status |
 |---|---|
-| Alerting stack runs its rules with no recipient configured — nothing is delivered | open |
-| Health script pushed to monitoring carries no memory or swap signal | open |
+| Alerting stack runs its rules with no recipient configured — nothing is delivered | **settled**: left recipient-less on purpose, its stock thresholds being tuned for a generic server; the signal worth acting on moved to the health push instead, and the docs now say so. Do not re-report the absent recipient as a finding. |
+| Health script pushed to monitoring carries no memory or swap signal | **fixed** — available-memory alarm on two consecutive runs, swap reported and deliberately not alarmed on |
 | Git service running with the upstream default encryption key (no 2FA, tokens or webhooks exist yet, so exposure is nil today; a key rotation is impossible later) | open |
-| Restore runbook uses a container name where the orchestrator expects a service name — the command fails and the next step deletes a database directory | open |
+| Restore runbook uses a container name where the orchestrator expects a service name — the command fails and the next step deletes a database directory | **fixed** |
 | Documented network perimeter is wrong in both directions: two ports documented as forwarded are not, and the one port actually reachable is documented nowhere | open |
-| A failed database dump degrades to a warning, leaves the exit code untouched, and its trace is deleted | open |
-| Cloud service log grew to ~91 MB, effectively all one repeated client-side exception | open |
-| Dead configuration knob holding a plausible value that nothing reads | open |
-| Example override file missing two keys, one of which guards seven tasks | open |
-| Orphaned anonymous volume left by a first container start | open |
-| Comment asserting the host "almost never swaps", contradicted by measurement | open |
-| `mkswap` running unguarded with its failure suppressed | suspected |
+| A failed database dump degrades to a warning, leaves the exit code untouched, and its trace is deleted | **fixed** — presence and size floor asserted before the snapshot, staleness guard for the service that backs itself up, verdict deferred so a bad dump does not cost the rest of the backup |
+| Cloud service log grew to ~91 MB, effectively all one repeated client-side exception | open — client-side, the operator's call |
+| Dead configuration knob holding a plausible value that nothing reads | **fixed** |
+| Example override file missing two keys, one of which guards seven tasks | **fixed** |
+| Orphaned anonymous volume left by a first container start | open — cosmetic, remove by hand; never with a broad prune, the other anonymous volumes are legitimate |
+| Comment asserting the host "almost never swaps", contradicted by measurement | **fixed** |
+| `mkswap` running unguarded with its failure suppressed | **fixed** — gated on the swap file's prior absence |
+
+A fix is not proof. The next sweep must confirm each "fixed" line **behaves**, not
+merely that the code changed: the dump assertions have to be seen firing on a real
+nightly run, and the memory signal seen in an actual push message. That is the
+whole difference this skill exists to enforce.
 
 Also settled during that run, and **not** to be re-raised: the eleven empty-default
 push URLs were all verified populated; the non-empty defaults were verified not to

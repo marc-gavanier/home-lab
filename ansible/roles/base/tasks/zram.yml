@@ -3,8 +3,14 @@
 # only where it earns its keep (zram_enabled in host_vars):
 #   - offsite (4GB, no HDD swapfile): real headroom for memory-spiky restic
 #     runs, kept off the SSD.
-#   - homelab (8GB, swappiness=10): almost never swaps, so it stays OFF —
-#     compression CPU for swap it would not use.
+#   - homelab (8GB, swappiness=10): stays OFF, but NOT for the reason this
+#     comment used to give. It claimed the host "almost never swaps"; measured
+#     on 2026-08-15, the swap file is ~76% occupied on average and takes about
+#     400 MiB of writes a day. The real argument is better anyway: zram trades
+#     RAM for latency, it does not create capacity. Reserving ~700 MiB of RAM
+#     to compress pages that cost nothing on a 5TB disk would eat straight into
+#     the headroom that matters — available memory bottomed out at 756 MiB over
+#     the same period, and that is what precedes an OOM, not a full swap.
 # zram-tools is the Ubuntu-native path; PRIORITY outranks any disk swap so zram
 # fills first and a disk swapfile (where present) stays a last-resort fallback.
 
