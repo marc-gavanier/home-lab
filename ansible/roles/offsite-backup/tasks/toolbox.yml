@@ -1,0 +1,23 @@
+---
+# On-site recovery toolbox.
+#
+# The 2026-08-15 drill read the repository from this Pi itself, with the
+# homelab unreachable, and found the capability resting on packages nobody had
+# declared: `restic` had been installed by hand during the July seeding — no
+# task in this repository installs it, since the only `restic` entry lives in
+# the deploy role, which never runs here — and `sqlite3` was missing outright,
+# so the integrity check of the restored databases could not run on site.
+#
+# A rebuild from this repository would therefore have produced an offsite Pi
+# unable to read its own repository, discovered at the worst possible moment.
+#
+# Installing the tools does not weaken ADR-010: the repo password still lives
+# nowhere on this host, so a stolen Pi or SSD still yields only ciphertext.
+# The tool is not the secret.
+
+- name: toolbox | Install the on-site recovery tools
+  ansible.builtin.apt:
+    name:
+      - restic # read and restore the repository here when the homelab is gone
+      - sqlite3 # verify the restored Vaultwarden and Forgejo databases in place
+    state: present

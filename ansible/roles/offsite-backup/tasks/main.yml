@@ -21,3 +21,6 @@
 
 - name: Install the disk-health report and SMART self-test
   ansible.builtin.import_tasks: health.yml
+
+- name: Install the tools needed to recover from this Pi on site
+  ansible.builtin.import_tasks: toolbox.yml
