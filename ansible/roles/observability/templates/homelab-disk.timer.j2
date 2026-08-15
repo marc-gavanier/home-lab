@@ -1,0 +1,14 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Daily homelab disk-health report
+
+[Timer]
+# 07:00: after the 03:00 backup and its offsite copy, so a night that filled
+# the disk or rattled the drive is reported with the consequences already in,
+# and early enough that the message is read over coffee rather than at midnight.
+OnCalendar=*-*-* 07:00:00
+Persistent=true
+RandomizedDelaySec=10m
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,15 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Monthly SMART long self-test on the homelab data disk
+
+[Timer]
+# 1st of the month at 04:30: after the nightly backup window and its offsite
+# copy, and before the daily disk report at 07:00 — though the test itself runs
+# for hours, so the result usually lands in a later report, which is fine: the
+# staleness check tolerates 35 days.
+OnCalendar=*-*-01 04:30
+Persistent=true
+RandomizedDelaySec=15m
+
+[Install]
+WantedBy=timers.target

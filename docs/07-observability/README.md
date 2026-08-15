@@ -61,6 +61,33 @@ instead of only saying something is wrong. The active connection count rides
 along as context and never alarms — zero is the normal state when every client
 is asleep.
 
+### The daily disk-health report
+
+`homelab-disk.sh` (daily at 07:00, its own Kuma push monitor) watches the 5 TB
+drive: SMART early-warning counters, capacity, temperature, and the result of
+the monthly long self-test started by `homelab-smart-test.timer`.
+
+It exists because until 2026-08-15 nothing watched that disk at all — while the
+offsite Pi, which holds only a *copy*, had a weekly SMART report and a monthly
+self-test since July. **The copy was better monitored than the original.** The
+only self-test ever run on the drive was a short one at 16 power-on hours; it
+had reached 2363.
+
+The overall `smartctl -H` verdict is deliberately not trusted on its own: it
+stays PASSED until a drive is nearly dead. The counters that predict failure
+early are checked individually — reallocated and pending sectors, offline
+uncorrectable, end-to-end errors, and the interface CRC count that catches a bad
+cable or bridge — and any of them leaving zero reports DOWN. The self-test
+result is checked for failure *and* for staleness, comparing its power-on-hour
+stamp against the drive's current one, so a silently dead timer surfaces instead
+of leaving an eternally green result from a year ago.
+
+Daily rather than the offsite's weekly, because this drive takes writes from 25
+services continuously while the offsite one is read once a night. It is separate
+from `homelab-health.sh` for the same reason the posture check is: a reallocated
+sector is not an outage, it is a countdown, and it would be buried inside a
+five-minute signal carrying CPU temperature.
+
 **They are generated when the `observability` role templates the script, not
 when the stack is deployed** — the running script holds a snapshot, it does not
 read `compose.yaml`. So a hardening change needs `--tags deploy,observability`:

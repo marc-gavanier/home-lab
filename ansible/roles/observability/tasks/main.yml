@@ -15,3 +15,6 @@
 
 - name: Run the Nextcloud notify_push self-test hourly
   ansible.builtin.import_tasks: notify-push.yml
+
+- name: Watch the data disk (SMART counters, capacity, monthly long self-test)
+  ansible.builtin.import_tasks: disk.yml

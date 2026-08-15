@@ -16,6 +16,11 @@ argument_specs:
         required: false
         no_log: true
         description: Uptime Kuma push URL for the daily container posture check (token = secret). Empty/absent = disabled.
+      disk_health_kuma_push_url:
+        type: str
+        required: false
+        no_log: true
+        description: Uptime Kuma push URL for the daily data-disk health report (token = secret). Empty/absent = disabled.
       notify_push_kuma_push_url:
         type: str
         required: false

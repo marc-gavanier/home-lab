@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+# {{ ansible_managed }}
+# =============================================================================
+# Homelab Pi — daily disk-health report
+# =============================================================================
+# The 5 TB disk carries every service's data, the media library and the local
+# restic repository, and until now nothing watched it. The offsite Pi — which
+# holds a *copy* — had a weekly SMART report and a monthly long self-test since
+# July; the original had neither. The only self-test ever run on this drive was
+# a short one at 16 power-on hours, measured 2026-08-15 at 2363.
+#
+# Daily rather than the offsite's weekly, because this drive takes writes from
+# 25 services continuously while the offsite one is read once a night. Reading
+# the attributes costs nothing and never spins the drive up: it is always awake.
+#
+# The overall `smartctl -H` verdict is deliberately NOT trusted on its own — it
+# stays PASSED until a drive is nearly dead. The early-warning counters are
+# checked individually, so any of them leaving zero reports DOWN long before the
+# verdict flips. Same reasoning, same counter list as the offsite report.
+#
+# Power and thermal for the Pi itself stay in homelab-health.sh (every 5 min);
+# this is about the disk, and it has its own push monitor so a slowly rotting
+# drive cannot hide inside a signal that carries CPU temperature.
+
+set -uo pipefail
+
+KUMA_PUSH_URL='{{ disk_health_kuma_push_url | default("") }}'
+KUMA_PUSH_URL="${KUMA_PUSH_URL%%\?*}"   # strip a pasted example query (see homelab-health.sh)
+MOUNT='{{ data_mount_point }}'
+DISK='{{ data_disk_device }}'
+DRIVE=${DISK%[0-9]*}
+
+notify() {
+    [ -n "$KUMA_PUSH_URL" ] || return 0
+    curl -fsS -m 10 --retry 2 -G "$KUMA_PUSH_URL" \
+        --data-urlencode "status=$1" --data-urlencode "msg=$2" >/dev/null 2>&1 || true
+}
+
+problems=()
+report=()
+
+# --- Capacity ---
+# /mnt/data is unlocked by hand after a reboot. Until then there is no
+# filesystem to measure — but the drive is still there and its SMART data still
+# readable, which is the part that matters here. Report the gap, keep going.
+
+if mountpoint -q "$MOUNT"; then
+    usage=$(df --output=pcent "$MOUNT" | tail -1 | tr -dc '0-9')
+    [ "$usage" -ge 85 ] && problems+=("disk ${usage}% full")
+    report+=("disk ${usage}%")
+else
+    report+=("locked")
+fi
+
+# --- SMART ---
+# smartctl exit status is a bitmask: bit 3 (value 8) = disk failing;
+# bits 0-2 = command/device errors (USB bridge quirks — not a disk failure).
+
+smart_out=$(smartctl -H -A -l selftest "$DRIVE" 2>/dev/null)
+rc=$?
+if [ $((rc & 8)) -ne 0 ]; then
+    problems+=("SMART FAILING")
+elif [ $((rc & 7)) -ne 0 ] && [ -z "$smart_out" ]; then
+    problems+=("SMART unreadable")
+fi
+
+if [ -n "$smart_out" ]; then
+    raw() { awk -v id="$1" '$1 == id { print $10; exit }' <<<"$smart_out"; }
+
+    # Each of these is an early failure predictor, and each must stay at zero:
+    # media decay (5/197/198), data-path corruption (184), read failures the
+    # drive corrected but should not have had (187), and USB cable or bridge
+    # trouble (199) — the fault that killed the first candidate disk.
+    for spec in 5:realloc 184:end-to-end 187:uncorrectable \
+                197:pending 198:offline-uncorrectable 199:crc-err; do
+        v=$(raw "${spec%%:*}")
+        if [ -n "$v" ] && [ "$v" != "0" ]; then
+            problems+=("SMART ${spec#*:}=$v")
+        fi
+    done
+
+    # Temperature (attribute 194). 60C rather than the offsite SSD's 70: this is
+    # a spinning drive in an enclosure, rated to 65, and it already idles near 53.
+    hdd_temp=$(raw 194)
+    if [ -n "$hdd_temp" ]; then
+        report+=("hdd ${hdd_temp}C")
+        [ "$hdd_temp" -ge 60 ] && problems+=("hdd ${hdd_temp}C")
+    fi
+
+    # Last long self-test (started monthly by homelab-smart-test.timer).
+    selftest=$(awk '/^# 1/ { $1=""; $2=""; print; exit }' <<<"$smart_out" | xargs)
+    if [ -n "$selftest" ]; then
+        grep -qiE 'fail|aborted' <<<"$selftest" && problems+=("self-test: $selftest")
+        # Dead-man's check on the monthly timer itself: the log stamps each test
+        # in drive power-on hours, so comparing with attribute 9 catches a
+        # silently dead timer instead of leaving an eternally green "Completed
+        # without error" from a year ago — which is exactly the state this drive
+        # was found in, its only self-test dating back to 16 power-on hours.
+        now_h=$(raw 9)
+        test_h=$(awk '/^# 1/ { for (i = 1; i <= NF; i++) if ($i ~ /%$/) { print $(i + 1); exit } }' <<<"$smart_out")
+        if [ -n "$now_h" ] && [ -n "$test_h" ] && [ $((now_h - test_h)) -gt 840 ]; then
+            problems+=("self-test stale ($(((now_h - test_h) / 24))d ago)")
+        fi
+    else
+        report+=("no self-test yet")
+    fi
+fi
+
+# --- Verdict ---
+
+join() { local out; out=$(printf "%s$1" "${@:2}"); echo "${out%"$1"}"; }
+
+msg=$(join ', ' "${report[@]}")
+{# bash ${#array[@]} reads as a Jinja comment opener — shield it #}
+if [ {% raw %}${#problems[@]}{% endraw %} -gt 0 ]; then
+    notify down "$(join '; ' "${problems[@]}") | $msg"
+    exit 1
+fi
+
+notify up "$msg"

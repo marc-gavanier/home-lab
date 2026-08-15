@@ -148,6 +148,13 @@ lynis_kuma_push_url: ""
 # "Nextcloud notify_push" with a 90 min heartbeat interval (the timer is hourly
 # with a 5 min jitter) and paste its push URL here. Empty = disabled.
 notify_push_kuma_push_url: ""
+# Daily health report for the 5 TB data disk: SMART early-warning counters,
+# capacity, temperature, and the result of the monthly long self-test. Nothing
+# else watches this drive, and it carries every service's data plus the local
+# restic repository. Create a "Push" monitor named e.g. "Pi disk health" with a
+# 26 h heartbeat interval (the report runs daily at 07:00 with 10 min of
+# jitter) and paste its push URL here. Empty = disabled.
+disk_health_kuma_push_url: ""
 
 # --- Backup ---
 restic_password: ""
