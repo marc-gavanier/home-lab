@@ -261,6 +261,51 @@ requests were never mirrored — only the git objects come back.
 A restore procedure that has never been executed is a hypothesis. Each drill
 goes here, with what it measured and what it contradicted.
 
+### 2026-08-15 — second drill, **on site, with the homelab cut off**
+
+The July drill restored from the offsite repository *through the tunnel*, which
+still routes via the machine whose loss it insures against. This one was run
+standing next to the offsite Pi, with the WireGuard tunnel down, to answer the
+only question that matters: can the data be read when the homelab no longer
+exists?
+
+Both paths were exercised and produced the same bytes:
+
+| Path | Volume | Time |
+|---------------------------------------|-------------|------|
+| Through the tunnel (rest-server) | 22.819 MiB | 3 s |
+| On site, tunnel down, local repo path | 22.819 MiB | < 1 s |
+
+Verified by *loading*, never by listing:
+
+- `vaultwarden.sqlite3` — `pragma integrity_check` ok, 1 user, **591 ciphers**
+- `forgejo.sqlite3` — `pragma integrity_check` ok, 1 repository, 1 user
+- `nextcloud.sql` — MariaDB header and `Dump completed` trailer, **168 tables**
+
+Repository state read directly off the disk: 343 GB, 20 991 pack files, last
+written the same morning at 03:06 — the nightly copy had landed.
+
+**What the drill contradicted or confirmed:**
+
+1. **The password you reach for first is the wrong one.** The local and offsite
+   repositories have different passwords by design (ADR-010), and the first
+   on-site attempt failed on exactly that. The working value is
+   `offsite_restic_password`, not the local `restic_password`. Knowing *which*
+   secret opens the offsite repository is part of the procedure, not a detail to
+   work out during an incident.
+2. **The recovery toolbox was not reproducible from this repository.** `restic`
+   was present only because someone installed it by hand in July; `sqlite3` was
+   absent, so the integrity check could not run on site at all. A rebuilt
+   offsite Pi would not have been able to read its own repository. Now installed
+   by `roles/offsite-backup/tasks/toolbox.yml`.
+3. **Reaching the Pi by its LAN address trips host-key verification** — the key
+   is known under the tunnel address. Compare the fingerprint against the known
+   entry rather than accepting blindly; they matched.
+4. **The repository needs `sudo` to read**: it belongs to `rest-server`, so an
+   unprivileged `restic -r` fails on `keys/` before ever asking for a password.
+5. **Confirmed**: restic 0.16.4 on both sides, so no repository-format mismatch
+   between reading it in place and reading it from the homelab.
+
 ### 2026-07-27 — first drill, from the **offsite** repository (issue #36)
 
 Restored through the WireGuard tunnel from the repo at the relative's house —

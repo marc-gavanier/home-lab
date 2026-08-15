@@ -125,10 +125,26 @@ restic check --read-data-subset=2%
 
 ## Disaster recovery (homelab lost)
 
-1. Retrieve the offsite Pi or its SSD.
+1. Retrieve the offsite Pi or its SSD — **or read it where it stands**, which
+   the 2026-08-15 drill proved works and is faster. On the relative's LAN, with
+   no tunnel and no homelab:
+
+   ```bash
+   ssh -o ProxyJump=none -p <ssh_port_hardened> <admin_user>@<pi-lan-ip>
+   sudo restic -r /mnt/backup/restic snapshots
+   ```
+
+   Two things bite here. The repository belongs to `rest-server`, so without
+   `sudo` restic fails on `keys/` before asking for anything. And the host key
+   is known under the tunnel address, so connecting by LAN address trips
+   verification — compare the fingerprint against the known one instead of
+   accepting blindly.
 2. On any machine: `restic -r /mnt/backup/restic restore latest --target /restore`
-   with the **offsite repo password** (Vaultwarden + offline copy — this
-   password is the root of the whole recovery chain).
+   with the **offsite repo password** — the vaulted `offsite_restic_password`,
+   **not** the local `restic_password`. They differ by design, and the first
+   drill attempt failed for exactly that reason. This password is the root of
+   the whole recovery chain; make sure a copy of it survives whatever takes out
+   the homelab.
 3. Re-provision a new Pi from the git repo (`ansible/`), reinject
    `/restore/mnt/data/...` and the `.env` files from `/restore/opt/homelab`.
 4. Follow "Full disaster recovery" in `restore-from-backup.md`.
