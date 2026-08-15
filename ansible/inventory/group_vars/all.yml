@@ -15,7 +15,17 @@ ssh_port_hardened: 22
 hostname: homelab
 timezone: Europe/Paris
 locale: fr_FR.UTF-8
-swap_size_mb: 2048
+# 4096 since 2026-08-15, up from 2048. Not because the machine was short of
+# memory — it has never been OOM-killed — but because at 2 GiB the swap was
+# ~92% full in normal operation: roughly 1.9 GiB of genuinely cold pages
+# (Collabora's pre-forked kits, immich-server) that will never be touched
+# again. A swap that is full in the steady state cannot warn about anything,
+# and leaves the kernel nowhere to evict to on the day memory actually gets
+# tight. Doubling it costs 2 GiB on a disk with 3.6 TiB free, no RAM and no CPU,
+# and turns occupancy back into a signal — see the alert in homelab-health.sh.
+# NOTE: changing this value alone resizes nothing, `creates:` guards the file.
+# See roles/storage/tasks/swap.yml for the deliberate manual procedure.
+swap_size_mb: 4096
 
 # --- Storage ---
 data_disk_device: /dev/sda1       # HDD 5TB partition

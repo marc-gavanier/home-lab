@@ -115,13 +115,22 @@ done
 # is absorbed by requiring two consecutive runs. Zero false alarms over the
 # whole observed period.
 #
-# Swap is REPORTED, never alarmed on. It sat at 100% for days while 4 GiB stayed
-# available and nothing was ever OOM-killed: a full swap means cold pages were
-# evicted, not that the machine is in trouble. Alarming on it would have been
-# red for six days with nothing to do about it — the same trap that retired the
-# extended SMART self-test. What precedes an OOM is available memory running
-# out, and that is what pages above.
+# Swap alarms too, but only because it was resized. At 2 GiB it sat ~92% full
+# in normal operation — roughly 1.9 GiB of genuinely cold pages that will never
+# be touched again — so occupancy carried no information: a threshold under it
+# would have been red for six days with nothing to do, the trap that retired the
+# extended SMART self-test, and one above it would never fire. Doubling the file
+# to 4 GiB puts that same steady state near 46%, which makes the number mean
+# something again.
+#
+# 85% is therefore a STARTING POINT, not a measured threshold, and it is the one
+# number here that is not backed by history: every observation available was
+# capped by the old size, so how much the kernel would have evicted with more
+# room is an inference. With swappiness=10 it should stay conservative. Revisit
+# once a few weeks of the new steady state are visible; if it turns out to sit
+# above 85%, raise it rather than deleting it.
 MEM_THRESHOLD_MIB=800
+SWAP_THRESHOLD_PCT=85
 MEM_STAMP=/var/lib/homelab-health/lowmem.stamp
 if [ -r /proc/meminfo ]; then
     mem_avail=$(awk '/^MemAvailable:/ {print int($2/1024)}' /proc/meminfo)
@@ -129,7 +138,15 @@ if [ -r /proc/meminfo ]; then
     swap_free=$(awk '/^SwapFree:/ {print int($2/1024)}' /proc/meminfo)
     mem_avail=${mem_avail:-0}; swap_total=${swap_total:-0}; swap_free=${swap_free:-0}
     report+=("mem ${mem_avail}Mi free")
-    [ "$swap_total" -gt 0 ] && report+=("swap $(( (swap_total - swap_free) * 100 / swap_total ))%")
+    if [ "$swap_total" -gt 0 ]; then
+        swap_pct=$(( (swap_total - swap_free) * 100 / swap_total ))
+        report+=("swap ${swap_pct}%")
+        # Not age-gated, unlike the checks around it: swap occupancy moves over
+        # hours, not seconds, so there is no transient to absorb. It is empty
+        # after a boot and fills slowly, so this cannot fire on a restart.
+        [ "$swap_pct" -ge "$SWAP_THRESHOLD_PCT" ] && \
+            problems+=("swap ${swap_pct}% used, over ${SWAP_THRESHOLD_PCT}% — nowhere left to evict to")
+    fi
     if [ "$mem_avail" -lt "$MEM_THRESHOLD_MIB" ]; then
         mkdir -p "$(dirname "$MEM_STAMP")"
         # Second consecutive low reading, i.e. sustained for >5 min, not a dip.

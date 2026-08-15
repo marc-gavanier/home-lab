@@ -4,8 +4,18 @@
 # `creates:` means this runs ONCE. Changing swap_size_mb afterwards resizes
 # nothing and the play still reports ok — the knob looks live and is not.
 # Resizing is a deliberate manual operation, because the file is in use:
-#   swapoff /mnt/data/swapfile && rm /mnt/data/swapfile
-#   then re-run this role, which recreates it at the new size.
+#
+#   free -h                                  # check available RAM first
+#   swapoff /mnt/data/swapfile               # pages come BACK into RAM
+#   rm /mnt/data/swapfile
+#   ansible-playbook playbooks/site.yml --tags storage --ask-vault-pass
+#
+# `swapoff` is the step that deserves care: it reads every swapped page back
+# into memory, over USB. With ~1.9 GiB in swap that is 1.9 GiB that must fit in
+# available RAM, and minutes of disk churn — do it when the stack is idle, and
+# never inside the 03:00 backup window. If available memory is smaller than the
+# used swap, `swapoff` simply fails rather than OOM-ing, so check `free -h`
+# first and stop services if it is tight.
 - name: swap | Check whether the swap file already exists
   ansible.builtin.stat:
     path: "{{ data_mount_point }}/swapfile"

@@ -103,6 +103,13 @@ merely that the code changed: the dump assertions have to be seen firing on a re
 nightly run, and the memory signal seen in an actual push message. That is the
 whole difference this skill exists to enforce.
 
+One deliberate loose end, so it is revisited rather than re-reported. The swap
+file was doubled and an occupancy alarm added at **85 %**, and that percentage is
+an inference, not a measurement — every observation available was capped by the
+previous size. It is the one threshold in the health script without history
+behind it. A later sweep should check the settled occupancy against it and say
+whether it wants raising; finding it un-calibrated is expected, not a finding.
+
 Also settled during that run, and **not** to be re-raised: the eleven empty-default
 push URLs were all verified populated; the non-empty defaults were verified not to
 be overriding the operator's values; and the monitoring push defect found that day
