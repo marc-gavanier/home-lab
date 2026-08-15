@@ -13,7 +13,7 @@ Home lab on Raspberry Pi 4 (8GB, Ubuntu Server 24.04 LTS). Security posture was 
 
 ## Current Attack Surface
 
-- **51820/udp (WireGuard)** is the ONLY internet-exposed port. Ports 80/443 are closed; all HTTP(S) services are VPN-only with split-DNS (ADR-002, ADR-014)
+- **Two ports are internet-exposed**: `51820/udp` (WireGuard) and `51413` (Transmission's peer port, tcp+udp, open by design for seeding). Ports 80/443 are **not** forwarded — closed since late July 2026 — so all HTTP(S) services are LAN/VPN-only with split-DNS (ADR-002, ADR-013, ADR-014). This line said 51820 was the only one until 2026-08-15; probe the perimeter, never quote it
 - TLS via Let's Encrypt **DNS-01** (Cloudflare) — no inbound HTTP needed
 - SSH: key-only, vaulted non-standard port, LAN/VPN only
 - Docker socket behind read-only socket-proxy; secrets as Docker secrets files, not env vars (ADR-016)

@@ -5,8 +5,11 @@
 ```
 Internet → ISP Router (IPv4 full stack, port forwarding)
                │
-               ├─ Port 80/443 → Pi (Traefik)
-               └─ Port 51820/udp → Pi (WireGuard)
+               ├─ 51820/udp  → Pi (WireGuard)
+               └─ 51413      → Pi (Transmission peer port, open for seeding)
+
+  80/443 are NOT forwarded — removed in late July 2026. Traefik listens, but
+  only the LAN and the VPN can reach it. See "What is actually reachable" below.
 ```
 
 ## Domain: example.com
@@ -28,6 +31,7 @@ All services are **VPN-only**. The `vpn-only` middleware is applied globally on 
 | `tools.example.com`    | IT-Tools     |
 | `books.example.com`    | Calibre-Web  |
 | `rss.example.com`      | Miniflux     |
+| `git.example.com`      | Forgejo      |
 | `dns.example.com`      | Pi-hole      |
 | `services.example.com` | Uptime Kuma  |
 | `system.example.com`   | Netdata      |
@@ -72,12 +76,29 @@ All services are **VPN-only**. The `vpn-only` middleware is applied globally on 
 
 ## Security Model
 
+### What is actually reachable
+
+Measured from the offsite Pi's uplink on 2026-08-15, with a known-open port as a
+control so that a timeout means something:
+
+| Port | From the internet |
+|------|-------------------|
+| 80   | not forwarded     |
+| 443  | not forwarded     |
+| 51820/udp | WireGuard — the handshake proves it |
+| 51413 | **open** (Transmission peer port, tcp confirmed) |
+
+So the only TCP port an internet scanner can connect to is Transmission's. This
+page claimed the opposite in both directions for weeks: it advertised 80/443 as
+exposed after the forward had been removed, and never mentioned the one port
+that is genuinely open. ADR-013 was corrected on 2026-08-02; this summary was
+not, which is why the numbers above now carry the date they were measured.
+
 **Defense in depth via VPN-gated access:**
 
-- Only WireGuard (51820/UDP) and Traefik (80, 443/TCP) are exposed to the internet
 - Traefik returns `403 Forbidden` for all HTTPS traffic that is not from LAN, VPN, or Docker bridge networks
-- Internet bots scanning the public IP see only `403` — no service enumeration possible
-- Any future CVE in a hosted service requires an authenticated VPN client to exploit
+- That rule is real and verified applied on every router — but note it has never been exercised by internet traffic, since 80/443 are not forwarded. It guards the LAN and the VPN, and it is the safety net if a forward is ever re-added
+- Any future CVE in a hosted service requires an authenticated VPN client to exploit — today reinforced by the absence of any path in at all
 - Adding a new service inherits the protection automatically (default middleware on entrypoint)
 
 ## Docker Networks

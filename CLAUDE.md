@@ -61,7 +61,9 @@ Use agents in `.claude/agents/` for domain-specific tasks:
 - fail2ban active on SSH and exposed services
 - Automatic security updates (unattended-upgrades)
 - Secrets: never in the repo, never in plain text
-- Only Traefik (80/443) and WireGuard (51820/udp) exposed to the internet
+- Exposed to the internet: WireGuard (51820/udp) and Transmission's peer port
+  (51413). Traefik's 80/443 are **not** forwarded — the forward was removed in
+  late July 2026, so Traefik only serves the LAN and the VPN
 - Everything else accessible only via VPN or authenticated reverse proxy
 
 ## Storage

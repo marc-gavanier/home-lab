@@ -7,12 +7,19 @@ Defense in depth — each layer is secured independently. If one layer falls, th
 ## Security Layers
 
 ### 1. Network (perimeter)
-- **ISP Router**: only ports 80, 443, and 51820/udp are open
+- **ISP Router**: forwards **51820/udp** (WireGuard) and **51413** (Transmission's
+  peer port, open by design for seeding). **80/443 are not forwarded** — that
+  forward was removed in late July 2026, so Traefik serves the LAN and the VPN
+  only. Measured from an off-network uplink on 2026-08-15 with a known-open port
+  as a control. This line previously claimed 80/443 were open and omitted 51413,
+  which ADR-013 calls the more serious of the two errors: an attack-surface
+  summary that leaves out an open port
 - **UFW**: firewall on the Pi, deny by default, explicit whitelist. Note:
   Docker-published ports (53, 51413) insert their own iptables rules that
   bypass UFW's INPUT policy — so the *internet*-exposure boundary is enforced
-  by the **ISP router's forward list** (80/443/51820), not by UFW. Published
-  ports are only LAN-reachable because the router doesn't forward them.
+  by the **ISP router's forward list**, not by UFW. Published ports are only
+  LAN-reachable because the router does not forward them — with the single
+  exception of 51413, which it does.
 - **WireGuard**: encrypted remote access, only way to reach services from outside the LAN.
   A peer key *is* the perimeter — everything behind `vpn-only` trusts whoever
   holds one. Four peers today, each attributable to a named device, two of them
@@ -151,7 +158,7 @@ Defense in depth — each layer is secured independently. If one layer falls, th
 - Isolated Docker networks (`proxy` / `internal` / `socketproxy`); the DB tier
   lives on `internal` only — never proxied, never published
 - No directly exposed service ports — everything routes through Traefik (vpn-only)
-- **Read-only rootfs on 17 of the 22 services** (ADR-019, issue #32) — a
+- **Read-only rootfs on 22 of the 28 services** (ADR-019, issue #32) — a
   compromised process cannot rewrite the code it runs, drop a binary, or persist
   anything outside the paths we declared. Every writable path is explicit: a
   sized `tmpfs` for state meant to be lost (PID files, sockets, caches,
@@ -162,7 +169,7 @@ Defense in depth — each layer is secured independently. If one layer falls, th
   (`/run/mysqld`), never the parent, or the image's own runtime directories
   disappear and the server aborts; and Docker mounts `tmpfs` `noexec`, which
   breaks any init system that stages executables there.
-- **Four of the five exceptions write into directories the image itself
+- **Four of the six exceptions write into directories the image itself
   populates**, and each is stated in its own block: pihole (`setcap` on its own
   binary — read-only leaves the container *Up* with the resolver dead, the
   failure mode we most want to avoid), nextcloud (`redis-session.ini` among 21
@@ -178,6 +185,13 @@ Defense in depth — each layer is secured independently. If one layer falls, th
   measured **1.257 GiB of RAM instead of 573 MiB**. Granting `SYS_ADMIN` to
   avoid the copy is a worse bargain than either. So the 759 MB sits on a 5 TB
   disk and the RAM stays free.
+- **The sixth, Calibre-Web, was added on 2026-08-05 and this summary had not
+  caught up** — a reminder that these counts drift silently with every new
+  service. It is not a trade at all: `docker diff` on a running container shows
+  **1797** entries, because the image patches its own source tree and writes
+  Python bytecode caches under `/app` on every start. There is no polite
+  degradation to weigh, as there is with transmission — it simply cannot run
+  read-only.
 
 ### 4. Application
 - Strong passwords generated via Vaultwarden
