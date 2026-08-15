@@ -142,6 +142,12 @@ homelab_posture_kuma_push_url: ""
 # Kuma caps the push heartbeat interval at 24 days, so the audit runs weekly
 # (set the monitor's interval to ~8 days). Empty = disabled.
 lynis_kuma_push_url: ""
+# Hourly Nextcloud notify_push self-test. The push server fails silently — the
+# clients drop back to 30s polling and nothing else notices — so this is the
+# only signal that it still works. Create a "Push" monitor named e.g.
+# "Nextcloud notify_push" with a 90 min heartbeat interval (the timer is hourly
+# with a 5 min jitter) and paste its push URL here. Empty = disabled.
+notify_push_kuma_push_url: ""
 
 # --- Backup ---
 restic_password: ""

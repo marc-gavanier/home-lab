@@ -1,0 +1,16 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Hourly Nextcloud notify_push self-test
+
+[Timer]
+# Hourly: notify_push does not rot on its own, it breaks when a deploy touches
+# the proxy, the DNS split or the trusted-proxy list — so the useful latency is
+# "within the hour of the change", not "by tomorrow morning".
+OnCalendar=hourly
+Persistent=true
+# Keeps the occ call off the exact hour, where the health and heal timers
+# already meet. Worst-case gap stays under the 90 min Kuma dead-man window.
+RandomizedDelaySec=5m
+
+[Install]
+WantedBy=timers.target

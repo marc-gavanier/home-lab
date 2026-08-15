@@ -39,6 +39,28 @@ service or changing a capability updates the expectation. Verified by regressing
 a real service (navidrome, `read_only` removed and recreated) and confirming the
 report caught it.
 
+### The hourly notify_push self-test
+
+`homelab-notify-push.sh` (hourly, its own Kuma push monitor) runs Nextcloud's
+`occ notify_push:self-test` and reports what it says. It exists because
+notify_push is the one service here that fails without a symptom: when the push
+server breaks, the desktop and mobile clients fall back to polling every 30s,
+files keep syncing, nothing logs an error, and the only trace is a Pi quietly
+doing more work than it should.
+
+An HTTP monitor cannot stand in for it. The binary answers 404 on `/` and 400 on
+`/test/cookie` whether or not it can reach Redis, load mount info from the
+database, or be trusted as a reverse proxy — so a status-code check stays green
+through exactly the failures worth catching. The six steps it verifies are the
+ones that have actually broken here: the 403 through the DNS hairpin, the
+untrusted proxy, the missing trusted domain
+(`knowledge/runbooks/notify-push-troubleshooting.md`).
+
+The failing step travels in the push message, so the Discord alert names it
+instead of only saying something is wrong. The active connection count rides
+along as context and never alarms — zero is the normal state when every client
+is asleep.
+
 **They are generated when the `observability` role templates the script, not
 when the stack is deployed** — the running script holds a snapshot, it does not
 read `compose.yaml`. So a hardening change needs `--tags deploy,observability`:

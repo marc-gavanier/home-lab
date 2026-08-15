@@ -12,3 +12,6 @@
 
 - name: Run a weekly lynis audit and push the result to Uptime Kuma
   ansible.builtin.import_tasks: lynis.yml
+
+- name: Run the Nextcloud notify_push self-test hourly
+  ansible.builtin.import_tasks: notify-push.yml
