@@ -98,6 +98,15 @@ miniflux_admin_password: ""
 # UI (Settings → Account), then update this so a rebuild-from-scratch matches.
 # No 72-byte ceiling here: Forgejo hashes with pbkdf2 by default, not bcrypt.
 forgejo_admin_password: ""
+# Encrypts 2FA secrets and OAuth2 client secrets at rest. Forgejo generates this
+# during web installation; INSTALL_LOCK skips that step, so an unset value leaves
+# the forge on the constant compiled into every Forgejo binary. Generate one:
+#     docker exec forgejo /app/gitea/gitea generate secret SECRET_KEY
+# or, without a running container:
+#     head -c 32 /dev/urandom | base64
+# Set it BEFORE enabling 2FA or creating tokens: Forgejo has no rotation path,
+# so anything encrypted under the old key has to be re-enrolled by hand.
+forgejo_secret_key: ""
 
 # --- Claude Code (on the Pi) ---
 # Auth is manual: `claude auth login` (claude.ai) on the Pi — credentials persist
