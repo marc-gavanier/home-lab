@@ -144,7 +144,10 @@ restic check --read-data-subset=2%
    **not** the local `restic_password`. They differ by design, and the first
    drill attempt failed for exactly that reason. This password is the root of
    the whole recovery chain; make sure a copy of it survives whatever takes out
-   the homelab.
+   the homelab — and keep that copy **physically apart from the media carrying
+   the repository**. Stored side by side, they stop being two things: one theft
+   hands over the plaintext of every snapshot, and the design's promise that a
+   stolen disk yields only ciphertext (ADR-010) quietly stops being true.
 3. Re-provision a new Pi from the git repo (`ansible/`), reinject
    `/restore/mnt/data/...` and the `.env` files from `/restore/opt/homelab`.
 4. Follow "Full disaster recovery" in `restore-from-backup.md`.
