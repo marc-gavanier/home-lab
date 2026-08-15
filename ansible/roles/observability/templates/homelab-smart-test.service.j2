@@ -1,12 +1,21 @@
 # {{ ansible_managed }}
 [Unit]
-Description=Start a SMART long self-test on the homelab data disk
+Description=Start a SMART short self-test on the homelab data disk
 
 [Service]
 Type=oneshot
-# The drive scans its own surface in the background, at its own pace, yielding
-# to host I/O — so this costs the services nothing even though the disk is in
-# constant use. On 5 TB it runs for many hours; the daily report reads the
-# result from the self-test log whenever it lands, and alerts if it failed or
-# if no test has completed in 35 days.
-ExecStart=/usr/sbin/smartctl -t long {{ data_disk_device | regex_replace('[0-9]+$', '') }}
+# SHORT, not long, and that is measured rather than preferred. The long test
+# was tried first on 2026-08-15: the drive announces 228 minutes for it, then
+# returns "Completed: read failure" at LBA 730424728 within seconds — twice in a
+# row, at the identical LBA — while that LBA and the 64 MiB around it read
+# without error from the host, with every SMART counter at zero and nothing in
+# dmesg. A WD50NDZW is a USB-native SMR drive whose bridge does not implement
+# the extended self-test; the result is canned, not a finding. Building alerts
+# on it would have meant a permanently red monitor.
+#
+# The short test does run properly here — it completed without error in the two
+# minutes it announced. It exercises the electronics and a read sample, which is
+# less than a surface scan but is real. Surface coverage comes from elsewhere:
+# the nightly backup reads every file, and local-maintenance.sh runs a rotating
+# `restic check --read-data-subset` over the repository.
+ExecStart=/usr/sbin/smartctl -t short {{ data_disk_device | regex_replace('[0-9]+$', '') }}
