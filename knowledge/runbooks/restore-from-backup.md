@@ -242,6 +242,43 @@ Mirror Settings → *Synchronize Now*. There are no mirror credentials to restor
 the pull runs tokenless by decision (ADR-028), which also means issues and pull
 requests were never mirrored — only the git objects come back.
 
+## Restore Uptime Kuma (SQLite)
+
+Restore this one early, not last. Every dead-man's switch in the lab — nightly
+backup, offsite copy, weekly audit, disk report, feed digest — terminates in a
+Kuma push monitor, so until Kuma is back nothing is watching the recovery
+itself. The database also has no second copy anywhere: Kuma v2 has no
+configuration export, and the monitors were entered by hand in the web UI.
+
+```bash
+restic restore latest --target /tmp/restore \
+  --include /mnt/data/backups/dumps \
+  --include /mnt/data/services/uptime-kuma
+
+cd /opt/homelab
+docker compose down uptime-kuma
+
+# Drop any stale WAL/SHM so SQLite reopens cleanly against the restored file.
+rm -f /mnt/data/services/uptime-kuma/kuma.db-wal \
+      /mnt/data/services/uptime-kuma/kuma.db-shm
+cp /tmp/restore/mnt/data/backups/dumps/uptime-kuma.sqlite3 \
+   /mnt/data/services/uptime-kuma/kuma.db
+chown root:root /mnt/data/services/uptime-kuma/kuma.db   # the image runs as root
+
+docker compose up -d uptime-kuma
+```
+
+Sanity-check by *function*, not by a green container: log in at
+`https://services.<domain>`, confirm the monitor count, and confirm the
+notification channel is still attached (Settings → Notifications) — a restored
+monitor list that notifies nobody looks healthy and is not.
+
+The push tokens come back inside the database, so the push URLs held in
+`local.yml` and `backup.env` keep matching and the dead-man's switches resume on
+their own. That only holds because both halves ride the same snapshot: if you
+ever restore the database from an *older* snapshot than the configuration, the
+tokens diverge and every push monitor stays silently DOWN.
+
 ## Full disaster recovery
 
 1. **Re-provision the OS** with Ansible (the OS isn't backed up — it's reproducible): flash
