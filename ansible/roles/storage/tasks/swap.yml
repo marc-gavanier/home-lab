@@ -1,6 +1,17 @@
 ---
 # Swap on the HDD, activated by a systemd unit bound to the data mount.
 
+# `creates:` means this runs ONCE. Changing swap_size_mb afterwards resizes
+# nothing and the play still reports ok — the knob looks live and is not.
+# Resizing is a deliberate manual operation, because the file is in use:
+#   swapoff /mnt/data/swapfile && rm /mnt/data/swapfile
+#   then re-run this role, which recreates it at the new size.
+- name: swap | Check whether the swap file already exists
+  ansible.builtin.stat:
+    path: "{{ data_mount_point }}/swapfile"
+    get_checksum: false
+  register: swapfile_before
+
 - name: swap | Create swap file on HDD
   ansible.builtin.command:
     cmd: "dd if=/dev/zero of={{ data_mount_point }}/swapfile bs=1M count={{ swap_size_mb }}"
@@ -11,12 +22,18 @@
     path: "{{ data_mount_point }}/swapfile"
     mode: "0600"
 
+# Only on a file that did not exist before this play. It used to run every time
+# with `failed_when: false`, which meant that on an ACTIVE swap file mkswap
+# failed on every single run and the failure was swallowed whole — nothing was
+# formatted, nothing was reported. Gating on the prior absence removes both the
+# pointless call and the suppressed error, so a real mkswap failure now stops
+# the play. Gated on the stat rather than on the create task's own status: the
+# two are equivalent here, and `is changed` would be a handler in disguise.
 - name: swap | Format swap file
   ansible.builtin.command:
     cmd: "mkswap {{ data_mount_point }}/swapfile"
-  register: mkswap_result
-  changed_when: mkswap_result.rc == 0
-  failed_when: false
+  when: not swapfile_before.stat.exists
+  changed_when: true
 
 # Swap is a systemd unit bound to the data mount, NOT an fstab entry: the
 # fstab entry (sw,nofail) was activated at boot, when {{ data_mount_point }} is

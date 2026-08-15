@@ -10,13 +10,24 @@ merely interesting belongs on a dashboard, not in a notification.
 
 | Tool            | Role                                                            |
 |-----------------|-----------------------------------------------------------------|
-| **Netdata**     | Real-time system metrics — forensic dashboard, **no alerting**   |
+| **Netdata**     | Real-time system metrics — forensic dashboard, **alerts reach nobody by design** |
 | **Uptime Kuma** | Availability monitoring + alerting (Discord)                    |
 
-Netdata is deliberately kept notification-free: its temperature/undervoltage
-alarms would duplicate what `homelab-health.sh` already pushes, and the extra
-config surface is not worth it on a RAM-limited Pi. Use it to investigate
-*after* Kuma has told you something is wrong.
+Netdata is not notification-free — that wording was wrong and it mattered. It
+ships **57 stock alarms and runs them**. What it has no configured recipient,
+so when one fires it executes its notifier, the notifier fails, and nothing
+leaves the machine. That is not a hypothetical: `used_swap` sat CRITICAL for
+5 days 19 hours in August 2026 and reached no one.
+
+Leaving it that way is a deliberate choice, not an oversight. The stock alarms
+are tuned for a generic server — the disk-backlog one alone would fire on every
+nightly backup — so wiring them to Discord would produce exactly the noise this
+stack refuses. **Any signal worth acting on gets added to `homelab-health.sh`
+instead**, with a threshold chosen and justified here, and travels the push path
+that demonstrably reaches a human.
+
+So: use Netdata to investigate *after* Kuma has told you something is wrong, and
+never treat a quiet Netdata as evidence that nothing is wrong.
 
 Netdata's history now survives a restart. Until 2026-07-27 its registry and its
 metrics database sat in the container's writable layer with no volume, so every
@@ -233,6 +244,7 @@ need a human:
 | Pending reboot      | `/var/run/reboot-required` exists — auto-reboot is disabled by policy, so it waits on the operator |
 | Security updates    | still pending after **48 h** (age-gated: unattended-upgrades runs daily) |
 | Disk capacity       | `/` or `/mnt/data` ≥ **85 %** full                            |
+| Available memory    | `MemAvailable` < **800 MiB** on two consecutive runs (> 5 min) |
 | Unhealthy container | a container fails its healthcheck for > **10 min**            |
 | Container missing   | an expected container is not running at all for > **10 min**   |
 | systemd unit failed | anything in `systemctl --failed`                               |
@@ -240,8 +252,22 @@ need a human:
 | Expected unit down  | docker, containerd, fail2ban, claude-remote-control or wg-quick@wg0 not `active` |
 | Timer last run      | a `homelab-*` timer whose triggered service did not end in `success` |
 
+**Why 800 MiB, and why swap does not alarm.** `MemAvailable` rather than free
+memory: the page cache is reclaimable and `/mnt/data` churns hundreds of MB a
+night, so free memory reads alarmingly low on a perfectly healthy Pi. The
+threshold was measured against 19 days of Netdata retention — the hourly minimum
+never went below 800 MiB, and the lowest instantaneous dip (756 MiB) is absorbed
+by requiring two consecutive runs, so it would have been silent throughout.
+
+Swap is **reported in the message but never alarmed on**. It sat at 100 % for
+days while 4 GiB stayed available and nothing was ever OOM-killed: a full swap
+means cold pages were evicted, not that the machine is in trouble. Alarming on
+it would have been red for six days with nothing to do about it — the same trap
+that retired the extended SMART self-test. What actually precedes an OOM is
+available memory running out, and that is the line above.
+
 The last two close the gaps the rest of the stack cannot see: Netdata graphs
-disk fill but has no notification path, and the heal timer only resurrects
+disk fill but delivers no notification, and the heal timer only resurrects
 containers that *exited* — one that stays up while failing its healthcheck
 (notably `nextcloud-notify-push`, whose death silently kills mobile push)
 would otherwise be invisible.

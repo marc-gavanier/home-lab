@@ -97,6 +97,49 @@ for fs in / /mnt/data; do
     [ "$usage" -ge "$DISK_THRESHOLD" ] && problems+=("$fs ${usage}% full")
 done
 
+# --- Memory ---
+# Nothing watched memory until now, and the gap was two-sided. Netdata DOES run
+# a used_swap alarm: it went CRITICAL for 5 days 19 hours in August 2026,
+# executed its notifier, and the notifier failed — no recipient is configured,
+# so it reached nobody. Meanwhile this script, which does reach a human, carried
+# no memory signal at all. Netdata stays what it is good at, diagnosis: its 57
+# stock alarms are tuned for a generic server (the disk-backlog one would fire
+# on every nightly backup), so wiring them to a channel would produce exactly
+# the noise this repo refuses. The signal worth acting on belongs here, with a
+# threshold chosen and justified here.
+#
+# MemAvailable, not "free": the page cache is reclaimable and /mnt/data churns
+# hundreds of MB a night, so free memory reads alarmingly low on a healthy Pi.
+# The threshold is measured against 19 days of Netdata retention — the hourly
+# minimum never went below 800 MiB, and the lowest instantaneous dip (756 MiB)
+# is absorbed by requiring two consecutive runs. Zero false alarms over the
+# whole observed period.
+#
+# Swap is REPORTED, never alarmed on. It sat at 100% for days while 4 GiB stayed
+# available and nothing was ever OOM-killed: a full swap means cold pages were
+# evicted, not that the machine is in trouble. Alarming on it would have been
+# red for six days with nothing to do about it — the same trap that retired the
+# extended SMART self-test. What precedes an OOM is available memory running
+# out, and that is what pages above.
+MEM_THRESHOLD_MIB=800
+MEM_STAMP=/var/lib/homelab-health/lowmem.stamp
+if [ -r /proc/meminfo ]; then
+    mem_avail=$(awk '/^MemAvailable:/ {print int($2/1024)}' /proc/meminfo)
+    swap_total=$(awk '/^SwapTotal:/ {print int($2/1024)}' /proc/meminfo)
+    swap_free=$(awk '/^SwapFree:/ {print int($2/1024)}' /proc/meminfo)
+    mem_avail=${mem_avail:-0}; swap_total=${swap_total:-0}; swap_free=${swap_free:-0}
+    report+=("mem ${mem_avail}Mi free")
+    [ "$swap_total" -gt 0 ] && report+=("swap $(( (swap_total - swap_free) * 100 / swap_total ))%")
+    if [ "$mem_avail" -lt "$MEM_THRESHOLD_MIB" ]; then
+        mkdir -p "$(dirname "$MEM_STAMP")"
+        # Second consecutive low reading, i.e. sustained for >5 min, not a dip.
+        [ -f "$MEM_STAMP" ] && problems+=("mem ${mem_avail}Mi available, under ${MEM_THRESHOLD_MIB}Mi twice running")
+        date +%s > "$MEM_STAMP"
+    else
+        rm -f "$MEM_STAMP"
+    fi
+fi
+
 # --- Unhealthy containers ---
 # The heal timer only resurrects containers that EXITED; one that stays up but
 # fails its healthcheck is invisible. User-facing services are covered

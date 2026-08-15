@@ -136,8 +136,13 @@ DUMP=$(ls -t /mnt/data/services/immich/upload/backups/*.sql.gz | head -1)
 cd /opt/homelab
 
 # 2. Stop Immich and reset the DB dir so the container re-runs initdb (fresh,
-#    empty `immich` database owned by the `immich` superuser):
-docker compose stop immich-server immich-ml immich-db immich-redis
+#    empty `immich` database owned by the `immich` superuser).
+#    `immich-machine-learning` is the COMPOSE SERVICE; `immich-ml` is only its
+#    container_name, and compose rejects the whole command with "no such
+#    service" if you pass it. That matters more here than anywhere else in this
+#    file: the very next line deletes the database directory, so a command that
+#    stops nothing leaves you deleting a datadir under a running Postgres.
+docker compose stop immich-server immich-machine-learning immich-db immich-redis
 rm -rf /mnt/data/services/immich/db/*
 
 # 3. Bring the DB back up empty and wait until it is healthy:
@@ -152,7 +157,7 @@ gunzip --stdout "$DUMP" \
     --single-transaction --set ON_ERROR_STOP=on
 
 # 5. Start the rest of the stack:
-docker compose up -d immich-server immich-ml immich-redis
+docker compose up -d immich-server immich-machine-learning immich-redis
 ```
 
 Sanity-check: log in, confirm the timeline and search (VectorChord) work. The

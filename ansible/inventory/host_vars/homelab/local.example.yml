@@ -32,6 +32,17 @@ pihole_password: ""
 
 # --- WireGuard ---
 wg_password: ""  # wg-easy admin password, plaintext; v15 hashes it with argon2
+# Client config for the tunnel this host opens TOWARDS the offsite Pi — the
+# whole content of a wg0.conf, interface and peer. Seven tasks in
+# roles/deploy/tasks/wireguard.yml are gated on `homelab_wg_conf is defined`,
+# so leaving it unset does not fail the run: it silently skips the tunnel, and
+# with it the network path the nightly offsite copy travels over. Empty string
+# counts as defined, so use the block form or leave the key out entirely.
+homelab_wg_conf: |
+  [Interface]
+  # PrivateKey / Address / ListenPort
+  [Peer]
+  # PublicKey / Endpoint / AllowedIPs / PersistentKeepalive
 
 # --- Nextcloud ---
 # No admin password here: the container no longer self-installs, so the admin
@@ -163,6 +174,10 @@ restic_password: ""
 # Create the push monitor + attach a notification: see
 # knowledge/runbooks/backup-monitoring.md
 backup_kuma_push_url: ""
+# Same, for the weekly prune + rotating integrity check (local-maintenance.sh,
+# Sunday 05:00). A separate monitor on purpose: it runs on its own schedule, so
+# folding it into the nightly one would make a missed maintenance invisible.
+local_maintenance_kuma_push_url: ""
 
 # --- Offsite backup (ADR-010) ---
 # Password of the OFFSITE restic repo — distinct from restic_password.
