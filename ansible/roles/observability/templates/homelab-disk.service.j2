@@ -1,0 +1,12 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Homelab daily disk-health report
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/homelab-disk.sh
+# Exit 1 means "problems found and pushed to Kuma", not "the check broke" —
+# same contract as homelab-posture.service. Without this, systemd marks the
+# unit failed for doing its job, and the health report's failed-unit check
+# then raises a second alarm about the first one.
+SuccessExitStatus=1

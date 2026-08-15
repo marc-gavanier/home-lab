@@ -1,0 +1,12 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Start a SMART long self-test on the homelab data disk
+
+[Service]
+Type=oneshot
+# The drive scans its own surface in the background, at its own pace, yielding
+# to host I/O — so this costs the services nothing even though the disk is in
+# constant use. On 5 TB it runs for many hours; the daily report reads the
+# result from the self-test log whenever it lands, and alerts if it failed or
+# if no test has completed in 35 days.
+ExecStart=/usr/sbin/smartctl -t long {{ data_disk_device | regex_replace('[0-9]+$', '') }}
