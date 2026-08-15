@@ -245,6 +245,7 @@ need a human:
 | Security updates    | still pending after **48 h** (age-gated: unattended-upgrades runs daily) |
 | Disk capacity       | `/` or `/mnt/data` ≥ **85 %** full                            |
 | Available memory    | `MemAvailable` < **800 MiB** on two consecutive runs (> 5 min) |
+| Swap occupancy      | ≥ **85 %** of the 4 GiB swap file — provisional threshold, see below |
 | Unhealthy container | a container fails its healthcheck for > **10 min**            |
 | Container missing   | an expected container is not running at all for > **10 min**   |
 | systemd unit failed | anything in `systemctl --failed`                               |
@@ -252,19 +253,39 @@ need a human:
 | Expected unit down  | docker, containerd, fail2ban, claude-remote-control or wg-quick@wg0 not `active` |
 | Timer last run      | a `homelab-*` timer whose triggered service did not end in `success` |
 
-**Why 800 MiB, and why swap does not alarm.** `MemAvailable` rather than free
-memory: the page cache is reclaimable and `/mnt/data` churns hundreds of MB a
-night, so free memory reads alarmingly low on a perfectly healthy Pi. The
-threshold was measured against 19 days of Netdata retention — the hourly minimum
-never went below 800 MiB, and the lowest instantaneous dip (756 MiB) is absorbed
-by requiring two consecutive runs, so it would have been silent throughout.
+**Why 800 MiB.** `MemAvailable` rather than free memory: the page cache is
+reclaimable and `/mnt/data` churns hundreds of MB a night, so free memory reads
+alarmingly low on a perfectly healthy Pi. The threshold was measured against 19
+days of Netdata retention — the hourly minimum never went below 800 MiB, and the
+lowest instantaneous dip (756 MiB) is absorbed by requiring two consecutive
+runs, so it would have been silent throughout.
 
-Swap is **reported in the message but never alarmed on**. It sat at 100 % for
-days while 4 GiB stayed available and nothing was ever OOM-killed: a full swap
-means cold pages were evicted, not that the machine is in trouble. Alarming on
-it would have been red for six days with nothing to do about it — the same trap
-that retired the extended SMART self-test. What actually precedes an OOM is
-available memory running out, and that is the line above.
+**Why the swap file was doubled before it could be alarmed on.** At 2 GiB it sat
+around 92 % full in normal operation: roughly 1.9 GiB of genuinely cold pages —
+Collabora's pre-forked kits, `immich-server` — that will never be touched again.
+An occupancy that is already full in the steady state carries no information. A
+threshold below it would have been red for six days with nothing to do about it,
+the same trap that retired the extended SMART self-test; one above it could
+never fire. So the file went to 4 GiB (2 GiB more on a disk with 3.6 TiB free,
+no RAM, no CPU), which puts that same steady state near 46 % and makes the
+number mean something again.
+
+It is worth being clear about what a full swap does and does not mean. It is
+**not** evidence that the machine is short of memory — nothing here has ever
+been OOM-killed. It means the kernel has nowhere left to evict *to*, which only
+matters on the day available memory also runs short. The two lows have never
+coincided; the alarm exists so that they are not discovered coinciding.
+
+> **85 % is provisional.** It is the one threshold on this page not backed by
+> measurement: every observation available was capped by the old 2 GiB size, so
+> how much the kernel would have evicted with more room is an inference, not
+> data. With `swappiness=10` it should stay conservative. Revisit after a few
+> weeks of the new steady state — and if it settles above 85 %, raise the
+> threshold rather than delete it.
+
+Resizing the swap file is a **manual** operation: `creates:` guards it, so
+changing `swap_size_mb` alone does nothing. The procedure, and the reason
+`swapoff` deserves care, are in `ansible/roles/storage/tasks/swap.yml`.
 
 The last two close the gaps the rest of the stack cannot see: Netdata graphs
 disk fill but delivers no notification, and the heal timer only resurrects
