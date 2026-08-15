@@ -81,6 +81,17 @@ dozzle_admin_user: "admin"
 dozzle_admin_email: "admin@localhost"
 dozzle_admin_name: "Admin"
 
+# --- Nextcloud ---
+# Minutes after which files_lock's own cron releases a lock nobody released.
+# Nextcloud ships that cron and then disables it: the default is -1, which
+# getDeprecatedLocks() reads as "never expire". A lock left by a client that
+# died therefore lasts forever, and the file silently stops syncing.
+# 60 rather than tighter because a lock is never refreshed — it ages from
+# creation whether or not the editor is still open. Losing one mid-edit is
+# harmless on a single-user instance: it only ever guards against a second
+# person, and Text autosaves. Lower it if stale locks still bite.
+nextcloud_lock_timeout_minutes: 60
+
 # --- RSS reader (Miniflux, ADR-026) ---
 # Login of the admin account created at first start. Not a secret; the password
 # is, and belongs in the vaulted local.yml. Note this is read ONLY while the
