@@ -10,15 +10,17 @@ Chosen for its deduplication, native encryption (AES-256), incremental support, 
 
 Mirrors exactly what `ansible/roles/deploy/files/backup.sh` does (keep this table and the script in sync).
 
-| Data                   | Source (host path)                                                                              | Method              | Frequency |
-|------------------------|-------------------------------------------------------------------------------------------------|---------------------|-----------|
-| Service data & configs | `/mnt/data/services` (Nextcloud files, Vaultwarden, Immich uploads, Jellyfin/Navidrome config…) | Restic              | Daily     |
-| **Media originals**    | `/mnt/data/media` (photos, music, videos)                                                       | Restic              | Daily     |
-| Nextcloud DB           | MariaDB dump (`--single-transaction`) → `/mnt/data/backups/dumps`                               | dump → Restic       | Daily     |
-| Vaultwarden DB         | SQLite `sqlite3 .backup` (WAL-safe) → `/mnt/data/backups/dumps`                                 | dump → Restic       | Daily     |
-| Immich DB              | Immich's own scheduled backup → `services/immich/upload/backups/*.sql.gz`                       | built-in → Restic   | Daily     |
-| Stack config           | `/opt/homelab` (compose, scripts)                                                               | Restic              | Daily     |
-| Secrets (ADR-011)      | `/mnt/data/secrets` (`.env`, `backup.env`, `wg0.conf`… — `/opt/homelab` entries are symlinks)   | Restic              | Daily     |
+| Data                   | Source (host path)                                                                              | Method            | Frequency |
+|------------------------|-------------------------------------------------------------------------------------------------|-------------------|-----------|
+| Service data & configs | `/mnt/data/services` (Nextcloud files, Vaultwarden, Immich uploads, Jellyfin/Navidrome config…) | Restic            | Daily     |
+| **Media originals**    | `/mnt/data/media` (photos, music, videos)                                                       | Restic            | Daily     |
+| Nextcloud DB           | MariaDB dump (`--single-transaction`) → `/mnt/data/backups/dumps`                               | dump → Restic     | Daily     |
+| Vaultwarden DB         | SQLite `sqlite3 .backup` (WAL-safe) → `/mnt/data/backups/dumps`                                 | dump → Restic     | Daily     |
+| Forgejo DB             | SQLite `sqlite3 .backup` (WAL-safe) → `/mnt/data/backups/dumps`                                 | dump → Restic     | Daily     |
+| Miniflux DB            | `pg_dump` via `docker exec` (plain SQL) → `/mnt/data/backups/dumps`                             | dump → Restic     | Daily     |
+| Immich DB              | Immich's own scheduled backup → `services/immich/upload/backups/*.sql.gz`                       | built-in → Restic | Daily     |
+| Stack config           | `/opt/homelab` (compose, scripts)                                                               | Restic            | Daily     |
+| Secrets (ADR-011)      | `/mnt/data/secrets` (`.env`, `backup.env`, `wg0.conf`… — `/opt/homelab` entries are symlinks)   | Restic            | Daily     |
 
 > The OS itself is **not** backed up — it is reproducible from scratch via Ansible (IaC).
 
@@ -50,8 +52,8 @@ weekly in the local maintenance job, not in the backup window.
 ## Restoration
 
 Procedures are in `knowledge/runbooks/restore-from-backup.md` (single files, services,
-Nextcloud/Vaultwarden/Immich databases, full disaster recovery). The LUKS header — the
-prerequisite for reaching *any* of `/mnt/data` — has its own backstop:
+Nextcloud/Vaultwarden/Immich/Miniflux/Forgejo databases, full disaster recovery). The
+LUKS header — the prerequisite for reaching *any* of `/mnt/data` — has its own backstop:
 `knowledge/runbooks/luks-header-backup.md`.
 
 ## Automation

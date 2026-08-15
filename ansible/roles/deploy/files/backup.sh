@@ -105,6 +105,22 @@ if [ -f "$FORGEJO_DB" ]; then
         || log "WARNING: Forgejo DB backup failed"
 fi
 
+# Miniflux PostgreSQL — the datadir being inside the restic set is not enough.
+# services/miniflux/db is backed up below, but restic walks it file by file
+# while Postgres writes: the copy is not atomic and can restore to a torn
+# cluster. Every other database here already answers that (mariadb-dump,
+# sqlite3 .backup, Immich's own backup); this one was the exception.
+# Plain SQL rather than a .gz on purpose: restic chunks and deduplicates a text
+# dump from one day to the next, while a compressed one changes end to end on
+# any edit and crosses the offsite link whole every night.
+# No password: the image entrypoint writes `local all all trust` into pg_hba,
+# and `docker exec` connects over the unix socket, not TCP.
+log "Dumping Miniflux database..."
+docker exec miniflux-db pg_dump \
+    -U "${MINIFLUX_DB_USER:-miniflux}" \
+    "${MINIFLUX_DB_NAME:-miniflux}" \
+    > "$DUMP_DIR/miniflux.sql" 2>> "$BACKUP_LOG" || log "WARNING: Miniflux DB dump failed"
+
 # --- Restic backup ---
 
 log "Running restic backup..."
