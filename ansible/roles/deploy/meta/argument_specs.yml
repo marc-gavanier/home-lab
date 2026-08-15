@@ -86,6 +86,14 @@ argument_specs:
         required: true
         no_log: true
         description: MariaDB root password.
+      nextcloud_lock_timeout_minutes:
+        type: int
+        required: false
+        description: >-
+          Minutes before files_lock's own cron releases an unreleased lock (group_vars default 60).
+          Nextcloud ships that cron and disables it by default: -1 means never expire, so a lock
+          left behind by a client that died outlives it and the file silently stops syncing. There
+          is no refresh, so this must outlast a real editing session.
       immich_db_name:
         type: str
         required: false

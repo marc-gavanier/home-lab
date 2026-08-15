@@ -47,6 +47,41 @@
     - nextcloud_up
     - (nc_sysconf.stdout | from_json).system[item.key] | default('') | string != item.value | string
 
+# files_lock ships a cron job that releases stale locks and a setting that
+# disables it. The default `lock_timeout` is -1 — ETA_INFINITE — and
+# getDeprecatedLocks() returns an empty list on that value, so Cron\Unlock runs
+# every time and finds nothing, forever. A lock therefore outlives whatever made
+# it, and the DB stores it as ttl -60 (the -1 default times the 60 in
+# ConfigService: the value is MINUTES).
+#
+# That is not theoretical. The Nextcloud mobile app takes a Text lock when it
+# opens a .md note; killed from the app switcher, it never sends the release.
+# Six such locks were found on 2026-08-15 and reproduced on demand. One of them
+# blocked the rclone mount's write-back for 42 hours: rclone retried every few
+# seconds, Nextcloud answered 423 Locked every time, and the log rotated a full
+# 100 MB. Nothing went red — the file simply stopped syncing, silently.
+#
+# 60 minutes rather than something tighter because there is NO refresh: a lock
+# ages from its creation whether or not the editor is still open, so the timeout
+# has to outlast a real editing session. Losing one mid-edit costs nothing here
+# anyway — this is a single-user instance, the lock only ever protects against a
+# second person, and Text autosaves continuously.
+- name: nextcloud | Read the files_lock timeout
+  ansible.builtin.command:
+    cmd: docker exec -u www-data nextcloud php occ config:app:get files_lock lock_timeout
+  register: nc_lock_timeout
+  changed_when: false
+  failed_when: false
+  when: nextcloud_up
+
+- name: nextcloud | Let stale file locks expire (files_lock ships the cron, the default disables it)
+  ansible.builtin.command:
+    cmd: docker exec -u www-data nextcloud php occ config:app:set files_lock lock_timeout --value={{ nextcloud_lock_timeout_minutes }}
+  changed_when: true
+  when:
+    - nextcloud_up
+    - nc_lock_timeout.stdout | default('') | trim != nextcloud_lock_timeout_minutes | string
+
 # Manage trusted_domains via occ: NEXTCLOUD_TRUSTED_DOMAINS only applies on first
 # install, not on an existing instance. localhost = internal healthcheck,
 # nextcloud = notify_push reaching http://nextcloud, drive.<domain> = real access.
