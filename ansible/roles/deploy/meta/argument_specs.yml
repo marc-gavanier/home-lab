@@ -166,8 +166,10 @@ argument_specs:
           Required rather than optional on purpose: the web installer is what normally generates
           it, INSTALL_LOCK skips the installer, and an empty value silently falls back to the
           constant compiled into every Forgejo binary. Failing the play is the only way that
-          absence is visible. Delivered through SECRET_KEY_URI so the key never appears in the
-          container environment. Forgejo cannot rotate it — set it before any 2FA enrolment.
+          absence is visible. Note that `required` only checks that the variable EXISTS: an empty
+          string passes here, which is why secrets.yml also asserts it is non-empty. Delivered
+          through SECRET_KEY_URI so the key never appears in the container environment. Forgejo
+          cannot rotate it — set it before any 2FA enrolment.
       libresign_cert_cn:
         type: str
         required: false

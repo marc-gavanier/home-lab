@@ -234,6 +234,16 @@ declared `required: true` in the role's argument spec on purpose: an empty value
 indistinguishable from a working one at runtime, so failing the play is the only
 way its absence is ever visible.
 
+`required: true` alone is not enough, and the gap is worth naming because it
+almost shipped as a fix that fixed nothing. **It checks that the variable exists,
+not that it holds anything** — and `local.example.yml` ships every secret as an
+empty string, so a copied-but-unfilled example passes validation cleanly. Most
+secrets here survive that: the service refuses an empty password and the container
+dies loudly. This one would not. An empty file behind `SECRET_KEY_URI` sends
+Forgejo straight back to the default key, with no error, no warning, and now the
+appearance of protection. `secrets.yml` therefore asserts the value is non-empty
+before writing anything.
+
 ## Backup
 
 No new path: `/mnt/data/services` is already backed up wholesale by restic.
