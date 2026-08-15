@@ -83,25 +83,41 @@ Kept here so the next run can verify them **gone** rather than rediscover them.
 Move each to a settled section once resolved, or delete it once confirmed fixed
 and verified in a later sweep.
 
-| Finding | Status |
-|---|---|
-| Alerting stack runs its rules with no recipient configured — nothing is delivered | **settled**: left recipient-less on purpose, its stock thresholds being tuned for a generic server; the signal worth acting on moved to the health push instead, and the docs now say so. Do not re-report the absent recipient as a finding. |
-| Health script pushed to monitoring carries no memory or swap signal | **fixed** — available-memory alarm on two consecutive runs, swap reported and deliberately not alarmed on |
-| Git service running with the upstream default encryption key (no 2FA, tokens or webhooks exist yet, so exposure is nil today; a key rotation is impossible later) | open |
-| Restore runbook uses a container name where the orchestrator expects a service name — the command fails and the next step deletes a database directory | **fixed** |
-| Documented network perimeter is wrong in both directions: two ports documented as forwarded are not, and the one port actually reachable is documented nowhere | open |
-| A failed database dump degrades to a warning, leaves the exit code untouched, and its trace is deleted | **fixed** — presence and size floor asserted before the snapshot, staleness guard for the service that backs itself up, verdict deferred so a bad dump does not cost the rest of the backup |
-| Cloud service log grew to ~91 MB, effectively all one repeated client-side exception | open — client-side, the operator's call |
-| Dead configuration knob holding a plausible value that nothing reads | **fixed** |
-| Example override file missing two keys, one of which guards seven tasks | **fixed** |
-| Orphaned anonymous volume left by a first container start | open — cosmetic, remove by hand; never with a broad prune, the other anonymous volumes are legitimate |
-| Comment asserting the host "almost never swaps", contradicted by measurement | **fixed** |
-| `mkswap` running unguarded with its failure suppressed | **fixed** — gated on the swap file's prior absence |
+**Read the third column before believing the second.** Merged is not deployed and
+deployed is not proven — that distinction is the entire reason this file exists.
+Something can be correct in `main`, absent from the machine, and still look fixed
+in a commit log.
+
+| Finding | Status | Proven how |
+|---|---|---|
+| Alerting stack runs its rules with no recipient configured — nothing is delivered | **settled** — left recipient-less on purpose, its stock thresholds being tuned for a generic server; the signal worth acting on moved to the health push instead. Do not re-report the absent recipient as a finding. | decision, nothing to prove |
+| Health script pushed to monitoring carries no memory or swap signal | **fixed in main, NOT DEPLOYED** as of 23:20 — available-memory alarm on two consecutive runs, swap reported and alarmed only above its threshold | not yet: the live script predates the change and its push still carries no `mem`/`swap` field. Check the message, not the file. |
+| Git service running with the upstream default encryption key | **fixed and deployed** — key delivered through a URI-mounted secret, empty values now refused by an assertion | config in place and readable; that the URI wins over the empty verbatim key is **not** established — it becomes free to check the day 2FA is enabled |
+| Restore runbook uses a container name where the orchestrator expects a service name — the command fails and the next step deletes a database directory | **fixed** | service names checked against compose, and the same error class swept for elsewhere with a dry run |
+| Documented network perimeter wrong in both directions | **fixed** — corrected everywhere, including the instructions the security agent itself reads | probed from an off-network uplink with a known-open control |
+| A failed database dump degrades to a warning, leaves the exit code untouched, and its trace is deleted | **fixed and deployed** | assertion logic tested against ok/truncated/missing fixtures; **the first real nightly run is still pending** |
+| Cloud service log grew to ~91 MB, effectively all one repeated client-side exception | **root cause found and capped** — a mobile client leaves a permanent file lock; the shipped cleanup was disabled by its own default. Runbook written. Caps the damage at ~72 min, does not prevent the lock. | reproduced deliberately end to end, then the cleanup was observed removing a backdated lock |
+| Dead configuration knob holding a plausible value that nothing reads | **fixed** | single occurrence in the repo, read nowhere |
+| Example override file missing two keys, one of which guards seven tasks | **fixed** | key sets compared in both directions |
+| Orphaned anonymous volume left by a first container start | **open** — cosmetic, ~48 MB. Remove by hand; never with a broad prune, the other anonymous volumes are legitimate | — |
+| Comment asserting the host "almost never swaps", contradicted by measurement | **fixed** | — |
+| `mkswap` running unguarded with its failure suppressed | **fixed and deployed** | the swap file was recreated and activated, which only succeeds on a real `mkswap` |
 
 A fix is not proof. The next sweep must confirm each "fixed" line **behaves**, not
-merely that the code changed: the dump assertions have to be seen firing on a real
-nightly run, and the memory signal seen in an actual push message. That is the
-whole difference this skill exists to enforce.
+merely that the code changed. That is the whole difference this skill exists to
+enforce, and the run of 2026-08-15 supplied its own illustration: three of these
+were merged and never deployed until someone read the live artefact rather than
+the commit log. One of them — the memory signal — was still missing from the
+machine hours after its PR landed, and only the *content of a push message* showed
+it. A green deploy proves the play ran, not that the change reached anything.
+
+Three things are owed to the next sweep specifically:
+
+1. **The memory and swap fields in the health push.** If the message still reads
+   `cpu …, / …%, /mnt/data …%` with no `mem`, the role was never deployed.
+2. **The dump assertions firing on a real nightly run** — the logic was tested
+   against fixtures, never against the 03:00 job.
+3. **The digest's monitoring message carrying real counts** rather than a constant.
 
 One deliberate loose end, so it is revisited rather than re-reported. The swap
 file was doubled and an occupancy alarm added at **85 %**, and that percentage is
