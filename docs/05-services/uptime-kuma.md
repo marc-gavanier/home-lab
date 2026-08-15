@@ -33,6 +33,7 @@ Uses Pi-hole as DNS (`dns: [${PI_LAN_IP}]` in compose) so that domain lookups fo
 | Calibre-Web               | HTTP(s)  | `https://books.example.com/login`                 |
 | Miniflux                  | HTTP(s)  | `https://rss.example.com/healthcheck`             |
 | Collabora                 | HTTP(s)  | `https://office.example.com/hosting/capabilities` |
+| Forgejo                   | HTTP(s)  | `https://git.example.com/api/healthz`             |
 | Transmission              | HTTP(s)  | `https://share.example.com/transmission/web`      |
 | WireGuard                 | HTTP(s)  | `https://vpn.example.com`                         |
 | Traefik HTTPS             | TCP Port | `192.168.1.100:443`                               |
@@ -48,10 +49,17 @@ Uses Pi-hole as DNS (`dns: [${PI_LAN_IP}]` in compose) so that domain lookups fo
 | Pi Lynis audit            | Push     | `homelab-lynis-report.sh`, weekly                 |
 | Pi restic prune+check     | Push     | `local-maintenance.sh`, Sun 05:00                 |
 | Pi security posture       | Push     | `homelab-posture.sh`, daily 11:00                 |
+| Veille quotidienne        | Push     | `feed-digest/digest.sh`, daily 06:30              |
 
 Defaults for the active checks: 60s interval, 3 retries, accepted codes `200-299`,
 TLS expiry notification on. The push monitors are dead-man's switches: the job pushes
 on success, and Kuma alarms when the push does not arrive.
+
+Two monitors deviate on purpose. **Forgejo** polls every 300s with 2 retries: it is a
+mirror, not an interactive service — nobody is waiting on it, and a minute of downtime
+is not worth a Discord message. **Veille quotidienne** waits 25h rather than the
+default: the digest runs once a day, so the dead-man window has to clear a full day
+plus the slack for a slow run.
 
 The **Target** column names the endpoint on purpose. A bare `200 on /` would keep a
 service green while it is broken — the case measured on Dozzle, which serves its page
