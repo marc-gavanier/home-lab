@@ -38,14 +38,14 @@ sudo cryptsetup luksHeaderBackup /dev/sda1 \
 
 Then move it off the machine and destroy the working copy:
 
-1. **Primary — offline USB key kept off-site.** This is the copy that matters:
-   independent hardware, survives the loss of the Pi and the whole `/mnt/data`
-   volume. Plaintext is acceptable (the header alone is not enough without the
-   passphrase); encrypt it if you prefer, but only with a secret you will still
-   have *in the disaster* (a symmetric passphrase in your password manager, or a
-   GPG key whose private half is itself backed up offline — otherwise you lock
-   yourself out). Ideally keep a second independent copy (2nd USB, or the offsite
-   Pi) — 3-2-1 applies to the header too.
+1. **Primary — an offline copy, on separate media, kept away from the Pi.** This
+   is the copy that matters: independent hardware, survives the loss of the Pi
+   and the whole `/mnt/data` volume. Plaintext is acceptable (the header alone
+   is not enough without the passphrase); encrypt it if you prefer, but only
+   with a secret you will still have *in the disaster* (a symmetric passphrase
+   in your password manager, or a GPG key whose private half is itself backed up
+   offline — otherwise you lock yourself out). Ideally keep a second independent
+   copy on other media — 3-2-1 applies to the header too.
 2. **Do NOT rely on Vaultwarden as the (only) copy.** Vaultwarden's own data
    lives on this same LUKS volume, so a damaged header takes Vaultwarden with it —
    a circular dependency. A Vaultwarden attachment can be a *convenience* extra
@@ -72,7 +72,7 @@ old header restore would reinstate a superseded passphrase:
 > header destroys access). The volume must be closed.
 
 ```bash
-# Retrieve luks-header-*.img from Vaultwarden or the offline USB key first.
+# Retrieve luks-header-*.img from one of the offline copies first.
 sudo cryptsetup luksClose data 2>/dev/null || true    # if mapped
 sudo cryptsetup luksHeaderRestore /dev/sda1 \
   --header-backup-file /path/to/luks-header-YYYYMMDD.img

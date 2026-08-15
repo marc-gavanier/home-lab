@@ -47,8 +47,8 @@ disk-health push from the offsite Pi itself.
 
 If the homelab is lost entirely: retrieve the offsite Pi (or just its SSD),
 `restic restore` with the offsite repo password, re-provision from the git
-repo. **The offsite repo password must therefore exist outside the homelab**
-(Vaultwarden AND an offline copy) — it is the root of the recovery chain.
+repo. **The offsite repo password must therefore exist outside the homelab**, in
+at least two independent places — it is the root of the recovery chain.
 See `knowledge/runbooks/offsite-backup.md`.
 
 ## Hardware notes
