@@ -17,6 +17,7 @@ Mirrors exactly what `ansible/roles/deploy/files/backup.sh` does (keep this tabl
 | Nextcloud DB           | MariaDB dump (`--single-transaction`) → `/mnt/data/backups/dumps`                               | dump → Restic     | Daily     |
 | Vaultwarden DB         | SQLite `sqlite3 .backup` (WAL-safe) → `/mnt/data/backups/dumps`                                 | dump → Restic     | Daily     |
 | Forgejo DB             | SQLite `sqlite3 .backup` (WAL-safe) → `/mnt/data/backups/dumps`                                 | dump → Restic     | Daily     |
+| Uptime Kuma DB         | SQLite `sqlite3 .backup` (WAL-safe) → `/mnt/data/backups/dumps`                                 | dump → Restic     | Daily     |
 | Miniflux DB            | `pg_dump` via `docker exec` (plain SQL) → `/mnt/data/backups/dumps`                             | dump → Restic     | Daily     |
 | Immich DB              | Immich's own scheduled backup → `services/immich/upload/backups/*.sql.gz`                       | built-in → Restic | Daily     |
 | Stack config           | `/opt/homelab` (compose, scripts)                                                               | Restic            | Daily     |
@@ -52,7 +53,8 @@ weekly in the local maintenance job, not in the backup window.
 ## Restoration
 
 Procedures are in `knowledge/runbooks/restore-from-backup.md` (single files, services,
-Nextcloud/Vaultwarden/Immich/Miniflux/Forgejo databases, full disaster recovery). The
+Nextcloud/Vaultwarden/Immich/Miniflux/Forgejo/Uptime Kuma databases, full disaster
+recovery). The
 LUKS header — the prerequisite for reaching *any* of `/mnt/data` — has its own backstop:
 `knowledge/runbooks/luks-header-backup.md`.
 

@@ -164,7 +164,12 @@ systemd 7. AppArmor denials, if any, land in `dmesg | grep apparmor`.
 ## What is actually monitored
 
 The authoritative inventory is the Kuma database itself; export it with
-`ops/kuma-dump.sh` (read-only, WAL-safe). Broad shape:
+`ops/kuma-dump.sh` (read-only, WAL-safe). Being authoritative is also why that
+database is dumped nightly with `sqlite3 .backup` before the Restic snapshot
+(`docs/06-backup/README.md`): Kuma v2 has no configuration export and every
+monitor below was entered by hand in the web UI, so `kuma.db` is the only place
+this inventory exists. Restoring it comes early in a recovery, not late — until
+Kuma is back, none of the dead-man's switches below are watching. Broad shape:
 
 ### Reachability (Kuma active checks)
 

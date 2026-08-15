@@ -105,6 +105,28 @@ if [ -f "$FORGEJO_DB" ]; then
         || log "WARNING: Forgejo DB backup failed"
 fi
 
+# Uptime Kuma SQLite — the monitoring definition has no other copy.
+# Kuma v2 dropped the built-in Settings > Backup export and the v1 automation
+# tooling does not speak v2 (ops/kuma-dump.sh exists for exactly that reason),
+# so every monitor here was entered by hand in the web UI and kuma.db is the
+# only place they live. Restoring it torn means rebuilding the supervision from
+# memory, right after the incident that made you restore in the first place.
+# This database is under constant write pressure — a heartbeat row per monitor
+# per interval — so unlike the two above it can genuinely collide with the
+# copy. `.backup` returns SQLITE_BUSY on a locked source, and the failure is
+# only a WARNING in this log: give it a busy timeout rather than discover the
+# missing dump on restore day.
+# The copy carries the full history (~41k heartbeats, ~9 MB) and not just the
+# configuration. Kept whole on purpose: it restores with a single cp, exactly
+# like Vaultwarden and Forgejo, and the alternative saves megabytes on a link
+# that already moves far more every night.
+KUMA_DB="/mnt/data/services/uptime-kuma/kuma.db"
+if [ -f "$KUMA_DB" ]; then
+    log "Backing up Uptime Kuma database (sqlite3 .backup)..."
+    sqlite3 -cmd ".timeout 5000" "$KUMA_DB" ".backup '$DUMP_DIR/uptime-kuma.sqlite3'" 2>> "$BACKUP_LOG" \
+        || log "WARNING: Uptime Kuma DB backup failed"
+fi
+
 # Miniflux PostgreSQL — the datadir being inside the restic set is not enough.
 # services/miniflux/db is backed up below, but restic walks it file by file
 # while Postgres writes: the copy is not atomic and can restore to a torn
