@@ -63,6 +63,11 @@ secrets:
   forgejo_admin_password:
     file: /mnt/data/secrets/docker/forgejo_admin_password
 
+  # Unlike the one above, this one IS read by the running container, on every
+  # start, through SECRET_KEY_URI.
+  forgejo_secret_key:
+    file: /mnt/data/secrets/docker/forgejo_secret_key
+
 networks:
   proxy:
     external: true
@@ -1484,11 +1489,27 @@ services:
       # already does for Vaultwarden (ADR-028).
       FORGEJO__database__DB_TYPE: sqlite3
       FORGEJO__database__PATH: /var/lib/gitea/data/forgejo.db
+      # The key that encrypts 2FA secrets and OAuth2 client secrets at rest.
+      # INSTALL_LOCK above is what makes this line necessary: the web installer
+      # is what generates SECRET_KEY, and locking it out means nothing ever did.
+      # Forgejo then falls back to a constant compiled into the binary and shared
+      # by every installation on earth. Measured on 2026-08-15: SECRET_KEY was
+      # empty in the live app.ini while JWT_SECRET and INTERNAL_TOKEN, which the
+      # binary generates on its own, were both populated.
+      # Nothing was at risk when this was found — no 2FA, no access tokens, no
+      # webhooks, and the three OAuth2 entries are Forgejo's own public clients
+      # with no secret. It is fixed now precisely BECAUSE nothing depends on it:
+      # Forgejo cannot rotate this key, so anything encrypted under the default
+      # would have to be re-enrolled by hand later.
+      # _URI rather than the value: it keeps the key out of the environment,
+      # where `docker inspect` would show it to anything that can read the socket.
+      FORGEJO__security__SECRET_KEY_URI: file:/run/secrets/forgejo_secret_key
     secrets:
       # Mounted so the first-run admin-create command can read the password from
       # inside the container instead of it being typed on the host, where it
       # would land in shell history.
       - forgejo_admin_password
+      - forgejo_secret_key
     volumes:
       # One mount, not two. /etc/gitea is what the documentation points at and it
       # is a red herring for this image: GITEA_APP_INI is
