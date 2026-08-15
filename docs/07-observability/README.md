@@ -65,7 +65,7 @@ is asleep.
 
 `homelab-disk.sh` (daily at 07:00, its own Kuma push monitor) watches the 5 TB
 drive: SMART early-warning counters, capacity, temperature, and the result of
-the monthly long self-test started by `homelab-smart-test.timer`.
+the weekly short self-test started by `homelab-smart-test.timer`.
 
 It exists because until 2026-08-15 nothing watched that disk at all — while the
 offsite Pi, which holds only a *copy*, had a weekly SMART report and a monthly
@@ -87,6 +87,21 @@ services continuously while the offsite one is read once a night. It is separate
 from `homelab-health.sh` for the same reason the posture check is: a reallocated
 sector is not an outage, it is a countdown, and it would be buried inside a
 five-minute signal carrying CPU temperature.
+
+**The self-test is short, not extended, and that was measured.** The extended
+test was tried first: the drive announces 228 minutes for it, then returns
+`Completed: read failure` at LBA 730424728 within seconds — twice, at the
+identical LBA — while that sector and the 64 MiB around it read without error
+from the host, every SMART counter stays at zero and dmesg is silent. The
+WD50NDZW is a USB-native SMR drive whose bridge does not implement the extended
+self-test; the verdict is canned, not a finding. Alerting on it would have meant
+a permanently red monitor, which is worse than no monitor. The short test does
+run correctly here, completing in the two minutes it announces.
+
+Losing the surface scan matters less than it sounds, because the media is read
+in full anyway: the nightly backup reads every file, and `local-maintenance.sh`
+runs a rotating `restic check --read-data-subset` across the repository. A
+sector that cannot be read surfaces there.
 
 **They are generated when the `observability` role templates the script, not
 when the stack is deployed** — the running script holds a snapshot, it does not

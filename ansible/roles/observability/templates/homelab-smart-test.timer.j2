@@ -1,13 +1,13 @@
 # {{ ansible_managed }}
 [Unit]
-Description=Monthly SMART long self-test on the homelab data disk
+Description=Weekly SMART short self-test on the homelab data disk
 
 [Timer]
-# 1st of the month at 04:30: after the nightly backup window and its offsite
-# copy, and before the daily disk report at 07:00 — though the test itself runs
-# for hours, so the result usually lands in a later report, which is fine: the
-# staleness check tolerates 35 days.
-OnCalendar=*-*-01 04:30
+# Weekly rather than the offsite's monthly, because a short test costs two
+# minutes instead of hours — there is no reason to space it out. Wednesday
+# keeps it away from the Sunday cluster (restic prune 05:00, offsite check
+# 06:00), and 04:30 is after the nightly backup window.
+OnCalendar=Wed *-*-* 04:30
 Persistent=true
 RandomizedDelaySec=15m
 

@@ -87,18 +87,22 @@ if [ -n "$smart_out" ]; then
         [ "$hdd_temp" -ge 60 ] && problems+=("hdd ${hdd_temp}C")
     fi
 
-    # Last long self-test (started monthly by homelab-smart-test.timer).
+    # Last self-test (a SHORT one, started weekly by homelab-smart-test.timer —
+    # the extended test is not usable on this drive, see that unit for the
+    # measurement). Only the most recent log entry is read, so an old extended
+    # failure sitting further down the log does not alarm forever.
     selftest=$(awk '/^# 1/ { $1=""; $2=""; print; exit }' <<<"$smart_out" | xargs)
     if [ -n "$selftest" ]; then
         grep -qiE 'fail|aborted' <<<"$selftest" && problems+=("self-test: $selftest")
-        # Dead-man's check on the monthly timer itself: the log stamps each test
-        # in drive power-on hours, so comparing with attribute 9 catches a
-        # silently dead timer instead of leaving an eternally green "Completed
-        # without error" from a year ago — which is exactly the state this drive
-        # was found in, its only self-test dating back to 16 power-on hours.
+        # Dead-man's check on the timer itself: the log stamps each test in
+        # drive power-on hours, so comparing with attribute 9 catches a silently
+        # dead timer instead of leaving an eternally green "Completed without
+        # error" from a year ago — which is exactly the state this drive was
+        # found in, its only self-test dating back to 16 power-on hours out of
+        # 2363. 336 h = two missed weekly runs.
         now_h=$(raw 9)
         test_h=$(awk '/^# 1/ { for (i = 1; i <= NF; i++) if ($i ~ /%$/) { print $(i + 1); exit } }' <<<"$smart_out")
-        if [ -n "$now_h" ] && [ -n "$test_h" ] && [ $((now_h - test_h)) -gt 840 ]; then
+        if [ -n "$now_h" ] && [ -n "$test_h" ] && [ $((now_h - test_h)) -gt 336 ]; then
             problems+=("self-test stale ($(((now_h - test_h) / 24))d ago)")
         fi
     else
