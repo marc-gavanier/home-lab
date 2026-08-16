@@ -30,6 +30,29 @@ x-security-opt: &no-new-privs
 x-cap-drop: &cap-drop-all
   - ALL
 
+# Split-DNS pins for every container running the Nextcloud codebase. These names
+# exist only in Pi-hole, and these containers resolve through Docker's embedded
+# DNS (127.0.0.11), which forwards to the host — which is not a Pi-hole client.
+# So the names do not resolve *at all* here, and the pin is what makes them
+# resolvable. (A `dns:` entry pointing at Pi-hole does not work from these
+# containers: the UDP/53 hairpin to the host fails, while TCP/443 to the LAN IP
+# works. `uptime-kuma` can use `dns:` because it is not on the same path.)
+#
+# `drive` — the notify_push self-test reaches Traefik over TCP/443 rather than
+#   hairpinning to the public IP, which the router does not do.
+# `office` — richdocuments fetches the WOPI discovery from `wopi_url` and hands
+#   the browser the `urlsrc` it finds there *verbatim*. Collabora builds that
+#   value from the Host header, so `wopi_url` must be the public name, and every
+#   container that runs this code must be able to reach it (ADR-021).
+#
+# Aliased rather than repeated because the two containers drifted apart once
+# already: `nextcloud-cron` was created without the pins and spent its whole
+# existence failing the richdocuments discovery every 65 minutes, behind two
+# green monitors that both traverse a different path (issue #114).
+x-nextcloud-hosts: &nextcloud-hosts
+  - "drive.${DOMAIN}:${PI_LAN_IP}"
+  - "office.${DOMAIN}:${PI_LAN_IP}"
+
 # Secrets injected as files rather than through `environment:` (ADR-016).
 # The socket-proxy permits GET /containers/{id}/json, and that response includes
 # every container's Env array — so an env-injected password is readable by
@@ -440,18 +463,7 @@ services:
       - ${MEDIA_DIR}/photos:/external/photos:ro
       - ${MEDIA_DIR}/music:/external/music:ro
       - ${MEDIA_DIR}/videos:/external/videos:ro
-    # Pin drive.<domain> to the Pi's LAN IP so internal requests (notify_push
-    # self-test) reach Traefik over TCP/443 instead of hairpinning to the public
-    # IP. (A dns: Pi-hole entry doesn't work here — UDP/53 hairpin to the host
-    # fails from this container, while TCP/443 to the LAN IP works.)
-    extra_hosts:
-      - "drive.${DOMAIN}:${PI_LAN_IP}"
-      # richdocuments fetches the WOPI discovery from `wopi_url` and hands the
-      # browser the `urlsrc` it finds there *verbatim* — Collabora builds that
-      # value from the Host header, so wopi_url must be the public name, and
-      # this container must therefore be able to reach it. Split DNS only, so
-      # the pin is what makes it resolvable at all (ADR-021).
-      - "office.${DOMAIN}:${PI_LAN_IP}"
+    extra_hosts: *nextcloud-hosts    # see x-nextcloud-hosts
     networks:
       - proxy
       - internal
@@ -568,11 +580,20 @@ services:
         condition: service_started
     volumes:
       - ${SERVICES_DATA_DIR}/nextcloud/data:/var/www/html
+    # Same codebase as `nextcloud`, therefore the same pins: cron.php runs the
+    # richdocuments background jobs, which fetch the WOPI discovery over the
+    # public name. Without these the container comes up, stays up, and fails
+    # that fetch every 65 minutes (issue #114).
+    extra_hosts: *nextcloud-hosts    # see x-nextcloud-hosts
     networks:
       - internal
 
   # Real-time update push to sync clients (websocket). Runs the notify_push
   # binary shipped by the app; the until-loop waits for it to be installed.
+  # Deliberately carries no `extra_hosts`, unlike the two containers above that
+  # share this image: it talks to Nextcloud over the internal name pinned in
+  # NEXTCLOUD_URL and never resolves a public one. Verified rather than assumed
+  # while fixing #114 — seven days of logs, zero resolution failures.
   nextcloud-notify-push:
     image: nextcloud:34.0.2-apache
     container_name: nextcloud-notify-push
