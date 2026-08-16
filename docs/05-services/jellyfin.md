@@ -55,9 +55,11 @@ The Pi 4 has no hardware transcoding support. Use direct play whenever possible 
 ## Restore
 
 ```bash
-docker stop jellyfin
+cd /opt/homelab   # `compose down`, never `docker stop`: a stopped container
+                  # is resurrected by the heal timer within 2 min (ADR-007)
+docker compose down jellyfin
 restic restore latest --target / --include /mnt/data/services/jellyfin
-docker start jellyfin
+docker compose up -d jellyfin
 ```
 
 Media files in `/mnt/data/media/videos/` are backed up daily with the rest of `/mnt/data/media`.

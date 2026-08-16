@@ -28,9 +28,11 @@ Configure to point at `share.example.com:443` (HTTPS) with the same admin creden
 
 Transmission writes back to `settings.json` on shutdown, so **stop the daemon before editing**.
 
-1. Stop the container:
+1. Remove the container — `compose down`, never `docker stop`: the heal timer
+   brings a stopped container back within 2 min, and Transmission would then
+   rewrite `settings.json` from memory, over the edit being made (ADR-007).
    ```bash
-   docker stop transmission
+   cd /opt/homelab && docker compose down transmission
    ```
 
 2. Edit `/mnt/data/services/transmission/config/settings.json`:
@@ -46,9 +48,9 @@ Transmission writes back to `settings.json` on shutdown, so **stop the daemon be
    **Upload cap calculation** (target ~70% of real upstream). Example for a 700 Mbps fibre:
    `700 × 0.70 × 125 ≈ 61 250 KB/s` (1 Mbps = 125 KB/s).
 
-3. Restart:
+3. Bring it back:
    ```bash
-   docker start transmission
+   docker compose up -d transmission
    ```
 
 4. **Port forwarding (manual, one-time)**: on the SFR box admin, forward TCP+UDP 51413 → `192.168.1.100:51413`.
@@ -71,9 +73,11 @@ Transmission writes back to `settings.json` on shutdown, so **stop the daemon be
 ## Restore
 
 ```bash
-docker stop transmission
+cd /opt/homelab   # `compose down`, never `docker stop`: a stopped container
+                  # is resurrected by the heal timer within 2 min (ADR-007)
+docker compose down transmission
 restic restore latest --target / --include /mnt/data/services/transmission
-docker start transmission
+docker compose up -d transmission
 ```
 
 Resume state (`.resume` files in `config/`) is included — torrents restart seeding from where they stopped.

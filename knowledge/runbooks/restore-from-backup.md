@@ -36,11 +36,22 @@ restic restore latest --target / --include /mnt/data/media/photos/2019
 
 ## Restore one service
 
+`compose down`, never `docker stop`. The heal timer brings a stopped
+container back within two minutes — on top of the files being restored,
+with the service reading them as they change (ADR-007). Removing the
+container takes it out of the timer's view entirely.
+
 ```bash
-docker stop <service>
+cd /opt/homelab
+docker compose down <service>
 restic restore latest --target / --include /mnt/data/services/<service>
-docker start <service>
+docker compose up -d <service>
 ```
+
+`<service>` is the **compose service name**, not the container name. They
+are identical for every service here except `immich-machine-learning`,
+whose container is named `immich-ml`; `compose` answers "no such service"
+rather than doing nothing quietly.
 
 (Each service's own doc lists its exact path.)
 
@@ -102,12 +113,13 @@ copy can carry a torn WAL. Restore it as the new database:
 ```bash
 restic restore latest --target /tmp/restore --include /mnt/data/backups/dumps
 
-docker stop vaultwarden
+cd /opt/homelab
+docker compose down vaultwarden
 # Drop any stale WAL/SHM so SQLite reopens cleanly from the restored DB
 rm -f /mnt/data/services/vaultwarden/db.sqlite3-wal /mnt/data/services/vaultwarden/db.sqlite3-shm
 cp /tmp/restore/mnt/data/backups/dumps/vaultwarden.sqlite3 \
    /mnt/data/services/vaultwarden/db.sqlite3
-docker start vaultwarden
+docker compose up -d vaultwarden
 ```
 
 (Attachments/sends/rsa keys live alongside the DB in `/mnt/data/services/vaultwarden`
@@ -135,14 +147,16 @@ DUMP=$(ls -t /mnt/data/services/immich/upload/backups/*.sql.gz | head -1)
 
 cd /opt/homelab
 
-# 2. Stop Immich and reset the DB dir so the container re-runs initdb (fresh,
-#    empty `immich` database owned by the `immich` superuser).
+# 2. Remove Immich's containers and reset the DB dir so the container re-runs
+#    initdb (fresh, empty `immich` database owned by the `immich` superuser).
+#    `down`, not `stop`: a stopped container is resurrected by the heal timer
+#    within two minutes, and here that lands on a datadir being deleted.
 #    `immich-machine-learning` is the COMPOSE SERVICE; `immich-ml` is only its
 #    container_name, and compose rejects the whole command with "no such
 #    service" if you pass it. That matters more here than anywhere else in this
 #    file: the very next line deletes the database directory, so a command that
-#    stops nothing leaves you deleting a datadir under a running Postgres.
-docker compose stop immich-server immich-machine-learning immich-db immich-redis
+#    removes nothing leaves you deleting a datadir under a running Postgres.
+docker compose down immich-server immich-machine-learning immich-db immich-redis
 rm -rf /mnt/data/services/immich/db/*
 
 # 3. Bring the DB back up empty and wait until it is healthy:

@@ -62,7 +62,9 @@ Backed up daily by Restic. Vaultwarden uses SQLite — the file is backed up dir
 ## Restore
 
 ```bash
-docker stop vaultwarden
+cd /opt/homelab   # `compose down`, never `docker stop`: a stopped container
+                  # is resurrected by the heal timer within 2 min (ADR-007)
+docker compose down vaultwarden
 restic restore latest --target / --include /mnt/data/services/vaultwarden
-docker start vaultwarden
+docker compose up -d vaultwarden
 ```
