@@ -33,7 +33,7 @@ argument_specs:
       journald_system_max_use:
         type: str
         required: false
-        description: Hard cap on the persistent systemd journal (inline default 200M) — bounds SD writes without losing boot logs.
+        description: Hard cap on the persistent systemd journal (inline default 500M) — bounds SD writes without losing boot logs.
       tmp_tmpfs_size:
         type: str
         required: false

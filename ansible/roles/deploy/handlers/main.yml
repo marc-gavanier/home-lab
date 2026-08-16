@@ -55,3 +55,53 @@
   ansible.builtin.command:
     cmd: docker restart dozzle
   changed_when: true
+
+# --- Secret consumers -------------------------------------------------------
+# The eleven Docker secrets are bind-mounted as FILES too, and `copy` with
+# `content:` replaces the inode exactly as `template` does. So the sweep above
+# was incomplete: it covered the two mounted CONFIG files and stopped ten lines
+# short of the secrets, which have the same failure mode and a worse blast
+# radius — a rotated credential that the running container never reads, while
+# the deploy reports changed and everything stays green. Measured: after
+# forgejo_secret_key was written on 2026-08-15, the forge ran 17 h 44 on the
+# previous key.
+#
+# One handler per consumer rather than one blanket restart, so rotating the
+# Cloudflare token does not bounce the password manager. The mapping was taken
+# from the running containers' mounts, not inferred from the compose file.
+- name: Restart vaultwarden
+  ansible.builtin.command:
+    cmd: docker restart vaultwarden
+  changed_when: true
+
+- name: Restart forgejo
+  ansible.builtin.command:
+    cmd: docker restart forgejo
+  changed_when: true
+
+- name: Restart nextcloud-db
+  ansible.builtin.command:
+    cmd: docker restart nextcloud-db
+  changed_when: true
+
+- name: Restart miniflux
+  ansible.builtin.command:
+    cmd: docker restart miniflux
+  changed_when: true
+
+- name: Restart miniflux-db
+  ansible.builtin.command:
+    cmd: docker restart miniflux-db
+  changed_when: true
+
+# immich_db_password is mounted by both halves, and the server holds the
+# connection, so the database goes first and the server reconnects behind it.
+- name: Restart immich
+  ansible.builtin.shell:
+    cmd: docker restart immich-db && docker restart immich-server
+  changed_when: true
+
+- name: Restart transmission
+  ansible.builtin.command:
+    cmd: docker restart transmission
+  changed_when: true

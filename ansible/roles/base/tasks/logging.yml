@@ -8,6 +8,15 @@
 # "unexplained poweroff -> reflash" runbook reads to decide — but CAP its size
 # so it can never grow unbounded. A drop-in wins over the shipped journald.conf
 # without editing it; "99-" sorts last so it beats any CIS-supplied fragment.
+#
+# The cap was 200M and the journal sat at 199.1M, i.e. permanently rotating:
+# measured retention was 14.3 days against 19 days of uptime, so the boot of
+# 2026-07-28 was already gone — and boot logs are exactly what that runbook
+# needs. 74 % of the volume is SSH session accounting. Raising the cap adds NO
+# writes (the cap governs deletion, not writing) and costs 300M on a filesystem
+# with 45G free. Counter-check: the offsite host retains 42 days at the same
+# cap, which is what shows 200M is not a universal figure but a symptom of this
+# host's log rate.
 - name: logging | Ensure the journald drop-in directory exists
   ansible.builtin.file:
     path: /etc/systemd/journald.conf.d
@@ -23,7 +32,7 @@
       [Journal]
       Storage=persistent
       Compress=yes
-      SystemMaxUse={{ journald_system_max_use | default('200M') }}
+      SystemMaxUse={{ journald_system_max_use | default('500M') }}
       SystemMaxFileSize=50M
       RuntimeMaxUse=50M
   notify: Restart systemd-journald

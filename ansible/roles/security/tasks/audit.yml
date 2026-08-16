@@ -1,9 +1,32 @@
 ---
 # Security audit tools.
+#
+# lynis is scheduled and reported by the observability role: a weekly run, a
+# hardening index pushed to a monitor, and a ratchet that goes DOWN on any
+# regression. That is what makes it a control rather than a package.
 
 - name: audit | Install security audit tools
   ansible.builtin.apt:
     name:
       - lynis
-      - rkhunter
     state: present
+
+# rkhunter was installed here and NEVER RAN — not once, on either host, in the
+# lifetime of this lab. No /var/log/rkhunter.log exists, CRON_DAILY_RUN is
+# empty, and the signature database was frozen on 2026-05-10. It was pure
+# posture: a rootkit scanner on the package list, doing nothing, while looking
+# like coverage on any inventory of what is installed.
+#
+# Removed rather than scheduled. Scheduling it would mean adding an alerting
+# path and a false-positive budget for machinery nobody asked for — and this
+# repo has already declined a reputation/IPS layer for the same reason. An
+# absent tool is honest; an installed tool that never runs is not.
+#
+# To go the other way instead: put it back on the list above, set
+# CRON_DAILY_RUN="true" in /etc/default/rkhunter, run `rkhunter --propupd`
+# once to baseline it, and give it a push monitor like lynis has.
+- name: audit | Remove rkhunter, which was installed but never ran
+  ansible.builtin.apt:
+    name: rkhunter
+    state: absent
+    purge: true
