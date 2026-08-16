@@ -54,9 +54,11 @@ Organize by `Artist/Album/Track.flac` for best metadata detection.
 ## Restore
 
 ```bash
-docker stop navidrome
+cd /opt/homelab   # `compose down`, never `docker stop`: a stopped container
+                  # is resurrected by the heal timer within 2 min (ADR-007)
+docker compose down navidrome
 restic restore latest --target / --include /mnt/data/services/navidrome
-docker start navidrome
+docker compose up -d navidrome
 ```
 
 Music files in `/mnt/data/media/music/` are backed up daily with the rest of `/mnt/data/media`.

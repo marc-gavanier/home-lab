@@ -118,7 +118,9 @@ Backed up daily by Restic. Monitors and history persist across container restart
 ## Restore
 
 ```bash
-docker stop uptime-kuma
+cd /opt/homelab   # `compose down`, never `docker stop`: a stopped container
+                  # is resurrected by the heal timer within 2 min (ADR-007)
+docker compose down uptime-kuma
 restic restore latest --target / --include /mnt/data/services/uptime-kuma
-docker start uptime-kuma
+docker compose up -d uptime-kuma
 ```

@@ -36,10 +36,15 @@ Immich is the most RAM-hungry service (~1 GB with machine learning). Monitor wit
 ssh homelab "docker stats --no-stream immich-server immich-ml"
 ```
 
-If RAM is too tight, disable machine learning by stopping the ML container:
+If RAM is too tight, disable machine learning by removing the ML container:
 ```bash
-ssh homelab "docker stop immich-ml"
+ssh homelab "cd /opt/homelab && docker compose down immich-machine-learning"
 ```
+
+`immich-machine-learning` is the compose **service**; `immich-ml` is only its
+container name, and `compose` answers "no such service" if you pass it.
+`docker stop` would not work here either: the heal timer brings a stopped
+container back within two minutes, so the RAM never actually frees.
 
 ## Data
 
