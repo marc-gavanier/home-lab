@@ -18,6 +18,14 @@ set -euo pipefail
 BACKUP_LOG="/var/log/homelab-backup.log"
 DUMP_DIR="/mnt/data/backups/dumps"
 
+# What this run actually did. Filled in from restic's own summary below and read
+# by the EXIT trap. The push used to be the constant "completed", so a night that
+# added nothing was indistinguishable from a normal one — on the dashboard and in
+# the log alike, since neither carried a restic summary (#127). Empty here means
+# restic produced no summary, and the push says so rather than glossing over it.
+backup_summary=""
+backup_snapshot=""
+
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$BACKUP_LOG"; }
 
 # Ping the Uptime Kuma push monitor (dead-man's switch). Best-effort: never fails the backup.
@@ -33,7 +41,7 @@ notify() {
 finish() {
     local rc=$?
     if [ "$rc" -eq 0 ]; then
-        notify up "completed"
+        notify up "${backup_summary:-completed, but restic reported no summary}"
     else
         notify down "FAILED (rc=$rc) — see $BACKUP_LOG"
     fi
@@ -150,37 +158,85 @@ docker exec miniflux-db pg_dump \
 # this script deletes the evidence. Three months of logs show zero occurrences
 # — this is a design gap, not an incident, and it costs ten lines to close.
 #
-# The floor is deliberately crude. The point is to catch the file that is ABSENT
-# and the one that is TRUNCATED — a redirected dump whose command died mid-write
-# leaves a short file behind, and that is precisely what restores into a broken
-# database. Modelling expected growth would buy nothing and break on a quiet day.
+# The point is to catch the file that is ABSENT and the one that is TRUNCATED —
+# a redirected dump whose command died mid-write leaves a short file behind, and
+# that is precisely what restores into a broken database.
+#
+# This used to be a byte floor of 10240 for all five. Measured against the real
+# run of 2026-08-16, that floor was 0.037 % of miniflux.sql and 0.85 % of
+# vaultwarden.sqlite3: a dump cut to one percent of itself passed a check whose
+# own message said "truncated?" (#127). Raising the number was never the answer
+# — modelling expected growth buys nothing and breaks on a quiet day, which is
+# why the floor was crude in the first place.
+#
+# So assert the CONTENT instead. It does not drift as the data grows, and it
+# catches a dump truncated at any size, which is the actual failure mode:
+#   - the two SQL dumps each end with their tool's completion marker, written
+#     last, so its absence is exactly what "died mid-write" looks like;
+#   - the three SQLite copies answer `pragma quick_check`.
+#
+# Read the TAIL rather than the last line: pg_dump 18 writes a `\unrestrict`
+# line AFTER its completion marker, so a last-line test would fail on a dump
+# that is perfectly fine.
 #
 # Checked BEFORE the restic run, so what gets asserted is what gets snapshotted.
 # The verdict is deferred to the end: a missing dump must not cost us the
 # backup of everything else. The snapshot is taken, and then the run reports
 # DOWN so the operator finds out the same night.
-assert_dump() { # $1=filename  $2=minimum bytes
-    local f="$DUMP_DIR/$1" size
+assert_dump() { # $1=filename  $2=sqlite|marker  $3=marker text when $2=marker
+    local f="$DUMP_DIR/$1" kind="$2" marker="${3:-}" size verdict tables
     if [ ! -f "$f" ]; then
         log "ERROR: expected dump $1 is missing"
         return 1
     fi
     size=$(stat -c %s "$f")
-    if [ "$size" -lt "$2" ]; then
-        log "ERROR: dump $1 is only $size bytes (floor $2) — truncated?"
-        return 1
-    fi
-    log "dump $1 ok ($size bytes)"
+    case "$kind" in
+        marker)
+            if tail -c 4096 "$f" | grep -qF -- "$marker"; then
+                log "dump $1 ok ($size bytes, completion marker present)"
+            else
+                log "ERROR: dump $1 has no completion marker — truncated ($size bytes)"
+                return 1
+            fi
+            ;;
+        sqlite)
+            # head -1: quick_check prints "ok" alone, or one line per problem.
+            verdict=$(sqlite3 -cmd ".timeout 5000" "$f" 'pragma quick_check;' 2>&1 | head -1) \
+                || verdict="sqlite3 could not read the file"
+            if [ "$verdict" != "ok" ]; then
+                log "ERROR: dump $1 failed quick_check: ${verdict:-<no output>} ($size bytes)"
+                return 1
+            fi
+            # quick_check alone is NOT enough, and measurement is the only reason
+            # we know it: a ZERO-BYTE file passes it. SQLite reads an empty file
+            # as a valid empty database, and an empty file is exactly what a
+            # `.backup` that failed at the first step leaves behind — the one
+            # case the old byte floor did catch. So assert the database has
+            # content too, which also rejects a structurally perfect but empty
+            # copy: restoring an empty Vaultwarden is not a lesser disaster.
+            tables=$(sqlite3 -cmd ".timeout 5000" "$f" \
+                     'select count(*) from sqlite_master;' 2>/dev/null) || tables=0
+            if [ "${tables:-0}" -lt 1 ]; then
+                log "ERROR: dump $1 holds no tables — empty database ($size bytes)"
+                return 1
+            fi
+            log "dump $1 ok ($size bytes, quick_check ok, $tables schema objects)"
+            ;;
+        *)
+            log "ERROR: assert_dump called with unknown kind '$kind' for $1"
+            return 1
+            ;;
+    esac
 }
 
 dump_failures=0
 check_dump() { assert_dump "$@" || dump_failures=$((dump_failures + 1)); }
 
-check_dump nextcloud.sql 10240
-check_dump miniflux.sql 10240
-if [ -f "$VAULTWARDEN_DB" ]; then check_dump vaultwarden.sqlite3 10240; fi
-if [ -f "$FORGEJO_DB" ];     then check_dump forgejo.sqlite3     10240; fi
-if [ -f "$KUMA_DB" ];        then check_dump uptime-kuma.sqlite3 10240; fi
+check_dump nextcloud.sql marker '-- Dump completed on'
+check_dump miniflux.sql  marker '-- PostgreSQL database dump complete'
+if [ -f "$VAULTWARDEN_DB" ]; then check_dump vaultwarden.sqlite3 sqlite; fi
+if [ -f "$FORGEJO_DB" ];     then check_dump forgejo.sqlite3     sqlite; fi
+if [ -f "$KUMA_DB" ];        then check_dump uptime-kuma.sqlite3 sqlite; fi
 
 # Immich is not dumped here — it runs its own scheduled backup into the restic
 # set — so its failure mode is not a missing file but a STALE one. keepLastAmount
@@ -212,8 +268,12 @@ log "Running restic backup..."
 # Scoped to the architecture directory on purpose: the root CA, including
 # ca-key.pem, sits in a sibling directory under libresign/ and MUST stay in the
 # backup — losing it invalidates every signature ever issued here.
-restic backup \
-    --verbose \
+# `--json` in place of `--verbose`: restic's summary is the only thing that can
+# tell a normal night from one that added nothing, and it was going nowhere —
+# not to the monitor, which said "completed" either way, and not to this log.
+# The trade-off is the per-file listing that `--verbose` sent to the journal;
+# what replaces it is one line that can actually be compared night to night.
+backup_report=$(restic backup --json \
     --tag auto \
     --exclude '/mnt/data/services/nextcloud/data/data/appdata_*/libresign/aarch64' \
     /mnt/data/services \
@@ -221,7 +281,45 @@ restic backup \
     /mnt/data/backups/dumps \
     /mnt/data/secrets \
     /opt/homelab \
-    2>> "$BACKUP_LOG" || { log "ERROR: Restic backup failed"; exit 1; }
+    2>> "$BACKUP_LOG" \
+  | python3 -c '
+import json, sys
+
+def human(n):
+    for unit in ("B", "KiB", "MiB", "GiB", "TiB"):
+        if n < 1024.0:
+            return "%.1f %s" % (n, unit)
+        n /= 1024.0
+    return "%.1f PiB" % n
+
+summary = None
+for line in sys.stdin:               # status messages stream; the summary is last
+    try:
+        msg = json.loads(line)
+    except ValueError:
+        continue
+    if msg.get("message_type") == "summary":
+        summary = msg
+
+if summary:
+    print("%s\t%d new + %d changed files, %s added, %s processed in %ds" % (
+        summary.get("snapshot_id", "")[:8],
+        summary.get("files_new", 0),
+        summary.get("files_changed", 0),
+        human(summary.get("data_added", 0)),
+        human(summary.get("total_bytes_processed", 0)),
+        summary.get("total_duration", 0)))
+') || { log "ERROR: Restic backup failed"; exit 1; }
+
+if [ -n "$backup_report" ]; then
+    backup_snapshot="${backup_report%%$'\t'*}"
+    backup_summary="snapshot ${backup_snapshot}: ${backup_report#*$'\t'}"
+    log "$backup_summary"
+else
+    # Not fatal — the snapshot may well exist. But the push must not claim a
+    # normal night on the strength of an exit code alone.
+    log "WARNING: restic produced no summary — the push will say so"
+fi
 
 # --- Offsite replication (restic copy over WireGuard, ADR-010) ---
 # Runs BEFORE local retention so the snapshot just taken is always copied.
@@ -251,7 +349,7 @@ if [ -n "${OFFSITE_RESTIC_REPOSITORY:-}" ]; then
        RESTIC_REST_PASSWORD="$OFFSITE_REST_PASSWORD" \
        restic copy latest 2>> "$BACKUP_LOG"; then
         log "Offsite copy completed"
-        notify_offsite up "offsite copy completed"
+        notify_offsite up "offsite copy completed${backup_snapshot:+ (snapshot $backup_snapshot)}"
     else
         log "WARNING: offsite copy failed (local backup unaffected)"
         notify_offsite down "offsite copy FAILED — see $BACKUP_LOG"
