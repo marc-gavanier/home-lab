@@ -39,9 +39,11 @@ Personal home lab on Raspberry Pi 4 — self-hosted services, full automation, h
 ## Network Architecture
 
 ```
-Internet → ISP Router  (public: 51820/udp only)
+Internet → ISP Router  (forwarded: 51820/udp, 51413)
                │
-               └─ :51820/udp → WireGuard VPN   ← the only public entry point
+               ├─ :51413      → Transmission peer port (tcp+udp, open for seeding)
+               │
+               └─ :51820/udp → WireGuard VPN
                                   │
                                   └─ LAN → Traefik (:443, TLS via Cloudflare DNS-01)
                                              ├─ drive.example.com  → Nextcloud
@@ -49,6 +51,11 @@ Internet → ISP Router  (public: 51820/udp only)
                                              ├─ proxy.example.com  → Traefik dashboard
                                              └─ ...
 ```
+
+**Two ports are forwarded, and only two**: WireGuard's `51820/udp`, and
+Transmission's peer port `51413` (tcp+udp), open by design for seeding. The VPN
+is the only entry point to the *services*, not the only hole in the router —
+`51413` reaches a container. See ADR-013 and `docs/04-network/`.
 
 No public HTTP/HTTPS: ports 80/443 are not forwarded. Certificates use the ACME
 DNS-01 challenge (Cloudflare), so services need no public DNS record and are

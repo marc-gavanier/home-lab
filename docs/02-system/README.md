@@ -16,7 +16,9 @@ Chosen for its stability (10-year LTS), excellent ARM64 support on Raspberry Pi 
 ### Swap
 - Swap on HDD (not SD) to preserve the card
 - Reduced swappiness (`vm.swappiness=10`) — use swap as last resort
-- 2 GB swap file at `/mnt/data/swapfile`
+- 4 GiB swap file at `/mnt/data/swapfile` — doubled from 2 GiB before the
+  occupancy alarm could be set against it (`docs/07-observability/`, which owns
+  the 85 % threshold and the resize procedure)
 
 ### SD Write Reduction
 The SD card has limited write endurance, so every recurring write is pushed
@@ -64,5 +66,5 @@ See `docs/06-backup/` for backup strategy.
 │   ├── videos/
 │   └── photos/
 ├── backups/           # Restic repositories
-└── swapfile           # Swap (2 GB)
+└── swapfile           # Swap (4 GiB)
 ```
