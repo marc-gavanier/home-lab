@@ -201,7 +201,7 @@ remember that merged is not deployed and deployed is not proven.
 | #130 | README understates the public perimeter; swap documented at half its size | **fixed** (PR #142) — figures re-measured on the hosts: 8 GB board (7.7 GiB usable), 4 GiB swap, offsite is the retired 4 GB board. |
 | #131 | Empty strings in the example override working defaults; two bind-mounted configs without a restart handler | **fixed and deployed**, `changed=0` with `skipped` 32→33 — the increment is the new assertion skipping, which is what proves it is there. Sweep found these three keys were the only collision. |
 | #137 | The backup assertions and summary push are proven on fixtures only — follow-up to #127 | open |
-| #138 | wg-easy cannot write its own database: adding or **revoking** a peer fails behind a healthy container — found via #125 | **closed on GitHub, NOT fixed on the machine.** Verified 2026-08-16 23:35: `/mnt/data/services/wireguard` is still uid 1000 and `docker exec wg-easy touch` still returns `Permission denied`. Revoking a VPN peer through the UI remains impossible; the `wg set … remove` stopgap on the live interface still works. Do not read the closed state as done. |
+| #138 | wg-easy cannot write its own database: adding or **revoking** a peer fails behind a healthy container — found via #125 | **open, do at the machine.** Closed by mistake on 2026-08-16 and reopened the same evening once the machine was checked: `/mnt/data/services/wireguard` is still uid 1000 and `docker exec wg-easy touch` still returns `Permission denied`, so revoking a VPN peer through the UI remains impossible. The `wg set … remove` stopgap on the live interface still works, but does not survive a container restart. #144 fixed the identical defect for three other services with the same one-line `chown`; wg-easy is excluded because the first successful write regenerates `wg0.conf` and runs `wg syncconf`, and that interface is the only path to the host. |
 
 Still open and still cosmetic: one orphaned anonymous volume (~48 MB) from a
 first container start. Remove by hand, never with a broad prune.
@@ -228,11 +228,14 @@ three merged, deployed and verified the same night.
 | #145 | Journal retention 14.3 days against 19 days of uptime, at a 200M cap sitting at 199.1M; nothing watched the **filesystem**, only the disk | Cap raised to 500M (the cap governs deletion, not writing). ext4 superblock counters now in the daily report: `disk 17%, hdd 53C, ext4 clean` in the message the monitor received |
 | #146 | Three `## Restore` blocks contradicted the runbook on the three databases with no second copy, one of them pointing at a path deleted after every backup | `ls /mnt/data/backups/dumps/` → `No such file or directory`. All three now defer to the runbook, which is why `immich.md` had never drifted |
 
-Two things are **live and untracked** after this campaign, and the next run
-should treat them as findings if they are still true:
+Two things are still **live** after this campaign, and the next run should verify
+them on the machine rather than trust their tracking state:
 
-- **wg-easy still cannot write** — see the #138 row above. Its exclusion in the
-  posture assertion names a closed issue.
+- **wg-easy still cannot write** — see the #138 row above. That issue was closed
+  by mistake and reopened once the machine was checked, which is the whole
+  argument for verifying against the running system: the tracker said done, the
+  filesystem said `Permission denied`. Its exclusion in the posture assertion is
+  the only one there, and it disappears with the fix.
 - **The orphan `internal` network still exists.** Ansible no longer rebuilds it,
   but nothing deletes a network that has merely stopped being created. One
   `docker network rm internal` is owed.
