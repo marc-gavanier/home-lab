@@ -13,6 +13,12 @@ free_port_53: false # No Pi-hole here — keep stock systemd-resolved
 # the nightly restic copy (03:00).
 unattended_automatic_reboot: true
 tmp_tmpfs_size: 512M # Smaller /tmp cap on the 4GB node (homelab defaults to 1G)
+# No Docker stack here, so no Nextcloud or Vaultwarden jail — and above all no
+# /mnt/data. The unconditional version of those tasks touched log files under
+# it, failed, and stopped the play before `offsite-backup` ever ran: this host
+# last converged 2026-07-19 and could not be rebuilt for a month (issue #115).
+# The sshd jail is unaffected; it is unconditional in the role.
+fail2ban_service_jails: false
 # zram compressed swap: this node has no HDD swapfile (it doesn't run the
 # storage role) and runs memory-spiky restic jobs, so compressed RAM swap is
 # real headroom kept off the SSD. The 8GB homelab leaves this off.

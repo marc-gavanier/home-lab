@@ -6,6 +6,29 @@
 # their attacker a compromised VPN client or LAN device — scenario #1 of the
 # 2026-07-19 audit, and the one the container hardening was aimed at. Brute
 # force from inside the perimeter was unthrottled until now (issue #35).
+#
+# ---------------------------------------------------------------------------
+# `fail2ban_service_jails` gates everything that assumes the Docker stack is on
+# this host. The sshd jail and the base hardening stay unconditional, because
+# both hosts want them.
+#
+# It exists because this file had zero `when:` conditions and touched
+# `services_data_dir` unconditionally, which on the offsite Pi is
+# /mnt/data/services — a path that does not exist there, since that host mounts
+# /mnt/backup and runs neither service. `file: state: touch` does not create
+# parent directories, so the task failed, the play stopped, and the
+# `offsite-backup` role never ran. Offsite last converged 2026-07-19, the day
+# before these jails landed; the second copy was un-provisionable for a month
+# while looking healthy (issue #115).
+#
+# OPT-OUT rather than opt-in, deliberately. The failure modes are not
+# symmetric: with a default of false, losing the homelab's variable would
+# silently drop two jails there — and the posture check would not catch it,
+# because it compares jails *configured* against jails *loaded*, and both would
+# agree on sshd alone. With a default of true, a new host without the stack
+# fails loudly, which is recoverable. Same shape as `free_port_53`: offsite is
+# the exception, so offsite carries the variable.
+# ---------------------------------------------------------------------------
 
 - name: fail2ban | Install fail2ban
   ansible.builtin.apt:
@@ -19,6 +42,7 @@
     owner: root
     group: root
     mode: "0755"
+  when: fail2ban_service_jails | default(true)
 
 # Neither filter ships with Debian's fail2ban. The `bitwarden` filter that does
 # ship targets the *official* Bitwarden server (Bit.Core log lines) and never
@@ -40,6 +64,7 @@
       ignoreregex =
       journalmatch =
   notify: Restart fail2ban
+  when: fail2ban_service_jails | default(true)
 
 - name: fail2ban | Install the Nextcloud filter
   ansible.builtin.copy:
@@ -59,6 +84,7 @@
       ignoreregex =
       journalmatch ={% endraw %}
   notify: Restart fail2ban
+  when: fail2ban_service_jails | default(true)
 
 # fail2ban does not skip a jail whose log file is missing — it refuses to start
 # at all, taking the sshd jail down with it. The files are created here, and not
@@ -81,6 +107,9 @@
     - path: "{{ services_data_dir }}/vaultwarden/logs/vaultwarden.log"
       owner: root        # vaultwarden runs as root inside its container
       group: root
+  # This is the task that aborted the offsite play for a month: services_data_dir
+  # is under /mnt/data, which does not exist on a host that mounts /mnt/backup.
+  when: fail2ban_service_jails | default(true)
 
 - name: fail2ban | Configure the jails
   ansible.builtin.copy:
@@ -92,11 +121,16 @@
       findtime = 600
       maxretry = {{ fail2ban_max_retry }}
       backend = systemd
+      {% if fail2ban_service_jails | default(true) %}
       # Docker's own networks are never banned. Every request to Nextcloud and
       # Vaultwarden arrives through Traefik; if X-Forwarded-For handling ever
       # breaks, the address in the application log becomes Traefik's, and
       # banning it would take the whole stack off the network — an outage caused
       # by the protection itself.
+      {% else %}
+      # Kept for parity with the homelab's file; nothing containerised reaches
+      # this host, so no jail here reads an address that Traefik rewrote.
+      {% endif %}
       ignoreip = 127.0.0.1/8 ::1 172.16.0.0/12
 
       [sshd]
@@ -105,6 +139,7 @@
       filter = sshd
       logpath = /var/log/auth.log
       maxretry = {{ fail2ban_max_retry }}
+      {% if fail2ban_service_jails | default(true) %}
 
       # The two jails below read FILES, so they must override the systemd
       # backend set above — with it they would watch the journal, find nothing,
@@ -141,6 +176,7 @@
       chain = DOCKER-USER
       maxretry = 5
       findtime = 600
+      {% endif %}
     mode: "0644"
   notify: Restart fail2ban
 
@@ -173,6 +209,21 @@
       Restart=on-failure
       RestartSec=30
   notify: Restart fail2ban
+  when: fail2ban_service_jails | default(true)
+
+# Removed rather than merely skipped, and this is the important half. That
+# ExecStartPre greps /mnt/data, which never appears on a host without the
+# stack — so an override left behind after the variable is set to false gives
+# a fail2ban that starts today and stops starting at the next reboot, silently,
+# with the sshd jail going down with it. Skipping the task would leave exactly
+# that. This is the trap issue #115 named: the loud failure replaced by a quiet
+# one.
+- name: fail2ban | Remove the encrypted-volume override where there is no volume
+  ansible.builtin.file:
+    path: /etc/systemd/system/fail2ban.service.d/override.conf
+    state: absent
+  notify: Restart fail2ban
+  when: not (fail2ban_service_jails | default(true))
 
 # Vaultwarden holds the file open, so rotation must not move it out from under
 # the process — copytruncate rather than create.
@@ -191,3 +242,4 @@
           delaycompress
           copytruncate
       }
+  when: fail2ban_service_jails | default(true)

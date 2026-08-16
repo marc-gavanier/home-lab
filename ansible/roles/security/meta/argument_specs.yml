@@ -18,6 +18,13 @@ argument_specs:
         type: str
         required: true
         description: Root of the service data trees (the Nextcloud and Vaultwarden jails read logs from there).
+      fail2ban_service_jails:
+        type: bool
+        required: false
+        description: >-
+          Install the Nextcloud and Vaultwarden jails, the log files they watch and the
+          /mnt/data startup gate (inline default true; set false on hosts without the Docker
+          stack — offsite, whose data volume is /mnt/backup). The sshd jail is unconditional.
       fail2ban_ban_time:
         type: int
         required: true
