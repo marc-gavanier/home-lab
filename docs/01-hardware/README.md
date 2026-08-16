@@ -5,7 +5,7 @@
 | Specification | Value                                                           |
 |---------------|-----------------------------------------------------------------|
 | Processor     | Broadcom BCM2711, quad-core Cortex-A72 (ARM v8) 64-bit @ 1.5GHz |
-| RAM           | 4 GB LPDDR4-3200                                                |
+| RAM           | 8 GB LPDDR4-3200                                                |
 | Storage       | MicroSD + USB 3.0                                               |
 | Network       | Gigabit Ethernet, Wi-Fi 802.11ac                                |
 | USB           | 2x USB 3.0, 2x USB 2.0                                          |
@@ -27,3 +27,7 @@
 - **USB power**: the 5TB external HDD should be independently powered if possible, to avoid overloading the Pi's USB bus
 - **Cooling**: the case with active fan is essential — the Cortex-A72 throttles at 80°C
 - **SD card**: A2 class recommended for IOPS. Minimize writes to extend lifespan
+- **RAM**: this host runs an 8 GB board. The original 4 GB one was not retired —
+  it is the offsite backup target (ADR-010), so documents that say 4 GB are
+  correct when they are talking about `offsite`, and so are the ADRs written
+  while the main host still had 4 GB
