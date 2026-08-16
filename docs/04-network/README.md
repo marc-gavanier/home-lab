@@ -81,12 +81,12 @@ All services are **VPN-only**. The `vpn-only` middleware is applied globally on 
 Measured from the offsite Pi's uplink on 2026-08-15, with a known-open port as a
 control so that a timeout means something:
 
-| Port | From the internet |
-|------|-------------------|
-| 80   | not forwarded     |
-| 443  | not forwarded     |
-| 51820/udp | WireGuard — the handshake proves it |
-| 51413 | **open** (Transmission peer port, tcp confirmed) |
+| Port      | From the internet                                |
+|-----------|--------------------------------------------------|
+| 80        | not forwarded                                    |
+| 443       | not forwarded                                    |
+| 51820/udp | WireGuard — the handshake proves it              |
+| 51413     | **open** (Transmission peer port, tcp confirmed) |
 
 So the only TCP port an internet scanner can connect to is Transmission's. This
 page claimed the opposite in both directions for weeks: it advertised 80/443 as
@@ -114,7 +114,11 @@ not, which is why the numbers above now carry the date they were measured.
 
 - **IPv4 full stack** (not CGNAT) — required for port forwarding. SFR/Red users must request a rollback from CGNAT via support.
 - **Static DHCP lease** for the Pi (192.168.1.100)
-- **Port forwarding**: 80/TCP, 443/TCP, 51820/UDP → Pi
+- **Port forwarding**: 51820/UDP (WireGuard) and 51413 (Transmission peer port) → Pi.
+  **80/TCP and 443/TCP are deliberately NOT forwarded** — the forward was removed in
+  late July 2026, and Traefik now serves the LAN and the VPN only. Re-adding them
+  after a box reset or an ISP swap would silently re-open the perimeter this lab
+  closed on purpose; see the reachability table above.
 
 ### Gotchas
 

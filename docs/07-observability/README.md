@@ -260,15 +260,28 @@ days of Netdata retention — the hourly minimum never went below 800 MiB, and t
 lowest instantaneous dip (756 MiB) is absorbed by requiring two consecutive
 runs, so it would have been silent throughout.
 
-**Why the swap file was doubled before it could be alarmed on.** At 2 GiB it sat
-around 92 % full in normal operation: roughly 1.9 GiB of genuinely cold pages —
-Collabora's pre-forked kits, `immich-server` — that will never be touched again.
+**Why the swap file was doubled before it could be alarmed on.** At 2 GiB it did
+not sit at a high percentage — it ran *saturated*, mostly on cold pages
+(Collabora's pre-forked kits, `immich-server`) that will never be touched again:
+
+| Window                  | `used` peak            | `free` peak in the same bucket        |
+|-------------------------|------------------------|---------------------------------------|
+| 2026-08-09 → 2026-08-12 | 2047.996 MiB of 2048.0 | never above ~60 MiB, down to 1.76 MiB |
+
 An occupancy that is already full in the steady state carries no information. A
 threshold below it would have been red for six days with nothing to do about it,
 the same trap that retired the extended SMART self-test; one above it could
 never fire. So the file went to 4 GiB (2 GiB more on a disk with 3.6 TiB free,
-no RAM, no CPU), which puts that same steady state near 46 % and makes the
-number mean something again.
+no RAM, no CPU).
+
+**What the new steady state should be — and why it is not 46 %.** A swap pinned
+at its ceiling does not tell you how much it wanted, only that it wanted *at
+least* 2 GiB. Halving the observed figure would be arithmetic on a truncated
+value: the measurement was censored by the size of the file, so it cannot be
+scaled. Reconstructing instead from the refill rate after the 2026-08-03 reset —
++500, +901, +205, +181, +66 MiB per night, driven by the 03:00 backup, a concave
+curve — puts the real steady state around **2.1–2.3 GiB, i.e. 52–57 %** of the
+new file. That is the number that makes occupancy mean something again.
 
 It is worth being clear about what a full swap does and does not mean. It is
 **not** evidence that the machine is short of memory — nothing here has ever

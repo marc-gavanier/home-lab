@@ -115,13 +115,20 @@ done
 # is absorbed by requiring two consecutive runs. Zero false alarms over the
 # whole observed period.
 #
-# Swap alarms too, but only because it was resized. At 2 GiB it sat ~92% full
-# in normal operation — roughly 1.9 GiB of genuinely cold pages that will never
-# be touched again — so occupancy carried no information: a threshold under it
-# would have been red for six days with nothing to do, the trap that retired the
-# extended SMART self-test, and one above it would never fire. Doubling the file
-# to 4 GiB puts that same steady state near 46%, which makes the number mean
-# something again.
+# Swap alarms too, but only because it was resized. At 2 GiB it did not sit at
+# some high percentage — it ran SATURATED: over 2026-08-09..12 Netdata has `used`
+# peaking at 2047.996 MiB of 2048.0, with free never above ~60 MiB in the same
+# bucket and down to 1.76 MiB. Mostly cold pages that will never be touched
+# again. Occupancy therefore carried no information: a threshold under it would
+# have been red for six days with nothing to do, the trap that retired the
+# extended SMART self-test, and one above it would never fire.
+#
+# A swap pinned at its ceiling does not tell you how much it wanted, only that
+# it wanted at least 2 GiB — so the old file cannot be halved into a projection.
+# Reconstructing instead from the refill rate after the 2026-08-03 reset
+# (+500, +901, +205, +181, +66 MiB per night, driven by the 03:00 backup — a
+# concave curve) puts the real steady state around 2.1-2.3 GiB, i.e. 52-57% of
+# the 4 GiB file. That is what makes the number mean something again.
 #
 # 85% is therefore a STARTING POINT, not a measured threshold, and it is the one
 # number here that is not backed by history: every observation available was

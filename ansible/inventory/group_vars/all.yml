@@ -16,13 +16,16 @@ hostname: homelab
 timezone: Europe/Paris
 locale: fr_FR.UTF-8
 # 4096 since 2026-08-15, up from 2048. Not because the machine was short of
-# memory — it has never been OOM-killed — but because at 2 GiB the swap was
-# ~92% full in normal operation: roughly 1.9 GiB of genuinely cold pages
-# (Collabora's pre-forked kits, immich-server) that will never be touched
-# again. A swap that is full in the steady state cannot warn about anything,
-# and leaves the kernel nowhere to evict to on the day memory actually gets
-# tight. Doubling it costs 2 GiB on a disk with 3.6 TiB free, no RAM and no CPU,
-# and turns occupancy back into a signal — see the alert in homelab-health.sh.
+# memory — it has never been OOM-killed — but because at 2 GiB the swap ran
+# SATURATED, not merely full: Netdata's history has `used` pinned at 2047.996
+# MiB of 2048 for days on end. Mostly cold pages (Collabora's pre-forked kits,
+# immich-server) that will never be touched again. A saturated swap does not
+# tell you how much it wanted, only that it wanted at least 2 GiB. A swap that
+# is pinned at its ceiling cannot warn about anything, and leaves the kernel
+# nowhere to evict to on the day memory actually gets tight. Doubling it costs
+# 2 GiB on a disk with 3.6 TiB free, no RAM and no CPU, and turns occupancy back
+# into a signal — the reconstructed steady state sits at 52-57% of the new file.
+# See the alert and its reconstruction in homelab-health.sh.
 # NOTE: changing this value alone resizes nothing, `creates:` guards the file.
 # See roles/storage/tasks/swap.yml for the deliberate manual procedure.
 swap_size_mb: 4096
