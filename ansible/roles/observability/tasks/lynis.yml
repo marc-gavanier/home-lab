@@ -1,8 +1,34 @@
 ---
-# Weekly lynis audit -> Uptime Kuma push. lynis is installed by the security
-# role (audit.yml) but nothing scheduled it; this closes the loop with a weekly
-# run reporting the hardening index + warnings (DOWN on a regression below the
-# floor). Reuses the same Kuma-push idiom as the Pi health monitor.
+# Weekly lynis audit -> Uptime Kuma push, reporting the hardening index and the
+# warning count (DOWN below the floor, or on any regression from the best index
+# ever recorded). Reuses the same Kuma-push idiom as the Pi health monitor.
+#
+# This file used to claim "nothing scheduled it". The machine said otherwise:
+# the DISTRIBUTION ships its own lynis.timer, enabled, OnCalendar=daily, and it
+# had been running every day — 14 runs in 14 days, 5 min 45 s of CPU each. Two
+# consequences, and the second is the one that mattered:
+#   - roughly 40 minutes of CPU a week on a Pi, for a report nobody reads;
+#   - it kept /var/log/lynis-report.dat permanently fresh, which is what made
+#     the report script's only guard unable to fire. See the freshness check in
+#     homelab-lynis-report.sh.j2.
+# So the redundant daily run is masked here, at the source. Our weekly run is
+# the one with a reporting path attached to it.
+
+- name: lynis | Look for the distribution's own timer
+  ansible.builtin.stat:
+    path: /usr/lib/systemd/system/lynis.timer
+  register: lynis_distro_timer
+
+# Guarded on the unit actually existing rather than swallowed with
+# `failed_when: false` — a task that cannot fail is the very defect this change
+# is fixing, and it would be absurd to introduce one here.
+- name: lynis | Mask the distribution's daily timer (redundant, and it hid failures)
+  ansible.builtin.systemd:
+    name: lynis.timer
+    enabled: false
+    state: stopped
+    masked: true
+  when: lynis_distro_timer.stat.exists
 
 - name: lynis | Install the lynis report script
   ansible.builtin.template:

@@ -64,10 +64,12 @@
     name: docker
     state: started
 
-- name: install | Create Docker networks
+# `proxy` only — it is the one network declared `external: true` in
+# compose.yaml, so it must pre-exist. The internal network is created by Compose
+# under the project prefix; naming it here produced a second, empty, orphaned
+# `internal` on a different subnet. See the sibling comment in
+# roles/deploy/tasks/compose.yml.
+- name: install | Create the external Docker network
   community.docker.docker_network:
-    name: "{{ item }}"
+    name: proxy
     state: present
-  loop:
-    - proxy
-    - internal

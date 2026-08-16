@@ -63,6 +63,19 @@ trap finish EXIT
 log "=== Backup started ==="
 
 # --- Create dump directory ---
+# Emptied first, and that is not housekeeping. A `sqlite3 .backup` that fails
+# does NOT touch its destination — measured: 12288 bytes, 2 tables, quick_check
+# ok, byte-for-byte unchanged after a failed run. So a dump left behind by an
+# earlier run passes every assertion below while being a day old, and gets
+# snapshotted as if it were fresh. The window is narrow (a run that FAILS its
+# assertions still reaches the cleanup at the bottom, because that `rm -rf` is
+# before the `exit 1`) but it is real: it needs a run that ABORTED — crash, OOM,
+# a reboot inside the window — and the log shows 103 "started" against 102
+# "completed", the orphan being 2026-07-12.
+#
+# The two .sql dumps are already safe: `>` truncates at open, so a failed dump
+# loses its completion marker and is caught. The three SQLite ones were not.
+rm -rf "$DUMP_DIR"
 mkdir -p "$DUMP_DIR"
 
 # --- Database dumps ---

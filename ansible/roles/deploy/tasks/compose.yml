@@ -30,13 +30,17 @@
 - name: "compose | Migrate wg-easy to 15 before anything is started (issue #48)"
   ansible.builtin.import_tasks: wg_easy_migrate.yml
 
-- name: compose | Ensure Docker networks exist
+# Only `proxy`, because only `proxy` is declared `external: true` in
+# compose.yaml and therefore has to exist beforehand. Compose creates the
+# internal network itself, prefixed — homelab_internal, 172.19.0.0/16, 12
+# containers. Creating a bare `internal` here built a SECOND, empty network on
+# 172.20.0.0/16 on every single deploy, and `docker network inspect internal`
+# returned that one rather than the live one. It was removed by hand on
+# 2026-08-16 at 14:12 and this task had rebuilt it by 14:51.
+- name: compose | Ensure the external Docker network exists
   community.docker.docker_network:
-    name: "{{ item }}"
+    name: proxy
     state: present
-  loop:
-    - proxy
-    - internal
 
 - name: compose | Pull images
   community.docker.docker_compose_v2_pull:

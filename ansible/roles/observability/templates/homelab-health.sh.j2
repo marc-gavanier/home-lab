@@ -393,7 +393,25 @@ if command -v systemctl >/dev/null 2>&1 && mountpoint -q /mnt/data; then
     else
         rm -f "$INACTIVE_STAMP"
     fi
-    [ -n "$flapping" ] && problems+=("restarted since last check:$flapping")
+    # Held across a second beat, and that is the whole point. Unlike the two
+    # checks above — which use a two-strike gate and therefore naturally produce
+    # two consecutive bad beats — a restart is detectable for exactly ONE run by
+    # construction: the comparison is against the previous NRestarts snapshot,
+    # which this very run has just overwritten. The monitor is at maxretries=1,
+    # so a single bad beat becomes PENDING, and PENDING does not notify in Kuma
+    # v2. Measured over 60 days on this monitor: one real detection
+    # (claude-remote-control.service 7->8, 2026-07-28, recorded status=2) and
+    # ZERO notifications. The only two DOWN beats in that window are "No
+    # heartbeat in the time window" — the dead-man's switch, not the content.
+    # Two emissions turn PENDING into DOWN, which is what reaches a human.
+    FLAP_LATCH=/var/lib/homelab-health/flapping
+    if [ -n "$flapping" ]; then
+        printf '%s\n' "$flapping" > "$FLAP_LATCH"
+        problems+=("restarted since last check:$flapping")
+    elif [ -s "$FLAP_LATCH" ]; then
+        problems+=("restarted since last check:$(cat "$FLAP_LATCH") (still)")
+        rm -f "$FLAP_LATCH"
+    fi
 
     # Timer-driven oneshots rest at inactive/dead, so their state says nothing —
     # the signal is the result of the last run. Enumerated rather than listed, so

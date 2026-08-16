@@ -110,6 +110,44 @@ if [ -n "$smart_out" ]; then
     fi
 fi
 
+# --- Filesystem, as opposed to disk ---
+# The middle layer was missing: SMART watches the hardware and nothing watched
+# the filesystem on top of it. ext4 keeps an error counter in the superblock,
+# and that counter is the only trace that survives both a reboot and journal
+# rotation — so it is precisely what an intermittent problem leaves behind after
+# every other record of it is gone. Nobody read it.
+#
+# A clean filesystem prints NO "FS Error count" line at all, so its presence is
+# itself the signal; `Filesystem state` is the second one, and it reads
+# "clean with errors" rather than "clean" once anything has been recorded.
+# Both volumes are clean today, so this instruments a margin that has never been
+# spent rather than fixing something.
+#
+# `errors=remount-ro` — the other half of the answer, both volumes being on
+# "Continue" — is deliberately NOT changed here. Turning a data volume
+# read-only mid-incident is a real trade-off on a host that serves media and
+# backups, and it deserves its own decision rather than riding along.
+ext4_bad=""
+while read -r src tgt; do
+    hdr=$(dumpe2fs -h "$src" 2>/dev/null) || { ext4_bad="$ext4_bad $tgt(unreadable)"; continue; }
+    state=$(awk -F: '/^Filesystem state/ { gsub(/^ +| +$/, "", $2); print $2 }' <<<"$hdr")
+    errs=$(awk -F: '/^FS Error count/ { gsub(/ /, "", $2); print $2 }' <<<"$hdr")
+    # An empty state means the header parsed but told us nothing — read as a
+    # failure, not as a pass, like every other check in this stack.
+    case "$state" in
+        clean) ;;
+        "")    ext4_bad="$ext4_bad $tgt(state unreadable)" ;;
+        *)     ext4_bad="$ext4_bad $tgt($state)" ;;
+    esac
+    [ -n "$errs" ] && ext4_bad="$ext4_bad $tgt($errs recorded errors)"
+done < <(findmnt -l -t ext4 -no SOURCE,TARGET)
+
+if [ -n "$ext4_bad" ]; then
+    problems+=("ext4:$ext4_bad")
+else
+    report+=("ext4 clean")
+fi
+
 # --- Verdict ---
 
 join() { local out; out=$(printf "%s$1" "${@:2}"); echo "${out%"$1"}"; }

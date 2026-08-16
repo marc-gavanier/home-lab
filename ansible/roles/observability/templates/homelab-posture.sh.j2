@@ -50,7 +50,7 @@ fi
 inspect() { docker inspect -f "$2" "$1" 2>/dev/null; }
 
 check_service() {
-    local name="$1" want_caps="$2" want_ro="$3" want_nnp="$4" want_aa="$5"
+    local name="$1" want_caps="$2" want_ro="$3" want_nnp="$4" want_aa="$5" want_user="$6"
 
     # A container that is not running is the health report's business — that
     # one runs every five minutes, this runs daily.
@@ -125,6 +125,18 @@ check_service() {
             ;;
     esac
 
+    # Nine services declare a `user:` and nothing asserted it, so half of the uid
+    # work in #28 went unmonitored — a container falling back to root looks
+    # identical from the outside. Asserted only where compose actually declares
+    # one: where it does not, the image's own USER decides and there is no
+    # expectation to check against (Forgejo's image sets 1000:1000 by itself,
+    # which is why a blanket comparison would report a service that is correct).
+    if [ -n "$want_user" ]; then
+        local user
+        user=$(inspect "$name" '{{.Config.User}}')
+        [ "$user" = "$want_user" ] || problems+=("$name: user [$user] want [$want_user]")
+    fi
+
     local ro
     ro=$(inspect "$name" '{{.HostConfig.ReadonlyRootfs}}')
     [ "$ro" = "$want_ro" ] || problems+=("$name: read_only=$ro want $want_ro")
@@ -162,7 +174,8 @@ check_service() {
 {%- set optstr = (svc.security_opt | default([])) | join(' ') %}
 {%- set nnp = 'true' if 'no-new-privileges' in optstr else 'false' %}
 {%- set aa = optstr.split('apparmor=')[1].split(' ')[0] if 'apparmor=' in optstr else '' %}
-check_service "{{ cname }}" "{{ caps }}" "{{ ro }}" "{{ nnp }}" "{{ aa }}"
+{%- set usr = svc.user | default('') %}
+check_service "{{ cname }}" "{{ caps }}" "{{ ro }}" "{{ nnp }}" "{{ aa }}" "{{ usr }}"
 {% endfor %}
 
 # --- Netdata: the three axes its failures actually show up on ---------------

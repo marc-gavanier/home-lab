@@ -14,12 +14,24 @@ KUMA_PUSH_URL='{{ lynis_kuma_push_url | default("") }}'
 KUMA_PUSH_URL="${KUMA_PUSH_URL%%\?*}"   # tolerate a pasted example query string
 MIN_INDEX={{ lynis_min_index | default(65) }}
 REPORT=/var/log/lynis-report.dat
+STATE_DIR=/var/lib/homelab-lynis
+BEST_FILE="$STATE_DIR/best-index"
 
 notify() {
     [ -n "$KUMA_PUSH_URL" ] || return 0
     curl -fsS -m 10 --retry 2 -G "$KUMA_PUSH_URL" \
         --data-urlencode "status=$1" --data-urlencode "msg=$2" >/dev/null 2>&1 || true
 }
+
+# The report's own timestamp, taken BEFORE the run. Everything below used to
+# rest on `[ ! -r "$REPORT" ]`, which could never fire: the distribution ships
+# its own lynis.timer, it is enabled, and it runs DAILY — so this file is
+# permanently fresh whether or not the audit below did anything at all. lynis
+# could have failed every week for months and the push would have kept carrying
+# the previous run's numbers, in green. The absence of a FRESH artefact is the
+# signal, not the absence of an artefact — the same reasoning the backup script
+# applies to the Immich dump.
+before=$(stat -c %Y "$REPORT" 2>/dev/null || echo 0)
 
 lynis audit system --quick --no-colors >/dev/null 2>&1 || true
 
@@ -28,14 +40,36 @@ if [ ! -r "$REPORT" ]; then
     exit 1
 fi
 
+after=$(stat -c %Y "$REPORT" 2>/dev/null || echo 0)
+if [ "$after" = "$before" ]; then
+    notify down "lynis did not refresh its report — the audit did not run"
+    exit 1
+fi
+
 index=$(awk -F= '/^hardening_index=/{print $2; exit}' "$REPORT")
 index=${index//[^0-9]/}; index=${index:-0}
 warns=$(grep -c '^warning\[\]=' "$REPORT" 2>/dev/null || echo 0)
-msg="hardening index ${index}, ${warns} warnings"
+
+# A ratchet on the best index ever recorded, because the absolute floor is
+# decorative: MIN_INDEX is 65 and the index has measured 74 on five consecutive
+# samples with zero variance, so a fall to 66 — nine points of hardening lost —
+# is reported green. The floor stays as a backstop; the ratchet is what actually
+# guards. It never lowers itself, so a regression keeps reporting until it is
+# fixed. To accept a drop deliberately, remove $BEST_FILE.
+mkdir -p "$STATE_DIR"
+best=$(cat "$BEST_FILE" 2>/dev/null); best=${best//[^0-9]/}; best=${best:-0}
+msg="hardening index ${index} (best ${best}), ${warns} warnings"
 
 if [ "$index" -lt "$MIN_INDEX" ]; then
-    notify down "$msg (below ${MIN_INDEX})"
+    notify down "$msg — below the floor of ${MIN_INDEX}"
     exit 1
 fi
+
+if [ "$index" -lt "$best" ]; then
+    notify down "$msg — regression, was ${best}"
+    exit 1
+fi
+
+[ "$index" -gt "$best" ] && printf '%s\n' "$index" > "$BEST_FILE"
 
 notify up "$msg"
