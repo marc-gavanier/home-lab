@@ -290,10 +290,29 @@ tokens diverge and every push monitor stays silently DOWN.
    Ubuntu, then `ansible-playbook playbooks/site.yml`. The LUKS disk is passphrase-based and
    hardware-independent.
 2. **Point Restic at the repo** (local on `/mnt/data`, or the offsite repo — see
-   `offsite-backup.md` when the homelab itself is lost) and restore data:
+   `offsite-backup.md` when the homelab itself is lost) and restore data.
+   Secrets first, and on their own: `/opt/homelab` holds symlinks *into*
+   `/mnt/data/secrets` (ADR-011), so restoring it first leaves every `.env`
+   dangling — and a container that finds a directory where a secret file
+   should be fails the way #27 did.
    ```bash
-   restic restore latest --target / --include /mnt/data/services --include /mnt/data/media
+   restic restore latest --target / --include /mnt/data/secrets
+   restic restore latest --target / \
+     --include /opt/homelab \
+     --include /mnt/data/services \
+     --include /mnt/data/media \
+     --include /mnt/data/backups/dumps
    ```
+   `/mnt/data/backups/dumps` is not optional here: the dumps are deleted from
+   disk after each run, so the snapshot is the only place they exist — and step
+   3 needs them.
+
+   > **This path does not depend on `local.yml`, and that is the point.** Step 1
+   > says Ansible can regenerate all of this, which is true — but only while
+   > `local.yml` survives, and `local.yml` is gitignored and lives in no
+   > backed-up path. Restoring `/mnt/data/secrets` is the branch that still
+   > works when it does not. Without it there is also no `wg0.conf`, therefore
+   > no tunnel, on a Pi whose only remote access is that tunnel.
 3. **Import the DB dumps** (see above), then bring services up (`docker compose up -d`,
    handled by the deploy role).
 4. Sanity-check services; re-run `occ files:scan` if media browsing looks stale.
