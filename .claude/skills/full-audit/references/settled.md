@@ -155,13 +155,15 @@ remember that merged is not deployed and deployed is not proven.
 | #123 | Forgejo mirror dead 22 h behind a healthy container; the `SECRET_KEY` fix sealed its remote address | **fixed and verified** — mirror level with `main`, both HEADs `881005b`, 0 decrypt errors since. Repaired by clearing the undecryptable blob so Forgejo's own recovery branch could re-read the address from git config; the settings form **cannot** do it, it 500s on the same decrypt. See the issue for the sequence. |
 | #132 | Nothing detects a mirror that stops mirroring — follow-up to #123 | open |
 | #124 | Vaultwarden's whole `environment:` block shadowed by a May `config.json`, three settings inverted | **fixed and verified** — three keys removed, icon probe returns the built-in fallback with zero outbound fetches. A posture assertion now compares the container's environment against the file it reads, and names the three keys exactly when replayed against the pre-fix backup. Deploy idempotent (`changed=1` then `0`). |
-| #125 | Every re-downloaded VPN client config carries Cloudflare DNS; split DNS dies on a re-paired device | open |
+| #125 | Every re-downloaded VPN client config carries Cloudflare DNS; split DNS dies on a re-paired device | **fixed** — all four clients now serve the Pi-hole address in the configuration a device would download, `wg0.conf` byte-identical throughout. Applied as a direct SQLite `UPDATE`, **around** the API, because of #138. The issue's IPv6 aside was wrong: clients do have ULA v6 addresses. |
 | #126 | Three restore procedures still say `stop` where the heal timer resurrects | **fixed** — the sweep found **eleven** sites across nine files, not three. Also corrected the issue's premise: the logged resurrections are miniflux crash-heals, not stopped containers, so the danger is conditional on the image's SIGTERM handling — which is exactly why a runbook cannot use `stop`. |
-| #127 | Truncation floor at 0.04 % of the dump, and a push that sends a constant | open |
+| #127 | Truncation floor at 0.04 % of the dump, and a push that sends a constant | **fixed and deployed**, idempotent. Content assertions replace the floor; the push carries restic's own summary. `quick_check` alone would have been a **regression** — a zero-byte file passes it — so the SQLite branch also asserts the database holds tables. Real 03:00 run still unobserved: #137. |
 | #128 | Traefik sees all VPN clients as one gateway address; `vpn-only` subnet rule dead, `rate-limit` one bucket | open |
 | #129 | Peer-revocation runbook reads a file frozen by the v15 migration | open |
 | #130 | README understates the public perimeter; swap documented at half its size | open |
 | #131 | Empty strings in the example override working defaults; two bind-mounted configs without a restart handler | open |
+| #137 | The backup assertions and summary push are proven on fixtures only — follow-up to #127 | open |
+| #138 | wg-easy cannot write its own database: adding or **revoking** a peer fails behind a healthy container — found via #125 | open, **do at the machine** |
 
 Still open and still cosmetic: one orphaned anonymous volume (~48 MB) from a
 first container start. Remove by hand, never with a broad prune.
@@ -184,3 +186,17 @@ Worth more than the list, and worth checking for new instances next time.
    places out of six; the swap batch left the old size in two files. **Every
    correction should end with a sweep for siblings**, which is how two of this
    run's findings were found at all.
+
+   #138 is the sharpest instance and arrived after the table above was written.
+   `cap_drop: ALL` is correct hardening and stays. But it takes `DAC_OVERRIDE`
+   away from a container running as root, which then falls back under the
+   permission bits it used to bypass — and one service's data directory is owned
+   by another uid, so it can no longer create files there. Its database has been
+   read-only ever since, which means a VPN peer cannot be **revoked**. Nothing
+   showed it: the container is healthy and the tunnel works, because the running
+   interface never writes.
+
+   Worth generalising for the next sweep: **after dropping capabilities, check
+   what each container still needs to WRITE**, not just that it still starts.
+   A service that only writes when the operator asks it to will look healthy
+   indefinitely.
