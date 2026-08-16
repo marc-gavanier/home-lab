@@ -30,6 +30,26 @@ Additional fail2ban jails for recently added web forms: rejected after
 measurement — the existing jails show zero failures and zero bans since they
 were deployed.
 
+**rkhunter is gone, deliberately.** It had been installed since the beginning
+and had never run once on either host — no log, `CRON_DAILY_RUN=""`, signatures
+frozen at 2026-05-10. It was removed rather than scheduled on 2026-08-16:
+scheduling it would mean adding an alerting path and a false-positive budget for
+machinery nobody asked for, next to an already-declined reputation/IPS layer. Do
+not propose reinstalling it. `roles/security/tasks/audit.yml` records how to go
+the other way if the decision ever changes.
+
+**The distribution's `lynis.timer` is masked, deliberately.** It ran daily at
+5 min 45 s of CPU for a report nobody read, and its freshness made the weekly
+report script's only guard unable to fire. Our own weekly run is the one with a
+reporting path attached. Do not report the masked timer as a gap.
+
+**`errors=remount-ro` on the ext4 volumes was raised and deliberately left
+alone** on 2026-08-16. Both volumes are on `Continue`. Turning a data volume
+read-only mid-incident on a host serving media and backups is a real trade-off,
+not an obvious win, and it deserves its own decision rather than riding along
+with an instrumentation change. Raise it as a decision if you raise it at all —
+not as a finding.
+
 ## Declined — supervision
 
 - **External supervision of the main host.** Every dead-man's switch terminates
@@ -64,8 +84,19 @@ were deployed.
 
 - Uptime Kuma is **v2**. The widely cited automation tooling is v1-only and does
   not speak v2; monitors are entered by hand in the web UI. Do not propose it.
-- **No git worktrees.** Work in the operator's directory, on their branch, and
-  announce any branch switch — a checkout changes what their next deploy ships.
+- **No git worktrees for work that DEPLOYS.** Work in the operator's directory,
+  on their branch, and announce any branch switch — a checkout changes what
+  their next deploy ships. Documentation-only work may use one; the operator
+  asked for that explicitly, and there the worktree protects the shared tree
+  rather than endangering it.
+- **The operator deploys from the PR branch, BEFORE merging** — so that anything
+  the deploy turns up becomes another commit on the open PR instead of a second
+  PR. Never sequence instructions as merge-then-deploy. It earned its keep the
+  same evening: masking a timer left a unit permanently failed, and the fix went
+  onto the branch before anything was merged.
+- **Ansible commands are run from `ansible/`, on ONE line.** `ansible.cfg`
+  already sets the inventory, so `-i` is never needed, and the playbooks live in
+  `playbooks/`. Multi-line commands break the operator's copy/paste.
 - The photo service's version pins are explicit and deliberate; its migration
   is one-way. Do not propose bumping components independently.
 
@@ -96,12 +127,19 @@ structurally identical); the offsite host's `toolbox` role, unreachable since
 2026-07-19, finally converged at 16:02; and the offsite backup path came back
 unaided after a reboot.
 
-**The swap threshold is now calibrated.** Occupancy settled at **53 %** after
-the resize, with post-resize daily maxima 1625.7 → 1974.8 → 2169.6 MiB —
-concave, projecting to a 59–64 % steady state. **Keep 85 %.** Swap is cold
-parking, not thrashing: +6 pages in and 0 out over 60 s, 20-day averages of
-2.9 / 5.9 KiB/s. Re-read around 2026-08-30 for a restart-free confirmation, but
-this is no longer an open loose end.
+**The swap threshold: keep 85 %, but the 53 % figure was misread.** Occupancy
+sat at 53 % all through 2026-08-16 and was described here as a steady state
+projecting to 59–64 %. That reading is **wrong**, and the evening of the same day
+disproved it by accident: an `apt upgrade` restarted the Docker daemon at 21:37,
+all 28 containers came back, and swap fell to **3 %**. So 53 % was not an
+equilibrium but cold pages accumulated since the previous restart — long-lived
+container memory that had simply never been touched again.
+
+The conclusion survives, the reasoning does not. Swap is cold parking rather
+than thrashing (+6 pages in, 0 out over 60 s; 20-day averages of 2.9 / 5.9
+KiB/s), so **keep 85 %**. But the recheck around 2026-08-30 now starts from 3 %
+after a known restart, which makes it a real measurement of the refill rate
+instead of a reading of an unknown accumulation. Do not quote 53 % as a baseline.
 
 ## Measured and rejected — added 2026-08-16
 
@@ -163,10 +201,77 @@ remember that merged is not deployed and deployed is not proven.
 | #130 | README understates the public perimeter; swap documented at half its size | **fixed** (PR #142) — figures re-measured on the hosts: 8 GB board (7.7 GiB usable), 4 GiB swap, offsite is the retired 4 GB board. |
 | #131 | Empty strings in the example override working defaults; two bind-mounted configs without a restart handler | **fixed and deployed**, `changed=0` with `skipped` 32→33 — the increment is the new assertion skipping, which is what proves it is there. Sweep found these three keys were the only collision. |
 | #137 | The backup assertions and summary push are proven on fixtures only — follow-up to #127 | open |
-| #138 | wg-easy cannot write its own database: adding or **revoking** a peer fails behind a healthy container — found via #125 | open, **do at the machine** |
+| #138 | wg-easy cannot write its own database: adding or **revoking** a peer fails behind a healthy container — found via #125 | **closed on GitHub, NOT fixed on the machine.** Verified 2026-08-16 23:35: `/mnt/data/services/wireguard` is still uid 1000 and `docker exec wg-easy touch` still returns `Permission denied`. Revoking a VPN peer through the UI remains impossible; the `wg set … remove` stopgap on the live interface still works. Do not read the closed state as done. |
 
 Still open and still cosmetic: one orphaned anonymous volume (~48 MB) from a
 first container start. Remove by hand, never with a broad prune.
+
+## Findings from the SECOND run of 2026-08-16 (evening)
+
+Re-run at the operator's request, three hours after the morning campaign closed.
+Baseline was clean — 0 failed units, 28/28 containers healthy, 31 monitors green
+— and it found twelve things anyway. All are tracked in #144, #145 and #146, all
+three merged, deployed and verified the same night.
+
+| # | Finding | Proven how |
+|---|---|---|
+| #144 | Vaultwarden, Traefik and immich-server run as root **without `DAC_OVERRIDE`** over data directories owned by uid 1000, so none can create a file. Vaultwarden's vault survived only because its `-wal`/`-shm` predated the capability drop by six days | `docker exec … touch` → `Permission denied` on all three, with a control returning a *different* errno elsewhere. Replayed on the host: root **with** `dac_override` reads the base, root **without** returns `attempt to write a readonly database (8)`. Fixed; `touch` now succeeds |
+| #145 | Transmission's healthcheck was `curl` with no `-f` — 401 → rc=0, nonexistent route → rc=0, only a closed port failed | Replaced with `transmission-remote`, which authenticates and enumerates: rc=1 on a bad password, rc=1 on an unreachable daemon |
+| #145 | The weekly lynis guard could never fire: the **distribution's own** `lynis.timer` runs daily and kept the report permanently fresh | 14 runs in 14 days, 5 min 45 s of CPU each. Freshness now asserted on the report's mtime; the redundant timer masked |
+| #145 | `MIN_INDEX=65` against an index measured at **74 on 5/5 samples, zero variance** | Ratchet on the best index; replayed across seven states — 66 after 76 now reports DOWN where the old code said UP |
+| #145 | `Pi health` **detected problems and notified none**: the restart check is true for exactly one run, `maxretries=1` makes that PENDING, and PENDING does not notify in Kuma v2 | 60 days of heartbeats: one real detection (`claude-remote-control.service 7->8`, status=2), zero notifications. The only two DOWN beats are the dead-man's switch. Now held across a second beat; verified to emit on beats 1 and 2 and stop |
+| #145 | A **stale dump** could be snapshotted: a failed `sqlite3 .backup` leaves its destination byte-for-byte intact | Needs a run that *aborted* — 103 `started` against 102 `completed`. `rm -rf "$DUMP_DIR"` before the `mkdir` |
+| #145 | The posture check never asserted `Config.User`, though nine services declare one | Asserted where compose declares it; all nine match |
+| #145 | Two Ansible loops rebuilt the orphan `internal` network **on every deploy** | Removed by hand at 14:12, rebuilt at 14:51. Both loops now name `proxy` only |
+| #145 | Eleven Docker secrets had **no restart handler** — a rotated credential is never read while the deploy reports changed | `forgejo_secret_key` ran 17 h 44 on the old key after being written. One handler per consumer, mapped from the running containers' mounts |
+| #145 | rkhunter installed and **never run** — no log on either host, `CRON_DAILY_RUN=""`, signatures frozen at 2026-05-10 | Removed rather than scheduled |
+| #145 | Journal retention 14.3 days against 19 days of uptime, at a 200M cap sitting at 199.1M; nothing watched the **filesystem**, only the disk | Cap raised to 500M (the cap governs deletion, not writing). ext4 superblock counters now in the daily report: `disk 17%, hdd 53C, ext4 clean` in the message the monitor received |
+| #146 | Three `## Restore` blocks contradicted the runbook on the three databases with no second copy, one of them pointing at a path deleted after every backup | `ls /mnt/data/backups/dumps/` → `No such file or directory`. All three now defer to the runbook, which is why `immich.md` had never drifted |
+
+Two things are **live and untracked** after this campaign, and the next run
+should treat them as findings if they are still true:
+
+- **wg-easy still cannot write** — see the #138 row above. Its exclusion in the
+  posture assertion names a closed issue.
+- **The orphan `internal` network still exists.** Ansible no longer rebuilds it,
+  but nothing deletes a network that has merely stopped being created. One
+  `docker network rm internal` is owed.
+
+### Method traps, all paid for the same evening
+
+Worth more than the findings, because each one silently produced a wrong answer.
+
+- **`docker top -o uid` returns nothing.** A sweep built on it reported *every*
+  container as mismatched. Derive container uids from `Config.User`, which also
+  surfaces the image's own `USER` — that is how Forgejo reads `1000:1000`.
+- **busybox `test -w` lies for uid 0.** It answered "writable" for wg-easy.
+  Only `access(2)` and host-side permission arithmetic are trustworthy.
+- **`systemctl mask --now` leaves the unit `failed`**, so `systemctl --failed`
+  stops being empty. Stop first, mask second — measured both orders.
+- **A looped Ansible task counts as ONE `changed` in the PLAY RECAP**, not one
+  per item. Three chowns plus a template read as `changed=3`, and inferring "the
+  template was skipped" from that was wrong.
+- **`apt upgrade` is inherently non-idempotent.** A `changed=1` whose only task
+  is that one is not a defect. It also restarts whatever links against what it
+  upgrades: on this evening it took `docker-ce` and the Kerberos libraries with
+  it, which bounced all 28 containers and **killed the running play's SSH
+  connection mid-task**. Narrow the tags when the change does not need `base`.
+
+### Two agent claims that did not survive verification, and one of mine
+
+- The backup agent gave the stale-dump window as general. It is **conditional on
+  an aborted run**: the cleanup sits *before* the `exit 1`, so a night that fails
+  its assertions still empties the directory.
+- The network agent attributed 87 rate-limit rejections between middleware and
+  backend. **My own instrument for checking that was wrong** (`"-"` appears in
+  several columns of the access log), so only the total and the absence of any
+  successful `/image_proxy` request survive. Those belong to #128.
+- Claiming "the first `docker compose down` leaves the vault read-only" (#144)
+  was **too strong**. A full daemon restart happened that evening before the fix
+  and Vaultwarden came back intact, same inodes: a Docker-initiated stop does not
+  make it close SQLite cleanly. The fix stands — the trigger depends on the
+  image's shutdown path, which can change at any version bump — but the urgency
+  did not. The correction is recorded on the issue rather than edited away.
 
 ### The three patterns behind them
 
@@ -200,3 +305,43 @@ Worth more than the list, and worth checking for new instances next time.
    what each container still needs to WRITE**, not just that it still starts.
    A service that only writes when the operator asks it to will look healthy
    indefinitely.
+
+### What the evening run added to them
+
+Pattern 2 **dominated**: five of the twelve findings were controls that could
+not report the failure they name. After five the same morning, that is ten in a
+day, and it is the single most productive thing to hunt here.
+
+The generalisation above **paid immediately** and is the reason #144 exists at
+all: it was written down in the morning, and the evening's security agent used
+it as a search key to find three more services in the same state, one of them
+the password manager. **An audit does not find what it does not yet know to look
+for** — which is most of the answer to why successive runs keep producing
+findings, and why writing the generalisation down matters more than fixing the
+instance.
+
+A fourth pattern is now visible, and it is the uncomfortable one:
+
+4. **The correction creates the next finding.** The `SECRET_KEY` fix killed the
+   mirror. `cap_drop: ALL` made three services unable to write. #126's sweep
+   from `stop` to `compose down` made #144's failure *more* likely to trigger.
+   The orphan network was removed by hand and rebuilt 39 minutes later by the
+   automation nobody thought to check. Masking a timer left a unit permanently
+   failed. **Every fix deserves the same question as every mechanism: what does
+   it now claim that it does not do?** Deploying before merging is what caught
+   the last of those.
+
+### A note on scope, for the next run
+
+The dominant pattern is **enumerable rather than samplable**, and three
+consecutive runs have sampled it. Measured on 2026-08-16: 18 declared
+healthchecks over 42 services, 88 places where a failure can be swallowed
+(`|| true`, `2>/dev/null`, `failed_when: false`, `creates:`), 31 monitors, and 5
+hard-coded thresholds in the health and posture scripts — roughly 140 objects.
+Sampling that space will keep returning findings indefinitely; enumerating it
+once ends the pattern. Consider a bounded exhaustive pass instead of a fourth
+general audit.
+
+It will not cover defects of **absence** — nothing watches the Nextcloud cron's
+freshness, and nothing noticed a WebDAV lock retried 1036 times a day since
+2026-08-12 — nor the drift each deploy creates. Those stay the audit's business.
