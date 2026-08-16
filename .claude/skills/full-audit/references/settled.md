@@ -77,56 +77,110 @@ were deployed.
 
 ---
 
-## Findings from the run of 2026-08-15
+## Closed by the run of 2026-08-16 — proven, not assumed
 
-Kept here so the next run can verify them **gone** rather than rediscover them.
-Move each to a settled section once resolved, or delete it once confirmed fixed
-and verified in a later sweep.
+The 2026-08-15 table is retired: every line in it is resolved, and the four
+items that run left owed to its successor were confirmed **on the machines**,
+from the live artefact rather than the commit log.
 
-**Read the third column before believing the second.** Merged is not deployed and
-deployed is not proven — that distinction is the entire reason this file exists.
-Something can be correct in `main`, absent from the machine, and still look fixed
-in a commit log.
+| Owed item | Proven how |
+|---|---|
+| Memory and swap in the health push | The pushed message now reads `cpu 41C, / 18%, /mnt/data 17%, mem 4705Mi free, swap 52%, dns ok`. Read from the monitor, not the template. |
+| Dump assertions on a real nightly run | The five `check_dump` assertions and the Immich freshness guard all fired at 03:00:38, each logging a real byte count. The dumps are in the snapshot with matching sizes and intact terminators. |
+| The digest's message carrying real counts | Sends `20 entries summarised`; it was still the constant `OK` on 08-15. |
+| Git service encryption key, restore-runbook service names, capped cloud-service log, recreated swap file | `SECRET_KEY` empty in `app.ini` with only `SECRET_KEY_URI` populated; service names checked against compose; kernel took the full 4 GiB swap file. |
 
-| Finding | Status | Proven how |
+Also established that day, and not to be re-derived: both hosts are
+**byte-identical to `main`** (12/12 verbatim artefacts by sha256, 8 templates
+structurally identical); the offsite host's `toolbox` role, unreachable since
+2026-07-19, finally converged at 16:02; and the offsite backup path came back
+unaided after a reboot.
+
+**The swap threshold is now calibrated.** Occupancy settled at **53 %** after
+the resize, with post-resize daily maxima 1625.7 → 1974.8 → 2169.6 MiB —
+concave, projecting to a 59–64 % steady state. **Keep 85 %.** Swap is cold
+parking, not thrashing: +6 pages in and 0 out over 60 s, 20-day averages of
+2.9 / 5.9 KiB/s. Re-read around 2026-08-30 for a restart-free confirmation, but
+this is no longer an open loose end.
+
+## Measured and rejected — added 2026-08-16
+
+- **Excluding the metrics store from the nightly backup.** 1.9 GB at 380 MiB/day
+  of churn, roughly half the nightly delta. Buys ~108 s of copy time and no
+  space that is needed: the offsite copy grew 7 GB in 35 days.
+- **Kernel RCU stall messages.** 226 over 14 days, 204 of them at 21 jiffies
+  (~84 ms), maximum 85. Informational on a preempt kernel. Not a defect.
+- **Thermal and hardware margin.** `throttled=0x0` on both hosts — sticky bits,
+  so never throttled or under-volted in 19 days. Zero USB, ext4, I/O or OOM
+  events in the retained journal. Do not re-audit without a new symptom.
+
+## Two agent claims that did not survive verification
+
+Recorded because the next run will be tempted by both.
+
+- **"The Nextcloud healthcheck is a façade that keeps its monitor green."**
+  Refuted. The Kuma monitor is `type=keyword` on
+  `"maintenance":false,"needsDbUpgrade":false` — it goes red on exactly the
+  state alleged to slip past. Only the container's own `curl -f` cannot fail in
+  maintenance mode, and nothing acts on that column: the heal timer triggers on
+  exits, not on health. Cosmetic.
+- **Kernel ring-buffer line counts.** An agent reported 16 334 retained lines,
+  74 % of them repeaters. That is `journalctl -k`, not `dmesg`. The real ring
+  holds **904 lines / 128 KiB**, of which 646 are `[UFW BLOCK]` and 623 are the
+  router's IGMP query. The wrap is real — a 21.6-hour window against 19 days of
+  uptime — but journald is **persistent**, so nothing is lost. The defect is the
+  documentation line pointing at `dmesg`; use `journalctl -k -b`.
+
+The lesson generalises: check which instrument produced a number before
+believing what it implies.
+
+## One operational note, learned the hard way during the #123 repair
+
+A raw `cp` of a WAL-mode SQLite file is **not a backup**. The first copy taken
+of the Forgejo database captured the `.db` alone while a 4 MB `-wal` sat beside
+it, so everything since the last checkpoint was missing — and it looked like a
+complete backup, right size, right name. Use `sqlite3 ".backup"`, which merges
+them, and check `integrity_check` on the result. The nightly script already
+does this correctly; hand work is where it slips.
+
+---
+
+## Findings from the run of 2026-08-16
+
+All nine are tracked. Verify them **gone** rather than rediscover them, and
+remember that merged is not deployed and deployed is not proven.
+
+| # | Finding | Status |
 |---|---|---|
-| Alerting stack runs its rules with no recipient configured — nothing is delivered | **settled** — left recipient-less on purpose, its stock thresholds being tuned for a generic server; the signal worth acting on moved to the health push instead. Do not re-report the absent recipient as a finding. | decision, nothing to prove |
-| Health script pushed to monitoring carries no memory or swap signal | **fixed in main, NOT DEPLOYED** as of 23:20 — available-memory alarm on two consecutive runs, swap reported and alarmed only above its threshold | not yet: the live script predates the change and its push still carries no `mem`/`swap` field. Check the message, not the file. |
-| Git service running with the upstream default encryption key | **fixed and deployed** — key delivered through a URI-mounted secret, empty values now refused by an assertion | config in place and readable; that the URI wins over the empty verbatim key is **not** established — it becomes free to check the day 2FA is enabled |
-| Restore runbook uses a container name where the orchestrator expects a service name — the command fails and the next step deletes a database directory | **fixed** | service names checked against compose, and the same error class swept for elsewhere with a dry run |
-| Documented network perimeter wrong in both directions | **fixed** — corrected everywhere, including the instructions the security agent itself reads | probed from an off-network uplink with a known-open control |
-| A failed database dump degrades to a warning, leaves the exit code untouched, and its trace is deleted | **fixed and deployed** | assertion logic tested against ok/truncated/missing fixtures; **the first real nightly run is still pending** |
-| Cloud service log grew to ~91 MB, effectively all one repeated client-side exception | **root cause found and capped** — a mobile client leaves a permanent file lock; the shipped cleanup was disabled by its own default. Runbook written. Caps the damage at ~72 min, does not prevent the lock. | reproduced deliberately end to end, then the cleanup was observed removing a backdated lock |
-| Dead configuration knob holding a plausible value that nothing reads | **fixed** | single occurrence in the repo, read nowhere |
-| Example override file missing two keys, one of which guards seven tasks | **fixed** | key sets compared in both directions |
-| Orphaned anonymous volume left by a first container start | **open** — cosmetic, ~48 MB. Remove by hand; never with a broad prune, the other anonymous volumes are legitimate | — |
-| Comment asserting the host "almost never swaps", contradicted by measurement | **fixed** | — |
-| `mkswap` running unguarded with its failure suppressed | **fixed and deployed** | the swap file was recreated and activated, which only succeeds on a real `mkswap` |
+| #123 | Forgejo mirror dead 22 h behind a healthy container; the `SECRET_KEY` fix sealed its remote address | **fixed and verified** — mirror level with `main`, both HEADs `881005b`, 0 decrypt errors since. Repaired by clearing the undecryptable blob so Forgejo's own recovery branch could re-read the address from git config; the settings form **cannot** do it, it 500s on the same decrypt. See the issue for the sequence. |
+| #132 | Nothing detects a mirror that stops mirroring — follow-up to #123 | open |
+| #124 | Vaultwarden's whole `environment:` block shadowed by a May `config.json`, three settings inverted | open |
+| #125 | Every re-downloaded VPN client config carries Cloudflare DNS; split DNS dies on a re-paired device | open |
+| #126 | Three restore procedures still say `stop` where the heal timer resurrects | open |
+| #127 | Truncation floor at 0.04 % of the dump, and a push that sends a constant | open |
+| #128 | Traefik sees all VPN clients as one gateway address; `vpn-only` subnet rule dead, `rate-limit` one bucket | open |
+| #129 | Peer-revocation runbook reads a file frozen by the v15 migration | open |
+| #130 | README understates the public perimeter; swap documented at half its size | open |
+| #131 | Empty strings in the example override working defaults; two bind-mounted configs without a restart handler | open |
 
-A fix is not proof. The next sweep must confirm each "fixed" line **behaves**, not
-merely that the code changed. That is the whole difference this skill exists to
-enforce, and the run of 2026-08-15 supplied its own illustration: three of these
-were merged and never deployed until someone read the live artefact rather than
-the commit log. One of them — the memory signal — was still missing from the
-machine hours after its PR landed, and only the *content of a push message* showed
-it. A green deploy proves the play ran, not that the change reached anything.
+Still open and still cosmetic: one orphaned anonymous volume (~48 MB) from a
+first container start. Remove by hand, never with a broad prune.
 
-Three things are owed to the next sweep specifically:
+### The three patterns behind them
 
-1. **The memory and swap fields in the health push.** If the message still reads
-   `cpu …, / …%, /mnt/data …%` with no `mem`, the role was never deployed.
-2. **The dump assertions firing on a real nightly run** — the logic was tested
-   against fixtures, never against the 03:00 job.
-3. **The digest's monitoring message carrying real counts** rather than a constant.
+Worth more than the list, and worth checking for new instances next time.
 
-One deliberate loose end, so it is revisited rather than re-reported. The swap
-file was doubled and an occupancy alarm added at **85 %**, and that percentage is
-an inference, not a measurement — every observation available was capped by the
-previous size. It is the one threshold in the health script without history
-behind it. A later sweep should check the settled occupancy against it and say
-whether it wants raising; finding it un-calibrated is expected, not a finding.
-
-Also settled during that run, and **not** to be re-raised: the eleven empty-default
-push URLs were all verified populated; the non-empty defaults were verified not to
-be overriding the operator's values; and the monitoring push defect found that day
-was confirmed not to repeat in any of the sibling scripts.
+1. **The setting is applied, the state is not.** A declared value never reaches
+   the running object because something persisted earlier wins — a service's own
+   config file, a database row seeded only at creation, a bind-mounted file with
+   no restart handler, an empty string in an example that overrides a working
+   default. Four instances this run (#124, #125, #131).
+2. **The check cannot fail.** A threshold three orders of magnitude below what
+   it guards, a push carrying a constant, a monitor probing the wrong side of a
+   NAT (#127, #128, and the Transmission peer-port monitor). The verification
+   layer is consistently thinner than it presents.
+3. **Yesterday's fix, today's breakage — and partial sweeps.** The `SECRET_KEY`
+   correction killed the mirror; the restore runbook was corrected in three
+   places out of six; the swap batch left the old size in two files. **Every
+   correction should end with a sweep for siblings**, which is how two of this
+   run's findings were found at all.
