@@ -212,6 +212,55 @@ if command -v dig >/dev/null 2>&1 && [ -n "$DNS_PROBE_DOMAIN" ]; then
     esac
 fi
 
+# --- Forgejo pull mirror ---
+# The mirror ran 22 h behind a healthy container on 2026-08-15 and nothing
+# showed it: /api/healthz answered 200, the Kuma monitor stayed UP, no timer
+# failed, and the stale copy was served perfectly throughout (#123, #132).
+#
+# `updated_unix` is NOT the signal, though it reads like one. It moves on every
+# ATTEMPT: in the 03:00 dump taken during that outage it said 00:56 UTC — four
+# minutes old, four hours into the failure. Forgejo records no
+# last-successful-sync anywhere, so there is nothing else in that direction.
+#
+# `next_update_unix` is the signal, and the same dump proves it: 2 h 30 in the
+# PAST and sinking while the mirror was broken, against a future value whenever
+# it is healthy. Forgejo advances it only when a sync completes. A local read,
+# no network call, and no false positive from ordinary lag — the scheduled time
+# is exactly what the field encodes, so being behind upstream between two syncs
+# is invisible to it, which is what we want.
+MIRROR_DB='{{ services_data_dir }}/forgejo/data/data/forgejo.db'
+MIRROR_GRACE=3600   # a sync in flight leaves it seconds overdue, never an hour
+MIRROR_STAMP=/var/lib/homelab-health/mirror.stamp
+if [ -f "$MIRROR_DB" ] && command -v sqlite3 >/dev/null 2>&1; then
+    # ifnull(): an empty mirror table is "nothing configured", not "unreadable"
+    # — the two must not collapse into one message.
+    mirror_late=$(sqlite3 -cmd '.timeout 5000' "file:$MIRROR_DB?mode=ro" \
+        "select ifnull(cast(strftime('%s','now') - min(next_update_unix) as int), 'none') from mirror;" \
+        2>/dev/null)
+    case "${mirror_late:-}" in
+        none) ;;                                    # no mirror configured
+        ''|*[!0-9-]*)
+            # A check that cannot run must not read as a pass. Same two-strike
+            # gate as the DNS probe above, for the same reason: a momentary lock
+            # on a live database is not an incident, a persistent one is.
+            report+=("mirror unreadable")
+            mkdir -p "$(dirname "$MIRROR_STAMP")"
+            [ -f "$MIRROR_STAMP" ] && \
+                problems+=("forgejo mirror state unreadable twice running — the staleness check is not running")
+            date +%s > "$MIRROR_STAMP"
+            ;;
+        *)
+            rm -f "$MIRROR_STAMP"
+            if [ "$mirror_late" -gt "$MIRROR_GRACE" ]; then
+                report+=("mirror $((mirror_late / 3600))h overdue")
+                problems+=("forgejo mirror has not completed a sync for $((mirror_late / 3600))h — it is still serving the stale copy")
+            else
+                report+=("mirror ok")
+            fi
+            ;;
+    esac
+fi
+
 # --- Unhealthy containers ---
 # The heal timer only resurrects containers that EXITED; one that stays up but
 # fails its healthcheck is invisible. User-facing services are covered
