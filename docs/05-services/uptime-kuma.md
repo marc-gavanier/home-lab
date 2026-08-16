@@ -117,10 +117,12 @@ Backed up daily by Restic. Monitors and history persist across container restart
 
 ## Restore
 
-```bash
-cd /opt/homelab   # `compose down`, never `docker stop`: a stopped container
-                  # is resurrected by the heal timer within 2 min (ADR-007)
-docker compose down uptime-kuma
-restic restore latest --target / --include /mnt/data/services/uptime-kuma
-docker compose up -d uptime-kuma
-```
+Restoring the service folder alone is **not** enough, which is why the procedure
+is not repeated here: that folder holds the *live* `kuma.db`, and a copy taken
+while the service runs misses the write-ahead log — the monitors and heartbeats
+recorded since the last checkpoint are simply absent, and the result looks like
+a complete database. The nightly backup writes a consistent `sqlite3 .backup`
+copy, and that is the file to restore.
+
+Full procedure: `knowledge/runbooks/restore-from-backup.md` → "Restore Uptime
+Kuma (SQLite)".

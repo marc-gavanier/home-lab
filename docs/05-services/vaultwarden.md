@@ -61,10 +61,11 @@ Backed up daily by Restic. Vaultwarden uses SQLite — the file is backed up dir
 
 ## Restore
 
-```bash
-cd /opt/homelab   # `compose down`, never `docker stop`: a stopped container
-                  # is resurrected by the heal timer within 2 min (ADR-007)
-docker compose down vaultwarden
-restic restore latest --target / --include /mnt/data/services/vaultwarden
-docker compose up -d vaultwarden
-```
+Restoring the service folder alone is **not** enough, which is why the procedure
+is not repeated here: that folder holds the *live* `db.sqlite3`, and a copy of a
+live SQLite database taken while the service runs can be a torn one. The nightly
+backup writes a consistent `sqlite3 .backup` copy alongside it, and that is the
+file to restore.
+
+Full procedure: `knowledge/runbooks/restore-from-backup.md` → "Restore
+Vaultwarden (SQLite)".

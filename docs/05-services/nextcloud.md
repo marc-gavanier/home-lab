@@ -99,21 +99,12 @@ Backed up daily by Restic. Database is dumped before each snapshot (`nextcloud.s
 
 ## Restore
 
-```bash
-# Remove Nextcloud and its companions — `compose down`, never `docker stop`:
-# the heal timer resurrects a stopped container within 2 min, on top of the
-# files being restored (ADR-007).
-cd /opt/homelab
-docker compose down nextcloud nextcloud-cron nextcloud-notify-push nextcloud-db
+The database step is the one that catches people out, which is why the
+procedure is not repeated here. `/mnt/data/backups/dumps/nextcloud.sql` **does
+not exist on disk** — the backup script deletes that whole directory at the end
+of every run. The dump lives inside the restic snapshot and has to be restored
+out of it first, and the application needs `maintenance:mode` on either side of
+the import.
 
-# Restore files from backup
-restic restore latest --target / --include /mnt/data/services/nextcloud
-
-# Restore database
-docker compose up -d nextcloud-db
-sleep 10
-docker exec -i nextcloud-db mariadb -unextcloud -p nextcloud < /mnt/data/backups/dumps/nextcloud.sql
-
-# Start everything
-docker compose up -d nextcloud nextcloud-cron nextcloud-notify-push
-```
+Full procedure: `knowledge/runbooks/restore-from-backup.md` → "Restore a
+database".

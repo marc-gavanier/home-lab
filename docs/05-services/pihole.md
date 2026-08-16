@@ -53,6 +53,12 @@ The SFR TV decoder breaks when filtered by Pi-hole. Exclude it:
 From Restic backup:
 ```bash
 restic restore latest --target / --include /mnt/data/services/pihole
-docker restart pihole
+# Both, in this order, and never `docker restart pihole` alone: dnsproxy runs
+# with `network_mode: service:pihole`, so restarting Pi-hole destroys the
+# namespace dnsproxy is attached to. dnsproxy keeps running and stays healthy
+# while being permanently unreachable, which leaves Pi-hole with no upstream at
+# all — a LAN-wide DNS outage with both containers green. The Ansible handler
+# does exactly this pair for the same reason.
+docker restart pihole && docker restart dnsproxy
 # Then re-run Ansible deploy to set the password
 ```

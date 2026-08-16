@@ -111,10 +111,20 @@ not, which is why the numbers above now carry the date they were measured.
 
 `proxy` is declared `external: true`, so its name is unprefixed; the other two are
 created by Compose and carry the project prefix. **The distinction is not
-cosmetic**: a bare `internal` network also existed on the host until 2026-08-16 —
-an orphan from 2026-07-05 on a different subnet, with no container attached since —
-and `docker network inspect internal` returned it rather than the live one. It has
-been removed. Address these by the host name when operating on them.
+cosmetic**: a bare `internal` network also exists on the host — an empty orphan on
+a different subnet, with no container attached — and `docker network inspect
+internal` returns it rather than the live one. Address these by the host name when
+operating on them.
+
+This line previously claimed the orphan had been removed. It had been, by hand,
+and two Ansible tasks rebuilt it thirty-nine minutes later: both looped over
+`[proxy, internal]` although only `proxy` needs to pre-exist. Those loops now name
+`proxy` only, so removing the orphan finally sticks — but it has to be removed
+once, by hand, since nothing deletes a network that no longer gets created:
+
+```bash
+docker network rm internal   # verify `docker network inspect internal` shows 0 containers first
+```
 
 ## ISP Configuration
 
