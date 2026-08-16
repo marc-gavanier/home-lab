@@ -150,6 +150,45 @@ if command -v fail2ban-client >/dev/null 2>&1 && [ -r /etc/fail2ban/jail.local ]
     [ "$want" = "$have" ] || problems+=("fail2ban: jails loaded [$have] configured [$want]")
 fi
 
+# --- Vaultwarden: config.json must not contradict the compose environment ---
+# Vaultwarden's config.json takes precedence over the environment, and the
+# admin panel rewrites it in full every time it is saved. A setting declared in
+# compose.yaml is therefore free to be inert, and three of them were — from
+# 2026-05-15 until #124, icon downloads, Sends and password hints all ran
+# INVERTED while this repo said otherwise. The container printed the warning at
+# every start; nothing read it.
+#
+# Both sides are read from the running system, so like the fail2ban check above
+# there is no expectation list that can drift. Only a real contradiction counts:
+# a key held at the same value is redundant, not dangerous, and four of them are
+# (the panel writes back what it was given).
+if [ "$(docker inspect -f '{% raw %}{{.State.Status}}{% endraw %}' vaultwarden 2>/dev/null)" = "running" ]; then
+    vw_cfg="$(docker inspect -f '{% raw %}{{range .Mounts}}{{if eq .Destination "/data"}}{{.Source}}{{end}}{{end}}{% endraw %}' \
+              vaultwarden 2>/dev/null)/config.json"
+    if [ -r "$vw_cfg" ]; then
+        # Prints OK when clean, so a check that cannot run is not read as a pass.
+        conflicts=$(docker inspect -f '{% raw %}{{range .Config.Env}}{{println .}}{{end}}{% endraw %}' \
+            vaultwarden 2>/dev/null | python3 -c '
+import json, sys
+cfg = json.load(open(sys.argv[1]))
+bad = []
+for line in sys.stdin:
+    if "=" not in line:
+        continue
+    k, v = line.strip().split("=", 1)
+    key = k.lower()
+    if key in cfg and str(cfg[key]).lower() != v.lower():
+        bad.append(key)
+print(" ".join(sorted(bad)) if bad else "OK")
+' "$vw_cfg" 2>/dev/null)
+        case "$conflicts" in
+            OK) ;;
+            "") problems+=("vaultwarden: config.json check did not run") ;;
+            *)  problems+=("vaultwarden: config.json overrides compose [$conflicts]") ;;
+        esac
+    fi
+fi
+
 # --- Verdict ---------------------------------------------------------------
 {# bash ${#array[@]} reads as a Jinja comment opener — shield it #}
 if [ {% raw %}${#problems[@]}{% endraw %} -gt 0 ]; then
