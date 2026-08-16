@@ -60,12 +60,29 @@ ssh homelab "sudo sqlite3 -readonly /mnt/data/services/wireguard/wg-easy.db \
 ssh homelab "docker exec wg-easy wg set wg0 peer '<public-key>' remove"
 ```
 
-This is **not persistent**. The client is still in the database and still in
-`wg0.conf`, so the peer returns whenever the interface is rebuilt from that file
-— a container restart, or the crash-heal timer picking it up. Treat it as
-stopping the bleeding, then finish the deletion through the UI once #138 lands.
-A revocation that has to survive is not done until the client is gone from the
-listing query.
+**How long it holds: until wg-easy restarts or the Pi reboots.** Not until the
+next timer tick — that distinction is the whole question when you are deciding
+whether you can go to bed. wg-easy runs a job every 60 s that *can* undo a
+manual removal: it regenerates `wg0.conf` and runs `wg syncconf`, rebuilding
+the interface from the database, where the client still is. But it only does
+that after toggling a client that passed its expiry date, and nothing here has
+an expiry set — so the rebuild is never reached, and the peer stays out.
+
+It is still a stopgap, because a restart brings the client back from the
+database. Redo the deletion through the UI once #138 lands, and confirm it with
+the listing query: a revocation that has to survive is not done until the client
+is gone from `clients_table`.
+
+**While #138 is open, this is the only thing that shuts a peer out.** Deleting
+and disabling are both database writes, so both fail — the interface is the one
+surface still accepting changes.
+
+**Also broken by #138: peers with an expiry date never expire.** The same job
+disables an expired client with a database write, which cannot succeed, so a
+time-limited peer keeps working past its date and pending one-time links are
+never cleaned up. Nothing has an expiry set today, which is the only reason this
+is invisible. Do not hand out a time-limited peer until #138 is fixed — the
+mechanism that would take it back does not run.
 
 1. **Delete the client** in the wg-easy UI (`https://vpn.<domain>`, or the
    `127.0.0.1:51821` tunnel) — *delete*, not the toggle next to it. Disabling
