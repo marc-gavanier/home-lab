@@ -228,13 +228,24 @@ image's, and the monitor is understood to cover reachability only (ADR-025).
 states where Nextcloud is up, answering, and unusable, and precisely the states a
 bad upgrade leaves behind. A monitor accepting `200-299` is green throughout.
 
-The fix is a keyword match on the monitor, entered in the Kuma UI:
+The fix is a keyword match. **It is not a field on an `HTTP(s)` monitor** — in
+Kuma, keyword matching is a separate *monitor type*, so the change is:
 
-```
-"maintenance":false,"needsDbUpgrade":false
-```
+1. Monitor Type: `HTTP(s)` → **`HTTP(s) - Keyword`** (`type='keyword'` in the
+   database). The Keyword field only appears once the type is changed.
+2. Keyword:
 
-The two fields are adjacent in the payload, verified against the live response:
+   ```
+   "maintenance":false,"needsDbUpgrade":false
+   ```
+
+Everything else stays — URL, `Accepted Status Codes` at `200-299`, and the
+heartbeat history, since the monitor id does not change. The keyword is checked
+*in addition to* the status code, not instead of it. Monitor #6 (Immich,
+keyword `pong`) is a working example of the same type in this instance.
+
+Kuma searches for the string literally, and the two fields are adjacent in the
+payload — verified against the live response rather than the source:
 
 ```json
 {"installed":true,"maintenance":false,"needsDbUpgrade":false,"version":"34.0.2.1",…}
