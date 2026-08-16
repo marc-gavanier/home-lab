@@ -63,6 +63,7 @@
     owner: root
     group: root
     mode: "0444"
+  notify: Restart searxng
 
 - name: configs | Drop the superseded SearXNG settings path and symlink dir
   ansible.builtin.file:

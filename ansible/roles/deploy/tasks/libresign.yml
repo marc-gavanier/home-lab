@@ -138,6 +138,32 @@
 # argv rather than a command string: the common name contains a space, and the
 # command module splits on whitespace — the CN would arrive truncated at the
 # first word, silently, and be baked into a CA that must not be regenerated.
+# An empty value here is not a bad deploy, it is a permanent one: the CA is
+# minted once and regenerating it orphans every signature already issued
+# (ADR-022). group_vars carries working defaults, but host_vars beat
+# group_vars, and local.example.yml used to ship these three as empty strings —
+# so a rebuild started from the example would have run `--cn= --o= --c=`
+# without a word. The example no longer does; this is what stops an empty
+# value arriving by any other route. Guarded exactly like the generation
+# below, so it speaks only when the certificate is about to be created.
+- name: libresign | Refuse to mint the root certificate from empty values
+  ansible.builtin.assert:
+    that:
+      - libresign_cert_cn | default('') | trim | length > 0
+      - libresign_cert_o | default('') | trim | length > 0
+      - libresign_cert_c | default('') | trim | length > 0
+    fail_msg: >-
+      One of libresign_cert_cn / _o / _c is empty. The LibreSign root CA is
+      generated once and regenerating it orphans every signature already
+      issued (ADR-022), so this run stops rather than mint a certificate with
+      blank fields. Set them in the vaulted local.yml, or remove the keys
+      entirely to inherit the group_vars defaults.
+    success_msg: LibreSign certificate identity is present and non-empty.
+    quiet: true
+  when:
+    - nextcloud_up | default(false)
+    - libresign_ca.rc | default(1) != 0
+
 - name: libresign | Generate the root certificate (once — see the header)
   ansible.builtin.command:
     argv:
