@@ -51,6 +51,14 @@ check_service() {
     [ "$(inspect "$name" '{{.State.Status}}')" = "running" ] || return 0
     checked=$((checked + 1))
 
+    # Privileged first, because it is the one flag that voids every assertion
+    # below at once — capabilities, no-new-privileges and AppArmor all stop
+    # meaning anything — while leaving each of them green. Everything is
+    # false today, so this is prevention: without it, the check would not
+    # notice the day one of them stopped being.
+    [ "$(inspect "$name" '{{.HostConfig.Privileged}}')" = "false" ] \
+        || problems+=("$name: PRIVILEGED — the assertions below are void")
+
     # cap_drop: ALL first. Without it the capability list below means nothing —
     # the default fourteen come back regardless of what cap_add says.
     case "$(inspect "$name" '{{range .HostConfig.CapDrop}}{{.}} {{end}}')" in

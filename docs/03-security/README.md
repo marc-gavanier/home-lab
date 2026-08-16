@@ -20,6 +20,19 @@ Defense in depth — each layer is secured independently. If one layer falls, th
   by the **ISP router's forward list**, not by UFW. Published ports are only
   LAN-reachable because the router does not forward them — with the single
   exception of 51413, which it does.
+
+  > **`ufw status` is not evidence about container-facing ports.** The rules it
+  > prints for 80/443/53 read like a control and are not one: the `DOCKER-USER`
+  > chain — the only hook consulted before Docker's own rules — is empty
+  > (`iptables -S DOCKER-USER` returns just `-N DOCKER-USER`), so nothing UFW
+  > says gates traffic that reaches a container. Demonstrated rather than
+  > inferred: 14 232 Pi-hole queries in 24 h arrived from the VPN subnet,
+  > outside the "LAN only" rule that appears to govern port 53. There is no
+  > exposure today — the perimeter was re-probed from outside with a known-open
+  > control — but read this boundary from the router's forward list and from
+  > `DOCKER-USER`, never from `ufw status`. Adding `DOCKER-USER` rules is a
+  > separate decision with its own risk of locking out the tunnel, and is
+  > deliberately not taken here.
 - **WireGuard**: encrypted remote access, only way to reach services from outside the LAN.
   A peer key *is* the perimeter — everything behind `vpn-only` trusts whoever
   holds one. Four peers today, each attributable to a named device, two of them

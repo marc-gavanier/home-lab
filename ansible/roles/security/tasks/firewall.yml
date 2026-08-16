@@ -50,12 +50,31 @@
     - 127.0.0.0/8
     - ::1
 
-- name: firewall | Allow SSH through UFW
+# IPv4 only, and deliberately. A bare `rule: allow` with no from_ip emits the
+# rule for BOTH families, which on a host with a global IPv6 address and no NAT
+# in front of it puts SSH on the internet — the offsite Pi is exactly that.
+# Every SSH connection either host has seen in 30 days came from the WireGuard
+# subnet or a LAN, over v4; none came from a v6 source, and the homelab has no
+# IPv6 egress at all. So the v6 half protects nothing and is removed below.
+- name: firewall | Allow SSH through UFW (IPv4 only)
   community.general.ufw:
     rule: allow
     port: "{{ ssh_port_hardened }}"
     proto: tcp
+    from_ip: 0.0.0.0/0
     comment: SSH
+
+# Adding the scoped rule above does NOT retract the unscoped one: ufw sees an
+# identical v4 entry and skips it, leaving the v6 entry in place. It has to go
+# explicitly. Ordered after the allow so the v4 path is never absent, not even
+# between two tasks — this runs against a host whose only access is a tunnel.
+- name: firewall | Remove the legacy IPv6 SSH rule
+  community.general.ufw:
+    rule: allow
+    port: "{{ ssh_port_hardened }}"
+    proto: tcp
+    from_ip: "::/0"
+    delete: true
 
 # Per-host service ports — defined in host_vars/<host>/main.yml
 - name: firewall | Allow service ports through UFW

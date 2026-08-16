@@ -103,10 +103,18 @@ not, which is why the numbers above now carry the date they were measured.
 
 ## Docker Networks
 
-| Network    | Usage                                    |
-|------------|------------------------------------------|
-| `proxy`    | Services exposed via Traefik             |
-| `internal` | Inter-service communication (DB, cache)  |
+| Compose name | Name on the host      | Usage                                   |
+|--------------|-----------------------|-----------------------------------------|
+| `proxy`      | `proxy`               | Services exposed via Traefik            |
+| `internal`   | `homelab_internal`    | Inter-service communication (DB, cache) |
+| `socketproxy`| `homelab_socketproxy` | Traefik ↔ docker-socket-proxy only      |
+
+`proxy` is declared `external: true`, so its name is unprefixed; the other two are
+created by Compose and carry the project prefix. **The distinction is not
+cosmetic**: a bare `internal` network also existed on the host until 2026-08-16 —
+an orphan from 2026-07-05 on a different subnet, with no container attached since —
+and `docker network inspect internal` returned it rather than the live one. It has
+been removed. Address these by the host name when operating on them.
 
 ## ISP Configuration
 
