@@ -154,7 +154,7 @@ remember that merged is not deployed and deployed is not proven.
 |---|---|---|
 | #123 | Forgejo mirror dead 22 h behind a healthy container; the `SECRET_KEY` fix sealed its remote address | **fixed and verified** — mirror level with `main`, both HEADs `881005b`, 0 decrypt errors since. Repaired by clearing the undecryptable blob so Forgejo's own recovery branch could re-read the address from git config; the settings form **cannot** do it, it 500s on the same decrypt. See the issue for the sequence. |
 | #132 | Nothing detects a mirror that stops mirroring — follow-up to #123 | open |
-| #124 | Vaultwarden's whole `environment:` block shadowed by a May `config.json`, three settings inverted | open |
+| #124 | Vaultwarden's whole `environment:` block shadowed by a May `config.json`, three settings inverted | **fixed and verified** — three keys removed, icon probe returns the built-in fallback with zero outbound fetches. A posture assertion now compares the container's environment against the file it reads, and names the three keys exactly when replayed against the pre-fix backup. Deploy idempotent (`changed=1` then `0`). |
 | #125 | Every re-downloaded VPN client config carries Cloudflare DNS; split DNS dies on a re-paired device | open |
 | #126 | Three restore procedures still say `stop` where the heal timer resurrects | open |
 | #127 | Truncation floor at 0.04 % of the dump, and a push that sends a constant | open |
