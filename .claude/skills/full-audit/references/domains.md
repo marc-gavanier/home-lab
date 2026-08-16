@@ -23,7 +23,16 @@ different answers.
 
 **Traps** — swap accounting: use cgroup counters, never a sum of per-process
 `VmSwap` (it double-counts pages shared between forked children). A swap file
-guarded by `creates:` is not resized by changing its size variable.
+guarded by `creates:` is not resized by changing its size variable. And swap
+occupancy is **not** a steady state to project from: it accumulates cold pages
+until something restarts the containers, at which point it collapses (52 % → 3 %
+on 2026-08-16). Always say when the last restart was before quoting a figure.
+
+**Already established** — the journal cap and the ext4 error counters were both
+handled on 2026-08-16 evening: the cap is 500M and the daily disk report now
+carries an `ext4 clean` field. Sysctl, mount options, unit health and the
+hot-versus-boot path were all verified matching with zero drift; do not
+re-derive them without a new symptom.
 
 ---
 
@@ -43,6 +52,14 @@ later is worth raising; a theoretical one that costs a weekend is not.
 
 **Already established** — see `references/settled.md` for the container-layer
 work that is closed and the hardening proposals that have been declined.
+
+The **writability sweep is done** as of 2026-08-16 evening: every running
+container was checked for a read-write bind mount it cannot create files in, and
+the four that failed are fixed except wg-easy. The posture check now asserts it
+continuously, so do not redo the sweep by hand — read what the assertion reports.
+Two instruments lied while it was being built and will lie again: `docker top -o
+uid` returns nothing, and busybox `test -w` answers "writable" for uid 0
+regardless of capabilities. Use `Config.User` and `access(2)`.
 
 ---
 
@@ -117,8 +134,17 @@ never trigger.
 green monitor carrying a constant message is the signature of a broken push.
 
 **Constraint** — the monitoring database is read-only here: open it with
-`mode=ro`, and never write a test heartbeat during an audit. Its timestamps are
+`mode=ro` on the LIVE file — a `cp` misses the write-ahead log and hands you
+stale messages. Never write a test heartbeat during an audit. Its timestamps are
 UTC while the hosts are local time.
+
+**Already established** — the notification path was followed end to end on
+2026-08-16 evening and is sound: 31/31 monitors bound to a valid webhook, egress
+verified from inside the Kuma container. Do not re-derive it. The gap that run
+found was one layer earlier, and it is the shape to look for again: a monitor at
+`maxretries=1` turns a single bad beat into PENDING, and **PENDING notifies
+nobody**. Any check that is true for exactly one beat by construction therefore
+detects without alerting. Three push monitors still sit at `maxretries=1`.
 
 ---
 
