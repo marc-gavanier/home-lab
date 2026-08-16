@@ -71,14 +71,25 @@ old header restore would reinstate a superseded passphrase:
 > known-bad, and only with a header taken from **this** disk (a mismatched
 > header destroys access). The volume must be closed.
 
+The mapper is `data_crypt`, not `data` — `luks_mapper_name` in
+`group_vars/all.yml`, and `mnt-data.mount` looks for `/dev/mapper/data_crypt`.
+Opening it under any other name gives a volume that `/mnt/data` will not mount.
+
 ```bash
 # Retrieve luks-header-*.img from one of the offline copies first.
-sudo cryptsetup luksClose data 2>/dev/null || true    # if mapped
+
+# The volume must be closed before the header is overwritten. Check first:
+# "inactive" is the good case; anything else must be closed, and the close
+# must succeed — do not swallow its error, a restore over an open volume is
+# how you lose the disk.
+sudo cryptsetup status data_crypt
+sudo cryptsetup luksClose data_crypt      # only if the status showed it active
+
 sudo cryptsetup luksHeaderRestore /dev/sda1 \
   --header-backup-file /path/to/luks-header-YYYYMMDD.img
 
 # Then unlock as usual (staged-startup / homelab-unlock path):
-sudo cryptsetup luksOpen /dev/sda1 data
+sudo cryptsetup luksOpen /dev/sda1 data_crypt
 ```
 
 After restore, unlock through the normal boot procedure and let the staged
