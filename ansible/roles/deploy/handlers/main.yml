@@ -37,3 +37,21 @@
   ansible.builtin.command:
     cmd: docker restart traefik
   changed_when: true
+
+# searxng_settings and dozzle_users.yml are bind-mounted as FILES, and
+# `template` writes a temporary file and renames it into place — which replaces
+# the inode. Docker bound the old one at container start, so a running
+# container keeps serving the previous content indefinitely: the deploy reports
+# changed, the file on disk is right, and the service never sees it. Traefik
+# and Pi-hole above are handled for the same reason; these two were not, which
+# is only latent today because both happen to have been restarted after their
+# last edit (measured 2026-08-16).
+- name: Restart searxng
+  ansible.builtin.command:
+    cmd: docker restart searxng
+  changed_when: true
+
+- name: Restart dozzle
+  ansible.builtin.command:
+    cmd: docker restart dozzle
+  changed_when: true
