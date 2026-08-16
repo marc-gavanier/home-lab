@@ -25,6 +25,9 @@
 - name: Install the netdata AppArmor profile (before compose up — see file)
   ansible.builtin.import_tasks: apparmor.yml
 
+- name: Own the data directories hardened containers must be able to write (#144)
+  ansible.builtin.import_tasks: data_dirs.yml
+
 - name: Run Docker Compose (file, networks, pull, up)
   ansible.builtin.import_tasks: compose.yml
 

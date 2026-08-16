@@ -1,0 +1,44 @@
+---
+# Ownership of the data directories that a hardened container must be able to
+# WRITE. Runs before `compose up`, so a container recreated by this same play
+# finds its directory already usable.
+#
+# Why this file exists: `cap_drop: ALL` takes CAP_DAC_OVERRIDE away from a
+# container running as root, which then falls back under the permission bits it
+# used to bypass. A directory owned by the operator's uid stops accepting NEW
+# files — while every file already open keeps working. So the container stays
+# healthy, the service answers, and nothing fails until something has to be
+# created. Two bugs hid there for weeks:
+#
+#   #138  wg-easy could not write its database, so a VPN peer could not be
+#         REVOKED. Not fixed here: see the note at the bottom.
+#   #144  Vaultwarden. Its vault is a SQLite database in WAL mode, and it wrote
+#         fine only because db.sqlite3-wal and -shm predated the capability
+#         drop by six days. SQLite deletes both on a clean shutdown and
+#         recreates them on the next open; it could not have. The first
+#         `compose down` would have left the vault read-only.
+#
+# Ownership, not mode: these containers run as uid 0, so root:root is the
+# minimum that works and it does not widen access to anything else. Each of the
+# three directories has exactly one consumer, verified on the host, and no other
+# container or service uid reads them.
+#
+# `cap_drop: ALL` is correct hardening and stays. The defect was the ownership.
+
+- name: data_dirs | Own the data of root containers that no longer hold DAC_OVERRIDE
+  ansible.builtin.file:
+    path: "{{ services_data_dir }}/{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - vaultwarden
+    - traefik/acme
+    - immich/upload
+
+# NOT wireguard, deliberately. The same one-line change fixes #138, but it
+# cannot be made from here: the first successful write regenerates wg0.conf from
+# the database and runs `wg syncconf`, and the live interface is IPv4-only while
+# the database holds IPv6 for the interface and for every peer. That interface
+# is the only path to this host. #138 is done at the machine.
