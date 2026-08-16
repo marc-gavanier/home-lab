@@ -712,6 +712,10 @@ services:
       SHOW_PASSWORD_HINT: "false"       # no hint on failed login (also aids user-enum)
       DISABLE_ICON_DOWNLOAD: "true"     # no server-side favicon fetches (SSRF/egress)
       SENDS_ALLOWED: "false"            # Send file/text sharing unused — drop the surface
+      # Non-default (upstream never expires the trash). It had only ever existed
+      # inside config.json, so it was invisible here and would have been lost by
+      # anyone rebuilding from this file alone (#124).
+      TRASH_AUTO_DELETE_DAYS: "90"
       # A log FILE, because fail2ban cannot read a container's stdout (#35).
       # It lands inside the existing /data bind mount, so the read-only rootfs
       # is untouched; the host rotates it (copytruncate — vaultwarden holds the
