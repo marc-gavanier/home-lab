@@ -99,7 +99,7 @@ the service *does* beyond answering.
    a working change into a rollback, and then reports the rollback as failed
    too. On this host the trap is DNS: internal names resolve only in Pi-hole,
    and the Pi does **not** use Pi-hole as its own resolver, so `curl
-   https://videos.gavanier.com/health` fails on the host with "Could not resolve
+   https://videos.example.com/health` fails on the host with "Could not resolve
    host" while the service is perfectly healthy. Use `--resolve
    <name>:443:192.168.1.100`, or probe from inside the container. Only
    `drive` and `services` are pinned in `/etc/hosts`.

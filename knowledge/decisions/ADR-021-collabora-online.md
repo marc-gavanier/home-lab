@@ -98,7 +98,7 @@ is autodetected from the user's browsing URL. From a container, that name
 **does not resolve at all**:
 
 ```
-wget: bad address 'drive.gavanier.com'
+wget: bad address 'drive.example.com'
 ```
 
 Not a hairpin to the public IP — a plain failure, because the host is not a
