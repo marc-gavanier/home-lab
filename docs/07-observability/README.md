@@ -8,10 +8,10 @@ merely interesting belongs on a dashboard, not in a notification.
 
 ## Stack
 
-| Tool            | Role                                                            |
-|-----------------|-----------------------------------------------------------------|
+| Tool            | Role                                                                             |
+|-----------------|----------------------------------------------------------------------------------|
 | **Netdata**     | Real-time system metrics — forensic dashboard, **alerts reach nobody by design** |
-| **Uptime Kuma** | Availability monitoring + alerting (Discord)                    |
+| **Uptime Kuma** | Availability monitoring + alerting (Discord)                                     |
 
 Netdata is not notification-free — that wording was wrong and it mattered. It
 ships **57 stock alarms and runs them**. What it has no configured recipient,
@@ -222,6 +222,30 @@ request, which a Kuma HTTP check cannot make without storing credentials. The
 compose healthcheck therefore probes `/login` explicitly instead of trusting the
 image's, and the monitor is understood to cover reachability only (ADR-025).
 
+**Nextcloud** is a third case, and a different one: the endpoint is right and the
+*acceptance criterion* was too loose. `/status.php` returns **HTTP 200** with
+`"maintenance":true`, and again with `"needsDbUpgrade":true` — precisely the two
+states where Nextcloud is up, answering, and unusable, and precisely the states a
+bad upgrade leaves behind. A monitor accepting `200-299` is green throughout.
+
+The fix is a keyword match on the monitor, entered in the Kuma UI:
+
+```
+"maintenance":false,"needsDbUpgrade":false
+```
+
+The two fields are adjacent in the payload, verified against the live response:
+
+```json
+{"installed":true,"maintenance":false,"needsDbUpgrade":false,"version":"34.0.2.1",…}
+```
+
+**This lives only in `kuma.db`.** Kuma v2 has no configuration import, so a
+rebuilt Kuma comes back with the monitor green and the keyword gone — which is
+why the exact string is written here rather than left in the UI alone. Re-enter
+it whenever monitor #1 is recreated, and treat that as part of restoring Kuma,
+not as an optional refinement.
+
 TLS certificate expiry notification is enabled on the HTTPS monitors. Traefik
 renews automatically, so this is normally moot — it exists to catch a *silent*
 renewal failure (ACME error, bad API token, rate limit), which would otherwise
@@ -237,21 +261,22 @@ internet except WireGuard.
 `homelab-health.sh` pushes one monitor covering the host-level signals that
 need a human:
 
-| Signal              | Alarms when                                                   |
-|---------------------|---------------------------------------------------------------|
-| CPU temperature     | ≥ 80 °C (Pi 4 throttles at ~80-85 °C)                         |
-| Undervoltage        | the `rpi_volt` hwmon alarm has latched                        |
-| Pending reboot      | `/var/run/reboot-required` exists — auto-reboot is disabled by policy, so it waits on the operator |
-| Security updates    | still pending after **48 h** (age-gated: unattended-upgrades runs daily) |
-| Disk capacity       | `/` or `/mnt/data` ≥ **85 %** full                            |
-| Available memory    | `MemAvailable` < **800 MiB** on two consecutive runs (> 5 min) |
-| Swap occupancy      | ≥ **85 %** of the 4 GiB swap file — provisional threshold, see below |
-| Unhealthy container | a container fails its healthcheck for > **10 min**            |
-| Container missing   | an expected container is not running at all for > **10 min**   |
-| systemd unit failed | anything in `systemctl --failed`                               |
-| systemd restart loop | a unit stuck in `auto-restart` across two consecutive runs   |
-| Expected unit down  | docker, containerd, fail2ban, claude-remote-control or wg-quick@wg0 not `active` |
-| Timer last run      | a `homelab-*` timer whose triggered service did not end in `success` |
+| Signal               | Alarms when                                                                                        |
+|----------------------|----------------------------------------------------------------------------------------------------|
+| CPU temperature      | ≥ 80 °C (Pi 4 throttles at ~80-85 °C)                                                              |
+| Undervoltage         | the `rpi_volt` hwmon alarm has latched                                                             |
+| Pending reboot       | `/var/run/reboot-required` exists — auto-reboot is disabled by policy, so it waits on the operator |
+| Security updates     | still pending after **48 h** (age-gated: unattended-upgrades runs daily)                           |
+| Disk capacity        | `/` or `/mnt/data` ≥ **85 %** full                                                                 |
+| Available memory     | `MemAvailable` < **800 MiB** on two consecutive runs (> 5 min)                                     |
+| Swap occupancy       | ≥ **85 %** of the 4 GiB swap file — provisional threshold, see below                               |
+| DNS upstream         | a cache-busting query gets no answer, or a non-answer rcode, on two consecutive runs (> 5 min)     |
+| Unhealthy container  | a container fails its healthcheck for > **10 min**                                                 |
+| Container missing    | an expected container is not running at all for > **10 min**                                       |
+| systemd unit failed  | anything in `systemctl --failed`                                                                   |
+| systemd restart loop | a unit stuck in `auto-restart` across two consecutive runs                                         |
+| Expected unit down   | docker, containerd, fail2ban, claude-remote-control or wg-quick@wg0 not `active`                   |
+| Timer last run       | a `homelab-*` timer whose triggered service did not end in `success`                               |
 
 **Why 800 MiB.** `MemAvailable` rather than free memory: the page cache is
 reclaimable and `/mnt/data` churns hundreds of MB a night, so free memory reads
@@ -299,6 +324,31 @@ coincided; the alarm exists so that they are not discovered coinciding.
 Resizing the swap file is a **manual** operation: `creates:` guards it, so
 changing `swap_size_mb` alone does nothing. The procedure, and the reason
 `swapoff` deserves care, are in `ansible/roles/storage/tasks/swap.yml`.
+
+**Why the DNS check queries a random name.** A dead DoH upstream is the failure
+this stack was least equipped to notice, because everything that looks like it
+should catch it is answering from cache or from the wrong side of the path:
+
+| Would-be check         | Why it cannot see a dead upstream                                                                                                                                                             |
+|------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Kuma `Pi-hole DNS`     | asks for the A record of the domain every 60 s, which FTL serves from cache — **10 084 queries over 7 days produced 2 upstream forwards**, both of them container restarts flushing the cache |
+| `dnsproxy` healthcheck | there isn't one                                                                                                                                                                               |
+| Pi-hole healthcheck    | uses `+norecurse` against a local name, so it cannot reach the upstream by construction                                                                                                       |
+
+So if `dnsproxy` dies, Pi-hole keeps answering cached names, both containers read
+green, and the LAN loses resolution for everything else — a failure `compose.yaml`
+already documents and, until now, only prescribed an operational workaround for.
+
+A random label under the domain cannot be served from cache, so it walks the
+whole path. Verified rather than assumed: a probe query landed in the FTL
+database as `status=2 forward=127.0.0.1#5053` and took 656 ms, where a cached
+answer returns in ~0 ms with no forward at all.
+
+**`NXDOMAIN` counts as success.** The question is whether the upstream *answered*,
+not whether the name exists. `SERVFAIL`, `REFUSED` and silence are the failures —
+they are what a dead `dnsproxy` produces. The alarm needs two consecutive
+failures, the same gate as the memory check, because this probe deliberately
+removes the cache from the path and so has no cushion of its own.
 
 The last two close the gaps the rest of the stack cannot see: Netdata graphs
 disk fill but delivers no notification, and the heal timer only resurrects

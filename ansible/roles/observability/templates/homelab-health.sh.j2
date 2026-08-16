@@ -164,6 +164,54 @@ if [ -r /proc/meminfo ]; then
     fi
 fi
 
+# --- DNS upstream ---
+# Nothing else detects a dead DoH upstream, and the failure is silent in the
+# worst way: Pi-hole keeps answering cached names, both containers read green,
+# and the LAN loses resolution for everything else.
+#
+# The Kuma `Pi-hole DNS` monitor cannot see it. It asks for the A record of the
+# domain every 60 s, and FTL answers that from cache essentially always — 10 084
+# queries for that name over 7 days produced 2 upstream forwards, both of them
+# container restarts flushing the cache. It proves FTL is alive, nothing more.
+# Neither can the container healthchecks: dnsproxy has none at all, and
+# Pi-hole's uses `+norecurse` against a local name, so it cannot reach the
+# upstream by construction.
+#
+# A random label cannot be served from cache, so this walks the whole path:
+# FTL -> 127.0.0.1#5053 -> DoH. Verified rather than assumed — a probe query
+# landed in the FTL database as `status=2 forward=127.0.0.1#5053`, 656 ms, while
+# a cached answer returns in ~0 ms with no forward at all.
+#
+# NXDOMAIN is a success here: the question is whether the upstream ANSWERED, not
+# whether the name exists. SERVFAIL, REFUSED and silence are the failures — they
+# are what a dead dnsproxy produces.
+DNS_STAMP=/var/lib/homelab-health/dns.stamp
+DNS_PROBE_DOMAIN='{{ domain }}'
+if command -v dig >/dev/null 2>&1 && [ -n "$DNS_PROBE_DOMAIN" ]; then
+    rand=$(head -c8 /dev/urandom | od -An -tx1 | tr -d ' \n')
+    # No `head -1` on this pipeline: `status: X,` matches exactly one line, and
+    # closing a pipe early is how the earlier probes acquired SIGPIPE races.
+    dns_rc=$(dig +time=3 +tries=1 "${rand}.${DNS_PROBE_DOMAIN}" @127.0.0.1 2>/dev/null \
+             | sed -n 's/.*status: \([A-Z]*\),.*/\1/p')
+    case "${dns_rc:-}" in
+        NOERROR|NXDOMAIN)
+            report+=("dns ok")
+            rm -f "$DNS_STAMP"
+            ;;
+        *)
+            report+=("dns ${dns_rc:-no-response}")
+            mkdir -p "$(dirname "$DNS_STAMP")"
+            # Second consecutive failure, i.e. sustained for >5 min. Same gate as
+            # the memory alarm: one upstream hiccup is not an outage, and this
+            # probe deliberately leaves the cache out of the path, so it has no
+            # cushion of its own.
+            [ -f "$DNS_STAMP" ] && \
+                problems+=("dns upstream unreachable twice running (${dns_rc:-no response})")
+            date +%s > "$DNS_STAMP"
+            ;;
+    esac
+fi
+
 # --- Unhealthy containers ---
 # The heal timer only resurrects containers that EXITED; one that stays up but
 # fails its healthcheck is invisible. User-facing services are covered
