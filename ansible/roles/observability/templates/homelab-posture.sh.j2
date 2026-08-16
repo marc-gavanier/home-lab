@@ -163,9 +163,16 @@ fi
 # a key held at the same value is redundant, not dangerous, and four of them are
 # (the panel writes back what it was given).
 if [ "$(docker inspect -f '{% raw %}{{.State.Status}}{% endraw %}' vaultwarden 2>/dev/null)" = "running" ]; then
-    vw_cfg="$(docker inspect -f '{% raw %}{{range .Mounts}}{{if eq .Destination "/data"}}{{.Source}}{{end}}{{end}}{% endraw %}' \
-              vaultwarden 2>/dev/null)/config.json"
-    if [ -r "$vw_cfg" ]; then
+    vw_src=$(docker inspect -f '{% raw %}{{range .Mounts}}{{if eq .Destination "/data"}}{{.Source}}{{end}}{{end}}{% endraw %}' \
+             vaultwarden 2>/dev/null)
+    vw_cfg="$vw_src/config.json"
+    # An ABSENT config.json is the ideal state — nothing to shadow, nothing to
+    # assert. An UNRESOLVABLE mount is not the same thing: it would make this
+    # check disappear without a word, which is the mechanism it exists to catch.
+    # Collapsing the two into one silent skip would reproduce the defect here.
+    if [ -z "$vw_src" ]; then
+        problems+=("vaultwarden: no /data mount — config.json check cannot run")
+    elif [ -r "$vw_cfg" ]; then
         # Prints OK when clean, so a check that cannot run is not read as a pass.
         conflicts=$(docker inspect -f '{% raw %}{{range .Config.Env}}{{println .}}{{end}}{% endraw %}' \
             vaultwarden 2>/dev/null | python3 -c '
