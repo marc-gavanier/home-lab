@@ -32,6 +32,12 @@ notify() {
 problems=()
 checked=0
 
+# The operator's uid. A service data directory owned by it, under a container
+# that does not itself run as it, is the signature of #138/#144 — see the
+# writability assertion in check_service. Resolved once, and never guessed: an
+# unresolvable value makes the assertion report instead of silently passing.
+OPERATOR_UID=$(id -u '{{ ansible_user }}' 2>/dev/null)
+
 # /mnt/data is unlocked by hand after a reboot: until then the stack is
 # legitimately down and there is nothing to assert. The health report already
 # covers that window, and alarming here would cry wolf on every boot.
@@ -71,6 +77,53 @@ check_service() {
            | tr ' ' '\n' | sed 's/^CAP_//' | grep -v '^$' | sort | tr '\n' ' ')
     caps="${caps% }"
     [ "$caps" = "$want_caps" ] || problems+=("$name: caps [$caps] want [$want_caps]")
+
+    # Dropping CAP_DAC_OVERRIDE puts a root process back under the permission
+    # bits it used to bypass. A data directory owned by the operator then stops
+    # accepting NEW files while everything already open keeps working — so the
+    # container stays healthy, the service answers, and nothing fails until
+    # something has to be created. #138 (a VPN peer could not be revoked) and
+    # #144 (Vaultwarden's WAL, deleted on the next clean shutdown and then
+    # unrecreatable) both hid there for weeks behind a green container.
+    #
+    # Deliberately narrow: a read-write bind mount owned by the operator's uid,
+    # under a container that does not itself run as that uid. Three wider sweeps
+    # were measured and rejected the same evening — each flagged Forgejo, which
+    # is rootless and legitimately owns its tree, or the Nextcloud pair, whose
+    # uid-33 worker lives a few seconds per cycle and so is absent from any
+    # point-in-time scan of the container's processes.
+    #
+    # wg-easy is excluded until #138: its directory cannot be chowned from a
+    # deploy. The first successful write regenerates wg0.conf from the database
+    # and runs `wg syncconf`, and the live interface is IPv4-only while the
+    # database holds IPv6 for the interface and every peer — that interface is
+    # the only path to this host. Delete this exclusion along with #138.
+    case " $caps " in
+        *" DAC_OVERRIDE "*) ;;   # still bypasses the bits — nothing to assert
+        *)
+            if [ "$name" != "wg-easy" ]; then
+                if [ -z "$OPERATOR_UID" ]; then
+                    problems+=("$name: operator uid unresolved — write check cannot run")
+                else
+                    local ctr_uid src owner
+                    # Empty Config.User means root; Docker surfaces the image's
+                    # own USER here too, which is how Forgejo reads as 1000:1000.
+                    ctr_uid=$(inspect "$name" '{{.Config.User}}')
+                    ctr_uid="${ctr_uid%%:*}"
+                    ctr_uid="${ctr_uid:-0}"
+                    if [ "$ctr_uid" != "$OPERATOR_UID" ]; then
+                        while read -r src; do
+                            [ -d "$src" ] || continue
+                            owner=$(stat -c %u "$src" 2>/dev/null) || continue
+                            [ "$owner" = "$OPERATOR_UID" ] || continue
+                            problems+=("$name: $src owned by uid $owner, container runs as $ctr_uid and cannot create files there")
+                        done < <(inspect "$name" \
+                            '{{range .Mounts}}{{if and (eq .Type "bind") .RW}}{{.Source}}{{"\n"}}{{end}}{{end}}')
+                    fi
+                fi
+            fi
+            ;;
+    esac
 
     local ro
     ro=$(inspect "$name" '{{.HostConfig.ReadonlyRootfs}}')
