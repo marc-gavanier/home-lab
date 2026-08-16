@@ -385,14 +385,13 @@ Verified by *loading*, never by listing:
    deleting the v2.7.5 images the same day: the rollback path they existed for
    had already expired.
 3. **The passphrase survives the house.** The offsite repo password is
-   deliberately absent from the offsite Pi, and `local.yml` is gitignored, so
-   it exists at home only — on the homelab and the workstation, which a fire
-   takes together. The documented recovery path is the Vaultwarden offline
-   cache on the phone **plus a printed copy kept outside the house**. Both were
-   verified on 2026-07-27: the phone shows the passphrase in airplane mode, with
-   no server reachable. Re-verify at each drill — a client reinstall or a vault
-   reorganisation silently breaks that path, and it is the only one that
-   survives the house.
+   deliberately absent from the offsite Pi, and every copy that lives at home
+   is taken by the same fire — so the recovery chain rests on it existing in at
+   least two independent places outside the homelab, at least one of them
+   reachable with no network and no other secret. That path was verified cold
+   on 2026-07-27, with no server reachable. **Re-verify at each drill**: it
+   breaks silently — a reinstall or a reorganisation is enough — and it is the
+   only path that survives the house.
 
 **Next drill: 2027-07** (annual). Bring it forward if the storage layout, the
 uid model or the repository backend changes.

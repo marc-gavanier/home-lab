@@ -98,7 +98,8 @@ Also disable the backup timer for the duration of any multi-hour seed:
 ## Manual retention (rare — when disk usage approaches 85%)
 
 Append-only means no automatic pruning. On site (or via SSH), with the repo
-password fetched from Vaultwarden AT THAT MOMENT (never store it on the Pi):
+password fetched from outside this host AT THAT MOMENT (never store it on the
+Pi):
 
 ```bash
 # restic and sqlite3 are installed by the offsite-backup role since ddc44c5 —
