@@ -15,9 +15,13 @@ public, and a list of peer names and addresses maps the personal devices that
 can reach everything behind `vpn-only`. Read it from the host instead:
 
 ```bash
-ssh homelab 'sudo jq -r ".clients | to_entries[] | \"\(.value.name) \(.value.address)\"" \
-  /mnt/data/services/wireguard/wg0.json'
+ssh homelab "sudo sqlite3 -readonly /mnt/data/services/wireguard/wg-easy.db \
+  \"SELECT name, ipv4_address, CASE enabled WHEN 1 THEN 'enabled' ELSE 'DISABLED' END \
+    FROM clients_table ORDER BY id;\""
 ```
+
+`-readonly` matters: the file is the live database of a running container, and
+opening it read-write would take a lock wg-easy needs.
 
 **Two of them are infrastructure, not people**, and both are documented
 elsewhere in this repo because operating the offsite backup requires knowing
@@ -27,10 +31,48 @@ one carries the nightly backup copy, the other is the only management path to
 the offsite Pi. Everything else in the list should be a personal device you can
 name.
 
+**Do not read `wg0.json`.** It was the peer store before the v15 migration
+(ADR-020) and is no longer written — the file is still on disk, still parses,
+and still returns a peer list, so a command reading it looks like it works. It
+answers with the inventory as it stood on the migration day, which means any
+peer added since is invisible. `wg0.conf` next to it *is* still regenerated,
+which makes the whole directory look alive.
+
 ## Revoking
 
+> **Deleting from the UI does not currently work — issue #138.** wg-easy runs as
+> root with `cap_drop: ALL`, so it holds no `CAP_DAC_OVERRIDE`, and its data
+> directory is owned by uid 1000. It therefore cannot create files there, and the
+> database is in `delete` journal mode, which needs a `-journal` file per
+> transaction. Every write fails with `SQLITE_READONLY` behind an HTTP 500 — the
+> container stays healthy and the UI reports nothing useful. Until #138 is fixed,
+> **step 1 below silently does nothing**; use the stopgap first.
+
+**Stopgap while #138 is open.** The kernel side still accepts changes, because
+`CAP_NET_ADMIN` is granted. This closes the door immediately:
+
+```bash
+# 1. find the public key of the peer to revoke
+ssh homelab "sudo sqlite3 -readonly /mnt/data/services/wireguard/wg-easy.db \
+  \"SELECT name, public_key FROM clients_table ORDER BY id;\""
+
+# 2. drop it from the running interface
+ssh homelab "docker exec wg-easy wg set wg0 peer '<public-key>' remove"
+```
+
+This is **not persistent**. The client is still in the database and still in
+`wg0.conf`, so the peer returns whenever the interface is rebuilt from that file
+— a container restart, or the crash-heal timer picking it up. Treat it as
+stopping the bleeding, then finish the deletion through the UI once #138 lands.
+A revocation that has to survive is not done until the client is gone from the
+listing query.
+
 1. **Delete the client** in the wg-easy UI (`https://vpn.<domain>`, or the
-   `127.0.0.1:51821` tunnel). The peer disappears from `wg0.json`.
+   `127.0.0.1:51821` tunnel) — *delete*, not the toggle next to it. Disabling
+   drops the peer from the interface but keeps its key in the database, so a
+   disabled client is one click away from working again. Re-run the listing
+   query: a deleted client is gone from the output, a disabled one is still
+   there marked `DISABLED`.
 
 2. **Verify the kernel actually dropped it** — the UI showing it gone is not
    proof, the running interface is:
