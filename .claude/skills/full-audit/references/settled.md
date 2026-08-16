@@ -259,6 +259,28 @@ Worth more than the findings, because each one silently produced a wrong answer.
   upgrades: on this evening it took `docker-ce` and the Kerberos libraries with
   it, which bounced all 28 containers and **killed the running play's SSH
   connection mid-task**. Narrow the tags when the change does not need `base`.
+- **A 24-hour window that straddles the tail of a finished event reads as an
+  incident in progress.** This one produced a headline finding that was simply
+  false, so it is the most important entry here.
+
+  The network agent reported, and the main session repeated twice, that a
+  Nextcloud client had been stuck on a WebDAV lock "since at least 2026-08-12" —
+  1036 responses of HTTP 423 in 24 hours, one path, ongoing. The count was real.
+  The conclusion was not: the whole of it fell on 2026-08-15, and the episode had
+  **ended at 20:24 UTC that day**, roughly 26 hours before the audit ran.
+
+  The full retained log, which goes back to 08-12, shows ~700 an hour for three
+  days and then nothing at all. It was a client retrying a single Obsidian note —
+  49 777 DELETE and 4 977 PUT — and the deletion eventually succeeded: the file
+  and its parent folder are gone, Redis holds no lock key, and a targeted
+  `files:scan` reports zero discrepancies.
+
+  So: **`--since <duration>` establishes a rate, never a present tense.** Always
+  bucket by hour across the whole retained log before writing "ongoing", and
+  read the LAST occurrence rather than the total. Note also that
+  `docker logs -t` prints UTC while `--since` parses in host local time, and that
+  the retention shown by `--since 24h` is the clip, not the actual window — take
+  the first line without `--since` to learn how far back the log really goes.
 
 ### Two agent claims that did not survive verification, and one of mine
 
@@ -346,5 +368,8 @@ once ends the pattern. Consider a bounded exhaustive pass instead of a fourth
 general audit.
 
 It will not cover defects of **absence** — nothing watches the Nextcloud cron's
-freshness, and nothing noticed a WebDAV lock retried 1036 times a day since
-2026-08-12 — nor the drift each deploy creates. Those stay the audit's business.
+freshness, and nothing noticed a WebDAV lock that produced 54 754 rejected
+requests over three days in August and then resolved itself unremarked, in
+either direction — nor the drift each deploy creates. Those stay the audit's
+business. (That episode was also misreported as ongoing while it was already
+over; see the 24-hour-window trap above.)
