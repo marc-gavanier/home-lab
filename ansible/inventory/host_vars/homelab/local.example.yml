@@ -56,9 +56,15 @@ nextcloud_db_root_password: ""
 # person's name, which is why it lives here rather than in group_vars.
 # Read ONLY when the CA is generated, which happens once: changing these later
 # has no effect, and regenerating is what the deploy exists to prevent.
-libresign_cert_cn: ""   # e.g. "Firstname Lastname" — what a reader sees
-libresign_cert_o: ""    # organization, e.g. "Home Lab"
-libresign_cert_c: ""    # two-letter country, e.g. "FR"
+# LibreSign root certificate identity — COMMENTED OUT ON PURPOSE.
+# An empty string here does not fall back. host_vars beat group_vars, so `""`
+# would override the working defaults in inventory/group_vars/all.yml
+# ("Home Lab" / "Home Lab" / "FR") and the CA would be minted with blank
+# fields. It is generated ONCE: regenerating it orphans every signature
+# already issued (ADR-022). Uncomment only to override — never to blank out.
+# libresign_cert_cn: "Firstname Lastname"   # what a reader sees in a signed PDF
+# libresign_cert_o: "Home Lab"              # organization
+# libresign_cert_c: "FR"                    # two-letter country
 
 # --- Vaultwarden ---
 vaultwarden_admin_token: ""
