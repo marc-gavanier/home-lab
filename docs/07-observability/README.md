@@ -145,6 +145,26 @@ The health report covers the complementary case at a five-minute cadence:
 health=unhealthy` cannot see them, and the heal timer only resurrects containers
 that *exited* — one that fails to come back was invisible to both (issue #34).
 
+### Checking that the git mirror is still mirroring
+
+The health push carries a `mirror ok` field, and it exists because a mirror that
+stops mirroring is invisible everywhere else: the container is healthy, the web
+UI answers, every page loads, and the repository it serves is simply frozen. On
+2026-08-16 it had been 22 hours behind for a day before anyone noticed, killed by
+the previous day's own `SECRET_KEY` fix, which left the remote address
+undecryptable (issue #123).
+
+The field reads `mirror ok`, or `mirror Nh overdue` with an alert once a sync is
+more than an hour late. One hour of grace because a sync in flight leaves the
+schedule seconds overdue, never an hour.
+
+What it reads matters, and the obvious choice is wrong. `mirror.updated_unix`
+moves on every **attempt**, so it looked current throughout the outage — four
+hours in, it still carried a timestamp from that morning. Forgejo records no
+last-successful-sync at all. `next_update_unix` is the real signal: it only
+advances when a sync **completes**, so during that outage it sat two and a half
+hours in the past and sinking.
+
 ### Checking that Netdata itself is not lying
 
 Netdata is the one service whose breakage is invisible from the outside: the
