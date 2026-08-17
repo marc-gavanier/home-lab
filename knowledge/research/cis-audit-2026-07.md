@@ -47,6 +47,7 @@ fixing** (real quick wins), **noise** (not applicable here).
 | Section 6                   | auditd installed + rules       | Accepted absence so far: single-operator host, systemd journal present, SD wear budget. Revisit if threat model changes      |
 | Bootloader (1.3.1.2, 1.4.x) | GRUB hardening                 | No GRUB on a Pi (firmware + cmdline.txt); boot integrity addressed by ADR-008/009 instead                                    |
 | 2.1.13                      | rsync package removed          | Operator's media-transfer tool (docs/05-services/nextcloud.md) — the binary must exist server-side                           |
+| 3.3.7                       | strict rp_filter (1)           | Loose (2) since 2026-08-18: strict dropped VPN client packets arriving on the `proxy` docker bridge — see below              |
 
 The full rule-by-rule list (with check-mode exclusions) lives as commented
 vars in `playbooks/cis-audit.yml`.
@@ -62,6 +63,25 @@ Verified: converged `changed=0` on both Pis; effective state read directly
 (`log_martians=1`, `tcp_syncookies=1`, `ptrace_scope=1`, `accept_redirects=0`);
 WireGuard tunnel healthy under strict rp_filter (ping 10.8.0.4 + offsite check
 green on Kuma).
+
+**Amended 2026-08-18 — rp_filter relaxed to loose (#152).** The verification
+above was sound and it watched the wrong thing. It checked the offsite tunnel,
+whose routing is symmetric and which was never at risk; what strict mode
+actually broke was VPN *client* traffic reaching the host on the `proxy` docker
+bridge with its `10.8.0.x` source intact. The return route for that address is
+the wg-easy container, not the bridge the packet arrived on, so strict mode
+dropped it — 1734 `in_martian_src` since boot, every day since 2026-08-07, and
+`log_martians` was faithfully recording it while nothing read the output.
+
+Two things made it invisible for eleven days. Dropped packets are retried by
+TCP, so the symptom is latency rather than an outage; and the key was declared
+twice — `procps` ships `/etc/sysctl.d/10-network-security.conf` with loose, our
+`99-homelab.conf` sorts later and silently won with strict, with neither file
+mentioning the other.
+
+Control: the offsite Pi carries an identical sysctl set and reports
+`in_martian_src=0`, which places the cause in this host's wg-easy/bridge
+topology rather than in the value alone.
 
 **Batch 2 — kernel module blacklist — SHIPPED 2026-07-15**
 (`base/tasks/attack-surface.yml`, `/etc/modprobe.d/cis-blacklist.conf`.)

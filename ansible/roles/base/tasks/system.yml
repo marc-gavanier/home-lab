@@ -101,10 +101,33 @@
     - { key: "net.ipv4.conf.default.accept_source_route", value: "0" }
     - { key: "net.ipv6.conf.all.accept_source_route", value: "0" }
     - { key: "net.ipv6.conf.default.accept_source_route", value: "0" }
-    # Strict reverse-path filtering (3.3.7) — wg0 traffic is symmetric, but
-    # if the offsite copy ever breaks after this, relax to "2" (loose).
-    - { key: "net.ipv4.conf.all.rp_filter", value: "1" }
-    - { key: "net.ipv4.conf.default.rp_filter", value: "1" }
+    # Reverse-path filtering (3.3.7), LOOSE — and this is the second
+    # declaration of the key on the host, deliberately now rather than by
+    # accident. `procps` ships /etc/sysctl.d/10-network-security.conf, which
+    # sets rp_filter=2. This file sorts later, so whatever it says wins, and
+    # neither file used to mention the other (#152).
+    #
+    # It said "1" (strict), and the kernel was dropping packets for it. The
+    # comment here anticipated the wrong failure — it watched the offsite copy,
+    # which is symmetric and was never affected. What broke is VPN client
+    # traffic reaching the host on the `proxy` docker bridge with its 10.8.0.x
+    # source intact: the route back to that address is the wg-easy container,
+    # not the bridge the packet arrived on, so strict mode drops it. Measured
+    # 2026-08-17: 1734 in_martian_src since boot, 179 of the last 246 kernel
+    # lines from 10.8.0.2 and 10.8.0.3, every day since 2026-08-07, all on
+    # br-c7236916b77d. The offsite Pi carries an identical sysctl set and
+    # reports in_martian_src=0, which places the cause in this host's
+    # wg-easy/bridge topology rather than in the value alone.
+    #
+    # Loose still rejects a source that is unroutable by any path; it accepts
+    # one that is simply reachable a different way, which is exactly the
+    # asymmetry a VPN plus four docker bridges creates. Recorded as an assumed
+    # CIS deviation in knowledge/research/cis-audit-2026-07.md §1.
+    #
+    # Do NOT "fix" this by editing 10-network-security.conf: it belongs to
+    # procps and a package update would put it back.
+    - { key: "net.ipv4.conf.all.rp_filter", value: "2" }
+    - { key: "net.ipv4.conf.default.rp_filter", value: "2" }
     # ICMP hygiene + SYN floods (3.3.3, 3.3.4, 3.3.10)
     - { key: "net.ipv4.icmp_ignore_bogus_error_responses", value: "1" }
     - { key: "net.ipv4.icmp_echo_ignore_broadcasts", value: "1" }
@@ -119,6 +142,57 @@
     - { key: "kernel.randomize_va_space", value: "2" }
     - { key: "kernel.yama.ptrace_scope", value: "1" }
     - { key: "fs.suid_dumpable", value: "0" }
+
+# The other half of #152. The rp_filter collision cost eleven days of dropped
+# VPN packets, and what made it expensive was not the wrong value — it was that
+# nothing could see two files disagreeing. sysctl applies them in order and
+# keeps the last one, silently, so the losing declaration goes on describing a
+# state that is not in force.
+#
+# Read-only, and `check_mode: false` so a dry run reports the truth: a command
+# task skipped under --check still registers stdout, as an empty string, which
+# would turn this control into one that always passes.
+- name: system | Look for sysctl keys declared twice with different values
+  ansible.builtin.shell:
+    cmd: |
+      set -o pipefail
+      awk -F= '
+          /^[[:space:]]*[#;]/ { next }
+          NF < 2 { next }
+          {
+              key = $1; gsub(/[[:space:]]/, "", key)
+              val = $2; gsub(/[[:space:]]/, "", val)
+              if (key == "") next
+              if ((key in seen) && seen[key] != val)
+                  printf "%s: %s=%s overridden by %s=%s\n",
+                         key, where[key], seen[key], FILENAME, val
+              seen[key] = val; where[key] = FILENAME
+          }
+      ' $(ls /usr/lib/sysctl.d/*.conf /run/sysctl.d/*.conf \
+             /etc/sysctl.d/*.conf /etc/sysctl.conf 2>/dev/null)
+    executable: /bin/bash
+  register: sysctl_collisions
+  changed_when: false
+  check_mode: false
+
+# Hard fail rather than a warning. It runs in the base role, before anything on
+# the host has been touched, and the answer is always the same small edit: make
+# one file own the key. Measured 2026-08-17 across 44 keys on each Pi —
+# rp_filter was the only collision on either.
+- name: system | Refuse to deploy while a sysctl key is silently overridden
+  ansible.builtin.fail:
+    msg: |
+      A sysctl key is declared more than once with different values. The last
+      file wins and the other declaration is inert, which is how #152 hid for
+      eleven days.
+
+      {{ sysctl_collisions.stdout }}
+
+      Decide which value is intended and let a single file own it. Distribution
+      files (procps ships 10-network-security.conf) must not be edited — a
+      package update restores them; set the intended value in 99-homelab.conf,
+      which sorts last, and say there that it overrides.
+  when: sysctl_collisions.stdout | length > 0
 
 # CIS 1.5.5 — apport phones crash dumps home and has no use on a headless
 # server; crash context lives in the systemd journal.
