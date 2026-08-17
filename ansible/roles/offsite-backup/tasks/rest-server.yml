@@ -16,11 +16,21 @@
     group: rest-server
     mode: "0750"
 
+# `check_mode: false` so this reads the real version even during `--check`.
+# Without it Ansible skips the task — `command` does not support check mode —
+# `rest_server_installed.stdout` falls back to '', the version guard below
+# inverts, the download is *simulated* without fetching anything, and the copy
+# that follows fails on a source that was never extracted. A dry run therefore
+# aborted the whole play at step 5, on the host whose only access route is the
+# tunnel and where a dry run is worth the most (measured 2026-08-17: the real
+# binary is 0.14.0 and prints 78 bytes to stdout, so the guard is correct
+# outside check mode and both tasks are skipped).
 - name: rest-server | Check installed rest-server version
   ansible.builtin.command: /usr/local/bin/rest-server --version
   register: rest_server_installed
   changed_when: false
   failed_when: false
+  check_mode: false
 
 - name: rest-server | Download and extract rest-server {{ rest_server_version }}
   ansible.builtin.unarchive:
