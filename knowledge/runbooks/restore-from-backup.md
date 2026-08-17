@@ -57,11 +57,24 @@ rather than doing nothing quietly.
 
 ## Ownership after a restore
 
-Five services now start **as** their service uid rather than as root
-(`user:` in `compose.yaml` — the databases, both redis caches, the Nextcloud
-cron companion), which is what lets them run with no capability at all
+Five services start **as** uid 999 rather than as root (`user:` in
+`compose.yaml`), which is what lets them run with no capability at all
 (ADR-017). The consequence for a restore: **they can no longer repair the
 ownership of their own data directory**, because `CHOWN` is gone.
+
+Measured on the running host, so the list below is the one to act on:
+
+| Service | Data directory to own |
+|---|---|
+| `nextcloud-db` | `/mnt/data/services/nextcloud/db` |
+| `immich-db` | `/mnt/data/services/immich/db` |
+| `miniflux-db` | `/mnt/data/services/miniflux/db` |
+| `nextcloud-redis` | none — no bind mount, nothing to repair |
+| `immich-redis` | none — no bind mount, nothing to repair |
+
+`nextcloud-cron` is **not** in this set, whatever ADR-017 used to say: starting
+it as uid 33 was tried and reverted under #28, so it runs as root with `SETUID`
+and `SETGID`.
 
 `restic restore` runs as root and preserves ownership, so a normal restore is
 safe. What is not safe is recreating a datadir by hand — `mkdir`, `cp -r` out of
@@ -70,9 +83,11 @@ Postgres then refuses to start ("data directory has wrong ownership") and
 MariaDB fails on its first write.
 
 ```bash
-# After any hand-made copy into a database directory:
-chown -R 999:999 /mnt/data/services/nextcloud/db /mnt/data/services/immich/db
-chmod 700       /mnt/data/services/nextcloud/db /mnt/data/services/immich/db
+# After any hand-made copy into a database directory — all three, miniflux
+# included: it is a uid-999 datadir on a container with cap_drop: ALL, so it has
+# nothing left to repair itself with.
+chown -R 999:999 /mnt/data/services/nextcloud/db /mnt/data/services/immich/db /mnt/data/services/miniflux/db
+chmod 700        /mnt/data/services/nextcloud/db /mnt/data/services/immich/db /mnt/data/services/miniflux/db
 # Or simply let Ansible do it:
 ansible-playbook playbooks/site.yml --tags storage --ask-vault-pass
 ```

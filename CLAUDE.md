@@ -68,5 +68,10 @@ Use agents in `.claude/agents/` for domain-specific tasks:
 
 ## Storage
 
-- SD card: OS + configs + Docker images only
-- 5TB HDD mounted at `/mnt/data`: service data, media, backups
+- SD card: OS + configs only
+- 5TB HDD mounted at `/mnt/data`: service data, media, backups — **and the Docker
+  store** (`docker_data_root: /mnt/data/docker`, so images and layers live there,
+  not on the card). Two procedures depend on knowing this: an empty image list
+  after a reboot means Docker started before the volume was unlocked, so the
+  answer is to restart Docker and never to wipe; and reflashing the SD card
+  costs no image, because none of them are on it.

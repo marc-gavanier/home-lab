@@ -55,7 +55,7 @@
     - "{{ services_data_dir }}/jellyfin"
     - "{{ services_data_dir }}/navidrome"
 
-# The two databases run as uid 999 from PID 1 (`user: "999:999"` in
+# The three databases run as uid 999 from PID 1 (`user: "999:999"` in
 # compose.yaml), which is what lets them hold no capability at all: there is no
 # root phase left to chown the datadir, so the datadir has to arrive already
 # owned by 999. On a fresh provision Docker would create these bind-mount
