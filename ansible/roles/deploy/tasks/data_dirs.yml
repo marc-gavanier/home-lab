@@ -37,6 +37,32 @@
     - traefik/acme
     - immich/upload
 
+# wg-easy writes its database with umask 022, so it lands 0644 — world-readable,
+# holding the interface private key, every client private key and pre-shared key,
+# and the admin bcrypt hash (#153). Its siblings in the same directory are 0600
+# and 0640; only this one is not, which is why it reads as the application's
+# default rather than a decision.
+#
+# The container runs as root and owns the file, so 0600 costs it nothing. Mode
+# only, never ownership: chowning the DIRECTORY is what triggers the #138
+# reconciliation write, and this task must stay safe to run from a deploy.
+#
+# Re-asserted every deploy rather than set once, because the application may
+# recreate the file on a restart and take its umask with it.
+- name: data_dirs | Look for wg-easy's database
+  ansible.builtin.stat:
+    path: "{{ services_data_dir }}/wireguard/wg-easy.db"
+  register: wg_easy_db
+
+# Skipped rather than ignored: absent means the container has never started here,
+# which is a legitimate state on a fresh host. Any OTHER failure still fails.
+- name: data_dirs | Keep wg-easy's key material unreadable to other local uids
+  ansible.builtin.file:
+    path: "{{ services_data_dir }}/wireguard/wg-easy.db"
+    state: file
+    mode: "0600"
+  when: wg_easy_db.stat.exists
+
 # NOT wireguard, deliberately. The same one-line change fixes #138, but it
 # cannot be made from here: the first successful write regenerates wg0.conf from
 # the database and runs `wg syncconf`, and the live interface is IPv4-only while
