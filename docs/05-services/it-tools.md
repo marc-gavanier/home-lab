@@ -37,17 +37,35 @@ image: corentinth/it-tools:nightly@sha256:f07d2465...
 ```
 
 Upstream stopped cutting releases. The newest tagged version is `2024.10.22-7ca5933`, and
-its image ships **Alpine 3.20 — past end of support — with nginx 1.26.2**. The repository
-is alive (commits through 2026-07), so `nightly` is not an unstable channel here, it is
-simply where the maintenance went: **Alpine 3.23, nginx 1.28.2**.
+its image ships **Alpine 3.20 — past end of support — with nginx 1.26.2**. `nightly` is
+not an unstable channel here, it is a build of `main` and simply where the maintenance
+went: **Alpine 3.23, nginx 1.28.2**.
 
 Serving a 21-month-old base in order to stop using third-party web tools would defeat the
 purpose of self-hosting this at all. The digest restores what the moving tag gives up:
 the deployed artefact cannot change underneath us, and Renovate raises a PR when it moves.
 
-**This pin needs re-reading, not just bumping.** `nightly` itself was last built
-2026-02-13. If it goes stale too, that is the signal to drop the service rather than pin
-it deeper — see [ADR-024](../../knowledge/decisions/ADR-024-it-tools-toolbox.md).
+### The digest has not moved since 2026-02-13, and that is fine
+
+This page used to say that a stale `nightly` was the signal to drop the service. It is
+not, and the difference was measured on 2026-08-17 (#162):
+
+| | Measured 2026-08-17 |
+|---|---|
+| Digest | unchanged for 185 days, identical to the pin |
+| Nightly build workflow | 412 runs, succeeding every night, last at 00:03 today |
+| Commit it rebuilds | the same one each time — `main` has not moved since 2026-02-12 |
+
+The pipeline is not broken and nobody stopped publishing; the digest is stable because
+its input is stable. An unchanged digest therefore says nothing on its own, which also
+means Renovate's silence says nothing — it compares digests.
+
+**What actually calls for dropping the service**: it gains a backend, stores state or
+handles a secret server-side; it becomes reachable from outside the VPN; or the nightly
+build starts *failing*, which is the point at which the image can no longer be rebuilt
+against a patched base. Until then, static assets behind the VPN, with zero capabilities
+and a read-only rootfs, age without accumulating exposure — see
+[ADR-024](../../knowledge/decisions/ADR-024-it-tools-toolbox.md).
 
 ## How It Runs
 
