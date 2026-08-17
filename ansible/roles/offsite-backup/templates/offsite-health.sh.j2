@@ -47,14 +47,29 @@ smart_out=$(smartctl -H -A -l selftest "$DRIVE" 2>/dev/null)
 rc=$?
 if [ $((rc & 8)) -ne 0 ]; then
     problems+=("SMART FAILING")
-elif [ $((rc & 7)) -ne 0 ] && [ -z "$smart_out" ]; then
-    report+=("SMART unreadable")
 fi
 
-if [ -n "$smart_out" ]; then
-    raw()  { awk -v id="$1" '$1 == id { print $10; exit }' <<<"$smart_out"; }
-    norm() { awk -v id="$1" '$1 == id { print $4 + 0; exit }' <<<"$smart_out"; }
+raw()  { awk -v id="$1" '$1 == id { print $10; exit }' <<<"$smart_out"; }
+norm() { awk -v id="$1" '$1 == id { print $4 + 0; exit }' <<<"$smart_out"; }
 
+# Readability is asserted on a VALUE, not on the output being non-empty.
+#
+# The previous guard classified unreadable SMART as a *report* line, and only
+# when the output was EMPTY. Measured on this host 2026-08-17: smartctl writes
+# its refusals to stdout, so a device it cannot talk to returns rc=1 with 282
+# bytes of "Unable to detect device type" — non-empty, so the branch never
+# fired. Execution then fell into the normal path, every attribute lookup came
+# back empty, every check below was skipped in silence, and the run still ended
+# on `notify up "SMART ok"`. A USB-SATA bridge that stops passing SAT commands
+# fails exactly that way, on the host least likely to be looked at directly.
+#
+# Power-on hours is the instrument: present on every ATA drive, already needed
+# for the self-test staleness check below, and it can only parse as a number if
+# the attribute table was genuinely read.
+power_on_h=$(raw 9)
+if ! [[ "$power_on_h" =~ ^[0-9]+$ ]]; then
+    problems+=("SMART unreadable (rc=$rc)")
+else
     # Error counters that must stay at zero — each one is an early failure
     # predictor: media decay (5/170/187), NAND wearout (171/172), data-path
     # corruption (184), USB cable/bridge trouble (199).
@@ -87,10 +102,9 @@ if [ -n "$smart_out" ]; then
         # test in drive power-on hours — compare with attribute 9 so a
         # silently dead timer surfaces here instead of leaving an eternally
         # green "Completed without error" from months ago.
-        now_h=$(raw 9)
         test_h=$(awk '/^# 1/ { for (i = 1; i <= NF; i++) if ($i ~ /%$/) { print $(i + 1); exit } }' <<<"$smart_out")
-        if [ -n "$now_h" ] && [ -n "$test_h" ] && [ $((now_h - test_h)) -gt 840 ]; then
-            problems+=("self-test stale ($(((now_h - test_h) / 24))d ago)")
+        if [ -n "$test_h" ] && [ $((power_on_h - test_h)) -gt 840 ]; then
+            problems+=("self-test stale ($(((power_on_h - test_h) / 24))d ago)")
         fi
     else
         report+=("no self-test yet")

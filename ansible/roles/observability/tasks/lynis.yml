@@ -11,43 +11,12 @@
 #   - it kept /var/log/lynis-report.dat permanently fresh, which is what made
 #     the report script's only guard unable to fire. See the freshness check in
 #     homelab-lynis-report.sh.j2.
-# So the redundant daily run is masked here, at the source. Our weekly run is
-# the one with a reporting path attached to it.
-
-- name: lynis | Look for the distribution's own timer
-  ansible.builtin.stat:
-    path: /usr/lib/systemd/system/lynis.timer
-  register: lynis_distro_timer
-
-# Guarded on the unit actually existing rather than swallowed with
-# `failed_when: false` — a task that cannot fail is the very defect this change
-# is fixing, and it would be absurd to introduce one here.
-- name: lynis | Stop and disable the distribution's daily timer
-  ansible.builtin.systemd:
-    name: lynis.timer
-    enabled: false
-    state: stopped
-  when: lynis_distro_timer.stat.exists
-
-# Masked in a SEPARATE task, after the stop, and the order is the entire point.
-# Combining `masked: true` with `state: stopped` in one task produces the
-# equivalent of `systemctl mask --now`: the fragment becomes /dev/null, systemd
-# can no longer load the unit it is being asked to stop, and it records it as
-# FAILED. The timer is correctly dead either way, but `systemctl --failed` stops
-# being empty — and that is the first thing a human scans, besides being a
-# signal several checks here read.
 #
-# Both orders measured on the host on 2026-08-16:
-#   mask --now      -> ActiveState=failed,   one entry in --failed
-#   stop, then mask -> ActiveState=inactive, --failed empty
-#
-# Masked rather than merely disabled so a package update cannot quietly put the
-# daily run back.
-- name: lynis | Mask it so a package update cannot re-enable it
-  ansible.builtin.systemd:
-    name: lynis.timer
-    masked: true
-  when: lynis_distro_timer.stat.exists
+# That daily timer is stopped and masked in `security/tasks/audit.yml`, next to
+# the package that ships it. It used to be masked here — but this role runs on
+# the homelab only, so the offsite Pi went on running the daily audit with no
+# reporting path at all (#155). What is left below is the part that is genuinely
+# specific to this host: the weekly run that HAS a reporting path attached.
 
 - name: lynis | Install the lynis report script
   ansible.builtin.template:

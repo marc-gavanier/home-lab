@@ -11,6 +11,53 @@
       - lynis
     state: present
 
+# The distribution ships its own lynis.timer, enabled, OnCalendar=daily. It was
+# masked on the homelab on 2026-08-16 for two reasons — roughly 40 minutes of
+# CPU a week on a Pi for a report nobody reads, and a permanently fresh
+# /var/log/lynis-report.dat that made the report script's freshness guard unable
+# to fire.
+#
+# These tasks live HERE, next to the package that ships the timer, rather than
+# in the observability role where they started. That role runs on the homelab
+# only, so the offsite Pi kept running the daily audit for another day: several
+# minutes of CPU on a 4 GB board with no report script, no push monitor and no
+# log anyone reads — the timer had no consumer on that host at all (#155). The
+# `security` role runs on both, which is the property that matters.
+- name: audit | Look for the distribution's own lynis timer
+  ansible.builtin.stat:
+    path: /usr/lib/systemd/system/lynis.timer
+  register: lynis_distro_timer
+
+# Guarded on the unit actually existing rather than swallowed with
+# `failed_when: false` — a task that cannot fail is the very defect this change
+# is fixing, and it would be absurd to introduce one here.
+- name: audit | Stop and disable the distribution's daily lynis timer
+  ansible.builtin.systemd:
+    name: lynis.timer
+    enabled: false
+    state: stopped
+  when: lynis_distro_timer.stat.exists
+
+# Masked in a SEPARATE task, after the stop, and the order is the entire point.
+# Combining `masked: true` with `state: stopped` in one task produces the
+# equivalent of `systemctl mask --now`: the fragment becomes /dev/null, systemd
+# can no longer load the unit it is being asked to stop, and it records it as
+# FAILED. The timer is correctly dead either way, but `systemctl --failed` stops
+# being empty — and that is the first thing a human scans, besides being a
+# signal several checks here read.
+#
+# Both orders measured on the host on 2026-08-16:
+#   mask --now      -> ActiveState=failed,   one entry in --failed
+#   stop, then mask -> ActiveState=inactive, --failed empty
+#
+# Masked rather than merely disabled so a package update cannot quietly put the
+# daily run back.
+- name: audit | Mask lynis.timer so a package update cannot re-enable it
+  ansible.builtin.systemd:
+    name: lynis.timer
+    masked: true
+  when: lynis_distro_timer.stat.exists
+
 # rkhunter was installed here and NEVER RAN — not once, on either host, in the
 # lifetime of this lab. No /var/log/rkhunter.log exists, CRON_DAILY_RUN is
 # empty, and the signature database was frozen on 2026-05-10. It was pure
