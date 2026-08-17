@@ -35,7 +35,7 @@ Jellyfin apps are available for Android TV, Fire TV, Roku, etc.
 
 Place video files on the Pi:
 ```bash
-scp movie.mkv homelab:/mnt/data/media/videos/Movies/
+scp movie.mkv homelab:/mnt/data/media/videos/movies/
 ```
 
 Jellyfin scans libraries periodically or you can trigger a manual scan from the dashboard.

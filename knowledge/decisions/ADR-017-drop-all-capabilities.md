@@ -101,11 +101,19 @@ Where the container runs as root **and then hands off** to a service uid,
 ownership settles nothing: root ends up writing files owned by that uid either
 way. The answer there is to remove the root phase instead of feeding it — start
 the container **as** the service uid. `user: "999:999"` on both databases and
-both redis caches, and `user: "33:33"` on the cron companion, took five services
-from between three and five capabilities to **none**, because the hand-off is
-the only thing `CHOWN`, `SETUID`, `SETGID`, `DAC_OVERRIDE` and `FOWNER` ever
-served. Postgres pushed in the same direction on its own: it refuses a data
-directory it does not own.
+both redis caches took four services from between three and five capabilities to
+**none**, because the hand-off is the only thing `CHOWN`, `SETUID`, `SETGID`,
+`DAC_OVERRIDE` and `FOWNER` ever served. Postgres pushed in the same direction
+on its own: it refuses a data directory it does not own.
+
+> **Corrected 2026-08-17 (#161).** This paragraph claimed a fifth service:
+> `user: "33:33"` on the cron companion. That was tried and **reverted under
+> #28** — busybox `crond` cannot `setgroups()` as uid 33, so it logs `can't set
+> groups: Operation not permitted` and silently never runs `cron.php` while the
+> container stays `Up`. `nextcloud-cron` therefore runs as **uid 0** and keeps
+> `SETUID` + `SETGID`. The reversal reached `compose.yaml` and stopped there; it
+> is restated here because the claim had already propagated into the restore
+> runbook.
 
 What is left is four grants that are not accidents of ownership, and each fails
 the uid trick for its own structural reason:
@@ -141,7 +149,7 @@ of the image.
 - `DAC_OVERRIDE` survives on four services, which limits the gain there: it is
   the capability that makes root's file access unconditional. Two more make do
   with `DAC_READ_SEARCH`.
-- The five services now started under `user:` no longer go through their image's
+- The four services now started under `user:` no longer go through their image's
   ownership-fixing phase, which means the datadirs have to arrive correctly
   owned. That is why the storage role owns them explicitly: on a fresh
   provision Docker would create the bind-mount sources as root, and none of

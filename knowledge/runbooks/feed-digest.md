@@ -142,7 +142,13 @@ already carries the answer.
 The dangerous variant, because nothing looks wrong. It means the push is landing but the
 parameters the script sends are being ignored, so `status=down` never gets through either:
 the monitor can only ever be green, and a broken digest reports success. Read the message,
-not the colour — a healthy beat says `N entrées résumées, M reportées`.
+not the colour — a healthy beat says `N entries summarised`, and `N entries summarised,
+M carried over` when the run hit the cap. The push message is English and built in the
+script; only the *note* uses the French labels from `private.yml`. Live example:
+
+```
+Veille quotidienne | 2026-08-17 04:34:24 | 28 entries summarised
+```
 
 ```sh
 sudo grep -n 'curl -fsS' /home/claude/.local/share/feed-digest/digest.sh   # must contain -G
@@ -164,8 +170,10 @@ At most **400 entries** per run (`feed_digest_max_entries`). Anything beyond sta
 **unread** on purpose, so a backlog drains over several runs rather than vanishing. The
 carry-over is reported in two places — never silently:
 
-- in the note: `_N entrées lues, M au-delà du plafond reportées au prochain passage._`
-- in the Kuma message: `N entrées résumées, M reportées`
+- in the note: `_N entrées lues, M au-delà du plafond, reportées au prochain passage. …_`
+  (French, because the labels come from `feed_digest_label_*` in `private.yml`)
+- in the Kuma message: `N entries summarised, M carried over` — English, hardcoded in
+  the script, and unaffected by those labels
 
 To drain faster, run the service repeatedly; each pass takes the next 400 oldest
 (`direction=asc`). Check what is left:

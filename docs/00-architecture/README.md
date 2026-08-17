@@ -48,8 +48,8 @@ This home lab is built on a Raspberry Pi 4 Model B with the goal of providing a 
 │                                                  │
 │  ┌──────────────┐  ┌─────────────────────────┐  │
 │  │  SD 64 GB    │  │  HDD 5 TB (/mnt/data)   │  │
-│  │  OS + Docker │  │  services/ media/        │  │
-│  │  images      │  │  backups/                │  │
+│  │  OS + config │  │  docker/ services/      │  │
+│  │              │  │  media/ backups/        │  │
 │  └──────────────┘  └─────────────────────────┘  │
 └──────────────────────────────────────────────────┘
 ```
