@@ -60,13 +60,28 @@ smart_out=$(smartctl -H -A -l selftest "$DRIVE" 2>/dev/null)
 rc=$?
 if [ $((rc & 8)) -ne 0 ]; then
     problems+=("SMART FAILING")
-elif [ $((rc & 7)) -ne 0 ] && [ -z "$smart_out" ]; then
-    problems+=("SMART unreadable")
 fi
 
-if [ -n "$smart_out" ]; then
-    raw() { awk -v id="$1" '$1 == id { print $10; exit }' <<<"$smart_out"; }
+raw() { awk -v id="$1" '$1 == id { print $10; exit }' <<<"$smart_out"; }
 
+# Readability is asserted on a VALUE, not on the output being non-empty.
+#
+# On 2026-08-15 the unreadable case was promoted from a report line to a
+# problem, which was the right call and not enough: the branch requires the
+# output to be EMPTY, and measurement on this host 2026-08-17 shows it never is.
+# smartctl writes its refusals to stdout, so a device it cannot talk to returns
+# rc=1 with 285 bytes of "Unable to detect device type". Execution then fell
+# through to the normal path, every attribute lookup came back empty, every
+# check below was skipped in silence, and the run still ended green.
+#
+# Power-on hours is the instrument: present on every ATA drive, already needed
+# for the self-test staleness check below, and it can only parse as a number if
+# the attribute table was genuinely read. Same guard in the offsite sibling
+# (#155) — the two scripts drift apart precisely when one is corrected alone.
+power_on_h=$(raw 9)
+if ! [[ "$power_on_h" =~ ^[0-9]+$ ]]; then
+    problems+=("SMART unreadable (rc=$rc)")
+else
     # Each of these is an early failure predictor, and each must stay at zero:
     # media decay (5/197/198), data-path corruption (184), read failures the
     # drive corrected but should not have had (187), and USB cable or bridge
@@ -100,10 +115,9 @@ if [ -n "$smart_out" ]; then
         # error" from a year ago — which is exactly the state this drive was
         # found in, its only self-test dating back to 16 power-on hours out of
         # 2363. 336 h = two missed weekly runs.
-        now_h=$(raw 9)
         test_h=$(awk '/^# 1/ { for (i = 1; i <= NF; i++) if ($i ~ /%$/) { print $(i + 1); exit } }' <<<"$smart_out")
-        if [ -n "$now_h" ] && [ -n "$test_h" ] && [ $((now_h - test_h)) -gt 336 ]; then
-            problems+=("self-test stale ($(((now_h - test_h) / 24))d ago)")
+        if [ -n "$test_h" ] && [ $((power_on_h - test_h)) -gt 336 ]; then
+            problems+=("self-test stale ($(((power_on_h - test_h) / 24))d ago)")
         fi
     else
         report+=("no self-test yet")
