@@ -31,11 +31,24 @@
 
 # --- Backup disk (ext4, no LUKS) ---
 
+# `check_mode: false` on both blkid probes, for the same reason as the
+# rest-server version probe: Ansible skips `command` under --check, and a
+# skipped command still registers `stdout` — as an EMPTY STRING, not as
+# undefined (measured 2026-08-17). Nothing errors; the values simply become
+# wrong, quietly.
+#
+# Here that produced two lies in one dry run. This probe's '' passes the
+# safety check below, so the guard that refuses to overwrite an unexpected
+# filesystem cannot fire in check mode. And the UUID probe's '' turns the
+# mount's src into a bare `UUID=`, which no longer matches fstab, so a dry run
+# announced it would REMOUNT the backup disk on the host that only exists to
+# hold the last copy. Both probes only read.
 - name: disk | Read current filesystem type on the backup disk
   ansible.builtin.command: blkid -o value -s TYPE {{ backup_disk_device }}
   register: backup_disk_fstype
   changed_when: false
   failed_when: false # rc=2 when the partition has no filesystem yet
+  check_mode: false
 
 - name: disk | Refuse to overwrite an unexpected filesystem
   ansible.builtin.fail:
@@ -56,6 +69,7 @@
   ansible.builtin.command: blkid -o value -s UUID {{ backup_disk_device }}
   register: backup_disk_uuid
   changed_when: false
+  check_mode: false
 
 - name: disk | Mount backup disk
   ansible.posix.mount:
