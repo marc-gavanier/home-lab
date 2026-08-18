@@ -39,6 +39,12 @@ The SFR TV decoder breaks when filtered by Pi-hole. Exclude it:
 - **Config persistence**: env vars are only read on first start. Once `pihole.toml` exists in the volume, env vars are ignored. Delete `pihole.toml` to force re-read.
 - **Listening mode**: must be set to `all` (not `LOCAL`) for Pi-hole to accept DNS queries from the LAN through Docker's NAT.
 - **Password**: set via `pihole setpassword` command (Ansible handles this automatically).
+- **`pihole setpassword` takes no flags**: it treats its argument as the new password, whatever
+  it looks like. Running `pihole setpassword --help` to see the options **sets the password to
+  the literal string `--help`** and answers `[✓] New password set`. Done accidentally on
+  2026-08-18; recovered by re-running the Ansible task, which restores the vaulted value.
+  The password is also not editable from the normal settings pages — it lives at
+  `webserver.api.pwhash`, visible only under **Settings → All settings** with *Expert* on.
 - **Custom dnsmasq**: requires `FTLCONF_misc_etc_dnsmasq_d: "true"` to read files in `/etc/dnsmasq.d/`.
 
 ## Data
