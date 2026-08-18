@@ -178,6 +178,10 @@ check_service() {
 check_service "{{ cname }}" "{{ caps }}" "{{ ro }}" "{{ nnp }}" "{{ aa }}" "{{ usr }}"
 {% endfor %}
 
+# How many of those calls were rendered — from the same lookup, so it cannot
+# drift from the list above. Read by the verdict.
+expected={{ compose.services | length }}
+
 # --- Netdata: the three axes its failures actually show up on ---------------
 # ADR-018. Status and HTTP prove nothing here: the agent stays healthy and
 # serves its dashboard with a plugin dead, and it runs as root instead of
@@ -262,6 +266,22 @@ print(" ".join(sorted(bad)) if bad else "OK")
     fi
 fi
 
+# --- Did the check actually check anything? --------------------------------
+# check_service returns early for a container that is not running, and `checked`
+# had no floor: with the daemon unreachable every inspect returns empty, nothing
+# is asserted, and the push read "posture OK on 0 containers" — in green (#156).
+#
+# The comparison is against the number of services declared in compose.yaml, not
+# a constant, so it moves with the file like every other expectation here. A
+# deliberate consequence, chosen over a floor at zero: taking a service down for
+# maintenance (`docker compose down <svc>`, the documented way to keep the heal
+# timer from resurrecting it) turns this monitor red for the duration. That is
+# the price of noticing the drift that went unremarked in July, when the count
+# moved 21 -> 20 -> 21 with nothing to compare it against.
+if [ "$checked" -lt "$expected" ]; then
+    problems+=("posture checked only $checked of $expected containers")
+fi
+
 # --- Verdict ---------------------------------------------------------------
 {# bash ${#array[@]} reads as a Jinja comment opener — shield it #}
 if [ {% raw %}${#problems[@]}{% endraw %} -gt 0 ]; then
@@ -270,4 +290,4 @@ if [ {% raw %}${#problems[@]}{% endraw %} -gt 0 ]; then
     exit 1
 fi
 
-notify up "posture OK on $checked containers"
+notify up "posture OK on $checked/$expected containers"
