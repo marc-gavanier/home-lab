@@ -26,6 +26,13 @@ DUMP_DIR="/mnt/data/backups/dumps"
 backup_summary=""
 backup_snapshot=""
 
+# Failures that must not abort the run but must not be reported as a clean night
+# either. Appended to as they happen, read by the EXIT trap and by the deferred
+# verdict at the end. Declared here, before `trap finish EXIT`, so the trap can
+# always expand it — including on a run that dies before reaching the stages
+# that fill it.
+deferred_problems=()
+
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$BACKUP_LOG"; }
 
 # Ping the Uptime Kuma push monitor (dead-man's switch). Best-effort: never fails the backup.
@@ -38,10 +45,20 @@ notify() {
 }
 
 # Report the final outcome to the monitor on any exit (success or failure).
+#
+# The middle branch is the point of #168: a deferred failure knows what it was,
+# and the push should carry it. Without it, a stage that is deliberately allowed
+# to continue reports as "FAILED (rc=1)" — true, and useless for deciding
+# whether the night needs attention now or in the morning. An abort (crash, OOM,
+# a stage that exits on the spot) leaves the list empty and still gets the
+# generic message, which is the right answer when nothing had a chance to say
+# anything.
 finish() {
     local rc=$?
     if [ "$rc" -eq 0 ]; then
         notify up "${backup_summary:-completed, but restic reported no summary}"
+    elif [ ${#deferred_problems[@]} -gt 0 ]; then
+        notify down "$(printf '%s; ' "${deferred_problems[@]}")see $BACKUP_LOG"
     else
         notify down "FAILED (rc=$rc) — see $BACKUP_LOG"
     fi
@@ -375,23 +392,49 @@ fi
 # local-maintenance.sh, off the backup window. See homelab-local-maintenance.timer.
 
 log "Applying retention policy..."
+# The `|| log` this replaces sent the failure to a file nothing reads, and the
+# run still exited 0, so the trap pushed UP with a correct snapshot summary. It
+# happened on 2026-08-17: four stale locks left by interrupted read-only audit
+# commands the day before, `repo already locked`, retention did nothing, monitor
+# green (#168). One skipped night costs nothing — what costs something is that
+# the cause persists: a stale lock stays until someone removes it, so the honest
+# description is not "a night was skipped" but "retention stopped".
+#
+# Deferred rather than fatal on the spot: the snapshot exists and has already
+# gone offsite, so aborting here would throw away a good backup over
+# housekeeping. Down rather than a note on an UP push, because nothing here
+# clears itself.
+#
+# NOT auto-unlocked. `restic unlock` during a nightly run would remove a lock
+# held by a legitimate concurrent operation, and the whole reason the offsite
+# copy takes a flock is that concurrent writers to a restic repo are expensive
+# to undo.
+forget_rc=0
 restic forget \
     --keep-daily 7 \
     --keep-weekly 4 \
     --keep-monthly 6 \
-    2>> "$BACKUP_LOG" || log "WARNING: Restic forget failed"
+    2>> "$BACKUP_LOG" || forget_rc=$?
+if [ "$forget_rc" -ne 0 ]; then
+    log "ERROR: restic forget failed (rc=$forget_rc) — retention did NOT run"
+    deferred_problems+=("retention failed (restic forget rc=$forget_rc)")
+fi
 
 # --- Cleanup dumps ---
 rm -rf "$DUMP_DIR"
 
 log "=== Backup completed ==="
 
-# Deferred verdict from the dump assertions above. Everything else has already
-# run — the snapshot exists, it went offsite, retention was applied — so this
-# only decides what the monitor is told. Non-zero makes the EXIT trap push DOWN
-# instead of "completed", which is the whole point: the night a dump goes
-# missing should not look like the night before.
+# Deferred verdict. Everything else has already run — the snapshot exists, it
+# went offsite, retention was attempted — so this only decides what the monitor
+# is told. Non-zero makes the EXIT trap push DOWN instead of "completed", which
+# is the whole point: the night a dump goes missing, or retention stops, should
+# not look like the night before.
 if [ "$dump_failures" -gt 0 ]; then
-    log "ERROR: $dump_failures dump check(s) failed — the snapshot is incomplete"
+    deferred_problems+=("$dump_failures dump check(s) failed — the snapshot is incomplete")
+fi
+
+if [ ${#deferred_problems[@]} -gt 0 ]; then
+    log "ERROR: $(printf '%s; ' "${deferred_problems[@]}")"
     exit 1
 fi
