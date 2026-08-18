@@ -368,21 +368,69 @@ notify_offsite() {
 # packs as permanent duplicates (only a manual prune reclaims them — learned
 # the hard way during the 2026-07-12 seed). Same lock file must be used by
 # any manual copy/seed: flock /var/lock/offsite-copy.lock restic copy ...
+# `restic copy latest` copied exactly one snapshot, so a night whose copy stage
+# failed was never retried: the next night took a NEW snapshot and copied that
+# one, leaving a permanent hole. The offsite repository has no 2026-07-20
+# snapshot for precisely that reason, and `restic check` passes every week
+# regardless — it verifies that a repository is internally consistent, not that
+# it holds what the other one holds (#158).
+#
+# Bare `restic copy` would self-heal, and would also push 18 snapshots from
+# 2026-05-14 to 2026-07-10 that predate the offsite repository — measured, not
+# feared. That repository is APPEND-ONLY, so it is not undoable without a manual
+# prune. Tag filtering does not help either: all 32 local snapshots carry `auto`,
+# the old ones included.
+#
+# So the window is time-based, and it is deliberately the same 7 days as
+# `--keep-daily` below: beyond that the local snapshot may already have been
+# pruned, which makes a wider window a promise this script cannot keep. Restic
+# skips whatever the destination already has, so a normal night copies one and
+# a night after an outage copies the backlog.
+#
+# The date is compared as a YYYY-MM-DD prefix rather than parsed. restic emits
+# nanosecond precision with an offset (2026-05-14T16:26:36.688901974+02:00), and
+# a 7-day window has no business depending on how a given Python version feels
+# about nine fractional digits.
 if [ -n "${OFFSITE_RESTIC_REPOSITORY:-}" ]; then
-    log "Copying latest snapshot to offsite repo..."
-    if flock -n /var/lock/offsite-copy.lock \
-       env RESTIC_FROM_REPOSITORY="$RESTIC_REPOSITORY" \
-       RESTIC_FROM_PASSWORD="$RESTIC_PASSWORD" \
-       RESTIC_REPOSITORY="$OFFSITE_RESTIC_REPOSITORY" \
-       RESTIC_PASSWORD="$OFFSITE_RESTIC_PASSWORD" \
-       RESTIC_REST_USERNAME="$OFFSITE_REST_USER" \
-       RESTIC_REST_PASSWORD="$OFFSITE_REST_PASSWORD" \
-       restic copy latest 2>> "$BACKUP_LOG"; then
-        log "Offsite copy completed"
-        notify_offsite up "offsite copy completed${backup_snapshot:+ (snapshot $backup_snapshot)}"
+    copy_ids=$(restic snapshots --no-lock --json 2>> "$BACKUP_LOG" | python3 -c '
+import json, sys, datetime
+cutoff = (datetime.date.today() - datetime.timedelta(days=7)).isoformat()
+print(" ".join(s["id"] for s in json.load(sys.stdin) if s["time"][:10] >= cutoff))
+') || copy_ids=""
+
+    # A hard stop, not a warning. `restic copy` with NO snapshot argument copies
+    # the entire source repository — so an empty list here, from a failed listing
+    # or a parse error, is exactly the accident this window exists to prevent.
+    if [ -z "$copy_ids" ]; then
+        log "ERROR: could not list local snapshots — offsite copy skipped rather than run unbounded"
+        notify_offsite down "offsite copy skipped: could not list local snapshots"
     else
-        log "WARNING: offsite copy failed (local backup unaffected)"
-        notify_offsite down "offsite copy FAILED — see $BACKUP_LOG"
+        offered=$(wc -w <<< "$copy_ids")
+        log "Copying the last 7 days to the offsite repo ($offered snapshot(s) offered)..."
+        copy_rc=0
+        # Unquoted on purpose: the ids are a list of arguments, not one string.
+        copy_out=$(flock -n /var/lock/offsite-copy.lock \
+           env RESTIC_FROM_REPOSITORY="$RESTIC_REPOSITORY" \
+           RESTIC_FROM_PASSWORD="$RESTIC_PASSWORD" \
+           RESTIC_REPOSITORY="$OFFSITE_RESTIC_REPOSITORY" \
+           RESTIC_PASSWORD="$OFFSITE_RESTIC_PASSWORD" \
+           RESTIC_REST_USERNAME="$OFFSITE_REST_USER" \
+           RESTIC_REST_PASSWORD="$OFFSITE_REST_PASSWORD" \
+           restic copy $copy_ids 2>&1) || copy_rc=$?
+        printf '%s\n' "$copy_out" >> "$BACKUP_LOG"
+
+        if [ "$copy_rc" -eq 0 ]; then
+            # restic 0.16.4 prints "snapshot <id> saved" per copy and
+            # "skipping source snapshot <id>, was already copied to snapshot
+            # <id>" per skip (both read out of the binary rather than guessed).
+            # Anchored so the second never counts as the first.
+            copied=$(grep -cE '^[[:space:]]*snapshot [0-9a-f]+ saved$' <<< "$copy_out" || true)
+            log "Offsite copy completed ($copied new, $((offered - copied)) already there)"
+            notify_offsite up "offsite copy completed${backup_snapshot:+ (snapshot $backup_snapshot)}: $copied new, $((offered - copied)) already there"
+        else
+            log "WARNING: offsite copy failed (local backup unaffected)"
+            notify_offsite down "offsite copy FAILED — see $BACKUP_LOG"
+        fi
     fi
 fi
 
