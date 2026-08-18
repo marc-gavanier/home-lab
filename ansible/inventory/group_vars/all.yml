@@ -58,7 +58,6 @@ media_dir: "{{ data_mount_point }}/media"
 backup_dir: "{{ data_mount_point }}/backups"
 
 # --- Backup ---
-restic_password: ""  # TODO: set via vault or env var, NEVER in plain text
 # No backup_schedule here on purpose. One used to sit at this line holding
 # "0 3 * * *" — the correct time, read by nothing. Editing it to move the
 # backup changed nothing and the deploy still reported green. The schedules are
@@ -66,6 +65,14 @@ restic_password: ""  # TODO: set via vault or env var, NEVER in plain text
 # they live with the units that use them: roles/deploy/tasks/backup.yml for the
 # nightly run and the weekly maintenance, roles/deploy/tasks/offsite.yml for the
 # offsite check.
+#
+# No restic_password here either, and for a sharper reason. One sat at this line
+# holding "" with a TODO beside it, and that empty default was doing real work:
+# argument_specs marks the variable required, `required` checks only that it
+# EXISTS, and this line guaranteed it always did. A host whose vaulted local.yml
+# never defined it would have deployed cleanly with an empty repository password
+# (#156). The secret belongs in host_vars/<host>/local.yml, vaulted, and nowhere
+# else.
 
 # --- PDF signing (LibreSign, ADR-022) ---
 # Identity of the root certificate every signature is issued from. Not a
