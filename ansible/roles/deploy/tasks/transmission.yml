@@ -18,6 +18,7 @@
     cmd: docker ps --filter status=running --format '{% raw %}{{.Names}}{% endraw %}'
   register: transmission_running
   changed_when: false
+  check_mode: false
 
 - name: transmission | Skip the wiring unless the container is up
   ansible.builtin.set_fact:
@@ -43,6 +44,7 @@
       -si'
   register: transmission_portmap
   changed_when: false
+  check_mode: false
   failed_when: false
   when: transmission_up
 

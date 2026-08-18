@@ -17,6 +17,7 @@
     cmd: docker ps --filter status=running --format '{% raw %}{{.Names}}{% endraw %}'
   register: collabora_running
   changed_when: false
+  check_mode: false
 
 - name: collabora | Skip the wiring unless both containers are up
   ansible.builtin.set_fact:
@@ -34,6 +35,7 @@
   retries: 20
   delay: 10
   changed_when: false
+  check_mode: false
   failed_when: false
   when: collabora_up
 
@@ -45,6 +47,7 @@
     cmd: docker exec -u www-data nextcloud php occ app:list --output=json
   register: collabora_app_list
   changed_when: false
+  check_mode: false
   when: collabora_up
 
 - name: collabora | Download the richdocuments connector when absent
@@ -71,6 +74,7 @@
     cmd: docker exec -u www-data nextcloud php occ config:list --output=json
   register: collabora_conf
   changed_when: false
+  check_mode: false
   when: collabora_up
 
 # wopi_url must be the PUBLIC name, not the container name, even though this is
@@ -148,6 +152,7 @@
       [ "${BASH_REMATCH[1]}" = "$live_build" ]
   register: collabora_discovery_cache
   changed_when: false
+  check_mode: false
   failed_when: false
   when: collabora_up
 
@@ -177,6 +182,7 @@
     cmd: docker exec -u www-data nextcloud php occ config:list --output=json
   register: collabora_conf2
   changed_when: false
+  check_mode: false
   when: collabora_up
 
 - name: collabora | Re-assert the public WOPI URL the browser is handed
@@ -226,6 +232,14 @@
          or 'nextcloud' in deploy_services.split()
          or collabora_activate is changed }}
 
+# The ONE probe in this role deliberately left without `check_mode: false`
+# (#169). It is not a read: it writes a file on the host, copies it into the
+# container, POSTs it to Collabora for conversion and writes the result inside
+# the container. A dry run must not do that, and it would also spend up to four
+# minutes on the retry loop below. The consumer reads `.rc | default(0)`, so
+# skipping it means the conversion check does not run under --check rather than
+# running wrong — which is the honest answer: a dry run cannot verify that a
+# document converts without converting one.
 - name: collabora | Verify a document can actually be converted
   ansible.builtin.shell:
     executable: /bin/bash
@@ -269,6 +283,7 @@
       case "$out" in *'urlsrc="https://office.{{ domain }}/'*) exit 0 ;; *) exit 1 ;; esac
   register: collabora_urlsrc
   changed_when: false
+  check_mode: false
   when: collabora_up
 
 # The three probes above all look outward — at Collabora, at Traefik, at the
@@ -284,6 +299,7 @@
       case "$out" in *'urlsrc="https://office.{{ domain }}/'*) exit 0 ;; *) exit 1 ;; esac
   register: collabora_cache_final
   changed_when: false
+  check_mode: false
   when: collabora_up
 
 - name: collabora | Remove the conversion probe artefacts
