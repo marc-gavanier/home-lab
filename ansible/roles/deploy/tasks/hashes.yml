@@ -30,6 +30,7 @@
   register: vw_hash
   no_log: true
   changed_when: false
+  check_mode: false
 
 - name: hashes | Set Vaultwarden Argon2 hash fact
   ansible.builtin.set_fact:

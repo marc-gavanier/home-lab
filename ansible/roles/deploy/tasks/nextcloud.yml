@@ -18,6 +18,7 @@
   retries: 30
   delay: 5
   changed_when: false
+  check_mode: false
   when: nextcloud_up
 
 - name: nextcloud | Set Nextcloud background jobs to cron mode
@@ -33,6 +34,7 @@
     cmd: docker exec -u www-data nextcloud php occ config:list system --output=json
   register: nc_sysconf
   changed_when: false
+  check_mode: false
   when: nextcloud_up
 
 - name: nextcloud | Configure Nextcloud system settings
@@ -71,6 +73,7 @@
     cmd: docker exec -u www-data nextcloud php occ config:app:get files_lock lock_timeout
   register: nc_lock_timeout
   changed_when: false
+  check_mode: false
   failed_when: false
   when: nextcloud_up
 
@@ -105,6 +108,7 @@
     cmd: docker exec -u www-data nextcloud php occ app:list --output=json
   register: nc_app_list
   changed_when: false
+  check_mode: false
   when: nextcloud_up
 
 - name: nextcloud | Install Nextcloud productivity apps
@@ -142,6 +146,7 @@
     cmd: docker exec -u www-data nextcloud php occ notify_push:self-test
   register: nc_push_test
   changed_when: false
+  check_mode: false
   failed_when: false
   when: nextcloud_up
 
@@ -173,6 +178,7 @@
     cmd: docker exec -u www-data nextcloud php occ files_external:list --output=json
   register: nc_ext_list
   changed_when: false
+  check_mode: false
   when: nextcloud_up
 
 - name: nextcloud | Create media external storages
@@ -194,6 +200,7 @@
     cmd: docker exec -u www-data nextcloud php occ files_external:list --output=json
   register: nc_ext_list2
   changed_when: false
+  check_mode: false
   when: nextcloud_up
 
 - name: nextcloud | Enforce read-only on media external storages

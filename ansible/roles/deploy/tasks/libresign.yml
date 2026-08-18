@@ -21,6 +21,7 @@
     cmd: docker exec -u www-data nextcloud php occ app:list --output=json
   register: libresign_app_list
   changed_when: false
+  check_mode: false
   when: nextcloud_up | default(false)
 
 # Same split as the richdocuments connector: app:enable only flips an app that
@@ -49,6 +50,7 @@
     cmd: docker exec -u www-data nextcloud php occ config:list --output=json
   register: libresign_conf
   changed_when: false
+  check_mode: false
   when: nextcloud_up | default(false)
 
 - name: libresign | Extract the paths LibreSign recorded for its binaries
@@ -75,6 +77,7 @@
       docker exec -u www-data nextcloud "$java" -version >/dev/null 2>&1
   register: libresign_binaries
   changed_when: false
+  check_mode: false
   failed_when: false
   when: nextcloud_up | default(false)
 
@@ -107,6 +110,7 @@
     cmd: docker exec -u www-data nextcloud php occ config:list --output=json
   register: libresign_conf2
   changed_when: false
+  check_mode: false
   when:
     - nextcloud_up | default(false)
     - libresign_install is changed
@@ -132,6 +136,7 @@
       docker exec -u www-data nextcloud test -f "$path/ca-key.pem"
   register: libresign_ca
   changed_when: false
+  check_mode: false
   failed_when: false
   when: nextcloud_up | default(false)
 
@@ -189,6 +194,7 @@
     cmd: docker exec -u www-data nextcloud php occ config:list --output=json
   register: libresign_conf3
   changed_when: false
+  check_mode: false
   when:
     - nextcloud_up | default(false)
     - libresign_generate is changed
@@ -227,6 +233,7 @@
       docker exec -u www-data nextcloud "$java" -version
   register: libresign_java_probe
   changed_when: false
+  check_mode: false
   failed_when: false
   when: nextcloud_up | default(false)
 
@@ -261,6 +268,7 @@
       exit $status
   register: libresign_check
   changed_when: false
+  check_mode: false
   failed_when: false
   when: nextcloud_up | default(false)
 
