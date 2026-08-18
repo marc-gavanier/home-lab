@@ -42,6 +42,20 @@
     name: proxy
     state: present
 
+# Reads `changed` under --check on EVERY run, on any host, whatever the state of
+# the images. Not a pending update and not something to chase (#169): the module
+# decides with
+#
+#     ignore_service_pull_events = self.policy != "missing" and not self.check_mode
+#
+# so a real run with the default policy ignores pull events — an already-current
+# image is not a change — while a dry run counts every one of them, and
+# `docker compose pull --dry-run` emits one per service. Measured: all 28
+# reported as pulled minutes after a deploy that had pulled nothing.
+#
+# Deliberately NOT given `check_mode: false`, unlike the probes in this role: it
+# would make a dry run actually download images, which is precisely what a
+# rehearsal must not do. Read the line, do not act on it.
 - name: compose | Pull images
   community.docker.docker_compose_v2_pull:
     project_src: /opt/homelab
