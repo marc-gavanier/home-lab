@@ -270,9 +270,32 @@ check_dump() { assert_dump "$@" || dump_failures=$((dump_failures + 1)); }
 
 check_dump nextcloud.sql marker '-- Dump completed on'
 check_dump miniflux.sql  marker '-- PostgreSQL database dump complete'
-if [ -f "$VAULTWARDEN_DB" ]; then check_dump vaultwarden.sqlite3 sqlite; fi
-if [ -f "$FORGEJO_DB" ];     then check_dump forgejo.sqlite3     sqlite; fi
-if [ -f "$KUMA_DB" ];        then check_dump uptime-kuma.sqlite3 sqlite; fi
+
+# Gated on the CONTAINER, not on the database file (#177). Both used to hang off
+# the same `[ -f "$DB" ]`, so if a version bump moved the path, the dump, its
+# assertion and every log line disappeared TOGETHER: dump_failures stayed 0 and
+# the night pushed UP with nothing to show. Not theoretical — a version bump
+# renamed wg-easy's store from wg0.json to wg-easy.db and nothing noticed for
+# weeks.
+#
+# A service that is not deployed here legitimately has no dump, and still says
+# nothing. A service that IS deployed and whose database is not where we look is
+# exactly the failure this now names.
+deployed() { docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qx "$1"; }
+
+check_sqlite_dump() {   # container, expected source path, dump filename
+    deployed "$1" || return 0
+    if [ ! -f "$2" ]; then
+        log "ERROR: $1 is deployed but its database is not at $2 — nothing was dumped"
+        dump_failures=$((dump_failures + 1))
+        return 0
+    fi
+    check_dump "$3" sqlite
+}
+
+check_sqlite_dump vaultwarden "$VAULTWARDEN_DB" vaultwarden.sqlite3
+check_sqlite_dump forgejo     "$FORGEJO_DB"     forgejo.sqlite3
+check_sqlite_dump uptime-kuma "$KUMA_DB"        uptime-kuma.sqlite3
 
 # Immich is not dumped here — it runs its own scheduled backup into the restic
 # set — so its failure mode is not a missing file but a STALE one. keepLastAmount
