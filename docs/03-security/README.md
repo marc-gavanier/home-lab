@@ -238,7 +238,11 @@ Defense in depth — each layer is secured independently. If one layer falls, th
 ### 5. Data
 - Encrypted backups (Restic)
 - Sensitive data encrypted at rest
-- Periodic secret rotation
+- Secret rotation — with the caveat that a deploy rotates only some of them.
+  Four are read once at database initialisation or first run and need a written
+  procedure instead: `knowledge/runbooks/rotate-a-secret.md`. The daily posture
+  check asserts that each database secret still opens its database, so a
+  rotation that did not land reports itself.
 
 ### 6. Physical
 While the LUKS volume is unlocked, its key lives in RAM — the physical layer
