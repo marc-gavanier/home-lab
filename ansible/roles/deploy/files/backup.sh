@@ -40,8 +40,14 @@ notify() {
     local url="${KUMA_PUSH_URL:-}"
     [ -n "$url" ] || return 0
     url="${url%%\?*}"   # strip any pasted ?status=...&msg=... query (dup params read as DOWN)
-    curl -fsS -m 10 --retry 2 -G "$url" \
-        --data-urlencode "status=$1" --data-urlencode "msg=$2" >/dev/null 2>&1 || true
+    # The push URL carries the monitor's own token, so it goes in on stdin
+    # instead of argv: /proc is mounted without hidepid, any local account can
+    # read another process's command line, and this runs unattended on a timer
+    # (#177). printf is a shell builtin, so the value never reaches an argv there
+    # either.
+    printf 'url = "%s"\n' "$url" |
+        curl -fsS -m 10 --retry 2 -K - -G \
+            --data-urlencode "status=$1" --data-urlencode "msg=$2" >/dev/null 2>&1 || true
 }
 
 # Report the final outcome to the monitor on any exit (success or failure).
@@ -360,8 +366,14 @@ notify_offsite() {
     local url="${KUMA_OFFSITE_PUSH_URL:-}"
     [ -n "$url" ] || return 0
     url="${url%%\?*}"   # strip any pasted ?status=...&msg=... query (dup params read as DOWN)
-    curl -fsS -m 10 --retry 2 -G "$url" \
-        --data-urlencode "status=$1" --data-urlencode "msg=$2" >/dev/null 2>&1 || true
+    # The push URL carries the monitor's own token, so it goes in on stdin
+    # instead of argv: /proc is mounted without hidepid, any local account can
+    # read another process's command line, and this runs unattended on a timer
+    # (#177). printf is a shell builtin, so the value never reaches an argv there
+    # either.
+    printf 'url = "%s"\n' "$url" |
+        curl -fsS -m 10 --retry 2 -K - -G \
+            --data-urlencode "status=$1" --data-urlencode "msg=$2" >/dev/null 2>&1 || true
 }
 
 # flock: two concurrent copies to the append-only repo re-upload each other's

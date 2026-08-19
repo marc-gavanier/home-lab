@@ -27,12 +27,30 @@ notify() {
     local url="${KUMA_DDNS_PUSH_URL:-}"
     [ -n "$url" ] || return 0
     url="${url%%\?*}"   # strip any pasted ?status=...&msg=... query (dup params read as DOWN)
-    curl -fsS -m 10 --retry 2 -G "$url" \
-        --data-urlencode "status=$1" --data-urlencode "msg=$2" >/dev/null 2>&1 || true
+    # The push URL carries the monitor's own token, so it goes in on stdin
+    # instead of argv: /proc is mounted without hidepid, any local account can
+    # read another process's command line, and this runs unattended on a timer
+    # (#177). printf is a shell builtin, so the value never reaches an argv there
+    # either.
+    printf 'url = "%s"\n' "$url" |
+        curl -fsS -m 10 --retry 2 -K - -G \
+            --data-urlencode "status=$1" --data-urlencode "msg=$2" >/dev/null 2>&1 || true
 }
 
 : "${CF_DNS_API_TOKEN:?missing CF_DNS_API_TOKEN}" "${CF_ZONE:?missing CF_ZONE}" "${CF_RECORD:?missing CF_RECORD}"
-AUTH=(-H "Authorization: Bearer $CF_DNS_API_TOKEN" -H "Content-Type: application/json")
+# The token authenticates every Cloudflare call below. It goes in through a
+# config file on stdin rather than `-H` in argv: /proc is mounted without
+# hidepid, so any local unprivileged account can read this process's command
+# line, and the timer runs it ~192 times a day (#177). The secret FILE was
+# always correctly protected at 0600 — only its use leaked.
+#
+# printf is a shell builtin, so the token never reaches an argv there either,
+# and the pipe means it never touches the filesystem the way a heredoc would.
+cf_api() {
+    printf 'header = "Authorization: Bearer %s"\nheader = "Content-Type: application/json"\n' \
+        "$CF_DNS_API_TOKEN" |
+        curl -fsS -m 10 -K - "$@"
+}
 
 # --- Current public IPv4 (with a fallback source) ---
 IP="$(curl -fsS -m 10 https://api.ipify.org 2>/dev/null || curl -fsS -m 10 https://ifconfig.me 2>/dev/null || true)"
@@ -50,7 +68,7 @@ fi
 # follows, which is where the diagnosis was meant to happen.
 
 # --- Zone id ---
-ZID="$(curl -fsS -m 10 "${AUTH[@]}" "$API/zones?name=$CF_ZONE" | jq -r '.result[0].id // empty')" || ZID=""
+ZID="$(cf_api "$API/zones?name=$CF_ZONE" | jq -r '.result[0].id // empty')" || ZID=""
 [ -n "$ZID" ] || { log "ERROR: zone '$CF_ZONE' not found (token scope?)"; notify down "zone lookup failed"; exit 1; }
 
 # --- Record lookup ---
@@ -59,14 +77,14 @@ ZID="$(curl -fsS -m 10 "${AUTH[@]}" "$API/zones?name=$CF_ZONE" | jq -r '.result[
 # branch below — so a transient API failure would try to CREATE a record that
 # is already there. `jq` on empty input would also abort the script one line
 # later, which is how this stayed hidden.
-REC="$(curl -fsS -m 10 "${AUTH[@]}" "$API/zones/$ZID/dns_records?type=A&name=$CF_RECORD")" || REC=""
+REC="$(cf_api "$API/zones/$ZID/dns_records?type=A&name=$CF_RECORD")" || REC=""
 [ -n "$REC" ] || { log "ERROR: record lookup failed for $CF_RECORD"; notify down "record lookup failed"; exit 1; }
 RID="$(echo "$REC" | jq -r '.result[0].id // empty')"
 CUR="$(echo "$REC" | jq -r '.result[0].content // empty')"
 
 # --- Create if missing (auto-heal) ---
 if [ -z "$RID" ]; then
-    OUT="$(curl -fsS -m 10 "${AUTH[@]}" -X POST "$API/zones/$ZID/dns_records" \
+    OUT="$(cf_api -X POST "$API/zones/$ZID/dns_records" \
         --data "{\"type\":\"A\",\"name\":\"$CF_RECORD\",\"content\":\"$IP\",\"ttl\":1,\"proxied\":false}")" || OUT=""
     if echo "$OUT" | jq -e '.success' >/dev/null 2>&1; then
         log "CREATED $CF_RECORD -> $IP"; notify up "created $IP"
@@ -81,7 +99,7 @@ if [ "$CUR" = "$IP" ]; then
     log "unchanged ($IP)"; notify up "ok $IP"; exit 0
 fi
 
-OUT="$(curl -fsS -m 10 "${AUTH[@]}" -X PATCH "$API/zones/$ZID/dns_records/$RID" --data "{\"content\":\"$IP\"}")" || OUT=""
+OUT="$(cf_api -X PATCH "$API/zones/$ZID/dns_records/$RID" --data "{\"content\":\"$IP\"}")" || OUT=""
 if echo "$OUT" | jq -e '.success' >/dev/null 2>&1; then
     log "UPDATED $CF_RECORD $CUR -> $IP"; notify up "updated $IP"
 else

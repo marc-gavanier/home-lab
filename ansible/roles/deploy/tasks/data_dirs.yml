@@ -27,15 +27,17 @@
 
 - name: data_dirs | Own the data of root containers that no longer hold DAC_OVERRIDE
   ansible.builtin.file:
-    path: "{{ services_data_dir }}/{{ item }}"
+    path: "{{ services_data_dir }}/{{ item.path }}"
     state: directory
     owner: root
     group: root
-    mode: "0755"
+    mode: "{{ item.mode }}"
   loop:
-    - vaultwarden
-    - traefik/acme
-    - immich/upload
+    - { path: vaultwarden, mode: "0700" }
+    - { path: traefik/acme, mode: "0755" }
+    - { path: immich/upload, mode: "0755" }
+  loop_control:
+    label: "{{ item.path }} {{ item.mode }}"
 
 # wg-easy writes its database with umask 022, so it lands 0644 — world-readable,
 # holding the interface private key, every client private key and pre-shared key,
@@ -68,3 +70,77 @@
 # the database and runs `wg syncconf`, and the live interface is IPv4-only while
 # the database holds IPv6 for the interface and for every peer. That interface
 # is the only path to this host. #138 is done at the machine.
+
+# --- Credential-bearing service data: gate the DIRECTORY, not each file (#177)
+#
+# The audit of 2026-08-19 found Vaultwarden's rsa_key.pem — the key that signs
+# session JWTs — and its vault database readable by any local unprivileged
+# account, along with Kuma's database and its twelve push tokens. Proven by
+# reading them as an unrelated uid, with /etc/shadow refused in the same call so
+# a refusal elsewhere means something.
+#
+# The fix mirrors what /mnt/data/secrets already does correctly, and what the
+# same audit verified sound: the files there are 0444 and unreachable anyway,
+# because the DIRECTORIES are `drwx--x--x` and `drwx--x---`. Two adjacent stores,
+# one closed by its directories, one wide open. This closes the second the same
+# way.
+#
+# Why the directory rather than the twenty files: SQLite recreates `-wal` and
+# `-shm` on every open, taking the process umask with them, so a mode set on
+# those files survives exactly until the next container restart. A directory
+# mode does not have that problem, and it covers files nobody has thought of yet.
+#
+# Safe because each of these directories is bind-mounted by exactly ONE
+# container — verified across all 28 — and every one of those containers reaches
+# its data as the directory's own owner: root for the first three, uid 1000 for
+# calibre-web and transmission's config. None of them depends on DAC_OVERRIDE to
+# get in, so this does not repeat #138.
+#
+# `mode` only, never `owner`: chowning a directory is what triggers the #138
+# reconciliation write, and this file must stay safe to run from a deploy.
+- name: data_dirs | Gate the service directories that hold credentials
+  ansible.builtin.file:
+    path: "{{ services_data_dir }}/{{ item }}"
+    state: directory
+    mode: "0700"
+  loop:
+    - uptime-kuma
+    - navidrome
+    - calibre-web
+    - transmission/config
+
+# Belt as well as braces, on the files an application does NOT recreate: if a
+# directory mode ever regresses, these do not hand the contents over with it.
+# Deliberately not listing `-wal`/`-shm` — see the umask note above; the
+# directory is what protects those.
+- name: data_dirs | Look for the credential files that survive a restart
+  ansible.builtin.stat:
+    path: "{{ services_data_dir }}/{{ item }}"
+  register: credential_files
+  loop:
+    - vaultwarden/rsa_key.pem
+    - vaultwarden/config.json
+    - vaultwarden/db.sqlite3
+    - uptime-kuma/kuma.db
+    - uptime-kuma/kuma-pre-2.5.0.db
+    - uptime-kuma/kuma-pre-migration-mark.db
+    - uptime-kuma/db-config.json
+    - navidrome/navidrome.db
+    - calibre-web/.key
+    - calibre-web/app.db
+    - calibre-web/cwa.db
+    - calibre-web/gdrive.db
+    - calibre-web/client_secrets.json
+    - transmission/config/settings.json
+
+# Skipped rather than ignored when absent: a fresh host legitimately has none of
+# these yet. Any OTHER failure still fails the play. Two of the Kuma files also
+# carry a spurious executable bit, which 0600 removes.
+- name: data_dirs | Keep credential files unreadable to other local uids
+  ansible.builtin.file:
+    path: "{{ item.stat.path }}"
+    state: file
+    mode: "0600"
+  loop: "{{ credential_files.results | selectattr('stat.exists') | list }}"
+  loop_control:
+    label: "{{ item.item }}"

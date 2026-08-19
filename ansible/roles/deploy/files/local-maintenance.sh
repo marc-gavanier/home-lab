@@ -29,8 +29,14 @@ notify() {
     local url="${KUMA_LOCAL_MAINT_PUSH_URL:-}"
     [ -n "$url" ] || return 0
     url="${url%%\?*}"   # strip any pasted ?status=...&msg=... query (dup params read as DOWN)
-    curl -fsS -m 10 --retry 2 -G "$url" \
-        --data-urlencode "status=$1" --data-urlencode "msg=$2" >/dev/null 2>&1 || true
+    # The push URL carries the monitor's own token, so it goes in on stdin
+    # instead of argv: /proc is mounted without hidepid, any local account can
+    # read another process's command line, and this runs unattended on a timer
+    # (#177). printf is a shell builtin, so the value never reaches an argv there
+    # either.
+    printf 'url = "%s"\n' "$url" |
+        curl -fsS -m 10 --retry 2 -K - -G \
+            --data-urlencode "status=$1" --data-urlencode "msg=$2" >/dev/null 2>&1 || true
 }
 
 # 10#... forces base-10 (a leading zero would otherwise be read as octal).

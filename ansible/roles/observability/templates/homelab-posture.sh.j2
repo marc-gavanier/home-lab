@@ -25,8 +25,14 @@ KUMA_PUSH_URL="${KUMA_PUSH_URL%%\?*}"   # strip a pasted example query (see home
 
 notify() {
     [ -n "$KUMA_PUSH_URL" ] || return 0
-    curl -fsS -m 10 --retry 2 -G "$KUMA_PUSH_URL" \
-        --data-urlencode "status=$1" --data-urlencode "msg=$2" >/dev/null 2>&1 || true
+    # The push URL carries the monitor's own token, so it goes in on stdin
+    # instead of argv: /proc is mounted without hidepid, any local account can
+    # read another process's command line, and this runs unattended on a timer
+    # (#177). printf is a shell builtin, so the value never reaches an argv there
+    # either.
+    printf 'url = "%s"\n' "$KUMA_PUSH_URL" |
+        curl -fsS -m 10 --retry 2 -K - -G \
+            --data-urlencode "status=$1" --data-urlencode "msg=$2" >/dev/null 2>&1 || true
 }
 
 problems=()
@@ -347,6 +353,42 @@ if [ -r "$MINIFLUX_DSN" ] && [ -r "$MINIFLUX_PW" ]; then
         problems+=("miniflux: the application connection string and the database password disagree")
     fi
 fi
+
+# --- Credential stores stay closed to other local uids ----------------------
+# Nothing asserted a file mode anywhere, which is why #153 came back as #177:
+# wg-easy's database was fixed in August and Vaultwarden's session-signing key,
+# its vault and Kuma's push tokens were sitting at 0644 next to it, reachable by
+# any local unprivileged account. A fix nothing re-checks is a fix with a
+# half-life.
+#
+# The assertion is on the DIRECTORY, deliberately, and not on a list of files.
+# Two reasons: SQLite recreates `-wal`/`-shm` on every open with the process
+# umask, so a per-file expectation would go red after every container restart
+# and teach everyone to ignore it; and a directory gate covers files nobody has
+# added yet. This mirrors /mnt/data/secrets, whose own directory modes are the
+# only thing making its 0444 files safe.
+for store in vaultwarden uptime-kuma navidrome calibre-web transmission/config; do
+    dir="{{ services_data_dir }}/$store"
+    [ -d "$dir" ] || continue
+    dmode=$(stat -c %a "$dir" 2>/dev/null) || { problems+=("$store: directory mode unreadable"); continue; }
+    case "$dmode" in
+        700) ;;
+        *) problems+=("$store: directory mode $dmode, expected 700") ;;
+    esac
+done
+
+# The secret store itself, which nothing asserted either. `docker` is group-owned
+# and must stay closed to `other`; the parent may be traversable but never
+# readable, or the file names alone enumerate what exists.
+for spec in "/mnt/data/secrets:71[01]" "/mnt/data/secrets/docker:710"; do
+    dir="${spec%:*}"; want="${spec##*:}"
+    [ -d "$dir" ] || continue
+    dmode=$(stat -c %a "$dir" 2>/dev/null) || { problems+=("$dir: mode unreadable"); continue; }
+    case "$dmode" in
+        $want) ;;
+        *) problems+=("$dir: mode $dmode, expected $want") ;;
+    esac
+done
 
 # --- Did the check actually check anything? --------------------------------
 # check_service returns early for a container that is not running, and `checked`
