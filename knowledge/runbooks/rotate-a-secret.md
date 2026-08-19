@@ -51,49 +51,134 @@ it.
 
 ## Rotating a database password
 
-Three moving parts, and the order matters. Postgres and MariaDB differ only in
-the `ALTER` statement.
+Three moving parts, and the order is the opposite of the intuitive one.
 
-**1. Change it in the database itself**, which is the step the deploy cannot do.
+**Deploy the new value first, change the database second.** Doing it the other
+way round means typing the password into a shell command, and that is a trap
+this runbook was written *into* on 2026-08-19: a `$` in the password was expanded
+by the local shell before `ssh` ever saw it, so the database received a truncated
+variant while every file on the Pi held the right one. Miniflux spent twenty
+minutes unable to authenticate. Deploying first puts the value on the Pi, in the
+secret file, where the next step can read it without it passing through a shell
+at all.
+
+Both orders break the service for the same short window — the moment the
+application and the database disagree — so run the two steps back to back.
+
+### 1. Vault, then deploy
 
 ```bash
-# Postgres (immich-db, miniflux-db)
-docker exec -it immich-db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
-  -c "ALTER USER \"$POSTGRES_USER\" WITH PASSWORD 'the-new-one'"
-
-# MariaDB (nextcloud-db)
-docker exec -it nextcloud-db mariadb -u root -p \
-  -e "ALTER USER 'nextcloud'@'%' IDENTIFIED BY 'the-new-one'"
+ansible-vault edit inventory/host_vars/homelab/local.yml --ask-vault-pass
 ```
 
-**2. Put the same value in the vaulted `local.yml`** and deploy, so the secret
-file on disk matches. This is what a future re-initialisation would use, and
-what the daily posture check compares against.
+**Check that the edit actually saved before deploying.** `ansible-vault edit`
+re-encrypts only if the file changed, so leaving the editor without writing
+leaves everything as it was and says nothing about it. This prints the length
+and not the value:
+
+```bash
+ansible-vault view inventory/host_vars/homelab/local.yml --ask-vault-pass \
+  | sed -n "s/^immich_db_password: *//p" | tr -d "\"'" | awk '{print "length:", length($0)}'
+```
 
 ```bash
 ansible-playbook playbooks/site.yml --tags deploy -e deploy_services=<svc> --ask-vault-pass
 ```
 
-**3. Tell the application**, because for two of the three the connection string
-lives somewhere else:
+### 2. Change it in the database, reading the file the deploy just wrote
 
-- **Nextcloud** keeps `dbpassword` in `config.php`
-  (`/mnt/data/services/nextcloud/data/config/config.php` on the host). The
-  compose file deliberately passes no `MYSQL_*` to the app, so nothing else
-  carries it.
+Quoted here-doc (`<<'REMOTE'`), so the local shell touches nothing and the
+password is never an argument to anything you type.
+
+Postgres — `immich-db`, `miniflux-db`:
+
+```bash
+ssh homelab 'docker exec -i immich-db sh' <<'REMOTE'
+PW=$(cat /run/secrets/immich_db_password)
+[ -n "$PW" ] || { echo "empty secret, aborting"; exit 1; }
+ESC=$(printf '%s' "$PW" | sed "s/'/''/g")
+psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "ALTER USER \"$POSTGRES_USER\" WITH PASSWORD '$ESC'"
+REMOTE
+```
+
+`psql -c` does **not** interpolate psql variables, so the obvious `-v pw=… -c
+"… PASSWORD :'pw'"` fails with a syntax error — measured. The literal is built in
+the shell instead, with single quotes doubled.
+
+MariaDB — `nextcloud-db`:
+
+```bash
+ssh homelab 'docker exec -i nextcloud-db sh' <<'REMOTE'
+PW=$(cat /run/secrets/nextcloud_db_password)
+RP=$(cat /run/secrets/nextcloud_db_root_password)
+[ -n "$PW" ] && [ -n "$RP" ] || { echo "empty secret, aborting"; exit 1; }
+MYSQL_PWD="$RP" mariadb -u root -N -e "ALTER USER '$MYSQL_USER'@'%' IDENTIFIED BY '$PW'"
+REMOTE
+```
+
+Both forms were run against the live databases with the value already in force —
+a no-op that proves the quoting.
+
+### 3. Tell the application
+
+- **Immich** and **Miniflux** need nothing. immich-server mounts
+  `immich_db_password` directly; Miniflux's DSN is rebuilt from the same vault
+  variable by step 1, so it follows automatically.
+- **Nextcloud** does need it, and `occ` cannot do it. The compose file
+  deliberately passes the app no `MYSQL_*`, so its credential lives in
+  `config.php` and nothing else carries it — but `occ` bootstraps a database
+  connection before running any command, so at this point in the procedure it
+  fails with `Access denied for user 'nextcloud'`. Measured on 2026-08-19:
+  `occ config:system:set dbpassword` is unusable in the exact situation it would
+  be needed. The file is edited directly instead, from the deployed secret.
+
   ```bash
-  docker exec -u www-data nextcloud php occ config:system:set dbpassword --value 'the-new-one'
+  ssh homelab 'sudo python3' <<'REMOTE'
+  import re, shutil, pathlib
+  cfg = pathlib.Path('/mnt/data/services/nextcloud/data/config/config.php')
+  pw  = pathlib.Path('/mnt/data/secrets/docker/nextcloud_db_password').read_text().strip()
+  assert pw, "empty secret, aborting"
+  shutil.copy2(cfg, str(cfg) + '.bak')
+  esc = pw.replace('\\', '\\\\').replace("'", "\\'")   # PHP single-quoted string
+  new, n = re.subn(r"('dbpassword'\s*=>\s*)'(?:\\.|[^'\\])*'",
+                   lambda m: m.group(1) + "'" + esc + "'",
+                   cfg.read_text(), count=1)
+  assert n == 1, f"expected exactly one dbpassword line, found {n}"
+  cfg.write_text(new)
+  print("replacements:", n)
+  REMOTE
   ```
-- **Miniflux** takes a whole DSN, `miniflux_database_url`, which contains the
-  password. Step 2 rewrites it from the same variable, so it follows
-  automatically — but only if you changed `miniflux_db_password` and not the DSN
-  by hand.
-- **Immich** reads `immich_db_password` directly, so step 2 covers it.
 
-**Do not** do step 2 without step 1. The deploy will report success, the
-handler will restart the database, and the credential in the file will no longer
-open it — which the posture check will report the next morning, but the service
-will have been broken since the restart.
+  It writes through the existing inode, so owner and mode are preserved, and it
+  refuses to guess: exactly one match or nothing is written. Check the result
+  before moving on — a broken `config.php` is a Nextcloud that will not start:
+
+  ```bash
+  ssh homelab "docker exec -u www-data nextcloud php -l /var/www/html/config/config.php
+               docker exec -u www-data nextcloud php occ status --output=json"
+  ```
+
+  Then **restart `nextcloud-notify-push`**. It reads `config.php` once at start
+  and holds the connection, so it survives the rotation in a state where
+  `occ notify_push:self-test` reports `push server can't load mount info from
+  database` while every other line passes.
+
+  ```bash
+  ssh homelab "docker restart nextcloud-notify-push"
+  ssh homelab "docker exec -u www-data nextcloud php occ notify_push:self-test"
+  ```
+
+  Had `occ -q config:system:set` been usable, the `-q` would still have mattered:
+  without it the command prints `System config value dbpassword set to string
+  <the password>`, which is how that credential ended up in a terminal
+  transcript on 2026-08-19 and had to be rotated for that reason alone. Any
+  command that touches a secret gets its output suppressed, whether or not you
+  expect it to print one.
+
+**Do not** do step 1 without step 2. The deploy reports success, the handler
+restarts the database, and the credential in the file no longer opens it — which
+the posture check reports the next morning, but the service has been broken
+since the restart.
 
 ## Rotating the Vaultwarden admin token
 
