@@ -79,6 +79,11 @@
     cmd: docker restart forgejo
   changed_when: true
 
+# Restarting rotates nothing here: the database password is an initdb-only
+# input (#159). The handler stays because the container must still be restarted
+# when the file changes for any other reason, and because removing it would
+# leave the secret with no consumer at all — but a rotation needs
+# knowledge/runbooks/rotate-a-secret.md, not a deploy.
 - name: Restart nextcloud-db
   ansible.builtin.command:
     cmd: docker restart nextcloud-db
@@ -89,6 +94,11 @@
     cmd: docker restart miniflux
   changed_when: true
 
+# Restarting rotates nothing here: the database password is an initdb-only
+# input (#159). The handler stays because the container must still be restarted
+# when the file changes for any other reason, and because removing it would
+# leave the secret with no consumer at all — but a rotation needs
+# knowledge/runbooks/rotate-a-secret.md, not a deploy.
 - name: Restart miniflux-db
   ansible.builtin.command:
     cmd: docker restart miniflux-db
@@ -96,6 +106,10 @@
 
 # immich_db_password is mounted by both halves, and the server holds the
 # connection, so the database goes first and the server reconnects behind it.
+#
+# Same caveat as the two above: the database side of that password is an
+# initdb-only input, so this restart does not rotate it (#159). See
+# knowledge/runbooks/rotate-a-secret.md.
 - name: Restart immich
   ansible.builtin.shell:
     cmd: docker restart immich-db && docker restart immich-server
