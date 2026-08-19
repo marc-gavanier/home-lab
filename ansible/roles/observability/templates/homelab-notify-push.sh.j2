@@ -29,8 +29,14 @@ KUMA_PUSH_URL="${KUMA_PUSH_URL%%\?*}"   # strip a pasted example query (see home
 
 notify() {
     [ -n "$KUMA_PUSH_URL" ] || return 0
-    curl -fsS -m 10 --retry 2 -G "$KUMA_PUSH_URL" \
-        --data-urlencode "status=$1" --data-urlencode "msg=$2" >/dev/null 2>&1 || true
+    # The push URL carries the monitor's own token, so it goes in on stdin
+    # instead of argv: /proc is mounted without hidepid, any local account can
+    # read another process's command line, and this runs unattended on a timer
+    # (#177). printf is a shell builtin, so the value never reaches an argv there
+    # either.
+    printf 'url = "%s"\n' "$KUMA_PUSH_URL" |
+        curl -fsS -m 10 --retry 2 -K - -G \
+            --data-urlencode "status=$1" --data-urlencode "msg=$2" >/dev/null 2>&1 || true
 }
 
 # Same reasoning as the posture check: /mnt/data is unlocked by hand after a
