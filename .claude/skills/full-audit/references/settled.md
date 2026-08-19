@@ -373,3 +373,170 @@ requests over three days in August and then resolved itself unremarked, in
 either direction — nor the drift each deploy creates. Those stay the audit's
 business. (That episode was also misreported as ongoing while it was already
 over; see the 24-hour-window trap above.)
+
+---
+
+## Closed between 2026-08-17 and 2026-08-19 — three days of follow-up runs
+
+The 2026-08-16 table above is now fully resolved except the four issues listed
+at the end of this section. Everything here is merged **and deployed**; verify
+it gone rather than rediscover it.
+
+| # | Finding | Closed by |
+|---|---|---|
+| #152 | `rp_filter` declared twice in the sysctl template; the strict value silently won and the kernel dropped VPN client packets | PR #167 — single declaration, loose value; drops stopped |
+| #153 | wg-easy's database was world-readable and held the interface key, four client keys and the admin hash | PR #163 — 0644 → 0600 |
+| #155 | The offsite host was missed by two sibling sweeps: the distro `lynis.timer`, and a SMART guard that could report "SMART ok" without reading SMART | PR #166 — both sweeps completed on the second host. This is pattern 3 (partial sweep) caught once more; **check both hosts by default** |
+| #156 | Five more controls that could not report the failure they name: netdata healthcheck, empty-secret assert, posture count, Lynis retries, DDNS failure branches | PR #170 — including "posture OK on 0 containers" and DDNS branches that could never execute |
+| #157 | Three of eighteen certificates had no expiry watch, and a failed ACME renewal left no trace at all | PR #175 — `homelab-health.sh` now parses `acme.json` directly, 21-day threshold, 18/18 covered. Root cause of the blind spot: Traefik's WARN-level filter hides renewal logs, so a log-based watch was structurally impossible |
+| #158 | A snapshot that missed its offsite copy was never retried, and the weekly check passed regardless | PR #173 — 7-day time-window filter; 18 snapshots had been at risk |
+| #159 | Three database passwords could not be rotated, and the handlers made the no-op look like a rotation | PR #176 — see the rotation notes below |
+| #161 | Four documentation statements that would mislead during an incident, out of 238 runbook commands checked | PR #165 |
+| #162 | `it-tools:nightly` unrebuilt upstream for 185 days; Renovate cannot tell abandoned from current | PRs #162/#164 — ADR-024 now states an **exposure-based** drop condition; the original one measured the wrong thing |
+| #168 | A failed `restic forget` was invisible to the monitor: retention stopped with the push still green | PR #171 |
+| #169 | Thirty read-only probes had no `check_mode: false`, so a dry run guarded on output it never read | PR #172 |
+| #137 / #174 | The backup assertions and the summary push, proven on fixtures only | Both closed on the real 03:00 runs — assertions fired with real byte counts, push carried restic's own summary, and the first night under the new offsite window was read before anything else |
+
+### What the #159 rotation work established, and must not be re-derived
+
+- **A deploy can rotate some secrets and not others.** Which is which is now
+  written down in the repo, together with what the others need. Do not re-audit
+  the question; read the doc.
+- **The detection bug was a case mismatch** on `admin_token`, which is why the
+  posture check could not see an unrotated secret. Fixed, and the posture check
+  now makes a rotation that did not land report itself.
+- **Password rotation must be verified through container-name probes**, not
+  through `localhost` — a localhost probe succeeds against the wrong endpoint.
+- **`knowledge/runbooks/rotate-a-secret.md` was wrong in three ways** and each
+  was found only by running it: the step order, a missing `occ` step, and a
+  required `notify_push` restart. The procedure is now correct; trust the file,
+  not memory.
+- Two live rotations were performed for real reasons: **Miniflux** (its password
+  had been exposed in a `bash -x` trace) and **Nextcloud** (exposed in logs).
+  Both completed and were re-verified. Not findings — history.
+
+### New method traps, all paid for between 17 and 19 August
+
+- **`docker logs --since/--until` parse in host local time while `-t` prints
+  UTC.** Always suffix `Z`, and cross-check any total against an hourly
+  histogram. This compounds the 24-hour-window trap recorded above.
+- **`pihole setpassword` has no flags** and will happily take `--help` as the
+  new password. Documented; do not "improve" the invocation.
+- **The compose pull task always reads `changed` under `--check`.** It is not an
+  idempotence defect and is documented as such.
+- **A dry run is not free.** Two offsite tasks misbehaved under `--check` alone:
+  one announced it would remount the backup disk, another aborted the play on a
+  task check mode had skipped. Both fixed, but the lesson stands — `--check` has
+  its own failure modes and they are not the play's.
+
+### Still open going into the run of 2026-08-19
+
+Four, and they are the only ones. Do not re-report them; do report anything that
+makes one of them materially worse.
+
+| # | Why it is still open |
+|---|---|
+| #128 | Traefik sees every VPN client as one Docker gateway address — `vpn-only` subnet rule dead, rate-limit one shared bucket. Needs local work |
+| #138 | wg-easy cannot write its own database; a peer cannot be revoked. **Requires someone at the machine**: the first successful write regenerates `wg0.conf` and runs `wg syncconf` on the only interface that reaches the host |
+| #154 | Neither ext4 volume is ever checked, and a weekly green timer checks nothing. Half doable remotely |
+| #160 | `wg_easy_config` claims to enforce the VPN settings, cannot write, and would abort the deploy at step 4 of 12. Sibling of #138 |
+
+---
+
+## The run of 2026-08-19 — what it settled, and what it corrected
+
+Fourth general audit. Baseline clean on both hosts: 0 failed units, 28/28
+containers, 12/12 timers exited 0, 31/31 monitors UP. Twenty-three findings,
+grouped into four issues — #177 (sweep residues), #178 (statements without
+effect), #179 (push monitors), #180 (offsite tunnel, a decision).
+
+### Two previously settled conclusions are now WRONG. Do not quote either.
+
+- **"PENDING notifies nobody" is false.** PENDING escalates — with the wrong
+  text. A push monitor at `maxretries=1` raises `"No heartbeat in the time
+  window"` whenever the previous beat is not UP, and that raised beat is the one
+  that notifies. Counted on notifying heartbeats: `Pi health` 4 alerts, 4 without
+  the script's message; the monitors at `maxretries=0`, 6 of 7 kept it (the
+  seventh is a genuine no-push case). And there are **two** monitors at
+  `maxretries=1`, not three: `Pi health` and `DDNS`. Tracked in #179.
+- **Swap is at 38 %, not 44 % and not 53 %.** The audit's own system agent
+  headlined "~1800 MiB = 44 %" while citing its own cgroup measurement of
+  1571.4 MiB in the same paragraph. Four instruments agree on 1571 MiB of 4095:
+  `/proc/swaps`, `free -m`, `/proc/meminfo`, and the live Kuma push (`swap 38%`).
+  Keep 85 % — the margin is 47 points, wider than previously believed. Both
+  earlier figures were arithmetic errors on top of a conclusion that survived
+  each time, which is now a pattern in its own right.
+
+### Measured and rejected — added 2026-08-19
+
+- **The whole secret store being world-readable.** Raised, investigated,
+  refuted. The files are 0444 but the **directories** gate the path
+  (`drwx--x--x` on `secrets`, `drwx--x---` root:docker on `docker/`); an
+  unprivileged read is refused, with `/etc/shadow` refused in the same call as a
+  control. The design is sound. What IS exposed is `/mnt/data/services`
+  (`drwxr-xr-x`) — a different store, tracked in #177.
+- **Transmission's empty-password branch as a present exposure.** The mechanism
+  is real (the LSIO init disables RPC auth on an empty value) but impact today is
+  zero: `rpc-authentication-required: true`, whitelist enabled, secret 128 bytes.
+  It is a rebuild-from-example hazard, ranked accordingly in #177.
+- **A read-data check against the offsite repository.** Never run, log complete
+  back to 2026-05-14. Not proposed: it sits next to the declined restore drill.
+- **The Lynis ratchet seeded at 73** rather than the 74 of #145. That single
+  point is `malware_scanner_installed=0` — the arithmetic of rkhunter's
+  deliberate removal. No action; recorded so 73 is not later read as drift.
+
+### New instrument traps — three, and one of them was mine
+
+- **`docker inspect .RestartCount` is inert here.** It reads 0 on all 28
+  containers while the heal journal records 47 crash-restarts in 19 days. An
+  audit concluding "nothing has restarted" from it would be wrong on every count.
+  Use the heal journal.
+- **mtime against commit date is a false drift instrument in this repo**,
+  because deploying before merging makes deployed files legitimately older than
+  their source commit. Nine artefacts read as drift until content was compared.
+- **A permission error swallowed by `2>/dev/null` produced a wrong answer during
+  the main session's own verification**: an unprivileged `grep` on the offsite
+  WireGuard config returned nothing, which reads identically to "no Endpoint
+  line". Re-run with `sudo`, it returned the hostname that the whole of #180
+  rests on. The audit's own instruments are subject to the defect it hunts.
+
+### Verified gone on the machines, not assumed
+
+rp_filter (martians 213/day on 08-12, 49 on 08-17, last line 10 minutes *before*
+the sysctl file was written, zero in the 44 h since; `TcpExtIPReversePathFilter`
+frozen at 1653 across four samples). #158 and #168 on the real 08-19 run
+("8 snapshot(s) offered… 1 new, 7 already there", zero offsite duplicates). The
+cert parse, exhaustively: 18/18 `notAfter` values byte-identical to the leaf
+served in a live handshake. The perimeter, probed from the offsite uplink with a
+known-open port as control: everything else closed, no IPv6 anywhere.
+
+### The pattern shift — the most useful thing this run established
+
+**"The check cannot fail" is thinning.** Hit rate on the class this audit exists
+to find: 5/5 on 2026-08-15, 5/12 on 08-16 evening, **4/23** now — and the new
+instances are narrow (an `ext4 clean` over zero visited volumes, a cert block
+skipped on a missing file) rather than structural.
+
+**The dominant pattern is now the PARTIAL SWEEP**, five instances in one run:
+#153 stopped at wg-easy, #155 stopped before the ext4 counter on the offsite
+host, #161 swept documentation for existence and never for content, the
+empty-secret guard stopped at 4 keys of 35, the cloud-init pin runbook covers one
+host of two. The existing rule — every correction ends with a sweep for siblings
+— is not enough. Sweep **both hosts and both axes**: existence *and* content.
+
+Also worth carrying: roughly a third of this run's findings could not have been
+found earlier. Three were created by fixes younger than 72 hours (pattern 4
+again), and four required a search key minted between 17 and 19 August — the
+file-mode axis from #153, and "where can a secret reach a log, a trace or an
+argument list" from the two rotations of 08-19. The generalisation keeps paying
+more than the instance.
+
+### For the next run
+
+The spaces that were genuinely **enumerated** this time came back clean: 28/28
+healthchecks, 30/30 sysctls on both hosts, 18/18 certificates, the Ansible key
+set in both directions, 19/19 bind-mount inodes against `/proc/<pid>/root`. That
+is the third confirmation that enumeration ends a pattern where sampling does
+not. Two spaces remain un-enumerated and are where the next yield is:
+**file modes across both hosts**, and **the content of documentary claims** as
+opposed to their existence.
