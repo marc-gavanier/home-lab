@@ -148,7 +148,15 @@ fi
 # read-only mid-incident is a real trade-off on a host that serves media and
 # backups, and it deserves its own decision rather than riding along.
 ext4_bad=""
+# An empty result was indistinguishable from a clean pass: with /mnt/data locked
+# the loop visits only `/`, and with findmnt absent or the daemon confused it
+# visits nothing at all — and the push said `ext4 clean` either way, asserting
+# for filesystems it never opened (#177). Same shape as "posture OK on 0
+# containers". Counting what was actually visited is the whole fix, and putting
+# the count in the message makes the locked case visible instead of silent.
+ext4_seen=0
 while read -r src tgt; do
+    ext4_seen=$((ext4_seen + 1))
     hdr=$(dumpe2fs -h "$src" 2>/dev/null) || { ext4_bad="$ext4_bad $tgt(unreadable)"; continue; }
     state=$(awk -F: '/^Filesystem state/ { gsub(/^ +| +$/, "", $2); print $2 }' <<<"$hdr")
     errs=$(awk -F: '/^FS Error count/ { gsub(/ /, "", $2); print $2 }' <<<"$hdr")
@@ -162,10 +170,12 @@ while read -r src tgt; do
     [ -n "$errs" ] && ext4_bad="$ext4_bad $tgt($errs recorded errors)"
 done < <(findmnt -l -t ext4 -no SOURCE,TARGET)
 
-if [ -n "$ext4_bad" ]; then
+if [ "$ext4_seen" -eq 0 ]; then
+    problems+=("ext4: no filesystem was visited — the check asserted nothing")
+elif [ -n "$ext4_bad" ]; then
     problems+=("ext4:$ext4_bad")
 else
-    report+=("ext4 clean")
+    report+=("ext4 clean ($ext4_seen)")
 fi
 
 # --- Verdict ---

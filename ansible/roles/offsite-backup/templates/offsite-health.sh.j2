@@ -45,6 +45,40 @@ usage=$(df --output=pcent "$MOUNT" | tail -1 | tr -dc '0-9')
 [ "$usage" -ge 85 ] && problems+=("disk ${usage}% full")
 report+=("disk ${usage}%")
 
+# --- Filesystem, as opposed to disk ---
+# Carried over from homelab-disk.sh: the sweep of #155 brought the lynis timer
+# and the SMART guard to this host and left the ext4 superblock counter behind
+# (#177). SMART watches the hardware and nothing watched the filesystem on top
+# of it, on the volume holding the only offsite copy — reported once a week.
+#
+# A clean filesystem prints NO "FS Error count" line, so its presence is itself
+# the signal; `Filesystem state` reads "clean with errors" rather than "clean"
+# once anything has been recorded. An empty state means the header parsed and
+# told us nothing, which reads as a failure like everything else here, and a
+# loop that visited nothing reports rather than passes.
+ext4_bad=""
+ext4_seen=0
+while read -r src tgt; do
+    ext4_seen=$((ext4_seen + 1))
+    hdr=$(dumpe2fs -h "$src" 2>/dev/null) || { ext4_bad="$ext4_bad $tgt(unreadable)"; continue; }
+    state=$(awk -F: '/^Filesystem state/ { gsub(/^ +| +$/, "", $2); print $2 }' <<<"$hdr")
+    errs=$(awk -F: '/^FS Error count/ { gsub(/ /, "", $2); print $2 }' <<<"$hdr")
+    case "$state" in
+        clean) ;;
+        "")    ext4_bad="$ext4_bad $tgt(state unreadable)" ;;
+        *)     ext4_bad="$ext4_bad $tgt($state)" ;;
+    esac
+    [ -n "$errs" ] && ext4_bad="$ext4_bad $tgt($errs recorded errors)"
+done < <(findmnt -l -t ext4 -no SOURCE,TARGET)
+
+if [ "$ext4_seen" -eq 0 ]; then
+    problems+=("ext4: no filesystem was visited — the check asserted nothing")
+elif [ -n "$ext4_bad" ]; then
+    problems+=("ext4:$ext4_bad")
+else
+    report+=("ext4 clean ($ext4_seen)")
+fi
+
 # --- SMART ---
 # smartctl exit status is a bitmask: bit 3 (value 8) = disk failing;
 # bits 0-2 = command/device errors (USB bridge quirks — not a disk failure).

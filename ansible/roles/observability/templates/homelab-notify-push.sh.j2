@@ -75,4 +75,26 @@ passed=$(printf '%s\n' "$out" | grep -c '✓')
 conns=$(docker exec -u www-data nextcloud php occ notify_push:metrics 2>/dev/null \
         | awk -F': ' '/Active connection count/ {print $2}')
 
-notify up "self-test ok (${passed} checks), ${conns:-?} active connection(s)"
+# --- Nextcloud cron freshness ---
+# Nothing watched it (#177), and the silent failure mode is documented in this
+# very repository: crond up, cron.php never running, the container Up and both
+# HTTP monitors green, while every background job — file scans, trash and
+# version expiry, federated retries, notifications — quietly stops.
+#
+# `core lastcron` is the unix timestamp cron.php last COMPLETED, so it moves
+# only on a real run. One hour is twelve missed five-minute runs, well clear of
+# a single slow one. Unreadable reports rather than passes, which is the rule
+# the rest of this stack follows.
+CRON_MAX_AGE=3600
+lastcron=$(docker exec -u www-data nextcloud php occ config:app:get core lastcron 2>/dev/null | tr -dc '0-9')
+if [ -z "$lastcron" ]; then
+    notify down "self-test ok (${passed} checks) but nextcloud cron: lastcron unreadable"
+    exit 1
+fi
+cron_age=$(( $(date +%s) - lastcron ))
+if [ "$cron_age" -gt "$CRON_MAX_AGE" ]; then
+    notify down "nextcloud cron last completed ${cron_age}s ago (> ${CRON_MAX_AGE}s) — background jobs have stopped"
+    exit 1
+fi
+
+notify up "self-test ok (${passed} checks), ${conns:-?} active connection(s), cron ${cron_age}s"

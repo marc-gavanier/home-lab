@@ -352,6 +352,13 @@ PYEOF
     else
         problems+=("certificate expiry unreadable in $ACME_JSON")
     fi
+# The last branch in this file where "cannot run" read as "pass" (#177). The
+# mountpoint guard is legitimate — while /mnt/data is locked the file genuinely
+# is not there, and the disk report already says so. But once the volume IS
+# mounted, an absent acme.json means Traefik has never obtained a certificate or
+# the store has moved, and eighteen expiry dates are being watched by nobody.
+elif mountpoint -q /mnt/data; then
+    problems+=("$ACME_JSON absent while /mnt/data is mounted — no certificate expiry is being watched")
 fi
 
 # --- Unhealthy containers ---
