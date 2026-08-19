@@ -261,6 +261,93 @@ if [ -f "$MIRROR_DB" ] && command -v sqlite3 >/dev/null 2>&1; then
     esac
 fi
 
+# --- TLS certificate expiry ---
+# Watches the OUTCOME rather than the renewal, and that is the point (#157).
+#
+# Uptime Kuma checks expiry on 15 of the 18 certificates. Three are unwatched:
+# dns (its monitor is type=dns and never opens TLS), proxy (type=port, a bare
+# TCP connect) and services (Kuma cannot monitor itself). Both of the first two
+# are green, named after the service whose certificate they cannot see.
+#
+# Traefik would NOT hide a failure — measured rather than assumed: the string
+# "Unable to obtain ACME certificate for domains" is in the binary and is
+# emitted at ERROR, which passes log.level=WARN, and ERROR lines from this
+# container do reach the stream. But nothing reads it: 7 application lines in
+# 70 350 retained, the rest being the access log. A red line nobody greps is not
+# an alert, so the control belongs here, on the consequence — which also makes
+# it indifferent to WHY a renewal stopped working.
+#
+# 21 days: Traefik renews at 30 days remaining, so the alarm means renewal has
+# been failing for over a week. Short enough to act on calmly, long enough that
+# one transient failure — Cloudflare unreachable for a night — is retried and
+# never seen.
+ACME_JSON=/mnt/data/services/traefik/acme/acme.json
+CERT_STAMP=/var/lib/homelab-health/certs
+CERT_MIN_DAYS=21
+
+if mountpoint -q /mnt/data && [ -f "$ACME_JSON" ]; then
+    # Re-parsed only when Traefik rewrites the file, i.e. on issuance or
+    # renewal. This runs every five minutes; forking openssl per certificate
+    # that often to re-derive a date that changes four times a year would be
+    # absurd. The countdown itself is arithmetic on the cached date.
+    mkdir -p "$(dirname "$CERT_STAMP")"
+    acme_mtime=$(stat -c %Y "$ACME_JSON" 2>/dev/null || echo "")
+    cached_mtime=""; cached_epoch=""; cached_name=""; cached_count=""
+    # shellcheck disable=SC2034
+    read -r cached_mtime cached_epoch cached_name cached_count < "$CERT_STAMP" 2>/dev/null || true
+
+    if [ -n "$acme_mtime" ] && [ "$acme_mtime" != "$cached_mtime" ]; then
+        cert_facts=$(python3 - "$ACME_JSON" <<'PYEOF' 2>/dev/null || true
+import base64, json, subprocess, sys, datetime
+
+soonest = None
+count = 0
+with open(sys.argv[1]) as fh:
+    store = json.load(fh)
+for resolver in store.values():
+    for cert in resolver.get("Certificates") or []:
+        chain = base64.b64decode(cert["certificate"])
+        # The leaf is first in the chain; `openssl x509` reads exactly one.
+        out = subprocess.run(
+            ["openssl", "x509", "-noout", "-enddate"],
+            input=chain, capture_output=True,
+        )
+        if out.returncode != 0:
+            continue
+        raw = out.stdout.decode().strip().split("=", 1)[1]
+        when = datetime.datetime.strptime(raw, "%b %d %H:%M:%S %Y %Z").replace(
+            tzinfo=datetime.timezone.utc)
+        count += 1
+        name = cert["domain"]["main"]
+        if soonest is None or when < soonest[0]:
+            soonest = (when, name)
+
+# Nothing parsed is a failure, not a pass: print nothing and let the caller say so.
+if soonest and count:
+    print(int(soonest[0].timestamp()), soonest[1], count)
+PYEOF
+        )
+        if [ -n "$cert_facts" ]; then
+            printf '%s %s\n' "$acme_mtime" "$cert_facts" > "$CERT_STAMP"
+            cached_epoch=$(cut -d' ' -f2 <<< "$acme_mtime $cert_facts")
+            cached_name=$(cut -d' ' -f3 <<< "$acme_mtime $cert_facts")
+            cached_count=$(cut -d' ' -f4 <<< "$acme_mtime $cert_facts")
+        else
+            cached_epoch=""
+        fi
+    fi
+
+    if [ -n "$cached_epoch" ]; then
+        cert_days=$(( (cached_epoch - $(date +%s)) / 86400 ))
+        report+=("certs ${cert_days}d/${cached_count}")
+        if [ "$cert_days" -lt "$CERT_MIN_DAYS" ]; then
+            problems+=("certificate $cached_name expires in ${cert_days}d — Traefik renews at 30d, so ACME has been failing for over a week")
+        fi
+    else
+        problems+=("certificate expiry unreadable in $ACME_JSON")
+    fi
+fi
+
 # --- Unhealthy containers ---
 # The heal timer only resurrects containers that EXITED; one that stays up but
 # fails its healthcheck is invisible. User-facing services are covered
