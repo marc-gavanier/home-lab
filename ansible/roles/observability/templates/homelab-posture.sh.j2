@@ -243,9 +243,38 @@ if [ "$(docker inspect -f '{% raw %}{{.State.Status}}{% endraw %}' vaultwarden 2
     if [ -z "$vw_src" ]; then
         problems+=("vaultwarden: no /data mount — config.json check cannot run")
     elif [ -r "$vw_cfg" ]; then
+        # *_FILE indirections are resolved first, and that is not a refinement:
+        # compose injects ADMIN_TOKEN_FILE while config.json holds admin_token,
+        # so the raw comparison looked up "admin_token_file", never found it,
+        # and silently compared nothing (#159). The two values happen to be
+        # identical today; a rotation of the vaulted token would have been inert
+        # while this check went on reporting agreement.
+        #
+        # A file that cannot be read is reported rather than passed through —
+        # falling back to the raw KEY_FILE line would restore exactly the blind
+        # spot being fixed. The resolved value is a hash and is never printed:
+        # the comparison below emits key names only.
+        vw_unreadable=""
+        vw_env=$(docker inspect -f '{% raw %}{{range .Config.Env}}{{println .}}{{end}}{% endraw %}' \
+                 vaultwarden 2>/dev/null | while IFS= read -r line; do
+            case "$line" in
+                *_FILE=*)
+                    vk=${line%%=*}
+                    vv=$(docker exec vaultwarden cat "${line#*=}" 2>/dev/null)
+                    if [ -n "$vv" ]; then
+                        printf '%s=%s\n' "${vk%_FILE}" "$vv"
+                    else
+                        printf 'UNREADABLE_%s=\n' "$vk"
+                    fi
+                    ;;
+                *) printf '%s\n' "$line" ;;
+            esac
+        done)
+        case "$vw_env" in
+            *UNREADABLE_*) problems+=("vaultwarden: a *_FILE secret could not be read — the config.json comparison is incomplete") ;;
+        esac
         # Prints OK when clean, so a check that cannot run is not read as a pass.
-        conflicts=$(docker inspect -f '{% raw %}{{range .Config.Env}}{{println .}}{{end}}{% endraw %}' \
-            vaultwarden 2>/dev/null | python3 -c '
+        conflicts=$(printf '%s\n' "$vw_env" | python3 -c '
 import json, sys
 cfg = json.load(open(sys.argv[1]))
 bad = []
@@ -263,6 +292,59 @@ print(" ".join(sorted(bad)) if bad else "OK")
             "") problems+=("vaultwarden: config.json check did not run") ;;
             *)  problems+=("vaultwarden: config.json overrides compose [$conflicts]") ;;
         esac
+    fi
+fi
+
+# --- Database credentials: the file must still open the database -----------
+# POSTGRES_PASSWORD_FILE and MYSQL_PASSWORD_FILE are read by the image
+# entrypoint during initdb and never again — every later start prints "Skipping
+# initialization" and ignores them. So writing a new password into the secret
+# and restarting rotates NOTHING, while the deploy reports changed and a handler
+# visibly restarts the service (#159). The operation is impossible; the evidence
+# of work is not.
+#
+# An entrypoint's behaviour cannot be observed, but its consequence can: if the
+# file and the database ever stop agreeing, the credential in the file no longer
+# opens the database. That is what this asserts, and it is why the rotation
+# procedure in knowledge/runbooks/rotate-a-secret.md ends with a deploy — this
+# check is the acceptance test for having followed it.
+#
+# ADDRESSED BY CONTAINER NAME, not 127.0.0.1, and that detail is the whole
+# check: initdb writes `host all all 127.0.0.1/32 trust` into pg_hba, so over
+# the loopback Postgres accepts ANY password. Measured — a deliberately wrong
+# password returned 1. Over the docker network name the `host all all all
+# scram-sha-256` rule applies and a wrong password is refused. MariaDB refuses
+# on the loopback already, which is why the two families differ here.
+cred_probe() {
+    local c="$1" engine="$2" secret="$3" out=""
+    [ "$(inspect "$c" '{% raw %}{{.State.Status}}{% endraw %}')" = "running" ] || return 0
+    case "$engine" in
+        pg) out=$(docker exec "$c" sh -c \
+              "PGPASSWORD=\$(cat /run/secrets/$secret) psql -h $c -U \$POSTGRES_USER -d \$POSTGRES_DB -tAc 'select 1'" 2>/dev/null) ;;
+        my) out=$(docker exec "$c" sh -c \
+              "MYSQL_PWD=\$(cat /run/secrets/$secret) mariadb -h 127.0.0.1 -u \$MYSQL_USER -N -e 'select 1'" 2>/dev/null) ;;
+    esac
+    [ "$(printf '%s' "$out" | tr -d '[:space:]')" = "1" ] \
+        || problems+=("$c: /run/secrets/$secret no longer opens the database — see knowledge/runbooks/rotate-a-secret.md")
+}
+
+cred_probe immich-db    pg immich_db_password
+cred_probe miniflux-db  pg miniflux_db_password
+cred_probe nextcloud-db my nextcloud_db_password
+
+# Miniflux is the one service whose application side carries the password too:
+# it takes a whole connection string rather than a password to slot into one. So
+# the DSN can drift from the database's own secret without either probe above
+# noticing — and the symptom would be Miniflux failing to connect at the next
+# restart, not at the deploy that caused it.
+MINIFLUX_DSN=/mnt/data/secrets/docker/miniflux_database_url
+MINIFLUX_PW=/mnt/data/secrets/docker/miniflux_db_password
+if [ -r "$MINIFLUX_DSN" ] && [ -r "$MINIFLUX_PW" ]; then
+    dsn_pw=$(sed -n 's/.*password=\([^ ]*\).*/\1/p' "$MINIFLUX_DSN")
+    if [ -z "$dsn_pw" ]; then
+        problems+=("miniflux: no password= field in the connection string")
+    elif [ "$dsn_pw" != "$(cat "$MINIFLUX_PW")" ]; then
+        problems+=("miniflux: the application connection string and the database password disagree")
     fi
 fi
 
