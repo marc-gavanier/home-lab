@@ -22,7 +22,19 @@ logger -t killswitch "armed — listening on ntfy topic (outbound)"
 
 while true; do
     # Stream the topic: one message body per line; empty lines are keepalives.
-    curl -sN "$KILLSWITCH_URL" 2>/dev/null | while IFS= read -r msg; do
+    #
+    # The URL goes in on stdin rather than argv (#177). The topic IS the channel
+    # capability: /proc is mounted without hidepid, so any local unprivileged
+    # account could read it from this process's command line — and this one runs
+    # continuously rather than for the length of a request. It does not hand over
+    # the trigger, since KILLSWITCH_KEYWORD must also match and that lives in the
+    # environment, where /proc/<pid>/environ is owner-only. It does hand over the
+    # channel: read it, and flood it.
+    #
+    # Missed by the first sweep of #177, which enumerated `-G "$url"` and so saw
+    # only the ten push sites. The lesson the issue itself is about.
+    printf 'url = "%s"\n' "$KILLSWITCH_URL" |
+        curl -sN -K - 2>/dev/null | while IFS= read -r msg; do
         [ -z "$msg" ] && continue
         if [ "$msg" = "$KILLSWITCH_KEYWORD" ]; then
             logger -t killswitch "TRIGGER received — powering off now"
