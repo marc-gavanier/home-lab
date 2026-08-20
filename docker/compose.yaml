@@ -491,7 +491,7 @@ services:
       # The leaf, not /run: a tmpfs on /run would erase the image's own
       # /run/mysqld and mariadbd does not recreate it ("Bind on unix socket: No
       # such file or directory", measured).
-      - /run/mysqld
+      - /run/mysqld:size=8m
       # InnoDB creates temporary files at startup and aborts without them.
       - /tmp:size=256m
     # No capability at all: running as mysql from PID 1 removes the root phase
@@ -764,7 +764,6 @@ services:
       - ${SERVICES_DATA_DIR}/jellyfin/config:/config
       - ${SERVICES_DATA_DIR}/jellyfin/cache:/cache
       - ${MEDIA_DIR}/videos:/media/videos:ro
-      - ${MEDIA_DIR}/music:/media/music:ro
     networks:
       - proxy
     labels:
@@ -788,7 +787,12 @@ services:
     cap_drop: *cap-drop-all
     read_only: true          # measured: writes only into the mounted /data and /music
     environment:
-      ND_SCANSCHEDULE: 1h
+      # ND_SCANNER_SCHEDULE, not ND_SCANSCHEDULE: 0.63.2 reads Scanner.Schedule,
+      # and an unknown ND_* warns about nothing — so the container logged
+      # "Periodic scan is DISABLED" on all five recorded starts while the
+      # variable sat here looking correct, and the docs asserted the behaviour
+      # as fact (#178). Verify by the boot log, never by the variable.
+      ND_SCANNER_SCHEDULE: 1h
       ND_LOGLEVEL: info
       ND_BASEURL: ""
     volumes:
@@ -906,9 +910,9 @@ services:
     cap_drop: *cap-drop-all
     read_only: true
     tmpfs:
-      - /run/postgresql        # same leaf rule as nextcloud-db
+      - /run/postgresql:size=8m        # same leaf rule as nextcloud-db
       - /tmp:size=128m
-      - /etc/postgresql        # the entrypoint writes postgresql.conf here, and
+      - /etc/postgresql:size=8m        # the entrypoint writes postgresql.conf here, and
                                # the directory holds nothing else
     # Same reasoning as nextcloud-db: no root phase, therefore no capability.
     # Postgres additionally *requires* the datadir to belong to the uid it runs
@@ -1467,7 +1471,7 @@ services:
       # and then, once that is fixed, on
       #   mktemp: : Read-only file system
       # because initdb wants a scratch directory the read-only rootfs denies.
-      - /run/postgresql:uid=999,gid=999
+      - /run/postgresql:uid=999,gid=999,size=8m
       - /tmp:size=64m,uid=999,gid=999
     environment:
       POSTGRES_USER: ${MINIFLUX_DB_USER}

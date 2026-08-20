@@ -13,8 +13,9 @@ destroys both the data and every backup. The retired Pi 4 (4GB) and a WD Blue
 
 ## Decision
 
-A second Pi ("backup", inventory host `offsite`) receives a nightly
-`restic copy` of the latest snapshot from the homelab:
+A second Pi ("backup", inventory host `offsite`) receives a nightly copy from the
+homelab of every snapshot in a rolling **7-day window** that it does not already hold
+(#158 — originally the latest snapshot only, which lost any night whose copy failed):
 
 | Aspect              | Choice                           | Rationale                                                                                                                                 |
 |---------------------|----------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|

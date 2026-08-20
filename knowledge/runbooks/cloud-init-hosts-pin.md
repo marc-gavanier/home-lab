@@ -33,18 +33,40 @@ Pin in **two** places (both roles already do this):
    so the pin **survives reboots**.
 2. `/etc/hosts` directly — **immediate**, no reboot needed.
 
-Defined in `ansible/roles/claude-code/tasks/main.yml` (`drive`) and
-`ansible/roles/deploy/tasks/main.yml` (`services`). Re-apply with:
+Both mechanisms above are applied for **three** pins, on **two hosts** — the third was
+missing from this page until #178, and the re-apply command below never reached it:
+
+| Pin | Host | Defined in |
+|---|---|---|
+| `drive` | homelab | `ansible/roles/claude-code/tasks/vault.yml` |
+| `services` | homelab | `ansible/roles/deploy/tasks/backup.yml` |
+| `services` | **offsite** | `ansible/roles/offsite-backup/tasks/wireguard.yml` |
+
+None of these live in a role's `main.yml`; those have been thin orchestrators since the
+July 2026 split, and this page pointed at them.
+
+Re-apply — **two playbooks**, because the offsite host is not in `site.yml`:
 
 ```bash
-ansible-playbook playbooks/site.yml --tags claude-code,deploy
+ansible-playbook playbooks/site.yml --ask-vault-pass --tags claude-code,deploy
+```
+```bash
+ansible-playbook playbooks/offsite.yml --ask-vault-pass --tags offsite-backup
 ```
 
 ## Verify
 
+On the homelab:
+
 ```bash
 getent hosts drive.example.com services.example.com    # both must be the Pi LAN IP
 grep -E 'drive|services' /etc/cloud/templates/hosts.debian.tmpl
+```
+
+And on the offsite host, which is the half that used to be forgotten:
+
+```bash
+ssh offsite "getent hosts services.example.com; grep services /etc/cloud/templates/hosts.debian.tmpl"
 ```
 
 ## Related

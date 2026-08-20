@@ -33,7 +33,13 @@ Connect to `https://music.example.com` with your Navidrome credentials.
 
 1. Open `https://music.example.com` — create admin account on first access
 2. Music is served from `/mnt/data/media/music/`
-3. Navidrome scans every hour automatically (`ND_SCANSCHEDULE=1h`)
+3. Navidrome scans every hour automatically (`ND_SCANNER_SCHEDULE=1h`)
+
+   The variable name matters and the wrong one is silent: `ND_SCANSCHEDULE` was set
+   here for months, 0.63.2 reads `Scanner.Schedule`, and an unknown `ND_*` warns about
+   nothing — so the container logged `Periodic scan is DISABLED` on every start while
+   this page said the opposite (#178). Check the boot log, never the variable:
+   `docker logs navidrome | grep -i "periodic scan"`.
 
 ## Adding Music
 

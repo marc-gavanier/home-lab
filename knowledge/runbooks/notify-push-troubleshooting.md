@@ -3,7 +3,9 @@
 `occ notify_push:setup https://drive.example.com/push` runs a 6-step self-test.
 Each failure points at a specific misconfiguration. This runbook lists the ones
 hit on this homelab and their fixes. All fixes live in `docker/compose.yaml` and
-`ansible/roles/deploy/tasks/main.yml` — re-deploy with `--tags deploy`.
+`ansible/roles/deploy/tasks/nextcloud.yml` — re-deploy with `--tags deploy`. (The
+role's `main.yml` has been a thin orchestrator since the July 2026 split; it imports
+seventeen files and contains none of this.)
 
 ## Quick diagnosis
 
