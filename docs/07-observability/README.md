@@ -473,10 +473,28 @@ structurally blind to the public record DDNS maintains.
 
 The cost of a stale record is asymmetric. Remote access breaks immediately and
 silently — a device off the LAN resolves the old address and the tunnel never
-comes up. The offsite Pi also loses its link home, since its `Endpoint` is a
-hostname WireGuard resolves once at bring-up; that failure *is* caught, but
-indirectly, as a backup alarm up to a day later pointing at the wrong
-subsystem.
+comes up.
+
+The offsite Pi used to share that fate, and worse: its `Endpoint` is a hostname
+`wg-quick` resolves once at bring-up, so a change in the home address partitioned
+it *permanently*. The failure was caught, but indirectly — a backup alarm up to
+a day later, pointing at the wrong subsystem — and since SSH to that host runs
+through the same tunnel, the only repair left was a trip.
+
+It now recovers on its own (#180). `offsite-wg-reresolve.timer` re-resolves the
+name and calls `wg set` when the peer's handshake goes stale, bounded to under
+four minutes. Two properties make it safe on a host nobody can reach: it fires
+on the *handshake*, so a working tunnel is never touched, and it hands the name
+to `wg set` rather than resolving itself, so a resolution failure aborts instead
+of clearing an endpoint. It works at all only because that tunnel is split —
+the offsite Pi resolves through its own LAN router, not through the link it is
+repairing.
+
+Detection follows the same asymmetry. The offsite health report now carries the
+handshake age, but that message travels through the tunnel, so it can only
+describe a tunnel that is *alive* — one that needed repairing, or one whose
+handshake is ageing. A tunnel that is truly down is still read from silence, by
+the dead-man's switch.
 
 ### Backups (push dead-man's switches)
 

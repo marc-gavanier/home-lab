@@ -1,0 +1,14 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Watch the homelab tunnel for a stale endpoint (every minute)
+
+[Timer]
+# The script is a no-op while the tunnel works, so a short period costs a
+# handshake lookup and nothing else. It is what bounds recovery time: at most
+# one period after the endpoint goes stale, plus the 150s staleness gate.
+OnBootSec=2min
+OnUnitActiveSec=1min
+AccuracySec=10s
+
+[Install]
+WantedBy=timers.target

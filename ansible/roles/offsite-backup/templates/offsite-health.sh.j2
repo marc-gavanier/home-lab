@@ -163,6 +163,23 @@ for h in /sys/class/hwmon/hwmon*; do
     [ "$(cat "$h/in0_lcrit_alarm" 2>/dev/null)" = "1" ] && problems+=("undervoltage")
 done
 
+# --- Tunnel to the homelab ---
+# Reported, not relied on for detection: this very message travels THROUGH the
+# tunnel, so a dead tunnel means the push never arrives and it is the monitor's
+# dead-man window that fires, not this line. What this adds is the case the
+# dead-man switch cannot see — a tunnel that is alive but whose handshake is
+# ageing, or one that needed repairing. 600s means the re-resolve timer (150s
+# gate, 1-minute period) has had four chances and did not recover it (#180).
+
+if handshakes=$(wg show wg0 latest-handshakes 2>/dev/null); then
+    tunnel_age=$(( $(date +%s) - $(awk 'NR == 1 { print $2 }' <<<"$handshakes") ))
+    report+=("tunnel ${tunnel_age}s")
+    [ "$tunnel_age" -gt 600 ] &&
+        problems+=("tunnel handshake ${tunnel_age}s old — re-resolve did not recover it")
+else
+    problems+=("tunnel wg0 is down")
+fi
+
 # --- Verdict ---
 
 join() { local out; out=$(printf "%s$1" "${@:2}"); echo "${out%"$1"}"; }

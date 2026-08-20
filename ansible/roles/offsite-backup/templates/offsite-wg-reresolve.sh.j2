@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# {{ ansible_managed }}
+# =============================================================================
+# Offsite Pi — re-resolve the homelab endpoint when the tunnel goes quiet
+# =============================================================================
+# `wg-quick` resolves the peer's Endpoint name ONCE, at `up`, and the kernel
+# then holds that address forever. The home public IPv4 is dynamic: DDNS keeps
+# vpn.<domain> pointing at the new address (that side works), but nothing tells
+# this kernel to look again. So an address change partitions this host
+# permanently — the backup copy stops, and SSH to here runs through this very
+# tunnel, so the only repair is a trip (#180).
+#
+# Fires on the HANDSHAKE, not on a clock: a working tunnel is never touched.
+# WireGuard renegotiates every ~120s while PersistentKeepalive keeps traffic
+# flowing, so the age is a sawtooth. Measured over 60 samples on 2026-08-20:
+# p50 55s, p90 112s, max 122s, never above 135s. 150s sits 28s above that
+# structural ceiling, and still recovers in under four minutes with a 1-minute
+# timer.
+#
+# Fails CLOSED by construction: the NAME is handed to `wg set`, which resolves
+# it itself. A resolution failure makes `wg set` fail and `set -e` aborts —
+# there is no path here that clears an endpoint. This host resolves through its
+# own LAN router over eth0 — the tunnel's AllowedIPs carry the homelab VPN
+# subnet and nothing else, so resolution does not depend on the tunnel it
+# repairs. That is what makes this approach possible at all: a full-tunnel
+# client could not look the name up while the tunnel was down.
+# =============================================================================
+
+set -euo pipefail
+
+IFACE=wg0
+CONF=/etc/wireguard/wg0.conf
+STALE_AFTER=150
+
+log() { echo "$*"; }   # stdout — systemd puts it in the journal
+
+# One peer, at a known path: PublicKey and Endpoint each appear exactly once,
+# and only in [Peer]. That is why this needs no section parser. Splitting on
+# "=" would corrupt the key, whose base64 padding is "=" — strip up to the
+# FIRST separator instead.
+conf_field() {
+    sed -n "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*//p" "$CONF" |
+        sed 's/[[:space:]]*#.*$//; s/[[:space:]]*$//' | head -1
+}
+
+PEER="$(conf_field PublicKey)"
+ENDPOINT="$(conf_field Endpoint)"
+if [ -z "$PEER" ] || [ -z "$ENDPOINT" ]; then
+    log "ERROR: no peer or endpoint in $CONF — nothing to re-resolve"
+    exit 1
+fi
+
+# A missing interface is a different failure (wg-quick not up), and re-resolving
+# would not fix it. Exit clean so the unit does not flap on a timer that fires
+# before wg-quick during boot; the tunnel's absence is the health report's job.
+if ! handshakes="$(wg show "$IFACE" latest-handshakes 2>/dev/null)"; then
+    log "$IFACE is not up — nothing to re-resolve"
+    exit 0
+fi
+
+# `latest-handshakes` prints 0 when the peer has NEVER completed one. That makes
+# the age enormous, which is the right answer: a tunnel that never came up is
+# exactly the case worth re-resolving.
+last="$(awk -v k="$PEER" '$1 == k { print $2; found = 1 } END { exit !found }' <<<"$handshakes")" || {
+    log "ERROR: peer from $CONF is not on $IFACE — config and interface disagree"
+    exit 1
+}
+
+age=$(( $(date +%s) - last ))
+[ "$age" -gt "$STALE_AFTER" ] || exit 0
+
+log "handshake ${age}s old (> ${STALE_AFTER}s) — re-resolving $ENDPOINT"
+wg set "$IFACE" peer "$PEER" endpoint "$ENDPOINT"
+log "endpoint now $(wg show "$IFACE" endpoints | awk -v k="$PEER" '$1 == k { print $2 }')"

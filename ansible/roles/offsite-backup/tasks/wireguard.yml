@@ -21,6 +21,35 @@
     enabled: true
     state: started
 
+# --- Recover from a home public-IP change ---
+# wg-quick resolves the peer's Endpoint name once, at `up`. When the home IPv4
+# changes, DDNS moves the record but this kernel keeps dialling the old address
+# forever — and SSH to this host runs through that tunnel, so the only repair
+# left is a trip. The timer below re-resolves the name when the handshake goes
+# stale, and does nothing while the tunnel works (#180).
+
+- name: wireguard | Install endpoint re-resolve script
+  ansible.builtin.template:
+    src: offsite-wg-reresolve.sh.j2
+    dest: /usr/local/bin/offsite-wg-reresolve.sh
+    mode: "0750"
+
+- name: wireguard | Install endpoint re-resolve units
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: /etc/systemd/system/{{ item }}
+    mode: "0644"
+  loop:
+    - offsite-wg-reresolve.service
+    - offsite-wg-reresolve.timer
+
+- name: wireguard | Enable endpoint re-resolve timer
+  ansible.builtin.systemd:
+    name: offsite-wg-reresolve.timer
+    enabled: true
+    state: started
+    daemon_reload: true
+
 # --- Reach Uptime Kuma through the tunnel ---
 # Once offsite, services.<domain> resolves publicly and Traefik rejects
 # non-VPN sources — the Kuma push would 403. Pin it to the homelab host's
