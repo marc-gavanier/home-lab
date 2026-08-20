@@ -540,3 +540,140 @@ is the third confirmation that enumeration ends a pattern where sampling does
 not. Two spaces remain un-enumerated and are where the next yield is:
 **file modes across both hosts**, and **the content of documentary claims** as
 opposed to their existence.
+
+---
+
+## Follow-up of 2026-08-20/21 — the 08-19 run is fully shipped
+
+All four issues the 08-19 audit produced are merged and deployed, each verified
+on the machines and idempotent: **#177** (sweep residues, PR #181), **#178**
+(statements without effect, PR #184), **#179** (push monitors, PR #183),
+**#180** (offsite tunnel, PR #185). Plus **PR #186**, a CI fix unrelated to the
+audit. **#182 stays open by design**: three `notify()` sites and the dump gate
+are still proven on fixtures only, and their real runs are Sun 2026-08-23 05:00
+and 06:00 and Mon 2026-08-24 00:42.
+
+### One of MY OWN entries in this file was contradicted without being read
+
+On 2026-08-21 I told the operator #128 was the best remaining remote-doable
+issue, reasoning that SSH does not traverse Traefik so a bad rule is
+recoverable. The reasoning is true and answers the wrong question. **This file
+already classified #128 as "Needs local work", and that classification is
+right.**
+
+Checked afterwards, on the compose file rather than from memory: wg-easy and
+Traefik are **already on the same `proxy` network**. The source address is not
+erased by a boundary between them but by the *path* — VPN traffic leaves to the
+host and re-enters through the published port, arriving as the bridge gateway.
+Correcting that means touching wg-easy's forwarding rules, or changing what VPN
+clients resolve and therefore the `AllowedIPs` in **every client configuration**.
+Both touch the only route to the host; the second also needs every device
+re-provisioned.
+
+The lesson is not about #128. **Read the reason column before contradicting the
+table.** An entry that says why something is open is load-bearing, and
+re-litigating it from a plausible-sounding argument is exactly the failure this
+file exists to prevent.
+
+### A live break test was repaired by a mechanism nobody had enumerated
+
+The #180 mechanism was exercised for real: the offsite peer's endpoint was
+forced to an unroutable TEST-NET-1 address with an unattended rollback armed
+first. The tunnel recovered in **under ten seconds — and not by the mechanism
+under test**, whose 150 s gate was never reached and whose journal stayed silent.
+
+```
++0s   endpoint forced to TEST-NET-1        (handshake 117s)
++10s  endpoint ALREADY correct, handshake still ageing at 127s
++20s  new handshake completed
+```
+
+The middle line is the proof: corrected **without a new handshake**, so nothing
+on that host initiated it. WireGuard's **roaming** did — a peer adopts the source
+address of any authenticated packet it receives, and the homelab initiated a
+rekey to the endpoint it still knew.
+
+**Before breaking something to test a repair, enumerate every mechanism that
+could repair it.** Otherwise the test measures the fastest one, which may not be
+the one being tested, and a green result reads as proof.
+
+The test also chose the wrong scenario: breaking the endpoint while the home
+address is unchanged is precisely the sub-case roaming covers. The target
+failure — a home address *change* — remains unexercised.
+
+### Settled by research, do not re-derive
+
+- **Roaming does NOT recover a server address change for a client behind NAT.**
+  Upstream states it directly (a moved server cannot reach the client, "it needs
+  client to initial the connection"; `PersistentKeepalive` does not help), and
+  RFC 4787 explains why: the NAT holds a mapping created toward the OLD address,
+  and address-dependent or address-and-port-dependent filtering — the common
+  consumer behaviours — drop packets from a source the internal host never wrote
+  to. Only one direction of repair exists: **the offsite host must send first**,
+  which reaches the peer and opens the return path in the same packet. So the
+  re-resolve timer is **load-bearing, not redundant**, and it holds under any
+  filtering behaviour because it never asks that NAT to accept an unsolicited
+  source.
+- **The offsite tunnel is split**, and that is what makes any re-resolution
+  possible: the host's resolver is its own LAN router over `eth0`, AllowedIPs
+  carry the homelab VPN subnet only. A full-tunnel client could not look the name
+  up while the tunnel was down, and only detection would have remained.
+- **Handshake age is a sawtooth with a structural ceiling**: 60 samples at 5 s
+  gave p50 55 s, p90 112 s, max 122 s, never above 135 s — WireGuard's ~120 s
+  renegotiation plus establishment, not a variable that drifts. The 150 s gate
+  sits 28 s above it. A spurious fire rewrites the same address on an existing
+  peer and changes nothing.
+- **`ansible-galaxy role install` does not accept `--no-cache`**; only
+  `collection install` does (checked against ansible-core 2.21.2). The response
+  cache cannot help on a runner that starts empty — it is reusable only between
+  the two invocations of one job.
+- **Navidrome reads `ND_SCANNER_SCHEDULE`**, and an unknown `ND_*` warns about
+  nothing. Check the boot log for `Scheduling periodic scan`, never the variable.
+- **`deploy_services` with more than one service needs the JSON form**
+  (`-e '{"deploy_services": "a b"}'`); the shell eats the quotes otherwise.
+- **Credential stores are gated by DIRECTORY mode 0700**, not per-file modes,
+  because SQLite recreates `-wal`/`-shm` with the process umask. Safe only
+  because each of the five is bind-mounted by exactly one container and reached
+  as the directory's own owner — no `DAC_OVERRIDE` dependency, so no repeat of
+  #138.
+
+### New instrument traps — four, three of them mine
+
+- **`head -10` truncated a sweep and hid its only real result.** The sweep for
+  the false "PENDING does not notify" claim reported clean on docs and templates;
+  the one genuine instance was a comment block in `homelab-health.sh.j2`,
+  asserting it about the very monitor #179 was changing. **Never pipe a
+  completeness sweep through `head`** — cap the output, or count it, but do not
+  truncate the evidence you are about to call complete.
+- **A regex found 2 of 4 unsized tmpfs; the YAML parser found 4.** Structured
+  files get parsed, not grepped, when the question is "how many".
+- **The journal bounds the journal, not reality.** "1239 DDNS runs unchanged"
+  reads as long-term stability; it reaches back 13 days. Cloudflare's own record
+  answers properly — `created_on == modified_on == 2026-07-19` means the address
+  has *never* changed. Ask the authoritative system, not the local log.
+- **zsh command-substituted a backticked segment inside `git commit -m`**,
+  silently emptying it. Write long messages to a file and `-F` them, and verify
+  from the commit object rather than the exit code.
+- Related, from the same evening: an unprivileged `grep` with `2>/dev/null` on a
+  root-only config returned nothing, which is indistinguishable from "the line is
+  absent". A permission error swallowed is a false negative.
+
+### Still open going into the next run
+
+Five, and four of them share a cause.
+
+| # | Why it is still open |
+|---|---|
+| #128 | Traefik sees every VPN client as one gateway address. **Local work** — the fix touches wg-easy's forwarding or every client's `AllowedIPs`; already re-confirmed once, do not re-litigate |
+| #138 | wg-easy cannot write its own database; a peer cannot be revoked. **Requires someone at the machine** |
+| #154 | Neither ext4 volume is ever checked. **Half doable remotely**: the configuration change is remote, the verification needs a boot-time check or an unmount of `/mnt/data` — and `/mnt/data` carries wg-easy, so unmounting it removes remote access |
+| #160 | `wg_easy_config` cannot write and would abort the deploy at step 4 of 12. Sibling of #138 |
+| #182 | Scheduled, not blocked: the three unrun `notify()` sites and the dump gate fire on their own over 23–24 August |
+
+The four blocked ones all touch **the tunnel or the disk** — the two things that
+cannot be broken without someone on site. That is not a planning accident; it is
+what remained after everything else was done.
+
+Also open: **Renovate PR #88**, eleven image bumps, one of which is wg-easy.
+It cannot be merged whole from a distance. Split the wg-easy bump out, ship the
+other ten, and hold the VPN upgrade for a day with physical access.
