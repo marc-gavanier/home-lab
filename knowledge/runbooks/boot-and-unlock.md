@@ -53,8 +53,9 @@ What to expect and do when the Pi comes back up. Design rationale in
    journalctl -t homelab-startup -b -f
    ```
 
-4. **DNS is back ~1–3 min in** (Tier 0: traefik/pihole/wg-easy start with the
-   daemon). The waves then bring up light services → Nextcloud stack → heavy
+4. **DNS is back ~1–3 min in** (Tier 0: traefik/pihole/wg-easy/dnsproxy/socket-proxy
+   start with the daemon — five containers, enumerated on the host by restart policy,
+   not three as this line said until #178). The waves then bring up light services → Nextcloud stack → heavy
    tier, ending with `staged startup complete — all waves dispatched`.
 
 5. **Verify** (optional):

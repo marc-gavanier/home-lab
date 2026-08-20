@@ -42,8 +42,9 @@ weekly in the local maintenance job, not in the backup window.
   `--read-data-subset=<month>/12`, whole repo re-read over ~12 months) to catch local
   bit-rot without pegging the Pi every week.
 - **Offsite** (ADR-010): second Restic repo on the offsite Pi (Pi 4 4GB + 2TB SSD,
-  WireGuard client, rest-server **append-only**), fed by a nightly `restic copy` of the
-  latest snapshot. Distinct repo password, never stored on the offsite host. Weekly
+  WireGuard client, rest-server **append-only**), fed nightly with every snapshot from
+  the last 7 days it does not already hold — a retry window rather than the latest
+  snapshot alone, so a failed night is recovered by the next one (#158). Distinct repo password, never stored on the offsite host. Weekly
   `restic check` from the homelab + weekly disk/SMART/power self-report and a
   monthly SMART long self-test. Runbook: `knowledge/runbooks/offsite-backup.md`.
 

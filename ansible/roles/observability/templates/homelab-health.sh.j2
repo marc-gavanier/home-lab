@@ -497,13 +497,23 @@ if command -v systemctl >/dev/null 2>&1 && mountpoint -q /mnt/data; then
     # checks above — which use a two-strike gate and therefore naturally produce
     # two consecutive bad beats — a restart is detectable for exactly ONE run by
     # construction: the comparison is against the previous NRestarts snapshot,
-    # which this very run has just overwritten. The monitor is at maxretries=1,
-    # so a single bad beat becomes PENDING, and PENDING does not notify in Kuma
-    # v2. Measured over 60 days on this monitor: one real detection
-    # (claude-remote-control.service 7->8, 2026-07-28, recorded status=2) and
-    # ZERO notifications. The only two DOWN beats in that window are "No
-    # heartbeat in the time window" — the dead-man's switch, not the content.
-    # Two emissions turn PENDING into DOWN, which is what reaches a human.
+    # which this very run has just overwritten. Measured over 60 days: one real
+    # detection (claude-remote-control.service 7->8, 2026-07-28, recorded
+    # status=2) and ZERO notifications, the only two DOWN beats in that window
+    # being "No heartbeat in the time window" — the dead-man's switch, not the
+    # content.
+    #
+    # The diagnosis written here first was wrong and is corrected rather than
+    # deleted, because it is the kind that repeats: it said a single bad beat
+    # became PENDING and that "PENDING does not notify in Kuma v2". PENDING DOES
+    # escalate — with the wrong text. Kuma's push branch raises "No heartbeat in
+    # the time window" whenever the previous beat is not UP, and with a retry it
+    # is that raised beat, not this script's message, that notifies. So the
+    # detection reached a human and named the wrong thing (#179).
+    #
+    # The monitor now runs at maxretries=0, where one bad beat is DOWN and
+    # carries this text. Holding the latch across a second beat is kept anyway:
+    # it costs nothing and gives the message a second chance to land.
     FLAP_LATCH=/var/lib/homelab-health/flapping
     if [ -n "$flapping" ]; then
         printf '%s\n' "$flapping" > "$FLAP_LATCH"

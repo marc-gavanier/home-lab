@@ -282,6 +282,23 @@ renews automatically, so this is normally moot — it exists to catch a *silent*
 renewal failure (ACME error, bad API token, rate limit), which would otherwise
 only surface as an outage on expiry day.
 
+That mechanism covered **15 of the 18 certificates**: it can only watch what an
+HTTPS monitor polls, and three hostnames have no monitor. Since #157,
+`homelab-health.sh` parses `acme.json` directly instead, so all 18 are watched
+from the store Traefik actually writes — the push carries e.g. `certs 50d/18`,
+naming the soonest expiry and the count. It alarms at **21 days**: Traefik renews
+at 30, so the alarm means renewal has been failing for over a week — long enough
+that one unreachable night is retried and never seen, short enough to act on
+calmly.
+
+Reading the log was not an option and that is worth recording: Traefik's log
+filter is at WARN, and renewal lines are below it, so a log-based watch was
+structurally blind. The parse is indifferent to *why* a renewal stopped.
+
+An absent `acme.json` reports rather than skips — while `/mnt/data` is locked the
+file is legitimately missing and the disk report already says so, but on a
+mounted volume its absence means nothing is being watched at all (#177).
+
 Since the public HTTP surface was closed (ADR-014, issue #12), these checks
 run **from the Pi itself** — they prove the service works, not that it is
 reachable from the internet. Nothing is meant to be reachable from the
@@ -308,6 +325,14 @@ need a human:
 | systemd restart loop | a unit stuck in `auto-restart` across two consecutive runs                                         |
 | Expected unit down   | docker, containerd, fail2ban, claude-remote-control or wg-quick@wg0 not `active`                   |
 | Timer last run       | a `homelab-*` timer whose triggered service did not end in `success`                               |
+| Unit restarted       | a watched unit's `NRestarts` moved since the last run — held across a second beat                  |
+| Git mirror stale     | the mirror has not **completed** a sync for > 4 h, or its state is unreadable twice running         |
+| Certificate expiry   | the soonest of the 18 certificates is under **21 days**, unreadable, or `acme.json` is absent       |
+
+The table is generated from nothing — keep it level with `problems+=(` in
+`homelab-health.sh.j2` by hand. It drifted to eleven rows against twenty-one
+conditions before #178, and the gap was made of exactly the two mechanisms added
+most recently, which is the shape to expect next time.
 
 **Why 800 MiB.** `MemAvailable` rather than free memory: the page cache is
 reclaimable and `/mnt/data` churns hundreds of MB a night, so free memory reads
@@ -485,7 +510,7 @@ Both write sources are bounded so they can never fill the SD card:
 
 - Docker: `json-file` driver, `max-size 10m` × `max-file 3`
   (`ansible/roles/docker/tasks/install.yml`).
-- journald: persistent but capped at `SystemMaxUse=200M`, via a drop-in
+- journald: persistent but capped at `SystemMaxUse=500M`, via a drop-in
   (`ansible/roles/base/tasks/logging.yml`). Persistence is deliberate — the
   boot logs are what the "unexplained poweroff" runbook reads.
 

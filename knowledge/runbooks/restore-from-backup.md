@@ -10,7 +10,9 @@
 
 Backups are made by `ansible/roles/deploy/files/backup.sh` (daily `homelab-backup.timer`) into the Restic repo
 at `/mnt/data/backups/restic-repo`. They cover `/mnt/data/services` (service data),
-`/mnt/data/media` (photos/music/videos), the DB dumps, and `/opt/homelab`. See
+`/mnt/data/media` (photos/music/videos), `/mnt/data/secrets` (the credential files —
+omitted from this list until #178, though `backup.sh` has always included them), the
+DB dumps, and `/opt/homelab`. See
 `docs/06-backup/README.md`.
 
 ## Prerequisites

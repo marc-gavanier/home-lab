@@ -6,8 +6,13 @@ append-only mode. The repo password is deliberately NOT stored on it.
 
 ## Daily operation (all automatic)
 
-- 03:00 — homelab `backup.sh`: local backup, then `restic copy latest` to
-  `rest:http://10.8.0.4:8000/` (Kuma push monitor "offsite copy").
+- 03:00 — homelab `backup.sh`: local backup, then an offsite copy of every snapshot
+  from the **last 7 days** that is not already there (Kuma push monitor "offsite copy").
+  It is a retry window, not a single `restic copy latest`: a night that failed its copy
+  is picked up by the following nights instead of being lost (#158). Re-offering
+  snapshots already present creates no duplicates — the message reads e.g.
+  `1 new, 7 already there`. So a red copy monitor that goes green the next night has
+  **self-healed**, and needs no manual copy.
 - Sunday 06:00 — homelab `homelab-offsite-check.timer`: `restic check` of the
   offsite repo through the tunnel (Kuma push monitor "offsite check").
 - Sunday 08:00 — offsite `offsite-health.timer`: disk/SMART/power self-report
