@@ -129,13 +129,38 @@ case those packets are dropped, no roaming occurs, and this mechanism is the onl
 recovery left. If that NAT is endpoint-independent instead, roaming already covers the
 failure and this timer is a belt over braces.
 
-**Which one it is remains unmeasured**, and it is not knowable without a test that
-suppresses roaming — dropping inbound UDP from the homelab at the offsite host for the
-duration, with a time-limited removal armed first.
+**The protocol's own documentation answers it, and the answer is no.** Three independent
+sources agree that roaming does not recover a server address change when the client is
+behind NAT:
 
-This does not change the decision. The mechanism is the only recovery path that does not
-depend on the filtering behaviour of a router in someone else's house, on a link with no
-out-of-band access. But nothing here may be described as proven in the real failure mode.
+- The WireGuard mailing list, on exactly this question: a changed server cannot reach the
+  client, "it needs client to initial the connection", and `PersistentKeepalive` does not
+  help. The thread points at the reresolve script as the mechanism to build.
+- Pro Custodibus, stating the condition explicitly: recovery would require "the endpoint
+  proactively initiates a connection to the client from its new IP address (which NAT or
+  other firewall rules make impossible in a typical client-server scenario)".
+- The unofficial WireGuard docs: roaming learns from authenticated packets, but "DNS
+  hostnames are not continuously polled in the background", so proactive refresh needs
+  external tooling.
+
+The mechanics behind that agreement: the parents' NAT holds a mapping created by the
+offsite host's outbound traffic to the OLD home address. When packets arrive from the NEW
+one, address-dependent or address-and-port-dependent filtering drops them — the internal
+host has never sent anything there. Per RFC 4787 those filtering behaviours are the common
+consumer case; endpoint-independent filtering combined with endpoint-independent mapping,
+the one arrangement that would let roaming through, is rare in practice.
+
+So the direction of repair matters, and only one direction is available. The offsite host
+must send *first*, to the new address, which both reaches the peer and opens the NAT
+mapping for the return path. Re-resolving the name is what makes it send there. That is
+why this fix does not depend on the parents' NAT at all: it works under any filtering
+behaviour, because it never asks the NAT to accept an unsolicited source.
+
+**This mechanism is therefore load-bearing, not redundant**, and the audit's premise was
+right. What the break test proved is narrower than intended but not nothing: the fail-safe
+paths hold on a live interface, and roaming covers the sub-case where the home address is
+unchanged. The target failure mode remains unexercised — reproducing it needs a home
+address change or a test rig that suppresses roaming.
 
 ## Consequences
 
@@ -150,7 +175,7 @@ out-of-band access. But nothing here may be described as proven in the real fail
   four cases including the fail-closed one. The live break test recovered in under ten
   seconds but by roaming, not by this timer, so the target failure mode is still
   unexercised. See the section above for the test that would settle it.
-- **A question this opened.** Whether roaming already recovers a home-address change
-  depends on the parents' NAT filtering, which nobody has measured. That is worth
-  knowing independently of this fix: if it does, the exposure was smaller than the
-  audit assessed; if it does not, this timer is load-bearing.
+- **The question this opened is closed.** Roaming does not recover a home-address change
+  for a client behind NAT — upstream says so, and RFC 4787 explains why the common
+  consumer filtering behaviours drop the packets that would carry it. The exposure the
+  audit described was real, and this timer carries it.
