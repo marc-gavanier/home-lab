@@ -677,3 +677,200 @@ what remained after everything else was done.
 Also open: **Renovate PR #88**, eleven image bumps, one of which is wg-easy.
 It cannot be merged whole from a distance. Split the wg-easy bump out, ship the
 other ten, and hold the VPN upgrade for a day with physical access.
+
+## The run of 2026-08-21 — one pattern, four instances, and one thing nobody can see
+
+The baseline was clean before the fan-out: zero failed units, 28 containers up,
+eight `homelab-*` timers at exit 0, 31/31 monitors UP. The run still returned
+findings, which is the whole argument for running it against a green surface.
+
+One piece of baseline work paid for itself immediately: five containers had been
+recreated at the same second the evening before, and checking `RestartCount=0`
+and `OOMKilled=false` **before** briefing the agents kept two of them from
+reporting "unexplained restarts". It was PR #186 shipping, nothing more.
+
+### The finding no instrument here can produce: nobody is asking Pi-hole anything
+
+Since **2026-08-08**, not one LAN address has sent a query. Not a changed DHCP
+lease — a new address would have appeared in the log, and none did.
+
+| Day        | Queries | Distinct clients |
+|------------|---------|------------------|
+| 2026-08-07 | 42 364  | 7                |
+| 2026-08-08 | 27 460  | 7 ← the break    |
+| 2026-08-09 | 24 251  | 3                |
+| 2026-08-20 | 46 635  | 4                |
+
+The four LAN clients stopped between 08:56 and 14:34 on the same day. What is
+left is the VPN peers, the Docker gateway, the loopback and the Pi itself, and
+those keep the query count high enough that no volume-based alarm could fire.
+
+The instrument gap is the point: **Uptime Kuma asserts that the resolver
+answers, never that anyone asks it.** A resolver nobody uses is green. The
+consequence is live — no ad-blocking and no split DNS for anything on the LAN.
+
+The cause is off-box and needs one look at the router by the operator. Do not
+build machinery for it before that look.
+
+One caution for whoever picks this up: pinging those addresses at 01:00 and
+finding them silent, with `INCOMPLETE` ARP entries, proves **nothing** — a
+sleeping phone answers exactly the same way. The query log is the evidence.
+
+### The pattern: four sweeps, each stopped one instance short
+
+Every correction of the previous week was applied to the set its author had open,
+not to the set that shares the defect.
+
+| Sweep                    | What it closed                         | What it left behind                                                  | Issue |
+|--------------------------|----------------------------------------|----------------------------------------------------------------------|-------|
+| argv (#177)              | 11 scripts moved to `curl -K -`        | the `claude-code` role — `feed-digest` leaks **two** credentials     | #188  |
+| credential stores (#177) | 5 directories set to 0700              | `pihole.toml`, 644 under 755 parents, carrying the API password hash | #189  |
+| dump guards              | 3 gates became `check_sqlite_dump`     | the 4th, Immich: no `else`, and content never asserted               | #190  |
+| accepted 401 (#145)      | the Transmission container healthcheck | the Kuma monitor, still accepting 401                                | #191  |
+
+Two of the four were found independently by two agents each, from different
+angles — that convergence is what moved them from lead to finding.
+
+**The lesson for the next sweep**: enumerate the class from the property that
+defines it (every process that hands a credential to `curl`, every store holding
+a hash, every dump the script does not produce itself), not from the files
+already open in the editor. All four instances were outside the directory the
+original work was in.
+
+### Reported on 2026-08-21, not yet decided
+
+Kept here so the next run does not re-derive them from scratch. Evidence is in
+that run's reports, outside the repo.
+
+- **The 5 TB drive's temperature threshold is its own lifetime maximum.** The
+  daily check alarms at 60 °C and comments "rated to 65"; the drive reports
+  `Specified Max Operating 50`, `Power Cycle Max 56`, `Lifetime Max 60`. It is
+  sampled once a day, so the peak is never seen. `-l scttempsts` reads the max
+  since power-up. Same sweep applies to the offsite host.
+- **The documented mirror-staleness threshold cannot fire.** The observability
+  page promises an alert after 4 h without a completed sync; the mirror interval
+  is 8 h and the grace is one more, so the earliest possible alarm is 9 h.
+- **46 container resurrections in 30 days that nothing counts** (44 miniflux, 2
+  miniflux-db). Unit flapping is watched closely; the heal timer's own journal is
+  read by no instrument. Two agents, two routes, same gap.
+- **One floating image tag out of 28**: miniflux's database. Renovate cannot
+  raise a PR against it, so the binary can change under the data directory
+  without a commit.
+- **The stored `offsite-backup` VPN profile is full-tunnel** while the deployed
+  one is split. Regenerating it from the UI would remove the recovery path #180
+  added. Two documentation lines — attach them to #138, do not open a row.
+- **The Discord notification is not the default.** 31/31 monitors are bound
+  today, but the next one entered by hand is born with no alerting path.
+- **A pre-branding copy of the compose file** sits next to the live one, dated
+  5 July, referenced nowhere, carrying 13 floating tags — one of which would
+  refuse to start against the current data directory. A `rm`.
+- **The box-reset warning covers the web ports and omits the published DNS one**,
+  the only one with no application-layer guard. Proved closed today from the
+  offsite uplink, with a known-open port as control.
+- The offsite VPN role claims a name "resolves publicly" when it has no public
+  record; the `/etc/hosts` pin is what makes it resolve at all.
+
+### Measured and rejected — added 2026-08-21
+
+- **The swap question is answered, and the 08-30 recheck can be closed.** It is a
+  ceiling, not a ramp: 3 % after the 08-16 restart, peak 1826 MiB (44.6 %) on
+  08-18, then **down to 1620 MiB with no restart at all**, and 1460 MiB (35.7 %)
+  on 08-21. Forty points below the 85 % gate. Re-open only on a peak above
+  44.6 %.
+- The same measurement shows **the 08-15 resize was not cosmetic**: `free+used`
+  was 2048 MiB until 08-15 10:51 UTC, with mean free swap between 1.6 and
+  9.7 MiB for about ten days. The cold-page set measured now would not have fit.
+- **Memory stalls are bounded, not worsening**: 0.067 % of time above 5 % before,
+  0.069 % after — same frequency, amplitude halved (34.93 → 14.96 %). Every daily
+  maximum falls inside the 03:00 backup window.
+- **ext4 reserved blocks on the data volume** (250 GB): pointless against a
+  ten-year runway at +0.97 GiB/day.
+- **dm-crypt write latency** (123 ms against 1.7 ms on the raw device): real, but
+  the only lever touches the unlock path for 1.3 % blocked time, and per-bio
+  accounting biases the mean.
+- **SD wear**: 1.94–1.97 GB/day on two concordant instruments, about eleven card
+  rewrites a year. No action.
+- **Collabora's 33 `coolmount`/`CAP_SYS_ADMIN` errors and its 95.8 s jail copy**
+  are documented and decided in ADR-021. Refuted on the machine before being
+  written down; do not re-report.
+- **fail2ban has never banned anything** — and the absence of `f2b` chains is
+  **not** proof it is broken: 1.0.2 enables `actionstart_on_demand` by itself.
+  Only a reversible drill settles it, and an audit is read-only, so it stays
+  suspected.
+
+### New instrument traps — eight, two of them mine
+
+- **Mine: counting the heal journal with a grep that matched systemd's own lines
+  returned 26 922.** The real number is 46. Count only what the script itself
+  emits, never the unit's start/stop chatter around it.
+- **Mine: ping and ARP at 01:00 say nothing about a device's presence.** A
+  sleeping client is indistinguishable from an absent one. It nearly turned a
+  solid finding into a wrong causal claim.
+- **`no_log` does not mask `environment:`** — both tasks leak identically under
+  `-vvv`. Do not propose adding it to `restic init`.
+- **`default:` in an `argument_specs` file defines nothing** (measured on
+  ansible-core 2.21.2; 0 of 113 in this repo rely on it).
+- **`is-enabled` counts the `mnt-data.mount.wants` links**, which inflates any
+  enabled-unit tally that goes through it.
+- **A `*unattended*` glob returns the inverse of the truth on the offsite host.**
+- **The `config-hash` drift check gives a systematic false positive on dnsproxy**:
+  Compose resolves `network_mode: service:pihole` to a container ID before
+  hashing. Proved by substitution — the correct reading is 28/28 conforming.
+- **An unprivileged shell glob evaluated in front of `sudo`, under a 0770
+  directory, reads as "path does not exist"** — the same false-negative family as
+  the swallowed permission error already recorded above. And
+  `grep "^#\+ *Restore"` misses `## Data and Restore`, which nearly produced a
+  false finding about Calibre-Web's restore procedure.
+
+### One entry in this file was wrong: `.RestartCount`
+
+It is not inert. It counts **policy** restarts only — useless for the 23
+containers at `restart=no`, which is presumably how it got written off, but it is
+the right instrument for the five Tier-0 ones, and those write no line in the
+heal journal at all.
+
+### Verified clean by enumeration — do not re-derive without a new symptom
+
+- **Repo→host drift is zero on both hosts**: 21/21 verbatim copies identical by
+  sha256, 23/23 homelab templates and 9/9 offsite artefacts identical line by
+  line.
+- 93 operator keys with no dead knob (`offsite_ip` is read by the inventory);
+  45 `notify:` with no orphan handler; no `command`/`shell` without
+  `changed_when` or `creates:`; 81 silent-disablement constructs read one by one,
+  the three gates on absent variables documented and applied.
+- 28/28 arm64, 28/28 log rotation, 37 tmpfs all sized, healthchecks with zero
+  retained probe failures, mount coherence, `depends_on`.
+- Perimeter: no IPv6, 19/19 routers carrying all three middlewares, headers
+  served on 18/18, `sniStrict` proven, 18/18 certificates at 49–83 days, split
+  DNS 18/18, a single DoH upstream, gravity fresh.
+- **No no-op push**: all 12 push monitors carry their own script's message. The
+  constant DDNS message means the address has never changed; lynis reporting
+  `best 0` is the bootstrap run, and the file holds 73.
+- Documentation: 100 relative links with none broken, 153 absolute paths, 28/28
+  image tags, 17/17 thresholds in the health script, every timer schedule, and
+  the restore runbook point by point.
+- Backup verified on **content**, not presence: all five dumps and all seven
+  Immich dumps byte-identical between the two hosts, 44 snapshots continuous
+  since 2026-07-11 with only the documented 07-20 hole.
+
+### Still open going into the next run
+
+| #                 | Why it is still open                                                                                                   |
+|-------------------|------------------------------------------------------------------------------------------------------------------------|
+| Pi-hole, no issue | No LAN client has queried it since 08-08. **Off-box** — one look at the router by the operator, before any machinery   |
+| #188              | `feed-digest` hands two credentials to argv. Remote, two lines, the only live exposure of the run                      |
+| #189              | `pihole.toml` readable by every local account. Remote, one line in two places                                          |
+| #190              | The Immich dump guard skips silently and never asserts content. Remote, one commit                                     |
+| #191              | The Transmission monitor accepts 401. **UI plus a doc line** — Kuma monitors are entered by hand                       |
+| #128              | Traefik sees every VPN client as one gateway address. **Local work**; already re-confirmed twice, do not re-litigate   |
+| #138              | wg-easy cannot write its own database; a peer cannot be revoked. **Requires someone at the machine**                   |
+| #154              | Neither ext4 volume is ever checked. **Half doable remotely** — the verification needs a boot-time check or an unmount |
+| #160              | `wg_easy_config` cannot write and would abort the deploy at step 4 of 12. Sibling of #138                              |
+| #182              | Scheduled, not blocked: the unrun `notify()` sites and the dump gate fire on their own over 23–24 August               |
+
+The four new ones are all remote work. The four blocked ones still touch the
+tunnel or the disk, unchanged from the previous run.
+
+Also still open: **Renovate PR #88**, eleven image bumps, one of which is
+wg-easy. Split that one out, ship the other ten, hold the VPN upgrade for a day
+with physical access.
