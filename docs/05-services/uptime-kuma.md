@@ -63,7 +63,7 @@ is not worth a Discord message. **Veille quotidienne** waits 25h rather than the
 default: the digest runs once a day, so the dead-man window has to clear a full day
 plus the slack for a slow run.
 
-**Pi health** (600s) and **DDNS** (1800s) run with retries turned **off**, which is
+**Pi health** (600s) and **DDNS** (1080s) run with retries turned **off**, which is
 the opposite of what it looks like. Kuma's push branch raises `"No heartbeat in the
 time window"` whenever the *previous* beat is not UP — including for a punctual
 `status=down` push — and with one retry it is that raised beat, not the script's, that
@@ -78,9 +78,17 @@ is the correct answer. The cost was not theoretical: on 2026-08-18 a service was
 inactive for three hours, thirty-seven pushes named it, and the one alert that left
 described a dead host that was in perfect health.
 
-Retries stay at zero so an alert says what was detected. The intervals are widened to
-absorb the jitter the retry used to cover: the measured maximum gap between beats is
-340.5s for `Pi health` against its old 360s window, and 920s for `DDNS`.
+Retries stay at zero so an alert says what was detected. `Pi health` widens from 360s
+to 600s because removing the retry removes the slack it was accidentally providing:
+excluding real outages, its maximum jitter gap is 340.5s over 360 samples, which left
+19.5s of margin — 5% — on a script that spends about twenty seconds running.
+
+`DDNS` keeps its 1080s window, and that is a deliberate reversal of the first proposal
+in #179. Re-measurement did not support widening it: the observed maximum gap is
+921.4s, so 1080s already carries 17% of margin, and at 1800s the monitor would need
+**two** consecutive missed runs to alarm where one is the useful signal. Doubling a
+detection window costs sensitivity and should be paid for by a measurement, not by
+symmetry with the monitor next to it.
 
 The **Target** column names the endpoint on purpose. A bare `200 on /` would keep a
 service green while it is broken — the case measured on Dozzle, which serves its page
