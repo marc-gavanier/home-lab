@@ -678,7 +678,7 @@ Also open: **Renovate PR #88**, eleven image bumps, one of which is wg-easy.
 It cannot be merged whole from a distance. Split the wg-easy bump out, ship the
 other ten, and hold the VPN upgrade for a day with physical access.
 
-## The run of 2026-08-21 — one pattern, four instances, and one thing nobody can see
+## The run of 2026-08-21 — one pattern, four instances, and one finding that dissolved
 
 The baseline was clean before the fan-out: zero failed units, 28 containers up,
 eight `homelab-*` timers at exit 0, 31/31 monitors UP. The run still returned
@@ -689,10 +689,12 @@ recreated at the same second the evening before, and checking `RestartCount=0`
 and `OOMKilled=false` **before** briefing the agents kept two of them from
 reporting "unexplained restarts". It was PR #186 shipping, nothing more.
 
-### The finding no instrument here can produce: nobody is asking Pi-hole anything
+### The run's headline finding was the household leaving on holiday
 
-Since **2026-08-08**, not one LAN address has sent a query. Not a changed DHCP
-lease — a new address would have appeared in the log, and none did.
+Written down in full because it was the most confident wrong conclusion of the
+run, and the correction cost one sentence from the operator.
+
+Since **2026-08-08**, not one LAN address had sent a query:
 
 | Day        | Queries | Distinct clients |
 |------------|---------|------------------|
@@ -701,20 +703,39 @@ lease — a new address would have appeared in the log, and none did.
 | 2026-08-09 | 24 251  | 3                |
 | 2026-08-20 | 46 635  | 4                |
 
-The four LAN clients stopped between 08:56 and 14:34 on the same day. What is
-left is the VPN peers, the Docker gateway, the loopback and the Pi itself, and
-those keep the query count high enough that no volume-based alarm could fire.
+The four LAN clients stopped between 08:56 and 14:34 on the same day, and the
+remaining traffic was the VPN peers, the Docker gateway, the loopback and the Pi
+itself. Every fact was correct and independently re-measured. The reading built
+on them — a resolver nobody uses any more, ad-blocking silently off for the whole
+LAN — was wrong.
 
-The instrument gap is the point: **Uptime Kuma asserts that the resolver
-answers, never that anyone asks it.** A resolver nobody uses is green. The
-consequence is live — no ad-blocking and no split DNS for anything on the LAN.
+**2026-08-08 is the day the operator left for holiday.** The devices went with
+them. The VPN peers that kept querying throughout are the same people, remotely.
+Nothing broke; the house emptied.
 
-The cause is off-box and needs one look at the router by the operator. Do not
-build machinery for it before that look.
+The rules this buys, and they are cheap to apply:
 
-One caution for whoever picks this up: pinging those addresses at 01:00 and
-finding them silent, with `INCOMPLETE` ARP entries, proves **nothing** — a
-sleeping phone answers exactly the same way. The query log is the evidence.
+- **Ask what changed in the household, not only in the configuration.** Nothing
+  on either machine could have distinguished the two readings, and no amount of
+  further measurement on the machines would have either. One question to the
+  operator settled it in a sentence.
+- **A disappearance is not an event until something identifies the disappearing
+  side.** Traffic that stops in a band of a few hours on a single day describes
+  people at least as well as it describes machinery.
+- **Do not build an alarm on this.** "No LAN client is querying" is true every
+  time the house is empty for a week, so any monitor asserting it would fire on
+  holidays and teach everyone to ignore it. The gap it appears to expose — Kuma
+  asserts the resolver answers, never that anyone asks — is real but not worth
+  closing, for exactly that reason.
+
+The one follow-up worth keeping is dated and manual: **after the return, confirm
+that LAN clients reappear in the query log.** If they come back and do *not*
+resume querying, that is the finding this run thought it had.
+
+Two smaller things, still true: pinging those addresses at 01:00 and finding them
+silent with `INCOMPLETE` ARP entries proves nothing — a sleeping phone answers
+identically, and an absent one does too. And the remaining traffic kept the daily
+count high enough that no volume-based alarm could have fired either way.
 
 ### The pattern: four sweeps, each stopped one instance short
 
@@ -855,18 +876,17 @@ heal journal at all.
 
 ### Still open going into the next run
 
-| #                 | Why it is still open                                                                                                   |
-|-------------------|------------------------------------------------------------------------------------------------------------------------|
-| Pi-hole, no issue | No LAN client has queried it since 08-08. **Off-box** — one look at the router by the operator, before any machinery   |
-| #188              | `feed-digest` hands two credentials to argv. Remote, two lines, the only live exposure of the run                      |
-| #189              | `pihole.toml` readable by every local account. Remote, one line in two places                                          |
-| #190              | The Immich dump guard skips silently and never asserts content. Remote, one commit                                     |
-| #191              | The Transmission monitor accepts 401. **UI plus a doc line** — Kuma monitors are entered by hand                       |
-| #128              | Traefik sees every VPN client as one gateway address. **Local work**; already re-confirmed twice, do not re-litigate   |
-| #138              | wg-easy cannot write its own database; a peer cannot be revoked. **Requires someone at the machine**                   |
-| #154              | Neither ext4 volume is ever checked. **Half doable remotely** — the verification needs a boot-time check or an unmount |
-| #160              | `wg_easy_config` cannot write and would abort the deploy at step 4 of 12. Sibling of #138                              |
-| #182              | Scheduled, not blocked: the unrun `notify()` sites and the dump gate fire on their own over 23–24 August               |
+| #    | Why it is still open                                                                                                   |
+|------|------------------------------------------------------------------------------------------------------------------------|
+| #188 | `feed-digest` hands two credentials to argv. Remote, two lines, the only live exposure of the run                      |
+| #189 | `pihole.toml` readable by every local account. Remote, one line in two places                                          |
+| #190 | The Immich dump guard skips silently and never asserts content. Remote, one commit                                     |
+| #191 | The Transmission monitor accepts 401. **UI plus a doc line** — Kuma monitors are entered by hand                       |
+| #128 | Traefik sees every VPN client as one gateway address. **Local work**; already re-confirmed twice, do not re-litigate   |
+| #138 | wg-easy cannot write its own database; a peer cannot be revoked. **Requires someone at the machine**                   |
+| #154 | Neither ext4 volume is ever checked. **Half doable remotely** — the verification needs a boot-time check or an unmount |
+| #160 | `wg_easy_config` cannot write and would abort the deploy at step 4 of 12. Sibling of #138                              |
+| #182 | Scheduled, not blocked: the unrun `notify()` sites and the dump gate fire on their own over 23–24 August               |
 
 The four new ones are all remote work. The four blocked ones still touch the
 tunnel or the disk, unchanged from the previous run.
