@@ -500,11 +500,18 @@ One caveat, measured rather than assumed. A deliberate break on the live tunnel
 recovered in under ten seconds — by WireGuard's **roaming**, not by the timer,
 which never reached its gate. A peer adopts the source address of any
 authenticated packet it receives, so the homelab's next rekey taught the offsite
-host where home was. That covers a broken endpoint while the home address is
-unchanged. Whether it also covers an address *change* depends on whether the
-parents' NAT accepts inbound packets from a source it has never seen, which is
-unmeasured. The timer is the recovery path that does not depend on that answer;
-it is not yet proven against the real failure. See ADR-029.
+host where home was.
+
+That covers a broken endpoint while the home address is *unchanged*, which is
+not the failure this guards against. When the address changes, the homelab's
+packets reach the parents' NAT from a source it has never seen, and the common
+consumer filtering behaviours drop them (RFC 4787); upstream states the same
+conclusion directly — a moved server cannot reach a client behind NAT, the
+client must initiate. Which is what re-resolving does: the offsite host sends
+first, reaching the peer and opening the return path in the same packet. The
+timer is therefore the recovery, not a redundancy — and it works under any
+filtering behaviour, because it never asks that NAT to accept an unsolicited
+source. See ADR-029.
 
 ### Backups (push dead-man's switches)
 
