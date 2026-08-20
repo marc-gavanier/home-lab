@@ -496,6 +496,16 @@ describe a tunnel that is *alive* — one that needed repairing, or one whose
 handshake is ageing. A tunnel that is truly down is still read from silence, by
 the dead-man's switch.
 
+One caveat, measured rather than assumed. A deliberate break on the live tunnel
+recovered in under ten seconds — by WireGuard's **roaming**, not by the timer,
+which never reached its gate. A peer adopts the source address of any
+authenticated packet it receives, so the homelab's next rekey taught the offsite
+host where home was. That covers a broken endpoint while the home address is
+unchanged. Whether it also covers an address *change* depends on whether the
+parents' NAT accepts inbound packets from a source it has never seen, which is
+unmeasured. The timer is the recovery path that does not depend on that answer;
+it is not yet proven against the real failure. See ADR-029.
+
 ### Backups (push dead-man's switches)
 
 Every leg of the backup chain pushes on success, and the Kuma monitor alarms

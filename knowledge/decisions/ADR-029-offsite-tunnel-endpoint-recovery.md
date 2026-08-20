@@ -99,6 +99,44 @@ under `/usr/share/doc/` is an example, not an interface — a package update may
 drop it. Vendoring it would also have made it the repository's first third-party file
 under an explicit licence, in a repository that declares none.
 
+## The break test invalidated itself, and that is the finding
+
+Run on the live tunnel at 2026-08-20 23:54, with an unattended rollback armed first.
+The endpoint was forced to 192.0.2.1 (TEST-NET-1, unroutable) and the tunnel recovered
+in **under ten seconds** — but not by this mechanism.
+
+```
+23:54:14  endpoint forced to 192.0.2.1        (handshake 117s)
+23:54:24  endpoint ALREADY back to the real address, handshake still 117s -> 127s
+23:54:34  new handshake completed (age 10s)
+```
+
+The middle line is decisive: the address was corrected **without a new handshake**, and
+the re-resolve journal is silent — its 150s gate was never reached, so it could not and
+did not act.
+
+What repaired it is WireGuard's **roaming**: a peer adopts the source address of any
+authenticated packet it receives. `wg-easy` sets no `PersistentKeepalive` toward its
+clients, but the homelab had traffic for the offsite peer and initiated a rekey to the
+endpoint it still knew — the parents' public address and NAT-mapped port, unchanged and
+still valid. The offsite host authenticated that packet and adopted its source.
+
+**The test exercised the wrong scenario.** Breaking the endpoint while the home address
+stays put is exactly the case roaming covers. In the real failure the home address has
+*changed*, so the homelab's packets reach the parents' NAT from a source it has never
+seen. Consumer NATs commonly filter inbound by source address or address+port, in which
+case those packets are dropped, no roaming occurs, and this mechanism is the only
+recovery left. If that NAT is endpoint-independent instead, roaming already covers the
+failure and this timer is a belt over braces.
+
+**Which one it is remains unmeasured**, and it is not knowable without a test that
+suppresses roaming — dropping inbound UDP from the homelab at the offsite host for the
+duration, with a time-limited removal armed first.
+
+This does not change the decision. The mechanism is the only recovery path that does not
+depend on the filtering behaviour of a router in someone else's house, on a link with no
+out-of-band access. But nothing here may be described as proven in the real failure mode.
+
 ## Consequences
 
 - A home IP change now costs under four minutes of tunnel downtime instead of a trip.
@@ -108,7 +146,11 @@ under an explicit licence, in a repository that declares none.
   resolved — DNS broken at the parents' site, or the record deleted — the mechanism
   correctly refuses to act, the tunnel stays down, and the trip is back on the table.
   That residual case is what the health report's handshake age is for.
-- **Not yet trusted.** The mechanism is deployed but unproven against the real event.
-  It must be exercised by pointing the endpoint at a deliberately wrong address and
-  confirming recovery, with an unattended rollback armed first — the test breaks the
-  only link to that machine.
+- **Not yet trusted.** Deployed, idempotent, and proven on a scratch interface across
+  four cases including the fail-closed one. The live break test recovered in under ten
+  seconds but by roaming, not by this timer, so the target failure mode is still
+  unexercised. See the section above for the test that would settle it.
+- **A question this opened.** Whether roaming already recovers a home-address change
+  depends on the parents' NAT filtering, which nobody has measured. That is worth
+  knowing independently of this fix: if it does, the exposure was smaller than the
+  audit assessed; if it does not, this timer is load-bearing.
