@@ -57,11 +57,30 @@ Defaults for the active checks: 60s interval, 3 retries, accepted codes `200-299
 TLS expiry notification on. The push monitors are dead-man's switches: the job pushes
 on success, and Kuma alarms when the push does not arrive.
 
-Two monitors deviate on purpose. **Forgejo** polls every 300s with 2 retries: it is a
+Four monitors deviate on purpose. **Forgejo** polls every 300s with 2 retries: it is a
 mirror, not an interactive service — nobody is waiting on it, and a minute of downtime
 is not worth a Discord message. **Veille quotidienne** waits 25h rather than the
 default: the digest runs once a day, so the dead-man window has to clear a full day
 plus the slack for a slow run.
+
+**Pi health** (600s) and **DDNS** (1800s) run with retries turned **off**, which is
+the opposite of what it looks like. Kuma's push branch raises `"No heartbeat in the
+time window"` whenever the *previous* beat is not UP — including for a punctual
+`status=down` push — and with one retry it is that raised beat, not the script's, that
+notifies. So a retry does not make a push monitor more patient: it replaces the
+message the script sent with a generic one, and the alert then names the wrong thing.
+
+Measured over every notifying heartbeat before the change: `Pi health` had alerted
+four times and four times the text read `"No heartbeat"` instead of what the script
+had pushed, while the monitors already at zero retries kept their own text in six
+cases out of seven — the seventh being a genuine dead-man beat, where `"No heartbeat"`
+is the correct answer. The cost was not theoretical: on 2026-08-18 a service was
+inactive for three hours, thirty-seven pushes named it, and the one alert that left
+described a dead host that was in perfect health.
+
+Retries stay at zero so an alert says what was detected. The intervals are widened to
+absorb the jitter the retry used to cover: the measured maximum gap between beats is
+340.5s for `Pi health` against its old 360s window, and 920s for `DDNS`.
 
 The **Target** column names the endpoint on purpose. A bare `200 on /` would keep a
 service green while it is broken — the case measured on Dozzle, which serves its page
