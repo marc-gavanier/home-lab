@@ -42,8 +42,20 @@ jobs:
         # -p keeps external roles OUT of the repo tree (the relative
         # roles_path in ansible.cfg would land them in ansible/roles/,
         # where the linters would scan third-party code)
+        #
+        # --no-cache: ansible-galaxy caches Galaxy API responses in
+        # ~/.ansible/galaxy_cache. A runner starts with an empty one, so the
+        # cache can only ever be reused within this single job — a handful of
+        # version lookups. It cost a red PR on 2026-08-19: the entry was written
+        # and read back malformed inside the same run, and resolving
+        # community.crypto failed with "Missing expected 'results' in
+        # ansible-galaxy cache". The tool's own message names this flag as the
+        # workaround. Trading those few lookups for a class of failure that has
+        # already fired once is the right way round. Not passed to `role
+        # install`, which does not accept it — the role API uses a different
+        # path and was not what broke.
         run: |
-          ansible-galaxy collection install -r ansible/requirements.yml
+          ansible-galaxy collection install --no-cache -r ansible/requirements.yml
           ansible-galaxy role install -r ansible/requirements.yml -p ~/.ansible/roles
       - name: yamllint
         run: yamllint -c .yamllint.yml .
