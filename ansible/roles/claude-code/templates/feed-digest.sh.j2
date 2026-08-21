@@ -120,9 +120,17 @@ notify() { # $1=up|down  $2=message
     # push scripts. Step 5 of knowledge/runbooks/feed-digest.md still says to
     # paste the base form; this makes obeying it optional rather than critical.
     url="${url%%\?*}"
-    curl -fsS -m 10 -o /dev/null -G \
-        --data-urlencode "status=$1" --data-urlencode "msg=$2" \
-        "$url" 2>>"$LOG" || log "WARNING: Kuma push failed"
+    # The push URL's PATH is the monitor's token, so it goes in through a config
+    # file on stdin rather than as an argv positional: /proc is mounted without
+    # hidepid, any local account can read another process's command line, and
+    # this runs unattended on a timer. The sweep of #177 converted eleven scripts
+    # to this shape and never reached this role, which holds the twelfth notify()
+    # (#188). printf is a shell builtin, so the value never reaches an argv there
+    # either, and the pipe keeps it off the filesystem a heredoc would use.
+    printf 'url = "%s"\n' "$url" |
+        curl -fsS -m 10 -o /dev/null -K - -G \
+            --data-urlencode "status=$1" --data-urlencode "msg=$2" \
+            2>>"$LOG" || log "WARNING: Kuma push failed"
 }
 
 fail() { log "ERROR: $*"; notify down "$*"; exit 1; }
@@ -167,12 +175,18 @@ mf() { # $1=method  $2=path  [$3=body]
     # arguments the moment a request carries one.
     local -a args=(-fsS -m 60
         --resolve "${MINIFLUX_HOST}:443:${MINIFLUX_IP}"
-        -H "X-Auth-Token: ${API_KEY}"
+        -K -
         -X "$method")
     if [ -n "$body" ]; then
         args+=(-H "Content-Type: application/json" -d "$body")
     fi
-    curl "${args[@]}" "https://${MINIFLUX_HOST}${path}"
+    # The API key authenticates every call this function makes, and `-H` would
+    # hold it in argv for the length of each request — the same exposure as the
+    # push URL above, on a second credential (#188). Same shape as cf_api() in
+    # cloudflare-ddns.sh. Content-Type stays in the array on purpose: it is not a
+    # secret, and it belongs next to the body the array exists to protect.
+    printf 'header = "X-Auth-Token: %s"\n' "$API_KEY" |
+        curl "${args[@]}" "https://${MINIFLUX_HOST}${path}"
 }
 
 log "fetching unread entries"
