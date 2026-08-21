@@ -367,7 +367,13 @@ fi
 # and teach everyone to ignore it; and a directory gate covers files nobody has
 # added yet. This mirrors /mnt/data/secrets, whose own directory modes are the
 # only thing making its 0444 files safe.
-for store in vaultwarden uptime-kuma navidrome calibre-web transmission/config; do
+#
+# Pi-hole's store joined the list as the sixth (#189): pihole.toml carries
+# `webserver.api.pwhash` and sat at 0644 under two 0755 directories, which is the
+# same exposure the other five were closed against and was simply missed by the
+# sweep. Unlike them, that container reaches its data through DAC_OVERRIDE rather
+# than as the owner, so 0700 costs it nothing.
+for store in vaultwarden uptime-kuma navidrome calibre-web transmission/config pihole/etc; do
     dir="{{ services_data_dir }}/$store"
     [ -d "$dir" ] || continue
     dmode=$(stat -c %a "$dir" 2>/dev/null) || { problems+=("$store: directory mode unreadable"); continue; }
