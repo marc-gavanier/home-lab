@@ -304,13 +304,56 @@ check_sqlite_dump uptime-kuma "$KUMA_DB"        uptime-kuma.sqlite3
 # arbitrary age. Nothing would look wrong anywhere. Same staleness guard as the
 # SMART self-test check, for the same reason: the absence of a fresh artefact is
 # the signal, not the absence of an artefact.
+#
+# Gated on the CONTAINER like its three siblings above (#190). It used to hang off
+# `[ -d "$IMMICH_BACKUP_DIR" ]` with no else, which is the same defect #177 fixed
+# for the SQLite dumps wearing different clothes: if a version bump moves that
+# path, the directory test goes false, the whole check is SKIPPED, dump_failures
+# stays 0 and the night pushes UP having asserted nothing about the only
+# consistent copy of the photo database. wg-easy's store moved exactly that way.
+#
+# And the content is asserted now, not just the mtime. A truncated .sql.gz lands
+# with a current mtime, was certified fresh, and keepLastAmount then pruned the
+# last good one behind it.
+#
+# One pass does both. zcat has to decompress the whole stream to reach the tail,
+# and it verifies the CRC as it finishes, so its exit status covers integrity
+# while the tail carries the marker. Measured on the real 89 MB dump: `gzip -t`
+# 3.60s, `zcat | tail -c 4096` 4.03s — the tail read is the MORE expensive of the
+# two, not the cheaper as #190 assumed, so running both would pay twice for one
+# answer. 4s inside a run that already takes ~200s.
+#
+# The tail goes into a variable rather than straight into `grep -qF`. `grep -q`
+# exits on the first match, which can SIGPIPE the `tail` behind it, and under
+# `pipefail` that turns a SUCCESSFUL match into pipeline status 141 — a race that
+# would report a good dump as broken on some nights and not others.
+#
+# Read the TAIL, not the last line: pg_dump writes `\unrestrict` AFTER its
+# completion marker, the same reason assert_dump() gives above.
 IMMICH_BACKUP_DIR="/mnt/data/services/immich/upload/backups"
-if [ -d "$IMMICH_BACKUP_DIR" ]; then
-    if [ -n "$(find "$IMMICH_BACKUP_DIR" -name 'immich-db-backup-*.sql.gz' -mmin -2880 -print -quit)" ]; then
-        log "Immich database dump is fresh (<48h)"
-    else
-        log "ERROR: no Immich database dump newer than 48h in $IMMICH_BACKUP_DIR"
+if deployed immich-server; then
+    if [ ! -d "$IMMICH_BACKUP_DIR" ]; then
+        log "ERROR: immich-server is deployed but $IMMICH_BACKUP_DIR does not exist — nothing was dumped"
         dump_failures=$((dump_failures + 1))
+    else
+        immich_newest=$(find "$IMMICH_BACKUP_DIR" -name 'immich-db-backup-*.sql.gz' \
+                        -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1)
+        immich_dump=${immich_newest#* }
+        if [ -z "$immich_newest" ]; then
+            log "ERROR: immich-server is deployed and $IMMICH_BACKUP_DIR holds no dump at all"
+            dump_failures=$((dump_failures + 1))
+        elif [ "$(( ( $(date +%s) - ${immich_newest%%.*} ) / 3600 ))" -ge 48 ]; then
+            log "ERROR: newest Immich dump is $(( ( $(date +%s) - ${immich_newest%%.*} ) / 3600 ))h old — the scheduled job has stopped"
+            dump_failures=$((dump_failures + 1))
+        elif ! immich_tail=$(zcat -- "$immich_dump" 2>/dev/null | tail -c 4096); then
+            log "ERROR: Immich dump $(basename "$immich_dump") does not decompress — truncated or corrupt"
+            dump_failures=$((dump_failures + 1))
+        elif ! printf '%s' "$immich_tail" | grep -qF -- '-- PostgreSQL database dump complete'; then
+            log "ERROR: Immich dump $(basename "$immich_dump") has no completion marker — truncated ($(stat -c %s "$immich_dump") bytes)"
+            dump_failures=$((dump_failures + 1))
+        else
+            log "dump $(basename "$immich_dump") ok ($(stat -c %s "$immich_dump") bytes, fresh <48h, completion marker present)"
+        fi
     fi
 fi
 
