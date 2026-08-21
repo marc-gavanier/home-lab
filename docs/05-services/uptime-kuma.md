@@ -35,7 +35,7 @@ Uses Pi-hole as DNS (`dns: [${PI_LAN_IP}]` in compose) so that domain lookups fo
 | Collabora                 | HTTP(s)  | `https://office.example.com/hosting/capabilities` |
 | Forgejo                   | HTTP(s)  | `https://git.example.com/api/healthz`             |
 | Netdata                   | HTTP(s)  | `https://system.example.com/api/v1/info`          |
-| Transmission              | HTTP(s)  | `https://share.example.com/transmission/web`      |
+| Transmission              | Keyword  | `https://share.example.com/transmission/web/`     |
 | WireGuard                 | HTTP(s)  | `https://vpn.example.com`                         |
 | Traefik HTTPS             | TCP Port | `192.168.1.100:443`                               |
 | Transmission BT Peer Port | TCP Port | `transmission:51413`                              |
@@ -54,7 +54,8 @@ Uses Pi-hole as DNS (`dns: [${PI_LAN_IP}]` in compose) so that domain lookups fo
 | Veille quotidienne        | Push     | `feed-digest/digest.sh`, daily 06:30              |
 
 Defaults for the active checks: 60s interval, 3 retries, accepted codes `200-299`,
-TLS expiry notification on. The push monitors are dead-man's switches: the job pushes
+TLS expiry notification on. Since #191 no active monitor accepts anything outside that
+set — Transmission's `401` was the last exception. The push monitors are dead-man's switches: the job pushes
 on success, and Kuma alarms when the push does not arrive.
 
 Four monitors deviate on purpose. **Forgejo** polls every 300s with 2 retries: it is a
@@ -122,6 +123,32 @@ second was dropped before it was ever created (ADR-026).
 Worth noting what the same test showed about container health: `docker ps` still
 reported `healthy` while the service was returning 503, because the 30 s interval had
 not re-run. That is the argument for having a Kuma monitor at all — not for having two.
+
+**Transmission is the only monitor that authenticates**, and the alternatives were
+measured rather than argued (#191). Its accepted set used to carry `401`, which made it
+the only one of the thirty-one to count a refusal as success. Through Traefik:
+
+| Request                     | no credentials | as `admin`     |
+|-----------------------------|----------------|----------------|
+| `/transmission/web/`        | 401            | 200 + the UI   |
+| `/transmission/rpc`         | 401            | 409            |
+| `/transmission/nonexistent` | 401            | 409            |
+
+Unauthenticated, a path that does not exist is indistinguishable from the interface.
+Authenticated, the RPC endpoint's 409 does not distinguish one either — Transmission
+answers 409 to *any* authenticated path presented without a session id. The single
+response only a serving Transmission produces is the 200 carrying
+`Transmission Web Interface`, so the monitor is a Keyword check with HTTP Basic auth,
+and its password lives in `kuma.db` alongside the push tokens the file already holds.
+
+Be exact about what the old `401` did and did not prove, because it is easy to
+overstate: there is no `basicAuth` middleware on this router, so that refusal could
+only have come from Transmission's own listener on :9091 — Traefik with a dead backend
+returns 502, not 401. The monitor did prove routing, TLS and a live listener. What it
+could not prove is that anything behind the listener works, because the refusal is
+issued before the daemon does any of its own work. That is the same argument that moved
+the container healthcheck to `transmission-remote -l` in #145, applied to the external
+check that survives a container-level failure.
 
 This table is a readable summary, not the source of truth. The authoritative inventory
 is Kuma's own database — export it with `ops/kuma-dump.sh` (read-only, WAL-safe), which

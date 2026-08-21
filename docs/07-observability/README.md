@@ -207,8 +207,9 @@ Kuma is back, none of the dead-man's switches below are watching. Broad shape:
 Real health endpoints rather than a bare `200 on /`, so a service that is up
 but broken still trips: Nextcloud `/status.php`, Vaultwarden `/alive`,
 Jellyfin `/health`, Navidrome `/ping`, SearXNG `/healthz`, Dozzle
-`/healthcheck`, Calibre-Web `/login`, Collabora `/hosting/capabilities`, plus
-IT-Tools, Immich, Transmission, wg-easy, Traefik on :443, Pi-hole on :53, an ICMP
+`/healthcheck`, Calibre-Web `/login`, Collabora `/hosting/capabilities`,
+Transmission `/transmission/web/` (authenticated, keyword — #191), plus
+IT-Tools, Immich, wg-easy, Traefik on :443, Pi-hole on :53, an ICMP
 ping of the Pi and the BitTorrent peer port.
 
 Dozzle is where that rule stopped being a principle and became a measurement.
