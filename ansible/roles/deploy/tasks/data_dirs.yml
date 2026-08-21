@@ -98,6 +98,22 @@
 #
 # `mode` only, never `owner`: chowning a directory is what triggers the #138
 # reconciliation write, and this file must stay safe to run from a deploy.
+#
+# Pi-hole's store is the sixth, added by #189, and it is the exception to the
+# sentence above rather than another instance of it. It runs as root over an
+# /etc/pihole owned by uid 1000, so it does NOT reach its data as the owner —
+# it gets in because it holds DAC_OVERRIDE (with CHOWN, FOWNER and SETFCAP; the
+# reasons are argued at its capability list in compose.yaml). The five others
+# are safe because they never needed the capability, this one is safe because
+# it has it, and neither can be locked out by the bits. Exactly one container
+# mounts the path, as for the rest.
+#
+# What it closes: pihole.toml carries `webserver.api.pwhash` — populated, with
+# TOTP and app-password empty, so that hash is the only factor — and it sat at
+# 0644 under two 0755 directories, readable by any local account. The same
+# directory holds pihole-FTL.db, which is every DNS query the household has
+# made. Not `pihole` itself: its other mount, `pihole/dnsmasq`, is configuration
+# and closing it would gate more than the finding.
 - name: data_dirs | Gate the service directories that hold credentials
   ansible.builtin.file:
     path: "{{ services_data_dir }}/{{ item }}"
@@ -108,6 +124,7 @@
     - navidrome
     - calibre-web
     - transmission/config
+    - pihole/etc
 
 # Belt as well as braces, on the files an application does NOT recreate: if a
 # directory mode ever regresses, these do not hand the contents over with it.
