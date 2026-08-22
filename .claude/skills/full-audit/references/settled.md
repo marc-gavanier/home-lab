@@ -236,9 +236,15 @@ them on the machine rather than trust their tracking state:
   argument for verifying against the running system: the tracker said done, the
   filesystem said `Permission denied`. Its exclusion in the posture assertion is
   the only one there, and it disappears with the fix.
-- **The orphan `internal` network still exists.** Ansible no longer rebuilds it,
-  but nothing deletes a network that has merely stopped being created. One
-  `docker network rm internal` is owed.
+- **The orphan `internal` network is gone**, removed 2026-08-22. It had survived
+  since 14:51 on 2026-08-16 — the timestamp of the Ansible loop that rebuilt it
+  39 minutes after the first hand removal, before that loop was fixed. Nothing
+  recreates it: no Ansible task declares a bare `internal` network, and Compose
+  declares `internal` without `external`, so it creates the project-prefixed
+  `homelab_internal` instead. Identified unambiguously before deletion — the
+  orphan carried **no Compose labels and 0 containers**, against 12 containers
+  and a full label set on the live one — and `homelab_internal` was confirmed
+  still carrying its 12 afterwards.
 
 ### Method traps, all paid for the same evening
 
