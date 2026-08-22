@@ -126,8 +126,17 @@ Everything lives in Postgres under `${SERVICES_DATA_DIR}/miniflux/db`, inside th
 set like the rest of `/mnt/data`. There is no separate application volume.
 
 The portable escape hatch is **OPML export** (*Settings → Export*): it carries the
-subscription list, not the read/unread state or starred entries. For a full restore, the
-Postgres datadir is the only complete copy.
+subscription list, not the read/unread state or starred entries.
+
+**Do not restore the datadir.** The nightly backup writes a plain-SQL `pg_dump` to
+the dump directory, and that is what a restore loads. restic walks
+`services/miniflux/db` file by file while Postgres is writing to it, so the copy in
+a snapshot can be a torn cluster — it is in the restic set because everything under
+`/mnt/data` is, not because it is restorable.
+
+Full procedure: `knowledge/runbooks/restore-from-backup.md` → "Restore Miniflux
+(PostgreSQL)". It is not repeated here, for the reason the other service pages give:
+a procedure duplicated in two places drifts in one of them.
 
 ## Health
 

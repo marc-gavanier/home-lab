@@ -69,7 +69,11 @@ Defense in depth — each layer is secured independently. If one layer falls, th
   auto-reboot on the homelab; `needrestart` activates patched libraries
   reboot-free; kernel residue on a bounded manual cadence) — strategy in
   [ADR-013](../../knowledge/decisions/ADR-013-update-patching-strategy.md)
-- **Non-root user**: no service runs as root
+- **Non-root where the image allows it**: 11 of the 28 containers declare a
+  service uid and run as it. The other 17 start as root, and section 3 below
+  explains why — for five of them it is structural and cannot be removed
+  without breaking the service. This line used to read "no service runs as
+  root", which the same document then contradicted
 - **Audit**: lynis for periodic security audits; CIS Ubuntu 24.04 benchmark
   via `ansible/playbooks/cis-audit.yml` (read-only) — findings, remediation
   batches and assumed deviations in
@@ -102,7 +106,7 @@ Defense in depth — each layer is secured independently. If one layer falls, th
   the socket. (Netdata uses it solely to resolve container names.)
 - No `privileged` mode, and **`cap_drop: ALL` on every service**, each re-adding
   only what its image was *observed* to need (issue #24). Docker hands 14
-  capabilities to every container by default; twelve of the twenty-one keep none.
+  capabilities to every container by default; fifteen of the twenty-eight keep none.
   What the exercise showed is that the requirement is rarely guessable from the
   outside: Pi-hole needs `SETFCAP` because its image `setcap`s the FTL binary in
   order to run the resolver as non-root, wg-easy needs `NET_RAW` because
@@ -126,11 +130,18 @@ Defense in depth — each layer is secured independently. If one layer falls, th
   seven services to **four**, by two different means: owning the tree as root
   where the container is root throughout (Jellyfin, Navidrome), and **starting
   the container as the service uid** where the image would otherwise start as
-  root and hand off — `user: "999:999"` on both databases and both redis caches,
-  `user: "33:33"` on the Nextcloud cron companion. That second move is the
-  general one: it removes the root phase rather than feeding it, so `CHOWN`,
-  `SETUID`, `SETGID` and `FOWNER` go with it — five capabilities to zero, per
-  service. SearXNG shed its when the defect behind it was fixed (issue #27).
+  root and hand off — `user: "999:999"` on both databases and both redis caches.
+  That second move is the general one: it removes the root phase rather than
+  feeding it, so `CHOWN`, `SETUID`, `SETGID` and `FOWNER` go with it — five
+  capabilities to zero, per service.
+
+  **It does not extend to `nextcloud-cron`, whatever this page used to say.**
+  `user: "33:33"` was tried there and **reverted under #28**: busybox `crond`
+  calls `setgroups()` before every job, so without `SETGID` it logs "can't set
+  groups" once per run and **never executes `cron.php`** — with the container
+  reporting `Up` throughout. It runs as uid 0 with `SETUID`/`SETGID` today, and
+  that is deliberate. ADR-017 and the restore runbook already carried the
+  correction; this page did not. SearXNG shed its when the defect behind it was fixed (issue #27).
 - **The five that keep it are structural, not accidental**: pihole's root phase
   is where `setcap` runs on FTL; Nextcloud's apache must bind `:80` as root, and
   a non-root PID 1 has an empty permitted set, so `user:` would cost the port

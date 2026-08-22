@@ -21,12 +21,23 @@ The `ADMIN_TOKEN` is stored as an Argon2id hash (not plain text) — Vaultwarden
 Ansible automates the hashing:
 - `vaultwarden_admin_token` (plain) and `vaultwarden_admin_salt` (16 hex bytes) live in encrypted `local.yml`
 - The `deploy` role hashes the token using `python3-argon2` (Argon2id, m=65540, t=3, p=4, hash_len=32) with the fixed salt → **deterministic** output, no caching needed
-- The resulting `$argon2id$...` hash goes into the `.env` as `VAULTWARDEN_ADMIN_TOKEN_HASH`
-- Compose injects it as `ADMIN_TOKEN` env var
+- The resulting `$argon2id$...` hash is written to a **Docker secret**,
+  `/mnt/data/secrets/docker/vaultwarden_admin_token_hash`, and the container reads
+  it through `ADMIN_TOKEN_FILE` — not from the environment, and not from `.env`
+  (ADR-016). `VAULTWARDEN_ADMIN_TOKEN_HASH` no longer exists anywhere.
 
 Login at `/admin` uses the **plain token** — Vaultwarden compares it against the stored hash.
 
-To rotate the admin token: change `vaultwarden_admin_token` in `local.yml`, redeploy. The salt can stay the same (or rotate it too for extra hygiene).
+> **Changing the vault value and redeploying does not rotate this token.**
+> Vaultwarden keeps its own `config.json` in the data directory, it holds an
+> `admin_token` key, and that key **wins over the environment**. The deploy will
+> report `changed`, the handler will restart the container, and the old token will
+> still open `/admin` — the appearance of work without the operation. The two
+> values happen to agree today, so nothing reports the contradiction.
+>
+> The procedure that actually works is in
+> [`knowledge/runbooks/rotate-a-secret.md`](../../knowledge/runbooks/rotate-a-secret.md)
+> → "Rotating the Vaultwarden admin token". Follow it rather than this page.
 
 ## Client Setup
 

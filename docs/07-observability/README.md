@@ -450,7 +450,14 @@ public IP, every 15 minutes. It pushes on **every** run, including the common
 no-change one, and pushes `down` with a specific reason on each failure path
 (no public IP, zone lookup, create, update). Heartbeat 1080 s — the 900 s period
 plus a 180 s grace, the same period-plus-margin shape the other push monitors
-use — with one retry, so a single transient Cloudflare error does not page.
+use — with retries **off**, like `Pi health`.
+
+Zero retries is deliberate and is the opposite of what it looks like: on a push
+monitor a retry does not buy patience, it **replaces the message the script sent
+with a generic `"No heartbeat in the time window"`**, so the alert then names the
+wrong thing. Measured over every notifying beat before #179 changed it. The
+reasoning is in [uptime-kuma.md](../05-services/uptime-kuma.md); this line said
+"one retry" until #203.
 
 **What it adds is narrower than it looks, and worth stating.** A DDNS run that
 *fails* was already caught within 5 minutes: the host-health timer check

@@ -5,7 +5,11 @@ Personal cloud — file sync, contacts/calendar, and a browse-only window onto t
 ## Access
 
 - URL: `https://drive.example.com` (VPN required — see ADR-002)
-- Admin user: `admin` / password set in `local.yml` (`nextcloud_admin_password`)
+- Admin user: `admin`. **The password is not in the vault** — ADR-016 deleted the
+  `NEXTCLOUD_ADMIN_*` variables deliberately (they were dead weight that leaked the
+  database password), so it lives only in Nextcloud's own database. Store it in
+  Vaultwarden. If it is lost, reset it with
+  `docker exec -u www-data nextcloud php occ user:resetpassword admin`.
 
 ## Architecture
 

@@ -7,7 +7,11 @@ mobile app. Hardened design: see [ADR-004](../../knowledge/decisions/ADR-004-cla
 
 - **No URL / no inbound port** — exposed via **Remote Control** (outbound HTTPS only).
 - Drive it from the **Claude mobile app** or **`claude.ai/code`** (any browser).
-- Runs as a dedicated unprivileged user `claude`, confined by `/sandbox` to the notes vault.
+- Runs as a dedicated unprivileged user `claude`, under Claude Code's own sandbox
+  (`~claude/.claude/settings.json`). **What that sandbox constrains is writes and
+  network, not reads**: writes are confined to the vault and outbound traffic to a
+  single domain, while reads are unrestricted apart from one denied path. There is
+  no `/sandbox` on the host — this line used to name one.
 
 ## What It Does
 

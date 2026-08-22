@@ -37,8 +37,25 @@ Real-time system monitoring dashboard.
 
 ## Data
 
-Netdata is stateless — no persistent data. All metrics are kept in RAM and lost on restart. This is by design (limited RAM on Pi 4).
+**Netdata has state, and a fair amount of it.** Two bind mounts carry its registry
+and its metrics database:
+
+| Path | Content |
+|---|---|
+| `/mnt/data/services/netdata/lib` | Registry and the on-disk metrics database |
+| `/mnt/data/services/netdata/cache` | Collector caches |
+
+About **2 GB** together, and roughly half the nightly backup delta. Both are inside
+the restic set like the rest of `/mnt/data`.
+
+This page used to say the opposite — stateless, everything in RAM, lost on restart.
+That described the state **before** ADR-019, which moved the database off the
+container's writable layer precisely because history was being destroyed on every
+recreation.
 
 ## Restore
 
-No restore needed. Restart the container and metrics start collecting again immediately.
+Nothing service-specific: the two directories come back with a restic restore of
+`/mnt/data/services`, and re-running the deploy role brings the container up.
+Losing them costs the metric history, not the service — it starts collecting again
+immediately either way.
