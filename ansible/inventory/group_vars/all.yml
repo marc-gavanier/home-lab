@@ -108,19 +108,24 @@ nextcloud_lock_timeout_minutes: 60
 # account does not exist — renaming it later has no effect, the old user stays.
 miniflux_admin_user: "admin"
 
-# --- Netdata alerting (ADR-030, phase 1) ---
+# --- Netdata curated alarms (ADR-030, phase 1) ---
 # Netdata's 57 STOCK alarms stay unrouted, as docs/07-observability/README.md
-# decided: they are tuned for a generic server and would be noise. Only alarms
-# we curate in health.d/ address the role below, and only that role is given a
-# Discord recipient — so "stock reaches nobody" is enforced by the mechanism
-# rather than by an empty field.
-# No stock alarm addresses this name; they use sysadmin, dba and silent.
-netdata_alert_role: "homelab"
-netdata_alert_channel: "alerts"
+# decided: they are tuned for a generic server and would be noise. Only the
+# alarms listed here are routed, and they do NOT go to Discord directly — they
+# push into Uptime Kuma, which stays the single place where the notification
+# channel is configured. One condition, one role, one Kuma monitor.
+#
+# `push_url` comes from the vaulted host_vars. Empty = that alarm is not
+# installed and its role reaches nobody, so a half-configured entry is inert
+# rather than silently mute.
+netdata_curated_alarms:
+  - name: homelab-swap
+    role: swap
+    push_url: "{{ netdata_swap_kuma_push_url | default('') }}"
 
-# Swap utilisation threshold for the curated alarm. Kept in ONE place because
-# homelab-health.sh carries the same number, and two copies of a threshold are
-# a drift waiting to happen. 85 is a STARTING POINT, not a measured value —
-# occupancy accumulates cold pages until something restarts the containers, so
-# it is not a steady state to project from.
+# Swap utilisation threshold. Kept in ONE place because homelab-health.sh
+# carries the same number, and two copies of a threshold are a drift waiting to
+# happen. 85 is a STARTING POINT, not a measured value — occupancy accumulates
+# cold pages until something restarts the containers, so it is not a steady
+# state to project from.
 netdata_swap_threshold_pct: 85
