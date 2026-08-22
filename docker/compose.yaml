@@ -1197,13 +1197,12 @@ services:
       # shadows nothing. /etc/netdata itself is deliberately NOT mounted: it
       # carries the container's own bootstrap files (.environment, edit-config,
       # and the `orig` symlink into the stock tree).
+      #
+      # Netdata's NOTIFICATION config is deliberately untouched: it notifies
+      # nobody, stock alarms and curated ones alike. A host-side adapter reads
+      # the alarm API and pushes each curated alarm into its own Uptime Kuma
+      # monitor, so Kuma remains the single place the channel is configured.
       - ${SERVICES_DATA_DIR}/netdata/health.d:/etc/netdata/health.d:ro
-      # Notification override, sourced AFTER the stock file
-      # (plugins.d/alarm-notify.sh:519), so it is a thin layer, not a copy. It
-      # holds the Discord webhook, hence the secrets directory and the handler
-      # in the observability role: `template` renames a new inode into place and
-      # a running container would keep reading the old one.
-      - /mnt/data/secrets/docker/netdata_health_alarm_notify.conf:/etc/netdata/health_alarm_notify.conf:ro
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
       - /etc/os-release:/host/etc/os-release:ro

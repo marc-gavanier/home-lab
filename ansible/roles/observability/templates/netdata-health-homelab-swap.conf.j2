@@ -8,10 +8,20 @@
 # addresses `sysadmin` and no role is routed.
 #
 # This one carries the SAME condition and the SAME chart, with the threshold
-# already chosen and justified in `homelab-health.sh`, and addresses a role of
-# its own — which maps to its own Uptime Kuma monitor, so this condition turns
-# one monitor red and nothing else. The stock alarm is left exactly as it is —
-# still evaluating, still silent — so nothing that exists today changes.
+# already chosen and justified in `homelab-health.sh`. The stock alarm is left
+# exactly as it is — still evaluating, still silent — so nothing that exists
+# today changes.
+#
+# `to: silent` is not an oversight, it is the design. Netdata notifies nobody,
+# here as everywhere else. The state of this alarm is READ by the host-side
+# adapter (homelab-netdata-kuma.sh) and pushed into its own Uptime Kuma monitor,
+# which keeps Kuma the single place the notification channel is configured — and
+# makes the monitor a dead-man's switch for netdata itself, which a
+# transition-driven notification could never be.
+#
+# The `alarm:` name below is the contract with that adapter. Renaming it without
+# updating netdata_curated_alarms makes the monitor go red saying the alarm is
+# not loaded, which is the intended failure: loud, not silent.
 #
 # Threshold honesty, carried over verbatim from homelab-health.sh: 85 % is a
 # STARTING POINT, not a measured threshold. Occupancy accumulates cold pages
@@ -38,4 +48,4 @@ component: Memory
     delay: up 2m down 15m multiplier 1.5 max 1h
   summary: Homelab swap utilisation above {{ netdata_swap_threshold_pct }}%
      info: Swap utilisation crossed the threshold justified in homelab-health.sh
-       to: {{ alarm_role }}
+       to: silent

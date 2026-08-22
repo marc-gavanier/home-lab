@@ -1,27 +1,33 @@
 ---
-# Netdata curated alarms — ADR-030, phase 1.
+# Netdata curated alarms -> Uptime Kuma — ADR-030, phase 1.
 #
 # Builds the path and proves it. Deletes nothing, and changes no existing
-# behaviour: the 57 stock alarms keep reaching nobody, and homelab-health.sh
-# keeps its own checks. The two layers overlap on purpose until each curated
-# alarm has been observed firing (ADR-030's migration rule).
+# behaviour: the 57 stock alarms keep reaching nobody, homelab-health.sh keeps
+# its own checks, and Netdata's notification configuration is not touched at
+# all. The two layers overlap on purpose until each curated alarm has been
+# observed firing (ADR-030's migration rule).
 #
-# Netdata does NOT notify Discord. It pushes into Uptime Kuma, which stays the
-# one place the notification channel is configured — replace Discord one day and
-# only Kuma changes. It also makes the migration rule cheap to satisfy: a
-# curated alarm that fires turns a monitor red, with history, instead of leaving
-# a line in a chat log.
+# Netdata notifies nobody. A host-side adapter reads its alarm API and pushes
+# each curated alarm into its own Kuma monitor, so Kuma stays the one place the
+# notification channel is configured — and each monitor becomes a dead-man's
+# switch for netdata itself.
 #
-# Why a config directory has to be mounted at all: only `lib` and `cache` are
-# on the volume today, so anything written into /etc/netdata lives in the
-# container's writable layer and disappears on the next recreate — the same
-# defect ADR-019 fixed for the metrics database. Configuration that vanishes on
-# an image bump is worse than no configuration, because it looks present.
+# This reverses one earlier trade-off deliberately. `health.yml` records why the
+# host signals were folded into a single push: "Kuma v2 monitors are created by
+# hand, so folding host-level signals into one push keeps the alerting surface
+# flat". That flat surface is exactly what latched for a whole day on a pending
+# reboot (#216). One monitor per condition costs a manual monitor each; that is
+# the price of a signal that cannot be muted by an unrelated one.
+#
+# Why the alarm directory has to be mounted: only `lib` and `cache` are on the
+# volume today, so anything written into /etc/netdata lives in the container's
+# writable layer and disappears on the next recreate — the same defect ADR-019
+# fixed for the metrics database. Configuration that vanishes on an image bump
+# is worse than none, because it looks present.
 #
 # What is NOT mounted, and why: /etc/netdata itself. It carries the container's
 # own bootstrap files (`.environment`, `.install-type`, `edit-config`, and the
-# `orig` symlink into the stock tree). Mounting over the directory would shadow
-# them. Only the empty `health.d/` subdirectory and one file are mounted.
+# `orig` symlink into the stock tree). Only the empty `health.d/` is mounted.
 
 - name: netdata | Select the curated alarms that have a Kuma monitor
   ansible.builtin.set_fact:
@@ -30,11 +36,10 @@
 
 - name: netdata | Refuse a push URL that cannot deliver
   # These alarms only reach this task when their push_url is non-empty, so this
-  # is not a presence check — it is a SHAPE check. A value that is set but
-  # malformed renders a config Netdata accepts and can never deliver through:
-  # the alarm evaluates, the notifier runs, curl fails, and the Kuma monitor
-  # never turns red. That is the silent-disablement shape catalogued in #220,
-  # and the only difference from an empty value is that it looks configured.
+  # is a SHAPE check, not a presence check. A value that is set but malformed
+  # renders an adapter that runs, reports success and never surfaces anything —
+  # the silent-disablement shape catalogued in #220, whose only difference from
+  # an empty value is that it looks configured.
   ansible.builtin.assert:
     that:
       - item.push_url is search('^https://')
@@ -64,25 +69,34 @@
     owner: root
     group: root
     mode: "0444"
-  vars:
-    alarm_role: "{{ item.role }}"
   loop: "{{ netdata_active_alarms }}"
   loop_control:
     label: "{{ item.name }}"
   notify: Restart netdata
 
-# Bind-mounted as a FILE, so `template` renaming a temporary file into place
-# replaces the inode Docker bound at container start — the running container
-# would keep reading the previous content indefinitely while the deploy reports
-# changed. Same reason traefik, pihole, searxng and dozzle carry handlers.
-# It holds the Kuma push URLs, which carry their own tokens, so it lives beside
-# the Docker secrets, 0444, no_log.
-- name: netdata | Install the notification override
+# 0750 root:root and the push URLs inline, which is this host's existing
+# convention for a script carrying a Kuma token (offsite-health.sh, backup.sh).
+- name: netdata | Install the Netdata-to-Kuma adapter
   ansible.builtin.template:
-    src: netdata-health-alarm-notify.conf.j2
-    dest: /mnt/data/secrets/docker/netdata_health_alarm_notify.conf
+    src: homelab-netdata-kuma.sh.j2
+    dest: /usr/local/bin/homelab-netdata-kuma.sh
     owner: root
     group: root
-    mode: "0444"
+    mode: "0750"
   no_log: true
-  notify: Restart netdata
+
+- name: netdata | Install the adapter service and timer
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    mode: "0644"
+  loop:
+    - homelab-netdata-kuma.service
+    - homelab-netdata-kuma.timer
+
+- name: netdata | Enable the adapter timer
+  ansible.builtin.systemd:
+    name: homelab-netdata-kuma.timer
+    enabled: true
+    state: started
+    daemon_reload: true

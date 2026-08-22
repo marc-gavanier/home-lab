@@ -1,0 +1,13 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Report Netdata curated alarms to their Uptime Kuma monitors
+# The adapter talks to the netdata container, so it is pointless before docker.
+After=docker.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/homelab-netdata-kuma.sh
+# No SuccessExitStatus here, deliberately: unlike the health scripts, a non-zero
+# exit from this adapter never means "problems found and pushed" — it means the
+# adapter itself failed, which is exactly what should mark the unit failed.
