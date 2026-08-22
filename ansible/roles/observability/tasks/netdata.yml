@@ -81,6 +81,29 @@
     label: "{{ item.file }} -> {{ item.group }}"
   notify: Restart netdata
 
+# Collectors are installed WITHOUT alarms on them. A deploy therefore only makes
+# new charts appear — nothing can turn a monitor red on the strength of a
+# collector nobody has seen produce data yet. The alarms follow, once the charts
+# are verified.
+- name: netdata | Create the collector configuration directory
+  ansible.builtin.file:
+    path: "{{ services_data_dir }}/netdata/go.d"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: netdata | Install the go.d collector configurations
+  ansible.builtin.template:
+    src: "netdata-go.d-{{ item }}.conf.j2"
+    dest: "{{ services_data_dir }}/netdata/go.d/{{ item }}.conf"
+    owner: root
+    group: root
+    mode: "0444"
+  loop:
+    - docker
+  notify: Restart netdata
+
 # 0750 root:root and the push URLs inline, which is this host's existing
 # convention for a script carrying a Kuma token (offsite-health.sh, backup.sh).
 - name: netdata | Install the Netdata-to-Kuma adapter
