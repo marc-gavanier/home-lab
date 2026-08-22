@@ -18,3 +18,12 @@
 
 - name: Watch the data disk (SMART counters, capacity, monthly long self-test)
   ansible.builtin.import_tasks: disk.yml
+
+# Gated the way the repository gates every other optional path (see
+# offsite_restic_password): empty means DISABLED, and it says so out loud in the
+# example file. That is a documented opt-out, not the accidental empty value
+# catalogued in #220 — which is what the assert inside guards against.
+# Either way the 57 stock alarms stay unrouted.
+- name: "Route curated Netdata alarms to a human (ADR-030, phase 1)"
+  ansible.builtin.import_tasks: netdata.yml
+  when: netdata_discord_webhook_url | default('') | length > 0

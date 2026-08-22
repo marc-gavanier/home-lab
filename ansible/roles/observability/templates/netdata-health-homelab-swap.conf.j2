@@ -1,0 +1,40 @@
+# {{ ansible_managed }}
+# =============================================================================
+# Curated alarm — swap utilisation (ADR-030, phase 1)
+# =============================================================================
+# The FIRST curated alarm, and it is deliberately the one the observability
+# README uses as its own cautionary tale: Netdata's stock `used_swap` sat
+# CRITICAL for 5 days 19 hours in August 2026 and reached no one, because it
+# addresses `sysadmin` and no role is routed.
+#
+# This one carries the SAME condition and the SAME chart, with the threshold
+# already chosen and justified in `homelab-health.sh`, and addresses the one
+# routed role. The stock alarm is left exactly as it is — still evaluating,
+# still silent — so nothing that exists today changes.
+#
+# Threshold honesty, carried over verbatim from homelab-health.sh: 85 % is a
+# STARTING POINT, not a measured threshold. Occupancy accumulates cold pages
+# until something restarts the containers, so it is not a steady state to
+# project from. Hysteresis clears at 5 points below so a value sitting on the
+# line cannot flap.
+#
+# `calc` is the stock formula, copied rather than reinvented, including its
+# divide-by-zero guard.
+#
+# PHASE 1 DELETES NOTHING. `homelab-health.sh` still carries its own swap
+# check; the two overlap on purpose until this one has been observed firing.
+# =============================================================================
+
+    alarm: homelab_used_swap
+       on: mem.swap
+    class: Utilization
+     type: System
+component: Memory
+     calc: (($used + $free) > 0) ? ($used * 100 / ($used + $free)) : 0
+    units: %
+    every: 1m
+     warn: $this > (($status >= $WARNING) ? ({{ netdata_swap_threshold_pct - 5 }}) : ({{ netdata_swap_threshold_pct }}))
+    delay: up 2m down 15m multiplier 1.5 max 1h
+  summary: Homelab swap utilisation above {{ netdata_swap_threshold_pct }}%
+     info: Swap utilisation crossed the threshold justified in homelab-health.sh
+       to: {{ netdata_alert_role }}

@@ -1,0 +1,35 @@
+# {{ ansible_managed }}
+# =============================================================================
+# Netdata notification OVERRIDE — ADR-030, phase 1
+# =============================================================================
+# `alarm-notify.sh` sources the STOCK file first and this one second
+# (plugins.d/alarm-notify.sh:519), so this is a thin override layer: every
+# setting not named here keeps its stock value. Do not copy the 2 000-line
+# stock file in.
+#
+# The whole point of this file is WHAT IT DOES NOT ROUTE.
+#
+# `docs/07-observability/README.md` decided that Netdata's 57 stock alarms
+# reach nobody, and that decision stands: they are tuned for a generic server —
+# the disk-backlog one alone would fire on every nightly backup. They address
+# the `sysadmin`, `dba` and `silent` roles.
+#
+# `DEFAULT_RECIPIENT_DISCORD` is therefore left EMPTY, which the stock file
+# documents as "do not send a notification for unconfigured roles". So the
+# stock alarms stay silent BY CONSTRUCTION here, not because a field was left
+# blank by accident — which is what the first version of ADR-030 mistook this
+# situation for.
+#
+# Only the `homelab` role is routed, and only curated alarms declared in
+# health.d/ address it. One alarm, one condition, one action — which is what
+# the observability README asks for and what `homelab-health.sh`, aggregating
+# 17 conditions into a single latched signal, does not deliver (issue #216).
+# =============================================================================
+
+DISCORD_WEBHOOK_URL="{{ netdata_discord_webhook_url }}"
+
+# Empty on purpose. See above: this is what keeps the 57 stock alarms mute.
+DEFAULT_RECIPIENT_DISCORD=""
+
+# The only routed role. No stock alarm addresses it.
+role_recipients_discord[{{ netdata_alert_role }}]="{{ netdata_alert_channel }}"

@@ -203,3 +203,16 @@ offsite_restic_password: ""
 # Dedicated Kuma push monitors (empty = disabled):
 offsite_copy_kuma_push_url: ""   # nightly restic copy (dead-man's switch)
 offsite_check_kuma_push_url: ""  # weekly offsite repo check
+
+# --- Netdata curated alerting (ADR-030, phase 1) ---
+# Discord webhook that curated Netdata alarms notify through. Reuse the one
+# Uptime Kuma already sends to — the point is a single destination, not a
+# second channel to watch.
+#
+# EMPTY = curated Netdata alerting disabled. Netdata's 57 STOCK alarms remain
+# unrouted in either case, which is the decision documented in
+# docs/07-observability/README.md: they are tuned for a generic server and
+# would be noise. Only alarms declared in the repository's health.d/ address
+# the routed role, and they are added one at a time, each replacing a check in
+# homelab-health.sh only after it has been observed firing.
+netdata_discord_webhook_url: ""
