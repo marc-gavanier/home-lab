@@ -25,12 +25,38 @@
     - "{{ services_data_dir }}/nextcloud"
     - "{{ services_data_dir }}/immich"
     - "{{ services_data_dir }}/miniflux"
-    # Forgejo's two mounts, created here rather than left to Docker: the rootless
+    # Forgejo's parent, created here rather than left to Docker: the rootless
     # image is uid 1000 from PID 1 with no capability to chown anything, so a
     # root-owned bind mount would leave it unable to write its own database. The
-    # 1000:1000 above is exactly what it needs (ADR-028).
+    # 1000:1000 above is exactly what it needs (ADR-028). The mount itself is
+    # the task below — it needs a tighter mode than this loop applies.
     - "{{ services_data_dir }}/forgejo"
-    - "{{ services_data_dir }}/forgejo/data"
+
+# The seventh credential store (#199). `forgejo/data/data/forgejo.db` was 0644
+# under three 0755 directories, so any local unprivileged account could read the
+# operator's password hash, the access tokens, the TOTP secrets, the WebAuthn
+# credentials and the sessions. Proven by reading it as an unprivileged user,
+# with /etc/shadow refused and Vaultwarden's already-closed store refused in the
+# same call as controls. That is strictly more material than navidrome or
+# calibre-web, both of which the #177 sweep closed — Forgejo was simply outside
+# the list it worked from.
+#
+# The gate is the DIRECTORY, like the other six: SQLite recreates `-wal`/`-shm`
+# with the process umask, so a per-file mode goes stale on its own. Gating at
+# the mount root covers everything Forgejo keeps below it, including the git
+# object stores.
+#
+# 0700 costs this container nothing and cannot replay #138: it runs as 1000:1000
+# and OWNS this directory, so it traverses as the owner rather than through
+# DAC_OVERRIDE. Restic still reads it — root ignores directory permissions — so
+# the backup is unaffected, and no other container mounts this path.
+- name: directories | Close the Forgejo data directory to other local uids
+  ansible.builtin.file:
+    path: "{{ services_data_dir }}/forgejo/data"
+    state: directory
+    owner: "1000"
+    group: "1000"
+    mode: "0700"
 
 # Ownership here is a capability decision, not housekeeping. Jellyfin and
 # Navidrome run as root *inside* the container, over trees that were created
