@@ -35,13 +35,18 @@
 # grep` under pipefail can return 141 when grep exits on the match before the
 # writer is done. The whole session summary is small — read it and match in
 # Ansible rather than in a shell.
+# `-ne` (--authenv) rather than `-n`: the `$(cat …)` already expands inside the
+# container, so the host's `docker exec` argv was clean — but the value still
+# landed in the argv of the transmission-remote process itself, which /proc
+# exposes to every local account just the same (#198). TR_AUTH puts it in that
+# process's environment instead, and /proc/<pid>/environ is 0400 owner-only.
+# Same change as the container healthcheck in compose.yaml.
 - name: transmission | Read the current port-forwarding state
   ansible.builtin.command:
     cmd: >
       docker exec transmission sh -c
-      'transmission-remote 127.0.0.1:9091
-      -n "{{ transmission_user | default("admin") }}:$(cat /run/secrets/transmission_password)"
-      -si'
+      'TR_AUTH="{{ transmission_user | default("admin") }}:$(cat /run/secrets/transmission_password)"
+      transmission-remote 127.0.0.1:9091 -ne -si'
   register: transmission_portmap
   changed_when: false
   check_mode: false
@@ -52,9 +57,8 @@
   ansible.builtin.command:
     cmd: >
       docker exec transmission sh -c
-      'transmission-remote 127.0.0.1:9091
-      -n "{{ transmission_user | default("admin") }}:$(cat /run/secrets/transmission_password)"
-      --no-portmap'
+      'TR_AUTH="{{ transmission_user | default("admin") }}:$(cat /run/secrets/transmission_password)"
+      transmission-remote 127.0.0.1:9091 -ne --no-portmap'
   changed_when: true
   when:
     - transmission_up

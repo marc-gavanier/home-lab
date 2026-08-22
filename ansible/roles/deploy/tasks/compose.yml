@@ -72,3 +72,37 @@
   ansible.builtin.debug:
     var: compose_result.actions
   when: compose_result.actions | default([]) | length > 0
+
+# dnsproxy runs with `network_mode: service:pihole`, so it lives in pihole's
+# network namespace. RECREATING pihole — which `compose up` does whenever its
+# definition changes, not just when an image moves — destroys that namespace.
+# dnsproxy keeps running and keeps reporting healthy while being permanently
+# unreachable, which leaves Pi-hole with no upstream: a LAN-wide DNS outage with
+# both containers green. The `Restart pihole` handler pairs the two for this
+# exact reason; nothing paired them after a compose recreate.
+#
+# Found while adding a secret mount to pihole (#198), which is precisely the
+# kind of definition change that triggers it. Written as a namespace comparison
+# rather than a check on `compose_result.actions` so it also covers a recreate
+# nobody predicted — the failure is silent, so the guard should not depend on
+# having anticipated the cause.
+- name: compose | Re-attach dnsproxy if pihole was recreated under it
+  # `{% raw %}` is not decoration: `{{.State.Pid}}` is a Go template, and Ansible
+  # renders the shell body as Jinja first — without it the task dies on
+  # "unexpected '.'" before docker is ever invoked.
+  ansible.builtin.shell: |
+    {% raw %}
+    set -o pipefail
+    pp=$(docker inspect -f '{{.State.Pid}}' pihole 2>/dev/null) || exit 0
+    dp=$(docker inspect -f '{{.State.Pid}}' dnsproxy 2>/dev/null) || exit 0
+    [ "$pp" != "0" ] && [ "$dp" != "0" ] || exit 0
+    if [ "$(readlink /proc/$pp/ns/net)" != "$(readlink /proc/$dp/ns/net)" ]; then
+        docker restart dnsproxy >/dev/null
+        echo restarted
+    fi
+    {% endraw %}
+  args:
+    executable: /bin/bash
+  register: dnsproxy_reattach
+  changed_when: "'restarted' in dnsproxy_reattach.stdout"
+  check_mode: false

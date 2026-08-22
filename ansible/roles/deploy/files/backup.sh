@@ -105,14 +105,24 @@ mkdir -p "$DUMP_DIR"
 
 # Nextcloud MariaDB
 log "Dumping Nextcloud database..."
-docker exec nextcloud-db mariadb-dump \
-    --single-transaction \
-    --routines \
-    --triggers \
-    -u"${NEXTCLOUD_DB_USER:-nextcloud}" \
-    -p"${NEXTCLOUD_DB_PASSWORD}" \
-    "${NEXTCLOUD_DB_NAME:-nextcloud}" \
-    > "$DUMP_DIR/nextcloud.sql" 2>> "$BACKUP_LOG" || log "WARNING: Nextcloud DB dump failed"
+# The password is read from the secret already mounted in the container, and
+# handed to mariadb-dump through MYSQL_PWD — never through `-p"…"`, which put it
+# in the argv of the `docker` client on the host for the 6 to 9 seconds this dump
+# takes, every night at a fixed and known hour (#198). /proc carries no hidepid
+# here, so any local account could read it; measured over five nights.
+#
+# `sh -c` with single quotes is what keeps the expansion inside the container:
+# expanded on the host, the path does not exist and the dump would run with an
+# empty password against a server that refuses it — loudly, at least.
+docker exec nextcloud-db sh -c '
+    MYSQL_PWD=$(cat /run/secrets/nextcloud_db_password) \
+    mariadb-dump \
+        --single-transaction \
+        --routines \
+        --triggers \
+        -u"${MYSQL_USER:-nextcloud}" \
+        "${MYSQL_DATABASE:-nextcloud}"
+' > "$DUMP_DIR/nextcloud.sql" 2>> "$BACKUP_LOG" || log "WARNING: Nextcloud DB dump failed"
 
 # Immich PostgreSQL — handled by Immich's OWN scheduled DB backup, not here.
 # A hand-rolled `pg_dump` is fragile on this DB (VectorChord + pgvecto.rs need a

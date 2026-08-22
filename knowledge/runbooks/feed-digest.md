@@ -26,8 +26,13 @@ account that can read the key):
 sudo -u claude bash
 K=$(cat /mnt/data/secrets/claude/miniflux_api_key)
 R="--resolve rss.example.com:443:192.168.1.100"
-mf() { curl -sS $R -H "X-Auth-Token: $K" "$@"; }
+mf() { printf 'header = "X-Auth-Token: %s"\n' "$K" | curl -sS $R -K - "$@"; }
 ```
+
+`-K -` rather than `-H`, for the same reason the script itself stopped using
+`-H` (#188, then #198): an argument list is world-readable through `/proc`, so
+`-H "X-Auth-Token: …"` publishes the key to every local account for as long as
+the request runs. Reading the header from stdin keeps it out of argv entirely.
 
 `--resolve` is not optional: the Pi's own resolver is **not** Pi-hole, so
 `rss.example.com` does not resolve on the host even though every LAN client resolves it.
