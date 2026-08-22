@@ -1,0 +1,44 @@
+# {{ ansible_managed }}
+# =============================================================================
+# Curated alarm — available memory (ADR-030, phase 2)
+# =============================================================================
+# Replaces the MemAvailable check in homelab-health.sh — but only once this one
+# has been seen to fire and recover, as the migration rule requires. Until then
+# the two run side by side on purpose.
+#
+# --- Why MemAvailable and not "free", moved here with the check --------------
+# The page cache is reclaimable and /mnt/data churns hundreds of MB a night, so
+# free memory reads alarmingly low on a perfectly healthy Pi. MemAvailable is
+# the kernel's own estimate of what a new allocation could actually get.
+#
+# The 800 MiB threshold is measured, unlike the swap one: against 19 days of
+# Netdata retention the hourly minimum never went below 800 MiB, and the lowest
+# instantaneous dip — 756 MiB on 2026-07-29, when swap was also 100% full — is
+# absorbed by requiring the value to stay low for a whole window rather than
+# tripping on a single sample. Zero false alarms over the whole observed period.
+#
+# --- How "sustained" is expressed here ---------------------------------------
+# homelab-health.sh required two consecutive 5-minute runs, using a stamp file
+# on disk. The declarative equivalent is `lookup: max -5m`: if the MAXIMUM
+# available memory over the last five minutes is still under the threshold, then
+# it never once rose above it during that window. Same intent, no state on disk,
+# and it cannot be defeated by a missed run.
+#
+# `mem.available` is verified present and collecting on this host — 4456 MiB at
+# the time of writing, which matches what homelab-health.sh reports. The value
+# is in MiB, so the threshold is in MiB too.
+# =============================================================================
+
+    alarm: homelab_mem_available
+       on: mem.available
+    class: Utilization
+     type: System
+component: Memory
+   lookup: max -5m unaligned of avail
+    units: MiB
+    every: 1m
+     warn: $this < {{ netdata_mem_threshold_mib | int }}
+    delay: up 0 down 15m multiplier 1.5 max 1h
+  summary: Homelab available memory below {{ netdata_mem_threshold_mib | int }} MiB
+     info: Available memory stayed under the threshold for a full five minutes
+       to: silent

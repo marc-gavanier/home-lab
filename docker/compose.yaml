@@ -1203,6 +1203,13 @@ services:
       # the alarm API and pushes each curated alarm into its own Uptime Kuma
       # monitor, so Kuma remains the single place the channel is configured.
       - ${SERVICES_DATA_DIR}/netdata/health.d:/etc/netdata/health.d:ro
+      # Collector configuration. /etc/netdata/go.d is EMPTY in the image too —
+      # the 133 stock collector templates live in /usr/lib/netdata/conf.d/go.d,
+      # and a module only runs once a job config exists here (`default_run: yes`
+      # in go.d.conf). Available is not the same as active: at the time this was
+      # added, none of sensors, docker, x509check, dns_query, smartctl or
+      # wireguard were collecting anything.
+      - ${SERVICES_DATA_DIR}/netdata/go.d:/etc/netdata/go.d:ro
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
       - /etc/os-release:/host/etc/os-release:ro

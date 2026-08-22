@@ -1,0 +1,31 @@
+# {{ ansible_managed }}
+# =============================================================================
+# Netdata go.d — Docker collector (ADR-030, phase 2 groundwork)
+# =============================================================================
+# Enabled WITHOUT any alarm on it, on purpose. Deploying this only makes new
+# charts appear; nothing can turn a monitor red. The alarms for container state
+# come afterwards, once the charts have been seen to carry real data — the same
+# rule that governs every step of this migration.
+#
+# What it unlocks: the two conditions homelab-health.sh currently expresses as
+# "unhealthy >10min" and "not running >10min", plus restart counts. Those are
+# the only host signals that today have no equivalent anywhere else, since Kuma
+# probes services from the outside and cannot see a container that is absent.
+#
+# The address is the socket-proxy, NOT /var/run/docker.sock as the stock config
+# assumes: this container never gets the raw socket (ADR on the socket proxy),
+# and DOCKER_HOST is already pointed there in compose.yaml.
+#
+# Verified reachable from inside the netdata container before writing this:
+#   GET /version          -> 200
+#   GET /containers/json  -> 200, real payload
+# so the proxy's allow-list already covers what this collector needs.
+#
+# `collect_container_size: no` is kept from the stock config: computing per
+# container disk usage walks the whole layer store, which on this host lives on
+# the HDD and would be paid every collection interval.
+jobs:
+  - name: local
+    address: 'tcp://socket-proxy:2375'
+    timeout: 5
+    collect_container_size: no
