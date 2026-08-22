@@ -104,15 +104,20 @@ for fs in / /mnt/data; do
 done
 
 # --- Memory ---
-# Nothing watched memory until now, and the gap was two-sided. Netdata DOES run
-# a used_swap alarm: it went CRITICAL for 5 days 19 hours in August 2026,
-# executed its notifier, and the notifier failed — no recipient is configured,
-# so it reached nobody. Meanwhile this script, which does reach a human, carried
-# no memory signal at all. Netdata stays what it is good at, diagnosis: its 57
-# stock alarms are tuned for a generic server (the disk-backlog one would fire
-# on every nightly backup), so wiring them to a channel would produce exactly
-# the noise this repo refuses. The signal worth acting on belongs here, with a
-# threshold chosen and justified here.
+# The swap half of this section MOVED to a curated Netdata alarm (ADR-030,
+# phase 1): health.d/homelab-swap.conf, reported by the `Pi resources` monitor.
+# It was removed here only after the whole chain had been seen to fire and
+# recover on 2026-08-23 — threshold lowered under the live value, monitor red
+# with `WARNING: homelab_used_swap 36.5%` and notified, then restored, green and
+# notified again. The reasoning behind the 85 % moved with it rather than being
+# restated; that file is now where it lives.
+#
+# The 57 STOCK Netdata alarms still reach nobody, which remains deliberate: they
+# are tuned for a generic server and the disk-backlog one alone would fire on
+# every nightly backup. What changed is that a signal we curate no longer has to
+# be written in bash to reach a human.
+#
+# MemAvailable stays here for now — phase 2 has not moved it yet.
 #
 # MemAvailable, not "free": the page cache is reclaimable and /mnt/data churns
 # hundreds of MB a night, so free memory reads alarmingly low on a healthy Pi.
@@ -120,46 +125,12 @@ done
 # minimum never went below 800 MiB, and the lowest instantaneous dip (756 MiB)
 # is absorbed by requiring two consecutive runs. Zero false alarms over the
 # whole observed period.
-#
-# Swap alarms too, but only because it was resized. At 2 GiB it did not sit at
-# some high percentage — it ran SATURATED: over 2026-08-09..12 Netdata has `used`
-# peaking at 2047.996 MiB of 2048.0, with free never above ~60 MiB in the same
-# bucket and down to 1.76 MiB. Mostly cold pages that will never be touched
-# again. Occupancy therefore carried no information: a threshold under it would
-# have been red for six days with nothing to do, the trap that retired the
-# extended SMART self-test, and one above it would never fire.
-#
-# A swap pinned at its ceiling does not tell you how much it wanted, only that
-# it wanted at least 2 GiB — so the old file cannot be halved into a projection.
-# Reconstructing instead from the refill rate after the 2026-08-03 reset
-# (+500, +901, +205, +181, +66 MiB per night, driven by the 03:00 backup — a
-# concave curve) puts the real steady state around 2.1-2.3 GiB, i.e. 52-57% of
-# the 4 GiB file. That is what makes the number mean something again.
-#
-# 85% is therefore a STARTING POINT, not a measured threshold, and it is the one
-# number here that is not backed by history: every observation available was
-# capped by the old size, so how much the kernel would have evicted with more
-# room is an inference. With swappiness=10 it should stay conservative. Revisit
-# once a few weeks of the new steady state are visible; if it turns out to sit
-# above 85%, raise it rather than deleting it.
 MEM_THRESHOLD_MIB=800
-SWAP_THRESHOLD_PCT={{ netdata_swap_threshold_pct }}
 MEM_STAMP=/var/lib/homelab-health/lowmem.stamp
 if [ -r /proc/meminfo ]; then
     mem_avail=$(awk '/^MemAvailable:/ {print int($2/1024)}' /proc/meminfo)
-    swap_total=$(awk '/^SwapTotal:/ {print int($2/1024)}' /proc/meminfo)
-    swap_free=$(awk '/^SwapFree:/ {print int($2/1024)}' /proc/meminfo)
-    mem_avail=${mem_avail:-0}; swap_total=${swap_total:-0}; swap_free=${swap_free:-0}
+    mem_avail=${mem_avail:-0}
     report+=("mem ${mem_avail}Mi free")
-    if [ "$swap_total" -gt 0 ]; then
-        swap_pct=$(( (swap_total - swap_free) * 100 / swap_total ))
-        report+=("swap ${swap_pct}%")
-        # Not age-gated, unlike the checks around it: swap occupancy moves over
-        # hours, not seconds, so there is no transient to absorb. It is empty
-        # after a boot and fills slowly, so this cannot fire on a restart.
-        [ "$swap_pct" -ge "$SWAP_THRESHOLD_PCT" ] && \
-            problems+=("swap ${swap_pct}% used, over ${SWAP_THRESHOLD_PCT}% — nowhere left to evict to")
-    fi
     if [ "$mem_avail" -lt "$MEM_THRESHOLD_MIB" ]; then
         mkdir -p "$(dirname "$MEM_STAMP")"
         # Second consecutive low reading, i.e. sustained for >5 min, not a dip.
