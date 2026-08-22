@@ -37,9 +37,20 @@
   no_log: true
   when: pihole_up
 
+# The password is read from the mounted secret INSIDE the container. The probe
+# above was written with care to keep it off the command line, and this task
+# then put it there anyway, six lines below — argv of `docker exec` on the host,
+# every deploy, readable by any local account since /proc has no hidepid (#198).
+#
+# `sh -c` with single quotes is required: without it the `$(cat …)` expands on
+# the HOST, where that path does not exist, and `pihole setpassword` — which
+# takes no flags and treats whatever it receives as the new password — would
+# cheerfully set it to the empty string and answer "New password set".
 - name: pihole | Set Pi-hole admin password
   ansible.builtin.command:
-    cmd: "docker exec pihole pihole setpassword {{ pihole_password | quote }}"
+    cmd: >-
+      docker exec pihole sh -c
+      'pihole setpassword "$(cat /run/secrets/pihole_password)"'
   no_log: true
   changed_when: true
   when:

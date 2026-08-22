@@ -17,7 +17,7 @@ stronger while the operation stayed impossible (#159).
 | Secret | Consumer | Does a deploy rotate it? |
 |--------|----------|--------------------------|
 | `cf_dns_api_token` | traefik | **yes** — lego re-reads the file on every ACME operation |
-| `transmission_password` | transmission | **yes** — read at start |
+| `transmission_password` | transmission | **yes** — read at start, but a second copy lives in Kuma; see the warning below |
 | `dozzle_users.yml` | dozzle | **yes** — read at start |
 | `forgejo_secret_key` | forgejo | **yes**, but see the warning below |
 | `miniflux_database_url` | miniflux | **yes** — but on its own it breaks the app; see the database procedure |
@@ -41,6 +41,34 @@ docker logs miniflux-db | grep -i "skipping initialization"
 
 MariaDB says it differently — `[Entrypoint]: MariaDB upgrade not required`,
 with no initialisation step — but behaves the same way.
+
+### Warning about `transmission_password`: a second copy lives in Kuma
+
+The deploy rotates it cleanly — but since #191 the Uptime Kuma monitor
+**authenticates**, and its copy of the password lives in `kuma.db`. A rotation
+that stops at the deploy leaves that copy stale, and the monitor goes red with
+no hint of why: nothing on the Pi is wrong, and the runbook you are reading was
+the only place that could have told you.
+
+So the rotation has a third step, done by hand because Kuma is v2 and monitors
+are entered manually:
+
+**Transmission → Edit → HTTP Options → Authentication**, and set the new
+password there.
+
+Do it *after* the deploy. Between the two the monitor is red, which is correct
+and expected — it is reporting a real authentication failure.
+
+Verified on 2026-08-22, rotating for real: the value on disk changed, the
+container picked it up (`settings.json` rewritten two seconds after the restart),
+`transmission-remote` accepted the new credential and refused a wrong one, and
+the monitor returned to `200 - OK, keyword is found` — which it can only reach
+authenticated.
+
+This coupling is six days younger than the table above, which is why the table
+did not mention it. **A change that makes a service authenticate creates a
+credential copy wherever it is monitored from**; that is the general form, and
+Transmission is currently the only monitor of the thirty-one that authenticates.
 
 ### Warning about `forgejo_secret_key`
 
@@ -112,9 +140,22 @@ ssh homelab 'docker exec -i nextcloud-db sh' <<'REMOTE'
 PW=$(cat /run/secrets/nextcloud_db_password)
 RP=$(cat /run/secrets/nextcloud_db_root_password)
 [ -n "$PW" ] && [ -n "$RP" ] || { echo "empty secret, aborting"; exit 1; }
-MYSQL_PWD="$RP" mariadb -u root -N -e "ALTER USER '$MYSQL_USER'@'%' IDENTIFIED BY '$PW'"
+MYSQL_PWD="$RP" mariadb -u root -N <<SQL
+ALTER USER '$MYSQL_USER'@'%' IDENTIFIED BY '$PW';
+SQL
 REMOTE
 ```
+
+The statement goes in through **stdin**, not `-e`. The root password was already
+kept out of the command line by `MYSQL_PWD`, but `-e "… IDENTIFIED BY '$PW'"`
+put the **new** password there instead — at the exact moment the old one is
+being treated as compromised, in a command that is usually run under `sudo` and
+therefore logged whole by journald (#198).
+
+A here-document rather than a pipe from `printf`: `printf` is a shell builtin
+everywhere that matters, so it would spawn no process and expose no argv — but
+that is a property of the shell, not of the command, and a runbook should not
+rest on it. A here-document never puts the value in an argument list at all.
 
 Both forms were run against the live databases with the value already in force —
 a no-op that proves the quoting.
