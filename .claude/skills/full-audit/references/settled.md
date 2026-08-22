@@ -1081,3 +1081,137 @@ are therefore where the next yield is:
   half of a homelab control. It has been the trailing edge of four sweeps now
   (#155, #156, #201), which makes "check both hosts by default" a rule that keeps
   being written down and not applied.
+
+---
+
+## Shipped the same day — 2026-08-22 evening
+
+Five of the seven issues the morning run produced were fixed, deployed and
+**verified on function rather than on status**, all remotely, in one afternoon:
+**#198** (argv), **#199** (credential-store copies), **#201** (offsite health),
+**#203** (fourteen documentary statements), **#204** (rate-limit burst). What
+remains is #200 and #202 — both recreate a container — and #207, which waits for
+someone at the machine.
+
+### What each fix actually proved
+
+- **#198.** The Transmission healthcheck moved to `-ne`/`TR_AUTH`. Proven by PID:
+  the process's argv reads `sleep 25`, its `environ` carries the value at 0400,
+  and an unprivileged read of `environ` is refused. Then proven again in
+  operation — a 140 s `/proc` sweep with a positive control **saw
+  `transmission-remote` run twice** and found the secret in **zero** command
+  lines. `backup.sh` reads the secret inside the container through `MYSQL_PWD`,
+  which also made `NEXTCLOUD_DB_PASSWORD` dead weight in `backup.env`; it is
+  gone. Pi-hole gained a Docker secret because `pihole setpassword` takes its
+  argument from the command line and nowhere else. **The RPC password was
+  rotated**, and the rotation was proven rather than assumed: the digest of the
+  secret file changed, the new value was accepted and a wrong one refused.
+- **#199.** `install -d -m 0700` for the nightly dumps, `0700` on Forgejo's data
+  directory, both now asserted by the posture check. The load-bearing check was
+  **not** the mode but whether Forgejo could still WRITE — it can, `touch` and
+  `database:ping` both pass. That is the #138 question, asked before it could
+  bite instead of six weeks later.
+- **#201.** CPU temperature thresholded at 70 (not the homelab's 80 — that board
+  idles at ~50 °C and its fan engages at 60), the `apt-check` guard ported, and a
+  "visited nothing" guard added to the undervoltage loop. Verified by the real
+  push: `SMART ok, disk 20%, ext4 clean (2), ssd 43C, cpu 51C, tunnel 75s` —
+  green, carrying the temperature, not alarming on it.
+- **#204.** `burst` 50 → 250, sized on **episodes** rather than seconds. Verified
+  from Traefik's own API rather than from the file:
+  `{"rateLimit":{"average":100,"burst":250},"status":"enabled"}`.
+
+### Corrections to entries written earlier the same day
+
+Recorded rather than edited away, because each was a confident wrong reading.
+
+- **`notifempty` does NOT make Pi-hole's rotation skip forever.** #202 says it
+  does; the nightly job runs `logrotate --force`, and `--force` overrides
+  `notifempty`. The mechanism is also not system logrotate at all — there is no
+  `cron.d` entry and no state file — but `pihole flush once quiet` at 00:00,
+  which runs logrotate with its **own** state file and **no FTL restart**, so
+  reopening depends entirely on the `postrotate` `kill -USR2`. That signal has a
+  valid target: the pidfile exists and matches `pidof`.
+- **The #198 deploy accidentally cured #202's symptom.** Recreating pihole for
+  the secret mount wiped `/var/log/pihole`, which lives in the writable layer.
+  The orphaned 71 MB inode is gone and the log is healthy again — and five days
+  of query history were destroyed by a deploy that had nothing to do with
+  Pi-hole. The design defect is now *observed* rather than inferred.
+- **The marginal sector was not new.** It was reported as appearing that
+  morning. The drive's self-test log shows the **same LBA** failing at 2529 h,
+  2363 h and 2363 h of power-on time — three reproducible failures over about
+  seven days.
+- **The offsite SMART test is already `-t long`.** #207 suggested folding a
+  short-to-long change into #201; wrong — the short-test gap is homelab-only.
+
+### New facts, established on the machines
+
+- **A remote reboot of the homelab is impossible, and this is now a rule.**
+  `/etc/wireguard/wg0.conf` is a symlink onto the encrypted volume, so after a
+  reboot it dangles and `wg-quick@wg0` cannot start; `wg-easy` cannot either,
+  being a container on the same volume. `homelab-unlock` asks for the passphrase
+  interactively. **No unlock without the tunnel, no tunnel without the unlock.**
+  `claude-remote-control` is no escape hatch — its vault mount needs Nextcloud,
+  hence docker, hence the unlock. Stated by the operator as a standing
+  constraint: they go home to reboot.
+- **Recreating pihole orphans dnsproxy, and nothing paired them.** `dnsproxy`
+  runs in pihole's network namespace; `compose up` recreates pihole whenever its
+  definition changes, which destroys that namespace while dnsproxy stays up and
+  healthy — a LAN-wide outage with both containers green. The `Restart pihole`
+  handler pairs them; nothing did after a compose recreate. Now guarded by a
+  namespace comparison rather than by inspecting `compose_result.actions`, so it
+  also covers a recreate nobody predicted.
+- **Rotating a credential can require a change in Kuma.** Exactly **1 of the 31**
+  monitors authenticates (Transmission, since #191), and its password lives in
+  `kuma.db`. A rotation that stops at the deploy leaves the monitor red with
+  nothing on the host to explain it. The general form: **a change that makes a
+  service authenticate creates a credential copy wherever it is monitored from.**
+- **The household has still not returned.** One LAN client, ~20 queries on 08-16,
+  08-17 and 08-21, none today. The dated follow-up from the 08-21 run therefore
+  stays open, and it is what makes the reboot constraint above bite.
+
+### New instrument traps — six, all paid the same day
+
+Worth more than the fixes, on the usual reasoning.
+
+- **A SQL `LIMIT` truncates a completeness sweep exactly like `head`.** Querying
+  the last 10 heartbeats across five monitors returned only the two daily ones,
+  and three monitors looked absent. Query per monitor, or count, but never bound
+  a completeness question by a global limit.
+- **A canary injected on the command line matches itself.** The first attempt to
+  prove the argv fix passed the marker to `docker exec`, so the sweep found four
+  hits — all of them mine. Let the value come from the file at runtime, exactly
+  as the mechanism under test does.
+- **A two-step `/proc` read loses the race.** Finding the pid and then reopening
+  `cmdline` returns `No such file or directory` for anything short-lived. Let one
+  `grep` read `/proc/*/cmdline` in a single pass.
+- **Stripping Jinja with `sed` to shell-check a template produces broken shell,
+  twice.** `{{ }}` and `{% %}` both have to go, and removing `{% if %}` lines
+  leaves orphan `fi`. It reports a syntax error in *your filter*, not in the
+  file. Extract the block you added and check that alone.
+- **The harness truncates too.** A 150 s measurement was killed by a 2-minute
+  tool timeout and still printed partial output that looked like a complete
+  result; only exit code 143 gave it away. Same family as the `head` rule, one
+  layer up.
+- **A green monitor carrying its own script's message can still be unproven.**
+  Three push monitors showed exactly the text #182 asks for — from runs three
+  days *older* than the deploy that rewrote them. Compare the beat's timestamp
+  with the artefact's mtime before ticking anything off.
+
+### Still open
+
+| #    | Why                                                                                                     |
+|------|---------------------------------------------------------------------------------------------------------|
+| #200 | Kuma notifies once per incident, and its own healthcheck cannot fail. Remote, but recreates a container   |
+| #202 | Pi-hole's rotation. Symptom cleared by accident; cause undecided until the 00:00 run is observed          |
+| #207 | One marginal sector, seven days old. **On site**, during the reboot, before the volume is mounted         |
+| #182 | Four scheduled observations, all within 48 h                                                              |
+| #128 | Traefik sees every VPN client as one gateway address. **Local work**, re-confirmed twice                  |
+| #138 | wg-easy cannot write its own database. **Requires someone at the machine**                                |
+| #154 | Neither ext4 volume is ever checked. Configuration change is remote; verification needs the on-site reboot |
+| #160 | `wg_easy_config` cannot write and would abort the deploy. Sibling of #138                                 |
+
+Also open: **Renovate PR #88**, eleven image bumps, one of which is wg-easy.
+
+Four of these now share one moment: #207, #154, #138 and #160 all resolve during
+the same on-site visit, and the reboot that #207 needs is the one #154's
+verification wants. Plan them as one trip, not four.
