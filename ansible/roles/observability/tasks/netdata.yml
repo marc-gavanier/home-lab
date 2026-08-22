@@ -102,6 +102,7 @@
     mode: "0444"
   loop:
     - docker
+    - sensors
   notify: Restart netdata
 
 # 0750 root:root and the push URLs inline, which is this host's existing

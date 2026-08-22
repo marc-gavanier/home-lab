@@ -1,0 +1,31 @@
+# {{ ansible_managed }}
+# =============================================================================
+# Netdata go.d — sensors collector (ADR-030, phase 2 groundwork)
+# =============================================================================
+# Enabled WITHOUT any alarm on it, on purpose: deploying only makes new charts
+# appear, so nothing can turn a monitor red on a collector nobody has seen
+# produce data. The temperature alarm follows once the chart is verified.
+#
+# What it unlocks, and what it does NOT:
+#
+#   CPU temperature  YES. Verified by running the binary inside the container
+#                    before writing this: `cpu_thermal-virtual-0 / temp1:
+#                    +38.9 C`. That is the reading homelab-health.sh reports as
+#                    `cpu 38C`.
+#
+#   Undervoltage     NO, and this is the useful half of the finding. The sensor
+#                    is present — `rpi_volt-isa-0000` — but lm-sensors reports
+#                    `in0: N/A`, because the firmware exposes no voltage VALUE.
+#                    What it exposes is a latched ALARM bit at
+#                    /sys/class/hwmon/hwmon1/in0_lcrit_alarm, which netdata can
+#                    read but no stock collector turns into a metric.
+#                    Undervoltage therefore stays in homelab-health.sh until
+#                    something is written for it — and it is the classic silent
+#                    Pi killer, so it does not get dropped.
+#
+# This collector uses the `sensors` CLI rather than reading sysfs directly, so
+# it depends on that binary: /usr/bin/sensors is present in the image (and, for
+# what it is worth, absent from the host).
+jobs:
+  - name: sensors
+    binary_path: /usr/bin/sensors
