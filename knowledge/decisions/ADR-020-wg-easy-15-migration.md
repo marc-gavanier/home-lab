@@ -128,3 +128,27 @@ everything — but it rules out the CLI as a configuration path, which was the
 first option considered for keeping Ansible in charge.
 
 **The peer inventory stays out of this repository**, as before.
+
+## 2026-08-22 — the one-shot migration code is removed, the decision stands
+
+`wg_easy_migrate.yml` and `homelab-wg-easy-migrate.sh.j2` (312 lines together)
+have been deleted. The migration ran on 2026-07-28; wg-easy has been on `15.3.0`
+since, `wg-easy.db` exists, and the script's own first guard made it a no-op on
+every deploy after that day.
+
+Removing it takes nothing away, and the reason is worth recording because it was
+not obvious: the script's **fresh-install branch also exits 0** — `no wg0.json:
+fresh install, v15 will run its own setup`. So it was never a safety net for a
+rebuild, only for the 14→15 transition itself. The one state it would still act
+on is a `wg0.json` present *without* `wg-easy.db`, which now means restoring a
+backup older than 2026-07-28.
+
+What survives: this ADR as the record of how the migration was done, and the
+pre-migration copy under the v14 rollback directory on the encrypted volume,
+which is untouched by this change.
+
+`wg_easy_config.yml` — the second task file described above — is unaffected and
+still re-asserts the settings on every deploy. It is the subject of open issue
+#160.
+
+First application of ADR-030 (tier 0: delete what has already run).
