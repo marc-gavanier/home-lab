@@ -22,7 +22,7 @@ Uses Pi-hole as DNS (`dns: [${PI_LAN_IP}]` in compose) so that domain lookups fo
 
 | Monitor                   | Type     | Target                                            |
 |---------------------------|----------|---------------------------------------------------|
-| Nextcloud                 | HTTP(s)  | `https://drive.example.com/status.php`            |
+| Nextcloud                 | Keyword  | `https://drive.example.com/status.php` — keyword `"maintenance":false,"needsDbUpgrade":false` |
 | Vaultwarden               | HTTP(s)  | `https://vault.example.com/alive`                 |
 | Jellyfin                  | HTTP(s)  | `https://videos.example.com/health`               |
 | Navidrome                 | HTTP(s)  | `https://music.example.com/ping`                  |
@@ -47,6 +47,7 @@ Uses Pi-hole as DNS (`dns: [${PI_LAN_IP}]` in compose) so that domain lookups fo
 | Offsite backup            | Push     | `backup.sh` copy stage, daily 03:00               |
 | Offsite check             | Push     | `offsite-check.sh`, Sun 06:00                     |
 | Offsite health            | Push     | `offsite-health.sh`, on the offsite Pi            |
+| Pi disk health            | Push     | `homelab-disk.sh`, daily 07:05                    |
 | Pi health                 | Push     | `homelab-health.sh`, every 5 min                  |
 | Pi Lynis audit            | Push     | `homelab-lynis-report.sh`, weekly                 |
 | Pi restic prune+check     | Push     | `local-maintenance.sh`, Sun 05:00                 |

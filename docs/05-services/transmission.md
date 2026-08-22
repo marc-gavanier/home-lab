@@ -55,7 +55,15 @@ Transmission writes back to `settings.json` on shutdown, so **stop the daemon be
 
 4. **Port forwarding (manual, one-time)**: on the SFR box admin, forward TCP+UDP 51413 → `192.168.1.100:51413`.
 
-5. Add an Uptime Kuma monitor on `https://share.example.com` (60s interval, 3 retries).
+5. Add the Uptime Kuma monitor — **not** a plain HTTP check on the root. The
+   specification is in [uptime-kuma.md](uptime-kuma.md#monitors-configured):
+   type **Keyword**, URL `https://share.example.com/transmission/web/`, keyword
+   `Transmission Web Interface`, with HTTP Basic auth.
+
+   Unauthenticated, this service answers 401 to every path, so a path that does
+   not exist is indistinguishable from a working interface — which is how `401`
+   ended up in the accepted status codes in the first place (#191). Recreating
+   the bare monitor recreates that pressure.
 
 ## Data
 

@@ -42,7 +42,9 @@ how this instance spent weeks on a self-generated stub config (issue #27).
 ## Restore
 
 Nothing service-specific: re-running the deploy role re-renders `settings.yml` and brings
-the container up. The config is covered by the `/opt/homelab` backup.
+the container up. The config is covered by the backup because it lives under
+`/mnt/data/secrets` — **not** through `/opt/homelab`, which is what this line used to
+say. That was the pre-#27 layout, and the section above explains why it changed.
 
 ## Notes
 
