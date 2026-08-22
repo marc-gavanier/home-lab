@@ -53,6 +53,17 @@ later is worth raising; a theoretical one that costs a weekend is not.
 **Already established** — see `references/settled.md` for the container-layer
 work that is closed and the hardening proposals that have been declined.
 
+**The argv class is ENUMERATED and closed** as of 2026-08-22, on four axes: a
+YAML parse of all 28 services in `compose.yaml`, the child processes those
+command lines spawn, the in-container scheduled jobs no sweep window catches, and
+an empirical 140 s `/proc` sweep against 35 real secret values with a positive
+control. Do not re-derive it — but note the scope trap that produced it: the
+security agent that run concluded "exactly one live instance" from an enumeration
+of *deployed scripts*, while the worst instance was a healthcheck in
+`compose.yaml`. **Define the class by its property, not by the directory you are
+reading.** If you re-check anything here, re-check that the sweep still finds
+`transmission-remote` running before believing a null result.
+
 The **writability sweep is done** as of 2026-08-16 evening: every running
 container was checked for a read-write bind mount it cannot create files in, and
 the four that failed are fixed except wg-easy. The posture check now asserts it
@@ -78,6 +89,20 @@ nothing.
 **Hard constraint** — remote access to the main host runs through the VPN
 tunnel and there is no out-of-band path. Never propose anything that could drop
 it without someone physically on site.
+
+The mechanism, measured on 2026-08-22, because it is sharper than the rule:
+`/etc/wireguard/wg0.conf` is a **symlink onto the encrypted volume**. After a
+reboot it dangles, `wg-quick@wg0` cannot start, `wg-easy` cannot either, and
+`homelab-unlock` asks for a passphrase interactively. **No unlock without the
+tunnel, no tunnel without the unlock.** So a *reboot* belongs in the same class
+as a wg-easy upgrade: propose, never perform. `claude-remote-control` is not an
+escape hatch — its vault mount needs Nextcloud, hence docker, hence the unlock.
+
+Also worth knowing before touching Pi-hole: `dnsproxy` shares its network
+namespace, so **recreating** pihole — which `compose up` does on any definition
+change — destroys that namespace while dnsproxy stays up and healthy. A guard now
+re-attaches it, but a proposal that recreates pihole should still say so: it
+costs the house its resolution, though never SSH, which goes to a bare IP.
 
 ---
 
@@ -184,6 +209,18 @@ what exists on the hosts, and relative markdown links against the tree.
 A wrong runbook during a restore is expensive; a stale version table is not.
 Ignore style and wording entirely: report only what could *mislead* someone
 during an incident.
+
+**The 20 service pages are ENUMERATED** as of 2026-08-22, three axes each (does
+the page agree with its ADR, its runbook, its container?). Eleven were clean;
+the other nine produced fourteen corrections, shipped in #203. Re-check after a
+change rather than re-exploring — but two shapes are worth carrying forward.
+First, `docs/05-services/*.md` was the set every previous sweep forgot: seven of
+the ten findings were corrections that reached the ADR and/or the runbook and
+stopped before the service page. Second, an **enumeration that puts a watched
+thing next to an unwatched one reads as coverage** — that is how a CPU
+temperature nobody thresholded survived in a sentence listing three things the
+check "watches" (#201), and the same sentence existed in a second runbook that
+only a sibling sweep found.
 
 **A worked example to calibrate against** — an ADR once promised that a job's
 carried-over count would appear in its monitoring message. It never had, because
