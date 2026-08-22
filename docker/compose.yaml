@@ -160,7 +160,7 @@ services:
 
   # --- Traefik (Reverse Proxy) ---
   traefik:
-    image: traefik:v3.7.10
+    image: traefik:v3.7.11
     container_name: traefik
     restart: unless-stopped   # Tier 0: auto-start at boot (see stack-startup role)
     security_opt: *no-new-privs
@@ -308,7 +308,7 @@ services:
   # image exits at once with "dns-proxy feature is no longer supported", so the
   # container this stack depended on stopped existing rather than breaking.
   dnsproxy:
-    image: adguard/dnsproxy:v0.83.2
+    image: adguard/dnsproxy:v0.84.1
     container_name: dnsproxy
     restart: unless-stopped   # Tier 0: Pi-hole's only upstream — must stay up
     security_opt: *no-new-privs
@@ -349,7 +349,7 @@ services:
 
   # --- WireGuard VPN ---
   wg-easy:
-    image: ghcr.io/wg-easy/wg-easy:15.3.0
+    image: ghcr.io/wg-easy/wg-easy:15.4.0
     container_name: wg-easy
     restart: unless-stopped   # Tier 0: auto-start at boot (see stack-startup role)
     security_opt: *no-new-privs
@@ -412,7 +412,7 @@ services:
 
   # --- Nextcloud ---
   nextcloud:
-    image: nextcloud:34.0.2-apache
+    image: nextcloud:34.0.3-apache
     container_name: nextcloud
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     # NO read_only (#32): the entrypoint writes redis-session.ini into
@@ -541,7 +541,7 @@ services:
       retries: 3
 
   nextcloud-redis:
-    image: redis:8.10.0-alpine
+    image: redis:8.10.1-alpine
     container_name: nextcloud-redis
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
@@ -569,7 +569,7 @@ services:
   # Companion container running Nextcloud background jobs every 5 min
   # (system cron, more reliable than AJAX). Shares the data volume.
   nextcloud-cron:
-    image: nextcloud:34.0.2-apache
+    image: nextcloud:34.0.3-apache
     container_name: nextcloud-cron
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
@@ -610,7 +610,7 @@ services:
   # NEXTCLOUD_URL and never resolves a public one. Verified rather than assumed
   # while fixing #114 — seven days of logs, zero resolution failures.
   nextcloud-notify-push:
-    image: nextcloud:34.0.2-apache
+    image: nextcloud:34.0.3-apache
     container_name: nextcloud-notify-push
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
@@ -704,7 +704,7 @@ services:
 
   # --- Vaultwarden ---
   vaultwarden:
-    image: vaultwarden/server:1.37.1
+    image: vaultwarden/server:1.37.2
     container_name: vaultwarden
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
@@ -887,7 +887,7 @@ services:
       - internal
 
   immich-redis:
-    image: redis:8.10.0-alpine
+    image: redis:8.10.1-alpine
     container_name: immich-redis
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
@@ -1040,7 +1040,7 @@ services:
   # it off the weekly batch; back the DB up and read the runbook first:
   # knowledge/runbooks/uptime-kuma-migration-failure.md
   uptime-kuma:
-    image: louislam/uptime-kuma:2.5.0
+    image: louislam/uptime-kuma:2.5.3
     container_name: uptime-kuma
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
@@ -1110,7 +1110,7 @@ services:
 
   # --- Netdata ---
   netdata:
-    image: netdata/netdata:v2.10.4
+    image: netdata/netdata:v2.11.0
     container_name: netdata
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     # Netdata's plugins are **setuid root** (4755: apps.plugin, cgroup-network,
@@ -1229,7 +1229,7 @@ services:
   # without SSH, logs were not. Reads the daemon through the same read-only
   # socket-proxy as Traefik and Netdata — never the raw docker.sock.
   dozzle:
-    image: amir20/dozzle:v10.7.1
+    image: amir20/dozzle:v10.7.3
     container_name: dozzle
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
@@ -1527,7 +1527,7 @@ services:
     # It pays for that with a different data path: /var/lib/gitea, NOT the /data
     # that every tutorial mounts, which would store every repository in a layer
     # the next `compose up` discards (ADR-028).
-    image: codeberg.org/forgejo/forgejo:16.0.2-rootless
+    image: codeberg.org/forgejo/forgejo:16.0.3-rootless
     container_name: forgejo
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
