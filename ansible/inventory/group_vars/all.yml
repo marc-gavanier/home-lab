@@ -107,3 +107,20 @@ nextcloud_lock_timeout_minutes: 60
 # is, and belongs in the vaulted local.yml. Note this is read ONLY while the
 # account does not exist — renaming it later has no effect, the old user stays.
 miniflux_admin_user: "admin"
+
+# --- Netdata alerting (ADR-030, phase 1) ---
+# Netdata's 57 STOCK alarms stay unrouted, as docs/07-observability/README.md
+# decided: they are tuned for a generic server and would be noise. Only alarms
+# we curate in health.d/ address the role below, and only that role is given a
+# Discord recipient — so "stock reaches nobody" is enforced by the mechanism
+# rather than by an empty field.
+# No stock alarm addresses this name; they use sysadmin, dba and silent.
+netdata_alert_role: "homelab"
+netdata_alert_channel: "alerts"
+
+# Swap utilisation threshold for the curated alarm. Kept in ONE place because
+# homelab-health.sh carries the same number, and two copies of a threshold are
+# a drift waiting to happen. 85 is a STARTING POINT, not a measured value —
+# occupancy accumulates cold pages until something restarts the containers, so
+# it is not a steady state to project from.
+netdata_swap_threshold_pct: 85

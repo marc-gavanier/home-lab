@@ -1,0 +1,14 @@
+---
+# A restart, and not `netdatacli reload-health`, which would be the obvious
+# choice and does not work here: this image runs netdata as PID 1 with no
+# control pipe — `/run/netdata/` is empty, and netdatacli answers "Cannot
+# connect to '/run/netdata/netdata.pipe'". Measured, not assumed, because a
+# handler that silently does nothing is the exact defect class this repository
+# keeps finding.
+#
+# The cost is a few seconds of collection, not history: the metrics database
+# lives on the volume since ADR-019.
+- name: Restart netdata
+  ansible.builtin.command:
+    cmd: docker restart netdata
+  changed_when: true

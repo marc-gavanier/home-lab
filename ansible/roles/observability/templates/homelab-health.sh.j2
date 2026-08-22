@@ -143,7 +143,7 @@ done
 # once a few weeks of the new steady state are visible; if it turns out to sit
 # above 85%, raise it rather than deleting it.
 MEM_THRESHOLD_MIB=800
-SWAP_THRESHOLD_PCT=85
+SWAP_THRESHOLD_PCT={{ netdata_swap_threshold_pct }}
 MEM_STAMP=/var/lib/homelab-health/lowmem.stamp
 if [ -r /proc/meminfo ]; then
     mem_avail=$(awk '/^MemAvailable:/ {print int($2/1024)}' /proc/meminfo)

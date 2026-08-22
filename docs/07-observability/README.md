@@ -8,23 +8,38 @@ merely interesting belongs on a dashboard, not in a notification.
 
 ## Stack
 
-| Tool            | Role                                                                             |
-|-----------------|----------------------------------------------------------------------------------|
-| **Netdata**     | Real-time system metrics — forensic dashboard, **alerts reach nobody by design** |
-| **Uptime Kuma** | Availability monitoring + alerting (Discord)                                     |
+| Tool            | Role                                                                                                |
+|-----------------|-----------------------------------------------------------------------------------------------------|
+| **Netdata**     | System metrics, forensic dashboard, and **curated** alarms — its 57 stock alarms still reach nobody |
+| **Uptime Kuma** | Availability monitoring + alerting (Discord)                                                        |
 
 Netdata is not notification-free — that wording was wrong and it mattered. It
-ships **57 stock alarms and runs them**. What it has no configured recipient,
-so when one fires it executes its notifier, the notifier fails, and nothing
-leaves the machine. That is not a hypothetical: `used_swap` sat CRITICAL for
-5 days 19 hours in August 2026 and reached no one.
+ships **57 stock alarms and runs them**. They are tuned for a generic server —
+the disk-backlog one alone would fire on every nightly backup — so wiring them
+to Discord would produce exactly the noise this stack refuses. They address the
+`sysadmin`, `dba` and `silent` roles, and **none of those roles is routed**.
 
-Leaving it that way is a deliberate choice, not an oversight. The stock alarms
-are tuned for a generic server — the disk-backlog one alone would fire on every
-nightly backup — so wiring them to Discord would produce exactly the noise this
-stack refuses. **Any signal worth acting on gets added to `homelab-health.sh`
-instead**, with a threshold chosen and justified here, and travels the push path
-that demonstrably reaches a human.
+That was, and remains, a deliberate choice. What used to happen next was the
+part worth correcting: any signal worth acting on was added to
+`homelab-health.sh` instead. Six scripts ended up following that pattern, and
+the one that mattered most aggregated 17 unrelated conditions into a single
+signal — which then latched DOWN for a whole day on the least urgent of them
+(issue #216), muting the rest. That contradicts the philosophy above: one alert,
+one action.
+
+**Since ADR-030 there is a third option, and it is now the default one.**
+Alarms we curate live in this repository under `health.d/`, carry a threshold
+chosen and justified here, and address a dedicated role — `homelab` — that no
+stock alarm uses. Only that role is given a Discord recipient;
+`DEFAULT_RECIPIENT_DISCORD` is left empty, which Netdata documents as "do not
+send a notification for unconfigured roles". So the stock alarms stay mute **by
+construction**, not because a field was left blank.
+
+Each curated alarm is one condition with its own signal, and it replaces a check
+in `homelab-health.sh` only **after it has been observed firing** — the two
+layers overlap on purpose until then. The first one is swap utilisation, chosen
+because it is this page's own cautionary tale: `used_swap` sat CRITICAL for
+5 days 19 hours in August 2026 and reached no one.
 
 So: use Netdata to investigate *after* Kuma has told you something is wrong, and
 never treat a quiet Netdata as evidence that nothing is wrong.
