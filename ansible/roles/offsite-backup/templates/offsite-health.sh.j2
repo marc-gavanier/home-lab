@@ -151,17 +151,70 @@ else
     fi
 fi
 
+# --- Pending security updates (age-gated) ---
+# The homelab has had this since #156; this host never did, which made it the
+# trailing edge of yet another sweep (#155, #156, now #201). Ported rather than
+# reinvented: same apt-check parse, same stamp, same 48h gate.
+#
+# The REBOOT half is deliberately absent, and that is not an oversight. This
+# host sets Automatic-Reboot true at 04:00 (ADR-013) precisely because it has no
+# LUKS volume to unlock, so a pending reboot resolves itself overnight and
+# alarming on it would fire every night between the upgrade and 04:00. What is
+# NOT covered anywhere is the update that cannot install — held, failed, or
+# needing something needrestart did not cover.
+#
+# One consequence of the weekly cadence, worth stating rather than discovering:
+# this script runs once a week, so the 48h gate means in practice "still pending
+# at the next weekly run". A count that is nonzero once and clear the following
+# week never alarms, which is the intended behaviour — u-u installs daily.
+APT_CHECK=/usr/lib/update-notifier/apt-check
+SEC_STAMP=/var/lib/offsite-health/security-pending.stamp
+if [ -x "$APT_CHECK" ]; then
+    sec=$("$APT_CHECK" 2>&1 | cut -d';' -f2); sec=${sec//[^0-9]/}; sec=${sec:-0}
+    if [ "$sec" -gt 0 ]; then
+        report+=("$sec security updates pending")
+        mkdir -p "$(dirname "$SEC_STAMP")"
+        [ -f "$SEC_STAMP" ] || date +%s > "$SEC_STAMP"
+        age=$(( $(date +%s) - $(cat "$SEC_STAMP" 2>/dev/null || echo 0) ))
+        [ "$age" -gt 172800 ] && problems+=("$sec security updates unapplied >48h")
+    else
+        rm -f "$SEC_STAMP"
+    fi
+fi
+
 # --- Pi power & thermal ---
 # A sagging power supply silently corrupts disks; the firmware latches
 # undervoltage events into the rpi_volt hwmon alarm.
 
 cpu_temp=$(( $(cat /sys/class/thermal/thermal_zone0/temp) / 1000 ))
 report+=("cpu ${cpu_temp}C")
+# 70, not the homelab's 80, and the difference is deliberate (#201). This board
+# idles at ~49C doing nothing while the homelab averages 40C running 28
+# containers, and its active cooling engages at 60C (trip_point_0). So 70 means
+# "the fan has been running for a while and it is still climbing" — a seized or
+# unplugged fan — rather than "the SoC is already throttling itself", which is
+# what 80 would catch. On a host sampled once a week, in someone else's home,
+# with a gpio_fan that has no tachometer (fan1_input reads 0 whether it spins or
+# not), the warning has to come early enough to be worth having.
+#
+# This line is the finding: eleven other conditions in this file push a problem
+# and this one only ever went into the report — while backup-monitoring.md
+# listed CPU temperature next to SSD temperature and undervoltage as things this
+# check "watches". The other two were thresholded. This one was not.
+[ "$cpu_temp" -ge 70 ] && problems+=("cpu ${cpu_temp}C")
 
+# The same "a loop that visited nothing must report, not pass" guard the ext4
+# and SMART blocks already carry (#156). Without it, a kernel that stops
+# exposing rpi_volt — a firmware change, a hwmon rename — turns this into a
+# check that always passes, silently. The sensor is present on both hosts today,
+# so this is latent rather than active.
+volt_seen=0
 for h in /sys/class/hwmon/hwmon*; do
     [ "$(cat "$h/name" 2>/dev/null)" = "rpi_volt" ] || continue
+    volt_seen=1
     [ "$(cat "$h/in0_lcrit_alarm" 2>/dev/null)" = "1" ] && problems+=("undervoltage")
 done
+[ "$volt_seen" -eq 1 ] || problems+=("undervoltage: rpi_volt sensor absent — the check asserted nothing")
 
 # --- Tunnel to the homelab ---
 # Reported, not relied on for detection: this very message travels THROUGH the
