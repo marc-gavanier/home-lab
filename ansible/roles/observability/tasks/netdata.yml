@@ -29,10 +29,17 @@
 # own bootstrap files (`.environment`, `.install-type`, `edit-config`, and the
 # `orig` symlink into the stock tree). Only the empty `health.d/` is mounted.
 
-- name: netdata | Select the curated alarms that have a Kuma monitor
+- name: netdata | Select the groups that have a Kuma monitor
+  ansible.builtin.set_fact:
+    netdata_active_groups: >-
+      {{ netdata_alarm_groups | selectattr('push_url') | list }}
+
+- name: netdata | Select the alarms whose group is configured
   ansible.builtin.set_fact:
     netdata_active_alarms: >-
-      {{ netdata_curated_alarms | selectattr('push_url') | list }}
+      {{ netdata_curated_alarms
+         | selectattr('group', 'in', netdata_active_groups | map(attribute='name') | list)
+         | list }}
 
 - name: netdata | Refuse a push URL that cannot deliver
   # These alarms only reach this task when their push_url is non-empty, so this
@@ -45,12 +52,12 @@
       - item.push_url is search('^https://')
       - item.push_url is search('/api/push/')
     fail_msg: >-
-      The push URL for curated alarm '{{ item.name }}' is set but is not an
-      Uptime Kuma push URL, so the alarm would evaluate and never surface.
+      The push URL for alarm group '{{ item.name }}' is set but is not an
+      Uptime Kuma push URL, so its alarms would evaluate and never surface.
       Create a Push monitor in Kuma, copy its push URL, and set it in the
       vaulted host_vars — see local.example.yml.
     quiet: true
-  loop: "{{ netdata_active_alarms }}"
+  loop: "{{ netdata_active_groups }}"
   loop_control:
     label: "{{ item.name }}"
 
@@ -64,14 +71,14 @@
 
 - name: netdata | Install the curated alarms
   ansible.builtin.template:
-    src: "netdata-health-{{ item.name }}.conf.j2"
-    dest: "{{ services_data_dir }}/netdata/health.d/{{ item.name }}.conf"
+    src: "netdata-health-{{ item.file }}.conf.j2"
+    dest: "{{ services_data_dir }}/netdata/health.d/{{ item.file }}.conf"
     owner: root
     group: root
     mode: "0444"
   loop: "{{ netdata_active_alarms }}"
   loop_control:
-    label: "{{ item.name }}"
+    label: "{{ item.file }} -> {{ item.group }}"
   notify: Restart netdata
 
 # 0750 root:root and the push URLs inline, which is this host's existing

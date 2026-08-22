@@ -3,34 +3,53 @@
 # =============================================================================
 # Netdata curated alarms -> Uptime Kuma (ADR-030, phase 1)
 # =============================================================================
-# ONE adapter, not one script per check. It translates Netdata's alarm states
-# into Kuma push heartbeats, and it does not grow when an alarm is added: the
-# loop below is generated from netdata_curated_alarms.
+# ONE adapter, not one script per check. It translates Netdata alarm states into
+# Kuma push heartbeats, and it does not grow when an alarm is added: the calls
+# below are generated from netdata_alarm_groups and netdata_curated_alarms.
 #
-# Why an adapter at all, rather than letting Netdata notify:
+# --- Why an adapter, rather than letting Netdata notify ----------------------
+# Netdata notifies on a STATE TRANSITION. A Kuma push monitor expects a
+# HEARTBEAT and marks itself down when one does not arrive in its window.
+# Wiring one to the other directly looks fine and rots quietly: a condition that
+# stays healthy produces no transition, no push, and Kuma eventually reports a
+# failure that never happened. Measured, not feared — monitor 20 carries 108
+# heartbeats reading "No heartbeat in the time window".
 #
-#   Netdata notifies on a STATE TRANSITION. A Kuma push monitor expects a
-#   HEARTBEAT and marks itself down when one does not arrive in its window.
-#   Wiring one to the other directly looks fine and rots quietly: a condition
-#   that stays healthy produces no transition, no push, and Kuma eventually
-#   reports a failure that never happened. Measured, not feared — monitor 20
-#   carries 108 heartbeats reading "No heartbeat in the time window".
+# Polling turns that mismatch into a property: a beat goes out on every run
+# whatever the state, so every monitor here is also a dead-man's switch. If
+# netdata dies, this adapter stops, or the host goes away, the monitor goes red
+# on its own. Transition-driven notification would have sat green forever.
 #
-# Polling turns that mismatch into a property. Because a beat is sent on every
-# run whatever the state, each monitor is also a dead-man's switch: if netdata
-# dies, or this adapter stops, or the host goes away, the monitor goes red on
-# its own. A transition-driven design would have sat green forever.
-#
-# Netdata's own notification configuration is deliberately NOT touched. It
-# still reaches nobody — stock alarms and curated ones alike — which keeps
+# Netdata's own notification configuration is deliberately NOT touched. It still
+# reaches nobody — stock alarms and curated ones alike — which keeps
 # docs/07-observability/README.md literally true and leaves Kuma as the single
 # place the notification channel is configured.
 #
+# --- Why alarms are GROUPED --------------------------------------------------
+# One monitor per ACTION, not per condition, which is what that same page asks
+# for. Conditions that send you to the same place share a monitor: the dashboard
+# stays readable, and Kuma v2 monitors are created by hand.
+#
+# The line that must not be crossed is LIFETIME, not subject matter. #216 cost a
+# whole day because `reboot pending` — which waits for a human and stays red for
+# days by construction — sat in the same signal as the acute checks and muted
+# them. Hence a `pending` group of its own.
+#
+# Within a group, a still-down monitor only re-notifies if `resend_interval` is
+# set on it in Kuma (#200). Without that, a second condition appearing while the
+# first is unresolved reaches nobody. The grouping is only safe with it.
+#
+# `{% raw %}` is not decoration: `${#problems[@]}` opens a Jinja COMMENT, so
+# without it this template fails to render with "Missing end of comment tag" —
+# and a stale rendered copy will happily pass `bash -n` while you think you are
+# checking the new one.
+#
 # The alarm names below must match the `alarm:` lines in health.d/. A name that
-# does not resolve pushes DOWN with a message saying so, rather than silently
+# does not resolve reports its group DOWN saying so, rather than silently
 # reporting healthy — a mapping typo must be loud.
 # =============================================================================
 
+{% raw %}
 set -uo pipefail
 
 CONTAINER="netdata"
@@ -39,24 +58,20 @@ TIMEOUT=10
 
 log() { echo "$*"; }   # stdout -> journal
 
-# One API call for every alarm, not one per alarm: the adapter must not add
-# load proportional to the number of conditions it reports on.
+# One API call for every group, not one per alarm. The API answers roughly a
+# megabyte, so it is flattened ONCE into "name<TAB>status<TAB>value" and the
+# lookups below only grep it — the adapter's cost must not grow with the number
+# of conditions it reports on.
 if ! alarms_json="$(docker exec "$CONTAINER" \
         curl --silent --max-time "$TIMEOUT" "$API" 2>/dev/null)"; then
     alarms_json=""
 fi
-# Flatten once, not once per alarm. The API answers with roughly a megabyte of
-# JSON, so parsing it per condition would make the adapter's cost grow with the
-# number of things it reports on — the opposite of the point. One jq pass
-# produces "name<TAB>status<TAB>value" and the loop below only greps it.
 ALARM_TABLE=""
 if [ -n "$alarms_json" ]; then
     ALARM_TABLE="$(printf '%s' "$alarms_json" |
         jq -r '.alarms[]? | [.name, .status, (.value_string // "")] | @tsv' 2>/dev/null)"
 fi
-if [ -z "$ALARM_TABLE" ]; then
-    log "netdata alarm API unreachable or unparseable — reporting every alarm down"
-fi
+[ -z "$ALARM_TABLE" ] && log "netdata alarm API unreachable or unparseable — reporting every group down"
 
 push() {   # $1 url, $2 up|down, $3 message
     # Strip any query string the URL already carries. Kuma's UI displays the
@@ -65,8 +80,7 @@ push() {   # $1 url, $2 up|down, $3 message
     # thing to do. Appending ours then sends `status` and `msg` TWICE, Kuma
     # parses the duplicates as arrays, and the result is a beat that reads
     # `[object Object]` and is recorded DOWN because an array never equals the
-    # string "up". Measured on the first real run, not imagined: monitor 35
-    # logged exactly that at 00:30 and 00:35 before this line existed.
+    # string "up". Measured on the first real run, not imagined.
     local url="${1%%\?*}"
 
     if curl --silent --show-error --max-time "$TIMEOUT" --retry 2 --get "$url" \
@@ -77,42 +91,63 @@ push() {   # $1 url, $2 up|down, $3 message
     return 1
 }
 
-report() {   # $1 url, $2 netdata alarm name
-    local url="$1" name="$2" row status value
+join() { local sep="$1"; shift; local out; out="$(printf "%s${sep}" "$@")"; printf '%s' "${out%"$sep"}"; }
+
+group() {   # $1 push url, $2.. alarm names
+    local url="$1"; shift
+    local problems=() reports=() name row status value
 
     if [ -z "$ALARM_TABLE" ]; then
-        push "$url" down "netdata unreachable — alarm '$name' state unknown"
+        push "$url" down "netdata unreachable — state of $# alarm(s) unknown"
         return
     fi
 
-    # Anchored on the tab so a name cannot match a longer one by prefix.
-    row="$(printf '%s\n' "$ALARM_TABLE" | grep -m1 -P "^\Q$name\E\t" || true)"
-    status="$(printf '%s' "$row" | cut -f2)"
-    value="$(printf '%s' "$row" | cut -f3)"
+    for name in "$@"; do
+        # Anchored on the tab so a name cannot match a longer one by prefix.
+        row="$(printf '%s\n' "$ALARM_TABLE" | grep -m1 -P "^\Q$name\E\t" || true)"
+        status="$(printf '%s' "$row" | cut -f2)"
+        value="$(printf '%s' "$row" | cut -f3)"
 
-    case "$status" in
-        CLEAR)
-            push "$url" up "${name} ok${value:+ (${value})}"
-            ;;
-        WARNING|CRITICAL)
-            push "$url" down "${status}: ${name}${value:+ — ${value}}"
-            ;;
-        "")
-            # Not a transient state: the alarm is absent from netdata entirely,
-            # which means the name here and the `alarm:` line in health.d/ have
-            # drifted, or the file failed to load. Silence would report healthy.
-            push "$url" down "alarm '${name}' is not loaded in netdata"
-            ;;
-        *)
-            # UNDEFINED / UNINITIALIZED / REMOVED. Brief after a netdata restart
-            # — including the one this role's own handler performs — and a real
-            # defect if it persists, so it is reported with the raw state rather
-            # than smoothed over.
-            push "$url" down "alarm '${name}' is ${status}"
-            ;;
-    esac
+        case "$status" in
+            CLEAR)
+                reports+=("${name}${value:+ ${value}}")
+                ;;
+            WARNING|CRITICAL)
+                problems+=("${status}: ${name}${value:+ ${value}}")
+                ;;
+            "")
+                # Not transient: the alarm is absent from netdata entirely, so
+                # the name here and the `alarm:` line in health.d/ have drifted,
+                # or the file failed to load. Silence would report healthy.
+                problems+=("${name} is not loaded in netdata")
+                ;;
+            *)
+                # UNDEFINED / UNINITIALIZED / REMOVED. Brief after a netdata
+                # restart — including the one this role's handler performs — and
+                # a real defect if it persists, so it is reported raw rather than
+                # smoothed over.
+                problems+=("${name} is ${status}")
+                ;;
+        esac
+    done
+
+    # Same message shape as the health scripts: what is wrong first, then the
+    # readings, so the first words of a Discord notification are the problem.
+    local readings=""
+    [ ${#reports[@]} -gt 0 ] && readings="$(join ', ' "${reports[@]}")"
+
+    if [ ${#problems[@]} -gt 0 ]; then
+        push "$url" down "$(join '; ' "${problems[@]}")${readings:+ | ${readings}}"
+    else
+        push "$url" up "${readings:-no readings}"
+    fi
 }
+{% endraw %}
 
-{% for alarm in netdata_curated_alarms if alarm.push_url %}
-report '{{ alarm.push_url }}' '{{ alarm.netdata_alarm }}'
+{% for grp in netdata_alarm_groups if grp.push_url %}
+{% set members = netdata_curated_alarms | selectattr('group', 'equalto', grp.name) | list %}
+{% if members %}
+group '{{ grp.push_url }}' {% for a in members %}'{{ a.alarm }}' {% endfor %}
+
+{% endif %}
 {% endfor %}

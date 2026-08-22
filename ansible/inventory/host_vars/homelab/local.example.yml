@@ -205,21 +205,27 @@ offsite_copy_kuma_push_url: ""   # nightly restic copy (dead-man's switch)
 offsite_check_kuma_push_url: ""  # weekly offsite repo check
 
 # --- Netdata curated alarms (ADR-030, phase 1) ---
-# Netdata does NOT notify directly. Each curated alarm pushes into its OWN
-# Uptime Kuma push monitor, so Kuma stays the single place where the
-# notification channel is configured — the day Discord is replaced, only Kuma
-# changes. One condition, one monitor, one line on the dashboard with its own
-# history.
+# Netdata notifies nobody. A host-side adapter reads its alarm states every
+# 5 minutes and pushes into Uptime Kuma, which stays the single place the
+# notification channel is configured.
 #
-# To add one: create a Push monitor in the Kuma UI (Kuma v2 has no API for
-# this), copy its push URL here, and deploy. EMPTY = that alarm is not
-# installed at all, rather than installed and mute.
+# ONE MONITOR PER ACTION, not per condition — which is what
+# docs/07-observability/README.md asks for. Conditions that would send you to
+# the same place share a monitor, so the dashboard stays readable and there are
+# three to create by hand rather than thirty (Kuma v2 has no API for it).
 #
-# Netdata's 57 STOCK alarms remain unrouted in every case, which is the decision
-# documented in docs/07-observability/README.md: they are tuned for a generic
-# server and would be noise.
+# What must never share a monitor is a difference of LIFETIME. `pending` holds
+# the conditions that wait for a human — a pending reboot, an expiring
+# certificate, a marginal sector — and stays red for days by design. Folding
+# those in with the acute checks is what cost a whole day in #216.
 #
-# Swap utilisation above netdata_swap_threshold_pct. Replaces the swap check in
-# homelab-health.sh — but only once it has been observed firing; until then the
-# two run side by side on purpose.
-netdata_swap_kuma_push_url: ""
+# On each of these monitors, set "Resend Notification if Down X times" in Kuma
+# (6 h is reasonable). Without it a monitor that is already down never
+# re-notifies, so a second condition appearing inside a group reaches nobody —
+# #200 measured 54 hours of continuous outage for a single message. The grouping
+# is only safe with resend on.
+#
+# EMPTY = that group is not installed at all, rather than installed and unread.
+netdata_resources_kuma_push_url: ""   # temperature, undervoltage, memory, swap, disk
+netdata_services_kuma_push_url: ""    # containers, systemd units, DNS, mirror
+netdata_pending_kuma_push_url: ""     # reboot pending, certificate expiry, SMART
