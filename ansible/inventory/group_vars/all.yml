@@ -110,25 +110,48 @@ miniflux_admin_user: "admin"
 
 # --- Netdata curated alarms (ADR-030, phase 1) ---
 # Netdata notifies NOBODY — stock alarms and curated ones alike, which is the
-# decision documented in docs/07-observability/README.md. Each curated alarm is
-# read by a host-side adapter (homelab-netdata-kuma.sh, every 5 minutes) and
-# pushed into its OWN Uptime Kuma monitor, so Kuma stays the single place the
-# notification channel is configured.
+# decision documented in docs/07-observability/README.md. A host-side adapter
+# (homelab-netdata-kuma.sh, every 5 minutes) reads the alarm API and pushes into
+# Uptime Kuma, which stays the single place the notification channel is
+# configured.
 #
-# Polling rather than notifying is what makes each monitor a dead-man's switch
-# too: a beat is sent on every run, so a dead netdata or a stopped adapter turns
-# the monitor red on its own.
+# Polling rather than notifying is also what makes each monitor a dead-man's
+# switch: a beat goes out on every run, so a dead netdata or a stopped adapter
+# turns the monitor red on its own.
 #
-#   name          the health.d/ file and its template, netdata-health-<name>.conf.j2
-#   netdata_alarm the `alarm:` line inside it — the contract with the adapter
-#   push_url      the Kuma push monitor for THIS condition, from vaulted host_vars
+# --- Grouping: one monitor per ACTION, not per condition -------------------
+# `docs/07-observability/README.md` asks for "one alert = one action needed" —
+# an ACTION, not a condition. Conditions that would send you to the same place
+# therefore share a monitor, which keeps the dashboard readable and the manual
+# monitor creation bearable (Kuma v2 has no API for it).
 #
-# Empty push_url = the alarm is not installed at all, rather than installed and
-# unreported.
+# What must NOT share a monitor is a difference of LIFETIME. That is what cost a
+# whole day in #216: `reboot pending` waits for a human and stays red for days
+# by construction, so folded in with the acute checks it occupied the signal
+# permanently and muted them. `pending` below exists for exactly that class.
+#
+# These monitors want `resend_interval` set (6 h is reasonable) so a monitor
+# that is still down re-notifies with its CURRENT message — which is what makes
+# a group safe: a new condition inside one still reaches you. See #200, which
+# measured 54 hours of continuous outage for a single notification.
+netdata_alarm_groups:
+  - name: resources
+    push_url: "{{ netdata_resources_kuma_push_url | default('') }}"
+  - name: services
+    push_url: "{{ netdata_services_kuma_push_url | default('') }}"
+  - name: pending
+    push_url: "{{ netdata_pending_kuma_push_url | default('') }}"
+
+# One entry per curated alarm.
+#   file   the template, netdata-health-<file>.conf.j2, and the installed name
+#   alarm  the `alarm:` line inside it — the contract with the adapter
+#   group  which monitor reports it
+# An alarm whose group has no push_url is not installed at all, rather than
+# installed and unreported.
 netdata_curated_alarms:
-  - name: homelab-swap
-    netdata_alarm: homelab_used_swap
-    push_url: "{{ netdata_swap_kuma_push_url | default('') }}"
+  - file: homelab-swap
+    alarm: homelab_used_swap
+    group: resources
 
 # Swap utilisation threshold. Kept in ONE place because homelab-health.sh
 # carries the same number, and two copies of a threshold are a drift waiting to

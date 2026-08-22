@@ -58,12 +58,31 @@ one monitor red on the dashboard, with history and an uptime figure, instead of
 leaving a line in a chat log. That is what makes the rule below cheap to
 respect.
 
-The cost, stated plainly: **one manually-created Kuma monitor per condition.**
-`health.yml` records why the host signals were folded into a single push in the
-first place — "Kuma v2 monitors are created by hand, so folding host-level
-signals into one push keeps the alerting surface flat". That flat surface is
-precisely what latched for a whole day on a pending reboot. One monitor each is
-the price of a signal that no unrelated condition can mute.
+### One monitor per action, not per condition
+
+"One alert = one action needed" is about an **action**. Conditions that would
+send you to the same place therefore share a monitor:
+
+| Monitor | What it carries | What you would do |
+|--------------------|----------------------------------------------------|------------------------------|
+| **Pi resources** | temperature, undervoltage, memory, swap, disk | look at load or capacity |
+| **Pi services** | containers, systemd units, restart loops, DNS, mirror | look at the stack |
+| **Pi pending action** | reboot pending, certificate expiry, marginal sector | schedule an intervention |
+
+Three to create by hand, not thirty — `health.yml` records why that matters:
+"Kuma v2 monitors are created by hand, so folding host-level signals into one
+push keeps the alerting surface flat."
+
+**The line that must not be crossed is lifetime, not subject.** `pending` exists
+because a condition that waits for a human stays red for days by construction.
+Folded in with the acute checks it occupies the signal permanently and mutes
+them — which is exactly what happened for a whole day (#216).
+
+And grouping is only safe with **resend enabled** on these monitors. Kuma
+notifies on a state change; a monitor already down says nothing more, so a
+second condition appearing inside a group would reach nobody. #200 measured 54
+hours of continuous outage for one message. Set "Resend Notification if Down X
+times" on each.
 
 Each curated alarm is one condition with its own signal, and it replaces a check
 in `homelab-health.sh` only **after it has been observed firing** — the two
