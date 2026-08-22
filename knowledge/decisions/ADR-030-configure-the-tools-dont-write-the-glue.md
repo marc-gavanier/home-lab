@@ -1,8 +1,10 @@
 # ADR-030 — Configure the installed tools instead of writing the glue
 
 **Date**: 2026-08-22
-**Status**: accepted — direction only. Each replacement below needs its own
-change and its own verification; nothing here authorises a rewrite.
+**Status**: accepted — direction, with a sequenced plan and a defined end
+state. Each replacement needs its own change and its own verification; nothing
+here authorises a rewrite. Amended 2026-08-22 after a factual error in the
+first version, which is documented in Context rather than rewritten away.
 
 ## Context
 
@@ -39,20 +41,61 @@ handlers with no orphan either way.
 **The components we did not write are healthy. What breaks, at 70 %, is the
 glue we wrote.**
 
-### The specific thing that made the decision
+### The specific thing that made the decision — corrected
 
-Netdata has been running on this host since the beginning. It defines **57
-alarms** covering CPU, RAM, swap, load, file descriptors, disk space across 5
-mount points, inodes, and per-container memory and CPU for all 28 containers —
-plus ML anomaly detection. Twelve of those alarms are addressed to the
-`sysadmin` role, nine to `root`, thirty-six are deliberately `silent`.
+**The first version of this ADR got this section wrong, and the correction is
+kept in place rather than quietly rewritten, because it changes what the
+decision rests on.**
 
-**No recipient is configured, so none of them can reach a human.**
+What was written: Netdata defines 57 alarms, no recipient is configured, so the
+work "was redone in bash" — framed as an oversight.
 
-Beside them sit 740 lines of `homelab-health.sh` and `homelab-disk.sh`
-re-implementing a subset of the same checks and pushing to Uptime Kuma. The tool
-was installed, its alarms were written, the recipient line was never filled in,
-and the work was redone in bash.
+What `docs/07-observability/README.md` actually says, and has said all along:
+
+> "Leaving it that way is a **deliberate choice, not an oversight**. The stock
+> alarms are tuned for a generic server — the disk-backlog one alone would fire
+> on every nightly backup — so wiring them to Discord would produce exactly the
+> noise this stack refuses. **Any signal worth acting on gets added to
+> `homelab-health.sh` instead**, with a threshold chosen and justified here, and
+> travels the push path that demonstrably reaches a human."
+
+That decision is sound, and the README even records the incident that proves its
+consequence was understood: `used_swap` sat CRITICAL for 5 days 19 hours in
+August 2026 and reached no one.
+
+So the bespoke layer is not an accident. It exists because a real gap exists:
+**curated, per-host assertions with justified thresholds, each reaching a human.**
+Netdata's stock alarms do not provide that, and Uptime Kuma only answers
+reachability. Writing that layer was rational.
+
+**The mistake is not that it was written. It is that it was written six times,
+in bash, with no shared runtime.**
+
+### What the correction opens up
+
+The README refuses to route the **stock** alarms. It does not refuse Netdata's
+alarm engine — and that distinction, which the first version of this ADR missed,
+is the whole direction.
+
+Measured on the running instance:
+
+- **133 go.d collectors are available**, including `systemdunits` (unit state —
+  the gap #220 A5 reports on the offsite host), `x509check` (certificate expiry,
+  today a hand-rolled check), `dns_query`, `filecheck` (file age and size —
+  dump freshness, `/run/reboot-required`), `sensors`, `portcheck`, `httpcheck`,
+  `chrony`.
+- **Routing is per-role, with arbitrary role names.**
+  `role_recipients_discord[<role>]` is an associative array;
+  `SEND_DISCORD="YES"` already, while `DISCORD_WEBHOOK_URL` and
+  `DEFAULT_RECIPIENT_DISCORD` are empty.
+- The 57 stock alarms address `sysadmin`, `dba` and `silent` — and **none of
+  them address a role of our choosing.**
+
+Therefore: define a dedicated role, put curated alarms in `health.d/` addressed
+to it, and give a Discord recipient to that role **only**. The stock alarms keep
+reaching nobody — the README's decision is preserved *by construction* instead of
+by omission — while curated signals travel a path that is configured, declarative
+and one-alert-per-condition.
 
 ### Six scripts, one pattern, six conventions
 
@@ -81,7 +124,17 @@ describes the failure mode directly:
 2026-08-22 that signal was latched DOWN for the whole day on the least urgent
 thing it watches — a pending kernel reboot — and the 17 checks behind it,
 including the only coverage of the 10 containers with no monitor of their own,
-detected without alerting. That is the textbook anti-pattern, not a local bug.
+detected without alerting.
+
+And the sharpest form of the argument does not need Google at all. This
+repository's own observability philosophy reads:
+
+> "One alert = one action needed. Anything that is merely interesting belongs on
+> a dashboard, not in a notification."
+
+**The stack's written doctrine and its implementation contradict each other, and
+the doctrine is right.** That, not an external standard, is what this ADR acts
+on.
 
 Two more external findings, for the same reason:
 
@@ -96,48 +149,107 @@ Two more external findings, for the same reason:
 
 ## Decision
 
-**Prefer configuring an installed tool over writing glue. One brick, one job.**
+**One engine per job, curated configuration instead of bespoke code, and one
+signal per condition.**
 
-Concretely, the target shape — each brick with a single responsibility, and
-loosely coupled points of integration rather than one aggregate:
+The bespoke layer is not deleted because it is bespoke. It is replaced *check by
+check*, and only where an installed engine can express the same assertion with
+the same justified threshold.
 
-| Brick | Its one job | What it replaces |
-|--------------------|------------------------------------------------|--------------------------------|
-| **Netdata** | host and container metrics, thresholds, alarms | most of `health.sh` + `disk.sh` |
-| **Uptime Kuma** | external reachability of the services | already correct, keep as is |
-| **cron monitoring** | dead man's switch for scheduled jobs | the push pattern copied 6 times |
-| **Goss** | declarative posture assertions | `posture.sh` |
-| **resticprofile** | backup orchestration | `backup.sh` + maintenance + offsite-check |
+### The target
 
-And the rule that follows from it, binding on future work:
+| Engine | Its one job | What it absorbs |
+|--------------------|---------------------------------------------------------|--------------------------------|
+| **Netdata** | collection, thresholds, and routing of **curated** alarms | `health.sh`, `disk.sh`, `offsite-health.sh`, `lynis-report.sh`, `notify-push.sh` |
+| **Uptime Kuma** | external reachability + dead-man's switch for scheduled jobs | already correct, keep |
+| **Goss** | assertions Netdata cannot express (container config) | `posture.sh` |
+| **resticprofile** | backup orchestration | `backup.sh`, `local-maintenance.sh`, `offsite-check.sh` |
 
-> **Before adding a check, a script, or a shell block, establish that no
-> installed tool already does it.** If one does and is not routed, route it. A
-> new script is the last resort, not the first.
+### The routing design, which is what makes this compatible with the README
 
-### Ordering, by irreversibility — this is part of the decision
+- A dedicated notification role — call it `homelab` — that **no stock alarm
+  addresses**.
+- `DISCORD_WEBHOOK_URL` set from the secret store;
+  `DEFAULT_RECIPIENT_DISCORD` left **empty** so no role is routed by default.
+- `role_recipients_discord[homelab]` set, and nothing else.
+- Curated alarms live in `health.d/*.conf`, rendered by Ansible from this
+  repository, each declaring `to: homelab` and each its own condition.
 
-The operator's constraint is that they cannot afford to do and undo. So the work
-is ordered by what cannot become wrong, not by what is most valuable.
+Consequence: the 57 stock alarms keep reaching nobody, exactly as
+`docs/07-observability/README.md` decided — but now *by construction* rather than
+because a field was left blank. Nothing about the existing Kuma path changes.
 
-**Tier 0 — cannot be invalidated by anything learned later.**
+### The migration rule — this is the part that guarantees no do-and-undo
 
-1. Route the Netdata alarms to the Discord webhook that already exists: twelve
-   already-written alarms become real alerts. Configuration, not code.
-2. Delete the 277-line wg-easy 14→15 migration. It has run; wg-easy is on
-   `15.3.0` and the task is self-guarding, so it will never fire again.
-   *Shipped 2026-08-22 (PR #223): 322 lines removed.*
+> **One check at a time. The bash line is deleted only after its replacement has
+> fired at least once, observed.**
 
-**Tier 1 — replacement by an established tool, revertible in one PR.**
-`ddclient` in place of `cloudflare-ddns.sh`; Goss in place of `posture.sh`.
+Every step is therefore independently reversible and independently verifiable,
+and the two layers overlap briefly on purpose. A step that cannot be observed
+firing is not ready to be taken — which is the same standard that demoted the
+`reresolve` swap below.
 
-**Tier 1 also — `offsite-wg-reresolve.sh` (74 lines) → wireguard-tools'
-upstream `reresolve-dns.sh`.** This was drafted as tier 0 and **demoted the same
-evening, on inspection**. The upstream script is the better artefact — a real
-`[Peer]` parser, maintained by the WireGuard project, same fail-closed property
-(the *name* is handed to `wg set`, `set -e` aborts on a resolution failure). But
-tier 0 means "cannot be invalidated by anything learned later", and this fails
-that test twice:
+### Sequence
+
+**Phase 1 — build the path, prove it end to end, change no behaviour.**
+Mount a config directory into the Netdata container (today only `lib` and
+`cache` are mounted, so any configuration would be lost on recreate), template
+`health_alarm_notify.conf`, set the webhook from the secret store, define the
+`homelab` role, and ship **one** curated alarm whose threshold already exists in
+`homelab-health.sh`. Observe it fire. Nothing is deleted in this phase.
+
+**Phase 2 — move the checks Netdata already collects.**
+One alarm per condition, each replacing one line of `homelab-health.sh`, deleted
+only after it has been observed firing. `systemdunits` also closes #220 A5 on
+the offsite host, and `x509check` replaces the hand-rolled certificate check.
+
+**Phase 3 — split what remains.**
+Whatever `homelab-health.sh` still holds after phase 2 becomes independent
+checks, one signal each. Issue #216 dissolves as a side effect: there is no
+aggregate left to latch.
+
+**Phase 4 — `posture.sh` → Goss, then `backup.sh` → resticprofile.**
+In that order: posture is read-only and its failure is visible, whereas backup
+sits on the restore path and deserves its own ADR.
+
+### What "converged" means, so this has an end
+
+- `homelab-health.sh`, `homelab-disk.sh` and `offsite-health.sh` are gone, and
+  the conditions they carried exist as individually-addressed alarms.
+- No signal aggregates more than one condition.
+- Every scheduled job has a dead-man's switch owned by one mechanism, not six
+  copies of one.
+- The bespoke shell surface is under ~1 000 lines, and what remains is what no
+  engine expresses: staged startup under the LUKS constraint, the kill switch,
+  the USB tamper trigger, and the personal feed digest.
+
+The measure of progress is the line count going down while the number of
+*independently addressed* conditions goes up. Both are countable at any moment,
+which is what makes this checkable rather than a matter of opinion.
+
+### Ordering, by irreversibility
+
+The operator cannot afford to do and undo, so within each phase the work is
+ordered by what cannot become wrong.
+
+**Cannot be invalidated by anything learned later.**
+
+1. Delete the 277-line wg-easy 14→15 migration. It has run; wg-easy is on
+   `15.3.0` and the script's own first guard makes it a no-op — as does its
+   fresh-install branch. *Shipped 2026-08-22 (PR #223): 322 lines removed.*
+2. Phase 1 above, up to and including the single proving alarm: it adds a path
+   and changes no existing behaviour, and if it does not work, nothing has been
+   removed.
+
+**Revertible in one PR.** `ddclient` in place of `cloudflare-ddns.sh`; Goss in
+place of `posture.sh`; each phase-2 alarm.
+
+**`offsite-wg-reresolve.sh` (74 lines) → wireguard-tools' upstream
+`reresolve-dns.sh`.** This was drafted as tier 0 and **demoted the same evening,
+on inspection**. The upstream script is the better artefact — a real `[Peer]`
+parser, maintained by the WireGuard project, same fail-closed property (the
+*name* is handed to `wg set`, `set -e` aborts on a resolution failure). But it
+fails the "cannot become wrong" test twice:
 
 - the bespoke script is not a naive reimplementation. Its 150 s threshold sits
   28 s above a measured ceiling (60 samples: p50 55 s, p90 112 s, max 122 s),
@@ -149,12 +261,10 @@ that test twice:
   can reach. The cost of getting it wrong is a car journey, not 74 lines.
 
 Two prerequisites make it cheap and verifiable, in this order: the break test
-ADR-029 already owes, then watching unit state on the offsite host (#220, A5).
-Until both exist, no mechanism on that host is trustworthy — neither the
-bespoke one nor the upstream one.
+ADR-029 already owes, then unit-state monitoring on the offsite host — which
+phase 2 delivers via `systemdunits`. It is therefore *scheduled*, not shelved.
 
-**Tier 2 — a decision of its own, deliberately not taken here.**
-`backup.sh` (594 lines) → resticprofile. It sits on the restore path.
+**Its own decision.** `backup.sh` → resticprofile, phase 4.
 
 ### What is NOT decided, and must be established before committing
 
@@ -164,22 +274,34 @@ Stated explicitly so that a future session does not read this ADR as a mandate:
   `docker inspect` fields (capabilities, read-only rootfs);
 - whether resticprofile handles the append-only offsite repository and the
   ordering of database dumps;
-- whether Netdata's Discord routing works on this installation — untested;
-- Netdata does **not** natively cover DNS resolution, certificate expiry, mirror
-  state or pending-reboot. Roughly 60–70 % of `health.sh`'s checks map onto
-  existing alarms; the remainder stays — but as four or five **independent**
-  signals, which is what the practice prescribes, instead of one latch.
+- whether Netdata's Discord routing works on this installation. The *mechanism*
+  is verified — per-role recipients with arbitrary role names, `SEND_DISCORD`
+  already `YES` — but no notification has been sent end to end. That is exactly
+  what phase 1's single proving alarm exists to establish, before anything is
+  deleted;
+- which conditions in `homelab-health.sh` have no collector equivalent. The
+  earlier estimate of "60–70 %" was made before the 133 available go.d
+  collectors were enumerated and should not be quoted; the honest answer is that
+  the mapping has to be done check by check, which is what phase 2 is.
 
-Each of those needs a short spike before any code moves.
+Each of those needs a short spike before any code moves. **Phase 1 is itself
+the spike for the biggest one**, which is why it deletes nothing.
 
 ## Consequences
 
 - The measure of success is the **line count going down**, not checks going up.
   A change that adds to the 3 358 lines needs to justify why no installed tool
   covers it.
-- Some duplication persists during the transition. That is accepted: removing a
-  bash check before its replacement alerts would be a regression, so the order
-  is always *route the tool first, delete the script second*.
+- Some duplication persists during the transition. That is accepted and bounded
+  by the migration rule: a bash line is deleted only after its replacement has
+  been **observed** firing, so the two layers overlap on purpose and never leave
+  a gap.
+- **The first version of this ADR contained a factual error** — it read the 57
+  unrouted Netdata alarms as an oversight when they are a documented decision.
+  The correction is kept visible in the Context rather than rewritten away,
+  because the direction now rests on the opposite reading: the bespoke layer was
+  rational, and what is wrong with it is that it was written six times instead
+  of once.
 - Audits keep their value but change their question. `/full-audit` currently
   hunts defects in the glue, which guarantees a yield and feeds the loop it is
   meant to close. The question worth asking next is **what can be deleted**.
@@ -193,16 +315,25 @@ Each of those needs a short spike before any code moves.
   2026-08-22 — close on the class rather than the instance, and close on an
   execution rather than an inspection. They are sound and worth applying, but
   they only slow residue production. Rejected as a strategy; retained as hygiene.
-- **Build an open-source tool for this.** Considered and rejected: roughly 1 900
-  of the 3 358 lines are replaceable by configuring tools that already exist or
-  are one package away, and 277 are dead. The real gap — declarative assertions
-  over `docker inspect` — is about 444 lines wide, and writing plus maintaining
-  a project for it would cost more than it removes. It would be the same mistake
-  at a larger scale.
+- **`docs/07-observability/README.md`'s existing decision — Netdata as a
+  forensic dashboard, Uptime Kuma as the alerting plane.** Not an alternative to
+  reject but a constraint to respect, and the first version of this ADR failed
+  to read it. It is preserved: the stock alarms still reach nobody. What changes
+  is that curated signals stop being written in bash and start being declared as
+  alarms on a role that the stock set does not address.
+- **Build an open-source tool for this.** Considered and **rejected on
+  evidence**. The gap that would have justified it — a declarative engine for
+  curated host assertions with routing — is already filled by what is installed:
+  133 go.d collectors, a declarative alarm format, per-role routing, and Goss
+  for what remains. Writing and maintaining a project would cost more than the
+  code it replaces, and would be the same mistake at a larger scale. If the Goss
+  spike fails and container-config assertions turn out to be genuinely
+  unserved, that narrow question can be reopened on its own — it is roughly 444
+  lines wide, not a platform.
 - **Prometheus + Alertmanager + Grafana instead of Netdata.** Rejected for this
-  host: heavier than Netdata on a Raspberry Pi 4, and Netdata is already
-  installed with its alarms already written. The work is to route them, not to
-  replace them.
+  host: heavier on a Raspberry Pi 4, and it would mean introducing a second
+  metrics engine to replace one that is already collecting, already declarative,
+  and already has the collectors this work needs.
 
 ## Related
 
