@@ -23,13 +23,6 @@
     group: docker
     mode: "0640"
 
-# Between the file copy and `up` on purpose: the compose file on the Pi now
-# pins wg-easy 15, and starting it on a v14 data directory would bring up no
-# tunnel at all. See wg_easy_migrate.yml — self-guarding, so this is a no-op
-# once the migration has happened.
-- name: "compose | Migrate wg-easy to 15 before anything is started (issue #48)"
-  ansible.builtin.import_tasks: wg_easy_migrate.yml
-
 # Only `proxy`, because only `proxy` is declared `external: true` in
 # compose.yaml and therefore has to exist beforehand. Compose creates the
 # internal network itself, prefixed — homelab_internal, 172.19.0.0/16, 12
