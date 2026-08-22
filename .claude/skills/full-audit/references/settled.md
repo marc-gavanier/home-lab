@@ -894,3 +894,190 @@ tunnel or the disk, unchanged from the previous run.
 Also still open: **Renovate PR #88**, eleven image bumps, one of which is
 wg-easy. Split that one out, ship the other ten, hold the VPN upgrade for a day
 with physical access.
+
+---
+
+## The run of 2026-08-22 — the yield does not decay, and the reason matters
+
+Fifth general audit. Baseline clean before the fan-out on both hosts: 0 failed
+units, 28/28 containers, 12/12 timer services at exit 0, 31/31 monitors UP. Eight
+agents, ~29 confirmed findings, grouped into seven issues — **#198** (argv),
+**#199** (credential stores), **#200** (Kuma), **#201** (offsite health),
+**#202** (Pi-hole log), **#203** (documentation), **#204** (rate limit).
+
+One piece of baseline work paid for itself again: eight containers had started
+recently, and checking `RestartCount=0` / `OOMKilled=false` / `restart=no`
+**before** briefing the agents stopped them being reported as unexplained
+restarts. They were the 08-19 and 08-20 deploys.
+
+### Two entries in this file are now wrong. Do not quote either.
+
+- **"The 4 `DAC_OVERRIDE` and the 4 writable rootfs are structural"** — it is
+  **5 and 6** since Calibre-Web (2026-08-05). They remain structural and are not
+  to be re-proposed; only the count drifted, and it drifted because a service
+  arrived after the verdict was written and was never read under it.
+- **"87 rate-limit rejections"** — the real figure is **851 over nine days**,
+  a tenfold undercount. That entry already flagged its own instrument as
+  unreliable; the correct count anchors on the status field of the CLF access
+  log. All 851 are on the SearXNG image proxy, the most recent the day before.
+
+### The headline: a fix from six days earlier created a continuous exposure
+
+#145 replaced a Transmission healthcheck that could not fail (it accepted a 401)
+with `transmission-remote`, which authenticates — **through the command line**.
+Captured from an unprivileged account, digest compared against the secret file:
+the full RPC password, every 30 s, **2 880 times a day**. Pattern 4 in its purest
+form, and the largest finding of the run.
+
+The credential must be treated as disclosed and rotated, not merely hidden: the
+account that could read it is the one running a model over arbitrary third-party
+feed content every morning.
+
+### Two spaces are now ENUMERATED, and that is the useful outcome
+
+`settled.md` has said since 2026-08-16 that enumeration ends a pattern where
+sampling makes it recur. Both spaces it named as un-enumerated were closed this
+run, by hand, after the agents finished.
+
+**The 20 service pages, three axes each** (does the page agree with its ADR, its
+runbook, and its container?). All 20 read in full. **11 are clean on all three
+axes**; nine carry ten findings, two of which the sampled pass had missed — the
+Nextcloud monitor documented as `HTTP(s)` when it is a Keyword check on
+`"maintenance":false,"needsDbUpgrade":false`, and `claude-code.md` claiming a
+`/sandbox` confinement that does not exist. Seven of the ten have the same
+signature: **the correction reached the ADR and/or the runbook and stopped before
+the service page.** `docs/05-services/*.md` is the set every sweep forgets, and
+it is the first thing anyone opens during an incident.
+
+**The "any argv" class on `compose.yaml`.** Four axes, because the text alone
+proves nothing:
+
+- static YAML parse of all 28 services — 24 command lines built across
+  `healthcheck` / `command` / `entrypoint`, exactly **one** carrying a
+  credential; the 4 interpolated `${VAR}` are database names and users; **0**
+  labels match;
+- **child processes**, because a clean command line can spawn a dirty one:
+  MariaDB's `healthcheck.sh` uses `--defaults-extra-file=` (a path), and Immich's
+  own scheduled dump passes `PGPASSWORD` in the child's **environment**
+  (`/proc/<pid>/environ` is 0400), not in argv;
+- **scheduled in-container jobs**, outside any sampling window by construction:
+  `nextcloud-cron` is `busybox crond`, no credential;
+- **empirical** — 35 real secret values extracted structurally from the secret
+  files and four `.env` files, 3 457 sweeps of `/proc` over 140 s covering more
+  than two cycles of all 24 healthchecks, 3 808 distinct command lines,
+  **positive control passed**, **exactly 1 match**.
+
+The empirical axis proves *continuous* exposures only. The nightly and
+deploy-time sites were established by reading the deployed artefacts. Say so
+rather than claiming the class is empty everywhere.
+
+### The most important correction of the run was to one of our own agents
+
+The security agent concluded, after "an exhaustive enumeration of argv across all
+deployed executables on both hosts", that there was **exactly one** live
+instance. It was wrong, and the reason is the pattern this audit exists to find:
+its scope was *deployed scripts*, and the worst instance lives in
+`compose.yaml`. It also reported "no control that cannot report its own failure"
+while three other domains found three.
+
+**An audit agent defines a class as narrowly as the sweep it is auditing.** Where
+two agents disagree, resolve it before writing a word to the operator — and treat
+a confident negative from a single domain as a claim about that domain's scope,
+not about the class.
+
+### Does the yield decay? No — and the reason is not that the system is rotten
+
+Counted honestly: 5 findings (08-15), 9 (08-16 am), 12 (08-16 pm), 23 (08-19),
+4 + 9 undecided (08-21), **~29 (08-22)**. Neither quantity nor severity is
+falling — this run's headline is a continuous credential exposure and a
+supervision healthcheck that cannot fail, the same calibre as the founding run.
+
+The law that fits the data: **the yield tracks the quality of the search key and
+what shipped since the last run, not the residual defect stock.** This run's
+biggest finding came from a key minted 24 hours earlier (#188's "any argv").
+
+There are **two stocks**, and only one of them drains:
+
+1. **Design defects** — structural, severe, genuinely being exhausted. No
+   equivalent of the dead mirror or the three unwritable services this time.
+2. **Sweep residue** — created by the corrections themselves, and therefore
+   **recharged by every fix**. Five of this run's biggest findings are children
+   of previous corrections.
+
+What empties the second stock is not another general audit. It is enumerating the
+class by its defining property. Every space enumerated once has come back clean
+and stayed clean across four runs — and two more closed this time.
+
+### New instrument traps — five, four of them ours
+
+- **`find -size -1M` matches only EMPTY files.** `find` rounds block counts up,
+  so any non-empty file under a megabyte occupies 1 block and is not `< 1`. A
+  sweep silently fell from 89 371 files to 724 and returned "0 matches" twice.
+  Use `-size -1000000c`. **Only the positive control revealed it.**
+- **`sudo -u <other> find` ABORTS if the cwd is not traversable by that account**
+  — 10 files returned out of 1 069. With `2>/dev/null` that is indistinguishable
+  from a clean system. `cd /` first, and never discard `find`'s stderr.
+- **`/etc/os-release` is a symlink**, so `-type f` excludes it. A positive
+  control must be a regular file; `/etc/passwd` works.
+- **A `/proc` sweep that reads the pid and then re-opens the file loses the
+  race.** Short-lived processes evaporate between the two reads
+  (`No such file or directory`). Let one `grep` read `/proc/*/cmdline` in a
+  single pass. And exclude the sweeper's own command line, or it matches itself.
+- **The harness truncates too, not only the command.** A 150 s measurement was
+  killed by a 2-minute tool timeout and still wrote partial output that looked
+  like a complete result; only exit code 143 gave it away. This is the "never
+  pipe a completeness sweep through `head`" rule in a form this file did not
+  cover.
+
+And one method note worth more than the traps: **a null result is worthless
+without a positive control.** "1 match" and "the sweep is broken" are the same
+observation until something known-present is shown to be found.
+
+### Verified gone on the machines, not assumed
+
+The four findings of 2026-08-21 (#188–#191) were confirmed **on the hosts** before
+the fan-out, not from the commit log: `digest.sh` uses `--data-urlencode`, the
+Pi-hole store directory is 0700, and the Immich guard now reads the dump. That
+guard then fired for real on the 03:00 run of 2026-08-22 —
+`fresh <48h, completion marker present`, with a real byte count — which closes
+the dump-gate half of #182 on a real run rather than on fixtures. The offsite
+host's armed 04:00 reboot happened and it came back unaided: disk mounted,
+0 failed units, 6 security updates installed, and the night's copy landed
+(46 snapshots, newest 03:05:49).
+
+### Still open going into the next run
+
+| #    | Why it is still open                                                                                                   |
+|------|------------------------------------------------------------------------------------------------------------------------|
+| #198 | The argv class: one continuous exposure plus four narrower sites and five documented commands. Remote, one commit + a rotation |
+| #199 | The nightly dump copies are world-readable, and `forgejo.db` is the seventh store. Remote, two lines                   |
+| #200 | Kuma notifies once per incident, and its own healthcheck cannot fail. UI plus one healthcheck                          |
+| #201 | The offsite health report never thresholds the CPU temperature the runbook says it watches. Remote                     |
+| #202 | Pi-hole's query log is orphaned and its rotation is permanently skipped. Remote                                        |
+| #203 | Fourteen documentary statements that contradict their ADR, runbook or container. Remote, one commit                    |
+| #204 | The Traefik rate limit rejected 851 real requests in nine days. Remote, one value                                      |
+| #128 | Traefik sees every VPN client as one gateway address. **Local work**; re-confirmed twice, do not re-litigate           |
+| #138 | wg-easy cannot write its own database; a peer cannot be revoked. **Requires someone at the machine**                   |
+| #154 | Neither ext4 volume is ever checked. **Half doable remotely**                                                          |
+| #160 | `wg_easy_config` cannot write and would abort the deploy at step 4 of 12. Sibling of #138                              |
+| #182 | The dump gate is now proven on a real run; the unrun `notify()` sites remain                                           |
+
+Seven new ones, all remote work. The four blocked ones still touch the tunnel or
+the disk, unchanged for a third run.
+
+Also still open: **Renovate PR #88**, eleven image bumps, one of which is
+wg-easy. Split that one out, ship the other ten, hold the VPN upgrade for a day
+with physical access.
+
+### For the next run
+
+Both spaces named last time are now enumerated. The two that remain sampled, and
+are therefore where the next yield is:
+
+- **What each container's own scheduled work does** — the in-container jobs that
+  run rarely enough that no sweep window catches them. Two were checked by hand
+  this run (Immich's dump, the Nextcloud cron); nobody has enumerated the set.
+- **The offsite host as a whole.** Three of this run's findings were its missing
+  half of a homelab control. It has been the trailing edge of four sweeps now
+  (#155, #156, #201), which makes "check both hosts by default" a rule that keeps
+  being written down and not applied.
