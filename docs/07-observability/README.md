@@ -29,11 +29,21 @@ one action.
 
 **Since ADR-030 there is a third option, and it is now the default one.**
 Alarms we curate live in this repository under `health.d/`, carry a threshold
-chosen and justified here, and address a dedicated role — `homelab` — that no
-stock alarm uses. Only that role is given a Discord recipient;
-`DEFAULT_RECIPIENT_DISCORD` is left empty, which Netdata documents as "do not
-send a notification for unconfigured roles". So the stock alarms stay mute **by
-construction**, not because a field was left blank.
+chosen and justified here, and each addresses a role of its own that no stock
+alarm uses.
+
+Crucially, **Netdata still does not notify anyone directly.** A curated alarm
+pushes into its own Uptime Kuma push monitor, and Kuma decides where it goes —
+so the notification channel stays configured in exactly one place. Replace
+Discord one day and only Kuma changes. Every `DEFAULT_RECIPIENT_*` is left
+empty, which Netdata documents as "do not send a notification for unconfigured
+roles", so the stock alarms stay mute **by construction** rather than because a
+field was left blank.
+
+The side effect is worth as much as the design: a curated alarm that fires turns
+one monitor red on the dashboard, with history and an uptime figure, instead of
+leaving a line in a chat log. That is what makes the rule below cheap to
+respect.
 
 Each curated alarm is one condition with its own signal, and it replaces a check
 in `homelab-health.sh` only **after it has been observed firing** — the two

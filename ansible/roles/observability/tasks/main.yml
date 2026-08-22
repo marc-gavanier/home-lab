@@ -26,4 +26,4 @@
 # Either way the 57 stock alarms stay unrouted.
 - name: "Route curated Netdata alarms to a human (ADR-030, phase 1)"
   ansible.builtin.import_tasks: netdata.yml
-  when: netdata_discord_webhook_url | default('') | length > 0
+  when: netdata_curated_alarms | default([]) | selectattr('push_url') | list | length > 0

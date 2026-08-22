@@ -1,10 +1,16 @@
 ---
-# Netdata alerting path — ADR-030, phase 1.
+# Netdata curated alarms — ADR-030, phase 1.
 #
 # Builds the path and proves it. Deletes nothing, and changes no existing
 # behaviour: the 57 stock alarms keep reaching nobody, and homelab-health.sh
 # keeps its own checks. The two layers overlap on purpose until each curated
 # alarm has been observed firing (ADR-030's migration rule).
+#
+# Netdata does NOT notify Discord. It pushes into Uptime Kuma, which stays the
+# one place the notification channel is configured — replace Discord one day and
+# only Kuma changes. It also makes the migration rule cheap to satisfy: a
+# curated alarm that fires turns a monitor red, with history, instead of leaving
+# a line in a chat log.
 #
 # Why a config directory has to be mounted at all: only `lib` and `cache` are
 # on the volume today, so anything written into /etc/netdata lives in the
@@ -17,22 +23,31 @@
 # `orig` symlink into the stock tree). Mounting over the directory would shadow
 # them. Only the empty `health.d/` subdirectory and one file are mounted.
 
-- name: netdata | Refuse to render a notification path that cannot deliver
-  # These tasks only run when the webhook is non-empty (see main.yml), so this
+- name: netdata | Select the curated alarms that have a Kuma monitor
+  ansible.builtin.set_fact:
+    netdata_active_alarms: >-
+      {{ netdata_curated_alarms | selectattr('push_url') | list }}
+
+- name: netdata | Refuse a push URL that cannot deliver
+  # These alarms only reach this task when their push_url is non-empty, so this
   # is not a presence check — it is a SHAPE check. A value that is set but
-  # malformed renders a config the notifier accepts and can never deliver
-  # through: the unit stays green, the alarm evaluates, the notifier runs, and
-  # nothing leaves the machine. That is the silent-disablement shape catalogued
-  # in #220, and the only difference from an empty value is that it looks
-  # configured. Fail the run instead.
+  # malformed renders a config Netdata accepts and can never deliver through:
+  # the alarm evaluates, the notifier runs, curl fails, and the Kuma monitor
+  # never turns red. That is the silent-disablement shape catalogued in #220,
+  # and the only difference from an empty value is that it looks configured.
   ansible.builtin.assert:
     that:
-      - netdata_discord_webhook_url is search('^https://')
+      - item.push_url is search('^https://')
+      - item.push_url is search('/api/push/')
     fail_msg: >-
-      netdata_discord_webhook_url is set but is not an https:// URL, so the
-      notification path would render and never deliver. Reuse the Discord
-      webhook Uptime Kuma already sends to.
+      The push URL for curated alarm '{{ item.name }}' is set but is not an
+      Uptime Kuma push URL, so the alarm would evaluate and never surface.
+      Create a Push monitor in Kuma, copy its push URL, and set it in the
+      vaulted host_vars — see local.example.yml.
     quiet: true
+  loop: "{{ netdata_active_alarms }}"
+  loop_control:
+    label: "{{ item.name }}"
 
 - name: netdata | Create the curated alarm directory on the encrypted volume
   ansible.builtin.file:
@@ -44,20 +59,24 @@
 
 - name: netdata | Install the curated alarms
   ansible.builtin.template:
-    src: "netdata-health-{{ item }}.conf.j2"
-    dest: "{{ services_data_dir }}/netdata/health.d/{{ item }}.conf"
+    src: "netdata-health-{{ item.name }}.conf.j2"
+    dest: "{{ services_data_dir }}/netdata/health.d/{{ item.name }}.conf"
     owner: root
     group: root
     mode: "0444"
-  loop:
-    - homelab-swap
+  vars:
+    alarm_role: "{{ item.role }}"
+  loop: "{{ netdata_active_alarms }}"
+  loop_control:
+    label: "{{ item.name }}"
   notify: Restart netdata
 
 # Bind-mounted as a FILE, so `template` renaming a temporary file into place
 # replaces the inode Docker bound at container start — the running container
 # would keep reading the previous content indefinitely while the deploy reports
 # changed. Same reason traefik, pihole, searxng and dozzle carry handlers.
-# It holds the webhook, so it lives beside the Docker secrets, 0444, no_log.
+# It holds the Kuma push URLs, which carry their own tokens, so it lives beside
+# the Docker secrets, 0444, no_log.
 - name: netdata | Install the notification override
   ansible.builtin.template:
     src: netdata-health-alarm-notify.conf.j2
