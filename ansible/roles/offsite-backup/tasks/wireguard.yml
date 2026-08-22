@@ -51,8 +51,15 @@
     daemon_reload: true
 
 # --- Reach Uptime Kuma through the tunnel ---
-# Once offsite, services.<domain> resolves publicly and Traefik rejects
-# non-VPN sources — the Kuma push would 403. Pin it to the homelab host's
+# Once offsite, services.<domain> does not resolve at all: it has no public
+# record, and this host's resolver is its own LAN router, not Pi-hole. Checked
+# rather than assumed — a public lookup returns nothing, while vpn.<domain>
+# returns an address, which is what proves the query itself works. So this pin
+# is not a routing preference, it is **the only reason the name resolves here**;
+# remove it and the Kuma push stops resolving rather than getting a 403.
+# (The 403 reasoning was the original comment and it was wrong: Traefik does
+# reject non-VPN sources, but nothing ever reaches Traefik.)
+# Pin it to the homelab host's
 # VPN address (Traefik listens on all host interfaces), NOT its LAN IP:
 # routing the homelab LAN IP into the tunnel breaks any direct-LAN traffic
 # while the Pi is prepared at home (bitten during the seed, 2026-07-12).

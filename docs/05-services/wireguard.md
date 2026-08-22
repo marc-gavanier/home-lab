@@ -61,6 +61,30 @@ argon2 itself and takes no precomputed hash. That is why it is not in
 Changing a setting means editing the repository and deploying — a change made in
 the web UI is reverted on the next deploy, on purpose.
 
+> **Do not regenerate the `offsite-backup` client from the UI.** What wg-easy has
+> stored for it is a **full tunnel** (`0.0.0.0/0`, `::/0`), while what is deployed
+> on the offsite host is **split**:
+>
+> ```
+> stored in wg-easy      ["0.0.0.0/0","::/0"]
+> deployed on offsite    AllowedIPs = 10.8.0.0/24
+> ```
+>
+> The split is what makes that host able to resolve names while the tunnel is
+> down — its resolver is its own LAN router over `eth0` — and that is the
+> precondition for the re-resolve timer that recovers the tunnel after a home IP
+> change (ADR-029, #180). Downloading a fresh profile would hand back the full
+> tunnel and remove the recovery path, on the machine nobody can reach to fix it.
+>
+> It is not a mistake anyone made, which is why it will happen again:
+> `WG_ALLOWED_IPS=0.0.0.0/0` in `wg-easy-setup.env` is the server-side default,
+> so **every client is born full-tunnel** and the offsite one simply kept it.
+> That is the right default for a phone and the wrong one for this host.
+>
+> The stored value cannot simply be corrected: writing to wg-easy's database is
+> what #138 is about. Until that is fixed, treat the deployed `wg0.conf` as the
+> source of truth for this one client, not the UI.
+
 ## Data
 
 | Path                            | Content                                     |

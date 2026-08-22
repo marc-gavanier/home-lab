@@ -327,8 +327,16 @@ need a human:
 | Expected unit down   | docker, containerd, fail2ban, claude-remote-control or wg-quick@wg0 not `active`                   |
 | Timer last run       | a `homelab-*` timer whose triggered service did not end in `success`                               |
 | Unit restarted       | a watched unit's `NRestarts` moved since the last run — held across a second beat                  |
-| Git mirror stale     | the mirror has not **completed** a sync for > 4 h, or its state is unreadable twice running         |
+| Git mirror stale     | the mirror's `next_update_unix` is more than **1 h** in the past — so > 9 h since the last completed sync — or its state is unreadable twice running |
 | Certificate expiry   | the soonest of the 18 certificates is under **21 days**, unreadable, or `acme.json` is absent       |
+
+> The mirror row said "> 4 h" until it was checked against the machine. The
+> alarm cannot fire that early and never could: `next_update_unix` is set to
+> *now + interval* on each **completed** sync, the interval is **8 h**, and
+> `MIRROR_GRACE` is 3600 s — so the earliest possible alarm is nine hours after
+> the last good sync. Nothing was broken; the promise was. Shortening the
+> detection window means shortening the mirror interval, which is a decision
+> about how fresh the copy has to be, not a threshold to tune here.
 
 The table is generated from nothing — keep it level with `problems+=(` in
 `homelab-health.sh.j2` by hand. It drifted to eleven rows against twenty-one
