@@ -126,11 +126,32 @@ is ordered by what cannot become wrong, not by what is most valuable.
    already-written alarms become real alerts. Configuration, not code.
 2. Delete the 277-line wg-easy 14→15 migration. It has run; wg-easy is on
    `15.3.0` and the task is self-guarding, so it will never fire again.
-3. Replace `offsite-wg-reresolve.sh` (74 lines) with the `reresolve-dns.sh`
-   shipped upstream by wireguard-tools.
+   *Shipped 2026-08-22 (PR #223): 322 lines removed.*
 
 **Tier 1 — replacement by an established tool, revertible in one PR.**
 `ddclient` in place of `cloudflare-ddns.sh`; Goss in place of `posture.sh`.
+
+**Tier 1 also — `offsite-wg-reresolve.sh` (74 lines) → wireguard-tools'
+upstream `reresolve-dns.sh`.** This was drafted as tier 0 and **demoted the same
+evening, on inspection**. The upstream script is the better artefact — a real
+`[Peer]` parser, maintained by the WireGuard project, same fail-closed property
+(the *name* is handed to `wg set`, `set -e` aborts on a resolution failure). But
+tier 0 means "cannot be invalidated by anything learned later", and this fails
+that test twice:
+
+- the bespoke script is not a naive reimplementation. Its 150 s threshold sits
+  28 s above a measured ceiling (60 samples: p50 55 s, p90 112 s, max 122 s),
+  where upstream hardcodes 135 s — exactly the observed boundary. Harmless per
+  ADR-029's own analysis, but *different*, not neutral;
+- and a failure would be **invisible**. ADR-029 is still "pending the
+  deliberate-break test", `offsite-health.sh` contains no systemd unit check and
+  no mention of `reresolve`, and this sits on the only route to a host nobody
+  can reach. The cost of getting it wrong is a car journey, not 74 lines.
+
+Two prerequisites make it cheap and verifiable, in this order: the break test
+ADR-029 already owes, then watching unit state on the offsite host (#220, A5).
+Until both exist, no mechanism on that host is trustworthy — neither the
+bespoke one nor the upstream one.
 
 **Tier 2 — a decision of its own, deliberately not taken here.**
 `backup.sh` (594 lines) → resticprofile. It sits on the restore path.
