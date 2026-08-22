@@ -79,11 +79,19 @@ is the whole direction.
 
 Measured on the running instance:
 
-- **133 go.d collectors are available**, including `systemdunits` (unit state —
-  the gap #220 A5 reports on the offsite host), `x509check` (certificate expiry,
-  today a hand-rolled check), `dns_query`, `filecheck` (file age and size —
-  dump freshness, `/run/reboot-required`), `sensors`, `portcheck`, `httpcheck`,
-  `chrony`.
+- **133 go.d collector templates ship with the agent**, including
+  `systemdunits` (unit state — the gap #220 A5 reports on the offsite host),
+  `x509check` (certificate expiry, today a hand-rolled check), `dns_query`,
+  `filecheck`, `sensors`, `docker`, `smartctl`, `wireguard`, `portcheck`,
+  `httpcheck`, `chrony`.
+
+  **Corrected 2026-08-23: shipped is not running.** A module only starts once a
+  job configuration exists in `/etc/netdata/go.d`, and that directory was
+  **empty**. Checked against the live context list: none of `sensors`, `docker`,
+  `x509check`, `dns_query`, `smartctl` or `wireguard` was collecting anything.
+  Every condition depending on one of them therefore costs a collector to enable
+  and verify *before* an alarm can be written on it — work the first version of
+  this ADR did not price.
 - **Routing is per-role, with arbitrary role names.**
   `role_recipients_discord[<role>]` is an associative array;
   `SEND_DISCORD="YES"` already, while `DISCORD_WEBHOOK_URL` and
@@ -265,6 +273,27 @@ ADR-029 already owes, then unit-state monitoring on the offsite host — which
 phase 2 delivers via `systemdunits`. It is therefore *scheduled*, not shelved.
 
 **Its own decision.** `backup.sh` → resticprofile, phase 4.
+
+### Three limits found on starting phase 2, which move the estimate
+
+Discovered by doing the work, and each takes a chunk of bash out of "cheap":
+
+- **`disk.space` sees only the container's own mounts** — `/tmp`,
+  `/run/netdata`, `/var/lib/netdata` — not the host's `/` or `/mnt/data`, since
+  only `/proc` and `/sys` are mounted into netdata. The disk checks in
+  `homelab-health.sh` and `homelab-disk.sh` cannot move without mounting the
+  host root read-only into a container this repository has deliberately
+  hardened. That is a security decision of its own, not a migration step.
+- **Netdata cannot resolve the public hostnames**: a request from inside the
+  container returns 000, the Docker DNS hairpin already documented for this
+  stack. `x509check` needs `extra_hosts` before it can check one certificate.
+- **The offsite host has no Docker at all**, so nothing there moves to Netdata
+  without a native install on a machine nobody can reach physically.
+  `offsite-health.sh` (247 lines) should be assumed to stay.
+
+What is cheap to migrate is what `/proc` already provides — memory, swap, load.
+What is not cheap is anything needing host filesystems, name resolution or
+hardware access. Read the line-count estimate with that in mind.
 
 ### What is NOT decided, and must be established before committing
 
