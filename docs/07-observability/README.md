@@ -28,22 +28,42 @@ signal — which then latched DOWN for a whole day on the least urgent of them
 one action.
 
 **Since ADR-030 there is a third option, and it is now the default one.**
-Alarms we curate live in this repository under `health.d/`, carry a threshold
-chosen and justified here, and each addresses a role of its own that no stock
-alarm uses.
+Alarms we curate live in this repository under `health.d/` and carry a threshold
+chosen and justified here — the same place the bash thresholds were justified,
+just declared instead of coded.
 
-Crucially, **Netdata still does not notify anyone directly.** A curated alarm
-pushes into its own Uptime Kuma push monitor, and Kuma decides where it goes —
-so the notification channel stays configured in exactly one place. Replace
-Discord one day and only Kuma changes. Every `DEFAULT_RECIPIENT_*` is left
-empty, which Netdata documents as "do not send a notification for unconfigured
-roles", so the stock alarms stay mute **by construction** rather than because a
-field was left blank.
+**Netdata still notifies nobody, and that has not changed at all.** Its
+notification configuration is untouched: curated alarms are written `to: silent`
+exactly like the stock ones. What reads them is a host-side adapter
+(`homelab-netdata-kuma.sh`, every 5 minutes) which pushes each curated alarm
+into **its own** Uptime Kuma monitor. Kuma then decides where that goes, so the
+notification channel stays configured in exactly one place — replace Discord one
+day and only Kuma changes.
+
+Polling rather than being notified is deliberate, and it buys two things a
+transition-driven wiring could not:
+
+- **it fits what a Kuma push monitor actually is.** Those monitors expect a
+  heartbeat and mark themselves down when one does not arrive. An alarm that
+  stays healthy produces no transition, no push, and would eventually report a
+  failure that never happened. Not a fear — monitor 20 carries 108 heartbeats
+  reading "No heartbeat in the time window";
+- **every curated monitor is also a dead-man's switch.** A beat goes out on
+  every run whatever the state, so a dead netdata, a stopped adapter or an
+  absent host turns the monitor red on its own. Notification on transition would
+  have left it green forever.
 
 The side effect is worth as much as the design: a curated alarm that fires turns
 one monitor red on the dashboard, with history and an uptime figure, instead of
 leaving a line in a chat log. That is what makes the rule below cheap to
 respect.
+
+The cost, stated plainly: **one manually-created Kuma monitor per condition.**
+`health.yml` records why the host signals were folded into a single push in the
+first place — "Kuma v2 monitors are created by hand, so folding host-level
+signals into one push keeps the alerting surface flat". That flat surface is
+precisely what latched for a whole day on a pending reboot. One monitor each is
+the price of a signal that no unrelated condition can mute.
 
 Each curated alarm is one condition with its own signal, and it replaces a check
 in `homelab-health.sh` only **after it has been observed firing** — the two

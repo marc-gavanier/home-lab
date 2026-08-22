@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+# {{ ansible_managed }}
+# =============================================================================
+# Netdata curated alarms -> Uptime Kuma (ADR-030, phase 1)
+# =============================================================================
+# ONE adapter, not one script per check. It translates Netdata's alarm states
+# into Kuma push heartbeats, and it does not grow when an alarm is added: the
+# loop below is generated from netdata_curated_alarms.
+#
+# Why an adapter at all, rather than letting Netdata notify:
+#
+#   Netdata notifies on a STATE TRANSITION. A Kuma push monitor expects a
+#   HEARTBEAT and marks itself down when one does not arrive in its window.
+#   Wiring one to the other directly looks fine and rots quietly: a condition
+#   that stays healthy produces no transition, no push, and Kuma eventually
+#   reports a failure that never happened. Measured, not feared — monitor 20
+#   carries 108 heartbeats reading "No heartbeat in the time window".
+#
+# Polling turns that mismatch into a property. Because a beat is sent on every
+# run whatever the state, each monitor is also a dead-man's switch: if netdata
+# dies, or this adapter stops, or the host goes away, the monitor goes red on
+# its own. A transition-driven design would have sat green forever.
+#
+# Netdata's own notification configuration is deliberately NOT touched. It
+# still reaches nobody — stock alarms and curated ones alike — which keeps
+# docs/07-observability/README.md literally true and leaves Kuma as the single
+# place the notification channel is configured.
+#
+# The alarm names below must match the `alarm:` lines in health.d/. A name that
+# does not resolve pushes DOWN with a message saying so, rather than silently
+# reporting healthy — a mapping typo must be loud.
+# =============================================================================
+
+set -uo pipefail
+
+CONTAINER="netdata"
+API="http://127.0.0.1:19999/api/v1/alarms?all=true"
+TIMEOUT=10
+
+log() { echo "$*"; }   # stdout -> journal
+
+# One API call for every alarm, not one per alarm: the adapter must not add
+# load proportional to the number of conditions it reports on.
+if ! alarms_json="$(docker exec "$CONTAINER" \
+        curl --silent --max-time "$TIMEOUT" "$API" 2>/dev/null)"; then
+    alarms_json=""
+fi
+# Flatten once, not once per alarm. The API answers with roughly a megabyte of
+# JSON, so parsing it per condition would make the adapter's cost grow with the
+# number of things it reports on — the opposite of the point. One jq pass
+# produces "name<TAB>status<TAB>value" and the loop below only greps it.
+ALARM_TABLE=""
+if [ -n "$alarms_json" ]; then
+    ALARM_TABLE="$(printf '%s' "$alarms_json" |
+        jq -r '.alarms[]? | [.name, .status, (.value_string // "")] | @tsv' 2>/dev/null)"
+fi
+if [ -z "$ALARM_TABLE" ]; then
+    log "netdata alarm API unreachable or unparseable — reporting every alarm down"
+fi
+
+push() {   # $1 url, $2 up|down, $3 message
+    if curl --silent --show-error --max-time "$TIMEOUT" --retry 2 --get "$1" \
+        --data-urlencode "status=$2" --data-urlencode "msg=$3" >/dev/null; then
+        return 0
+    fi
+    log "ERROR: push failed for '$3'"
+    return 1
+}
+
+report() {   # $1 url, $2 netdata alarm name
+    local url="$1" name="$2" row status value
+
+    if [ -z "$ALARM_TABLE" ]; then
+        push "$url" down "netdata unreachable — alarm '$name' state unknown"
+        return
+    fi
+
+    # Anchored on the tab so a name cannot match a longer one by prefix.
+    row="$(printf '%s\n' "$ALARM_TABLE" | grep -m1 -P "^\Q$name\E\t" || true)"
+    status="$(printf '%s' "$row" | cut -f2)"
+    value="$(printf '%s' "$row" | cut -f3)"
+
+    case "$status" in
+        CLEAR)
+            push "$url" up "${name} ok${value:+ (${value})}"
+            ;;
+        WARNING|CRITICAL)
+            push "$url" down "${status}: ${name}${value:+ — ${value}}"
+            ;;
+        "")
+            # Not a transient state: the alarm is absent from netdata entirely,
+            # which means the name here and the `alarm:` line in health.d/ have
+            # drifted, or the file failed to load. Silence would report healthy.
+            push "$url" down "alarm '${name}' is not loaded in netdata"
+            ;;
+        *)
+            # UNDEFINED / UNINITIALIZED / REMOVED. Brief after a netdata restart
+            # — including the one this role's own handler performs — and a real
+            # defect if it persists, so it is reported with the raw state rather
+            # than smoothed over.
+            push "$url" down "alarm '${name}' is ${status}"
+            ;;
+    esac
+}
+
+{% for alarm in netdata_curated_alarms if alarm.push_url %}
+report '{{ alarm.push_url }}' '{{ alarm.netdata_alarm }}'
+{% endfor %}

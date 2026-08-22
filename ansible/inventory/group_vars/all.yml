@@ -109,18 +109,25 @@ nextcloud_lock_timeout_minutes: 60
 miniflux_admin_user: "admin"
 
 # --- Netdata curated alarms (ADR-030, phase 1) ---
-# Netdata's 57 STOCK alarms stay unrouted, as docs/07-observability/README.md
-# decided: they are tuned for a generic server and would be noise. Only the
-# alarms listed here are routed, and they do NOT go to Discord directly — they
-# push into Uptime Kuma, which stays the single place where the notification
-# channel is configured. One condition, one role, one Kuma monitor.
+# Netdata notifies NOBODY — stock alarms and curated ones alike, which is the
+# decision documented in docs/07-observability/README.md. Each curated alarm is
+# read by a host-side adapter (homelab-netdata-kuma.sh, every 5 minutes) and
+# pushed into its OWN Uptime Kuma monitor, so Kuma stays the single place the
+# notification channel is configured.
 #
-# `push_url` comes from the vaulted host_vars. Empty = that alarm is not
-# installed and its role reaches nobody, so a half-configured entry is inert
-# rather than silently mute.
+# Polling rather than notifying is what makes each monitor a dead-man's switch
+# too: a beat is sent on every run, so a dead netdata or a stopped adapter turns
+# the monitor red on its own.
+#
+#   name          the health.d/ file and its template, netdata-health-<name>.conf.j2
+#   netdata_alarm the `alarm:` line inside it — the contract with the adapter
+#   push_url      the Kuma push monitor for THIS condition, from vaulted host_vars
+#
+# Empty push_url = the alarm is not installed at all, rather than installed and
+# unreported.
 netdata_curated_alarms:
   - name: homelab-swap
-    role: swap
+    netdata_alarm: homelab_used_swap
     push_url: "{{ netdata_swap_kuma_push_url | default('') }}"
 
 # Swap utilisation threshold. Kept in ONE place because homelab-health.sh
