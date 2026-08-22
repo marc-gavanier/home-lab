@@ -27,3 +27,17 @@
 - name: "Route curated Netdata alarms to a human (ADR-030, phase 1)"
   ansible.builtin.import_tasks: netdata.yml
   when: netdata_curated_alarms | default([]) | selectattr('push_url') | list | length > 0
+
+# A skipped feature that says nothing is the defect this whole ADR is about: the
+# first deploy of phase 1 reported `changed=2, failed=0` and installed none of
+# it, because no push URL was set. The run was correct; its silence was not.
+# No silent caps — if coverage is off, the deploy says so.
+- name: "Report that curated Netdata alarms are NOT installed"
+  ansible.builtin.debug:
+    msg: >-
+      Curated Netdata alarms are DISABLED: no push URL is set for any entry in
+      netdata_curated_alarms, so no alarm, adapter or timer was installed.
+      Netdata still reaches nobody and homelab-health.sh still carries every
+      check. To enable one, create a Push monitor in Kuma and set its URL in the
+      vaulted host_vars — see local.example.yml.
+  when: netdata_curated_alarms | default([]) | selectattr('push_url') | list | length == 0
