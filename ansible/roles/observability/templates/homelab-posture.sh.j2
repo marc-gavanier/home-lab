@@ -373,7 +373,12 @@ fi
 # same exposure the other five were closed against and was simply missed by the
 # sweep. Unlike them, that container reaches its data through DAC_OVERRIDE rather
 # than as the owner, so 0700 costs it nothing.
-for store in vaultwarden uptime-kuma navidrome calibre-web transmission/config pihole/etc; do
+# Forgejo's is the seventh (#199), and it was missed the same way Pi-hole's was:
+# the sweep enumerated the directories it had open rather than the property that
+# defines the class — a data directory mounted by exactly one container and
+# holding a credential. Its database carries the password hash, the access
+# tokens, the TOTP secrets and the WebAuthn credentials.
+for store in vaultwarden uptime-kuma navidrome calibre-web transmission/config pihole/etc forgejo/data; do
     dir="{{ services_data_dir }}/$store"
     [ -d "$dir" ] || continue
     dmode=$(stat -c %a "$dir" 2>/dev/null) || { problems+=("$store: directory mode unreadable"); continue; }
@@ -382,6 +387,22 @@ for store in vaultwarden uptime-kuma navidrome calibre-web transmission/config p
         *) problems+=("$store: directory mode $dmode, expected 700") ;;
     esac
 done
+
+# The nightly dump directory is a COPY of those same stores, and the #177 sweep
+# never looked at it (#199). It is absent between runs by design — the backup
+# removes it on the way out — so this asserts it only when present, and that is
+# not a weakened check: the case worth catching is precisely the one where it
+# lingers, because a run that aborted before the cleanup leaves the dumps on
+# disk until the next night.
+dumpdir="{{ backup_dir }}/dumps"
+if [ -d "$dumpdir" ]; then
+    dmode=$(stat -c %a "$dumpdir" 2>/dev/null) || dmode=""
+    case "$dmode" in
+        700) ;;
+        "")  problems+=("backups/dumps: directory mode unreadable") ;;
+        *)   problems+=("backups/dumps: directory mode $dmode, expected 700") ;;
+    esac
+fi
 
 # The secret store itself, which nothing asserted either. `docker` is group-owned
 # and must stay closed to `other`; the parent may be traversable but never
