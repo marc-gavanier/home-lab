@@ -138,6 +138,15 @@ docker network rm internal   # verify `docker network inspect internal` shows 0 
   after a box reset or an ISP swap would silently re-open the perimeter this lab
   closed on purpose; see the reachability table above.
 
+  **And 53/TCP+UDP must not be forwarded either — that one matters more.**
+  Pi-hole publishes the resolver on `0.0.0.0:53` so the LAN can use it, so the
+  only thing keeping it off the internet is the box's forward list. It is the
+  one published port with **no application-layer guard behind it**: 80 and 443
+  reach Traefik, which enforces `vpn-only`, while 53 reaches the resolver
+  directly. An open resolver is a reflection amplifier, and it would be found in
+  hours. This warning named the web ports and omitted it — checked from the
+  offsite uplink with a known-open port as a control, it is closed today.
+
 ### Gotchas
 
 - SFR/Red boxes default to CGNAT (WAN IP in 10.x.x.x range). Port forwarding silently fails.
