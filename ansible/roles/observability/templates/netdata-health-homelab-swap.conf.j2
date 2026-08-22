@@ -32,6 +32,12 @@
 # `calc` is the stock formula, copied rather than reinvented, including its
 # divide-by-zero guard.
 #
+# `| int` is not decoration. A variable set in group_vars arrives as an integer
+# because YAML parses it, but the same variable passed with `-e` on the command
+# line arrives as a STRING, and `"30" - 5` aborts the deploy. That is how the
+# threshold is overridden for a deliberate fire test, so the untyped form worked
+# for months of normal deploys and failed the first time it mattered.
+#
 # PHASE 1 DELETES NOTHING. `homelab-health.sh` still carries its own swap
 # check; the two overlap on purpose until this one has been observed firing.
 # =============================================================================
@@ -44,7 +50,7 @@ component: Memory
      calc: (($used + $free) > 0) ? ($used * 100 / ($used + $free)) : 0
     units: %
     every: 1m
-     warn: $this > (($status >= $WARNING) ? ({{ netdata_swap_threshold_pct - 5 }}) : ({{ netdata_swap_threshold_pct }}))
+     warn: $this > (($status >= $WARNING) ? ({{ netdata_swap_threshold_pct | int - 5 }}) : ({{ netdata_swap_threshold_pct | int }}))
     delay: up 2m down 15m multiplier 1.5 max 1h
   summary: Homelab swap utilisation above {{ netdata_swap_threshold_pct }}%
      info: Swap utilisation crossed the threshold justified in homelab-health.sh
