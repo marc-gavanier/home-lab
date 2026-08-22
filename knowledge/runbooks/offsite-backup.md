@@ -18,9 +18,13 @@ append-only mode. The repo password is deliberately NOT stored on it.
 - Sunday 08:00 — offsite `offsite-health.timer`: disk/SMART/power self-report
   (Kuma push monitor "offsite health"). DOWN if disk >85%, any SMART
   early-warning counter leaves zero (realloc, grown bad blocks, program/erase
-  fail, end-to-end, uncorrectable, CRC), spare blocks <50%, SSD ≥70°C, the
-  last self-test failed or is >35 days old (dead-timer detection, compared
-  in drive power-on hours), or the Pi logged undervoltage.
+  fail, end-to-end, uncorrectable, CRC), spare blocks <50%, SSD ≥70°C,
+  **CPU ≥70°C**, the last self-test failed or is >35 days old (dead-timer
+  detection, compared in drive power-on hours), the Pi logged undervoltage, the
+  `rpi_volt` sensor is absent (a loop that visited nothing must report, not
+  pass), or **security updates are still unapplied after 48 h**.
+  The three additions are #201; CPU temperature was reported and never compared
+  until then, on a host sampled once a week.
 - 1st of the month 04:00 — offsite `offsite-smart-test.timer`: SMART long
   self-test (the drive scans its own surface); result read by the Sunday
   health report.

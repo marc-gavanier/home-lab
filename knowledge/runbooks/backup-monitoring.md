@@ -78,8 +78,17 @@ backup script"` command for the homelab ones; for the offsite Pi:
 "Offsite health" watches the SMART early-warning counters individually (the
 overall `smartctl -H` verdict stays PASSED until a drive is nearly dead) and
 the result of the monthly long self-test (`offsite-smart-test.timer`, 1st at
-04:00), plus SSD/CPU temperature and Pi undervoltage. See the offsite runbook
-for the exact DOWN conditions.
+04:00), plus SSD temperature (≥ 70 °C), CPU temperature (≥ 70 °C), Pi
+undervoltage, and security updates still unapplied after 48 h. See the offsite
+runbook for the exact DOWN conditions.
+
+> Until #201 this sentence listed CPU temperature alongside the other two while
+> the script only ever *reported* it — eleven conditions in that file pushed a
+> problem and CPU temperature was not one of them. The threshold is 70 rather
+> than the homelab's 80 because that board idles near 50 °C and its fan engages
+> at 60, so 70 means the fan is running and it is still climbing. Worth
+> remembering as a shape: an enumeration that puts a watched thing and an
+> unwatched one on the same footing reads as coverage.
 
 Note: the offsite Pi reaches Kuma through the WireGuard tunnel:
 `services.<domain>` is pinned to the homelab host's VPN address (10.8.0.5,
