@@ -99,7 +99,25 @@ log "=== Backup started ==="
 # The two .sql dumps are already safe: `>` truncates at open, so a failed dump
 # loses its completion marker and is caught. The three SQLite ones were not.
 rm -rf "$DUMP_DIR"
-mkdir -p "$DUMP_DIR"
+# 0700, not the unit's umask (#199). `mkdir -p` under UMask=0022 gave 0755, and
+# the dumps 0644, under parents that are 0755 all the way up — so for the length
+# of every run, any local unprivileged account could read the complete
+# Vaultwarden vault, the Kuma database with its push tokens and notification
+# path, Nextcloud's password hashes, and the Forgejo database. The modes were
+# read back out of a snapshot, so they are what really existed on disk.
+#
+# The #177 sweep closed the six LIVE credential stores to 0700 and never looked
+# at the copy this script makes of the same data every night.
+#
+# Six minutes a night is the normal case, not the bounding one: the cleanup at
+# the bottom is only reached on a successful run, while a failed restic backup
+# exits well before it, leaving the dumps in place until the next night.
+#
+# The directory, not the files: `sqlite3 .backup` and `>` both create with the
+# process umask, so a per-file expectation would drift back on its own. Nothing
+# else reads this path — no container mounts /mnt/data/backups — and restic runs
+# as root, which ignores the mode.
+install -d -m 0700 "$DUMP_DIR"
 
 # --- Database dumps ---
 
