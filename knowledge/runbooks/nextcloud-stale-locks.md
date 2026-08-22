@@ -34,11 +34,15 @@ for k,v in c.most_common(3): print(v,k)'
 
 ```bash
 # 2. The locks themselves — this is the answer
-sudo bash -c 'set -a; . /opt/homelab/backup.env; set +a
-docker exec nextcloud-db mariadb -u"$NEXTCLOUD_DB_USER" -p"$NEXTCLOUD_DB_PASSWORD" "$NEXTCLOUD_DB_NAME" -e "
+# The credential is read inside the container and passed through MYSQL_PWD; the
+# query goes in on stdin. Nothing sensitive reaches an argument list (#198), and
+# backup.env no longer carries the password this used to source.
+docker exec -i nextcloud-db sh -c \
+  'MYSQL_PWD=$(cat /run/secrets/nextcloud_db_password) mariadb -u"$MYSQL_USER" "$MYSQL_DATABASE"' <<'SQL'
   SELECT l.id, l.file_id, from_unixtime(l.creation) AS placed, l.ttl, l.owner, f.path
   FROM oc_files_lock l LEFT JOIN oc_filecache f ON f.fileid = l.file_id
-  ORDER BY l.creation;"'
+  ORDER BY l.creation;
+SQL
 ```
 
 A `ttl` of `-60` is the tell: it is the `-1` default multiplied by the 60 in

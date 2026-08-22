@@ -117,7 +117,17 @@ Three details that are each easy to get wrong:
   name goes in `--fullname`.
 
 The password is read from the mounted secret inside the container rather than typed,
-so it never reaches the host's shell history. Minimum length is 8 characters. Forgejo
+so it never reaches the host's shell history.
+
+> **It does still reach an argument list, and that one is irreducible.**
+> `forgejo admin user create` offers `--password` and nothing else — no stdin,
+> no environment variable, checked against the deployed binary. So the value
+> lands in the argv of the `forgejo` process inside the container, which `/proc`
+> exposes to every local account on the host for the moment it runs (#198).
+> Unlike the recurring cases fixed there, this is a **one-time** command run by
+> the operator at first deploy. If that moment matters, `--random-password`
+> avoids it entirely — create the account with a throwaway, then set the real
+> password through the web UI and keep the vault in step. Minimum length is 8 characters. Forgejo
 hashes with **pbkdf2**, not bcrypt — there is no 72-byte ceiling here, unlike Miniflux
 and Dozzle, so a 128-byte generated password is fine.
 

@@ -70,6 +70,10 @@ secrets:
     file: /mnt/data/secrets/docker/immich_db_password
   transmission_password:
     file: /mnt/data/secrets/docker/transmission_password
+  # Read by `pihole setpassword` inside the container, not by FTL itself: the
+  # env var that would set it is only honoured on first start (#198).
+  pihole_password:
+    file: /mnt/data/secrets/docker/pihole_password
   vaultwarden_admin_token_hash:
     file: /mnt/data/secrets/docker/vaultwarden_admin_token_hash
   miniflux_db_password:
@@ -258,6 +262,17 @@ services:
       # because cloudflared shares this container's netns (network_mode below).
       # Codified here (was manual pihole.toml drift); FTLCONF locks it (ADR-015).
       FTLCONF_dns_upstreams: 127.0.0.1#5053
+    # The admin password is NOT set from here. `FTLCONF_webserver_api_password`
+    # is read only on first start, and once pihole.toml exists it is ignored —
+    # so the deploy sets it with `pihole setpassword`, which takes its argument
+    # from the command line and nowhere else. Mounting the secret is what lets
+    # that command read it INSIDE the container: before #198 the deploy expanded
+    # the password on the host, putting it in the argv of `docker exec` for the
+    # duration of every run, six lines below a probe written to avoid exactly
+    # that. /proc has no hidepid here, so that argv was readable by any local
+    # account.
+    secrets:
+      - pihole_password
     volumes:
       - ${SERVICES_DATA_DIR}/pihole/etc:/etc/pihole
       - ${SERVICES_DATA_DIR}/pihole/dnsmasq:/etc/dnsmasq.d
@@ -1000,7 +1015,15 @@ services:
       # 401. transmission-remote speaks the RPC API and authenticates: rc=1 on a
       # wrong password, rc=1 on an unreachable daemon, and it enumerates the
       # torrents, which is the function this service exists to perform. 0.03s.
-      test: ["CMD-SHELL", 'transmission-remote -n "$$USER:$$(cat /run/secrets/transmission_password)" -l >/dev/null 2>&1']
+      #
+      # `-ne` (--authenv), never `-n`: the credential goes through TR_AUTH in the
+      # child's environment, not through its argument list. The first version of
+      # this probe used `-n "$USER:$(cat …)"`, which put the RPC password on the
+      # process table every 30 s — 2 880 times a day, readable by any local
+      # account, since /proc carries no hidepid. Captured from an unprivileged
+      # uid during the audit of 2026-08-22 (#198). /proc/<pid>/environ is 0400
+      # owner-only, so the environment is not the same exposure as argv.
+      test: ["CMD-SHELL", 'TR_AUTH="$$USER:$$(cat /run/secrets/transmission_password)" transmission-remote -ne -l >/dev/null 2>&1']
       interval: 30s
       timeout: 5s
       retries: 3

@@ -111,7 +111,8 @@ restic restore latest --target /tmp/restore --include /mnt/data/backups/dumps
 
 # Nextcloud (MariaDB) — put it in maintenance mode around the import
 docker exec -u www-data nextcloud php occ maintenance:mode --on
-docker exec -i nextcloud-db mariadb -u nextcloud -p"$NEXTCLOUD_DB_PASSWORD" nextcloud \
+docker exec -i nextcloud-db sh -c \
+  'MYSQL_PWD=$(cat /run/secrets/nextcloud_db_password) mariadb -u"$MYSQL_USER" "$MYSQL_DATABASE"' \
   < /tmp/restore/mnt/data/backups/dumps/nextcloud.sql
 docker exec -u www-data nextcloud php occ maintenance:mode --off
 

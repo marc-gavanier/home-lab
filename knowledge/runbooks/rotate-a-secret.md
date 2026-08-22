@@ -112,9 +112,22 @@ ssh homelab 'docker exec -i nextcloud-db sh' <<'REMOTE'
 PW=$(cat /run/secrets/nextcloud_db_password)
 RP=$(cat /run/secrets/nextcloud_db_root_password)
 [ -n "$PW" ] && [ -n "$RP" ] || { echo "empty secret, aborting"; exit 1; }
-MYSQL_PWD="$RP" mariadb -u root -N -e "ALTER USER '$MYSQL_USER'@'%' IDENTIFIED BY '$PW'"
+MYSQL_PWD="$RP" mariadb -u root -N <<SQL
+ALTER USER '$MYSQL_USER'@'%' IDENTIFIED BY '$PW';
+SQL
 REMOTE
 ```
+
+The statement goes in through **stdin**, not `-e`. The root password was already
+kept out of the command line by `MYSQL_PWD`, but `-e "… IDENTIFIED BY '$PW'"`
+put the **new** password there instead — at the exact moment the old one is
+being treated as compromised, in a command that is usually run under `sudo` and
+therefore logged whole by journald (#198).
+
+A here-document rather than a pipe from `printf`: `printf` is a shell builtin
+everywhere that matters, so it would spawn no process and expose no argv — but
+that is a property of the shell, not of the command, and a runbook should not
+rest on it. A here-document never puts the value in an argument list at all.
 
 Both forms were run against the live databases with the value already in force —
 a no-op that proves the quoting.
