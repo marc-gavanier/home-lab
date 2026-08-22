@@ -40,7 +40,37 @@ http:
           X-Robots-Tag: "noindex, nofollow"
 
     # Rate limiting
+    #
+    # `burst` is the token-bucket depth: how much of a legitimate page load the
+    # limiter absorbs before it starts refusing. It was 50, and that rejected
+    # real traffic — 851 responses of 429 in nine days (#204), every one of them
+    # on SearXNG's thumbnail proxy, which fetches a whole page of images at once.
+    #
+    # Sized on the measured episodes rather than guessed. Grouping the requests
+    # into episodes separated by more than 30 s gives 30 of them over nine days:
+    #
+    #     largest 183, then 107, 79, 69, 68, 61, 58, 58, 56 …   median 31
+    #
+    # So one page of image results can ask for ~180 thumbnails in a go, and a
+    # bucket of 50 could never carry it. 250 covers the largest observed episode
+    # with room to spare.
+    #
+    # Reading the log needs one precaution: the peak seconds are almost entirely
+    # 429s (67 requests in one second, 67 of them refused), because a rejection
+    # is answered instantly while an accepted request is only logged once the
+    # remote image has been fetched. Those peaks are the signature of an
+    # exhausted bucket, not the arrival profile — size on episodes, not seconds.
+    #
+    # `average` stays at 100/s: it is the sustained ceiling, and the bucket
+    # refills in 2.5 s at that rate. What this middleware defends against is a
+    # runaway or compromised client on the VPN, not the internet — nothing here
+    # is reachable from outside — and 100/s sustained is still a real cap.
+    #
+    # Caveat worth keeping: this sample was taken while the household was away,
+    # so it is one user's traffic. #128 makes every VPN client share this single
+    # bucket, so concurrent users add up inside it; revisit if 429s reappear with
+    # the house occupied.
     rate-limit:
       rateLimit:
         average: 100
-        burst: 50
+        burst: 250
