@@ -86,6 +86,14 @@
 # rather than a check on `compose_result.actions` so it also covers a recreate
 # nobody predicted — the failure is silent, so the guard should not depend on
 # having anticipated the cause.
+#
+# The remedy is `compose up`, NOT `docker restart` (#215). `HostConfig.NetworkMode`
+# holds a hard container ID resolved once at creation, so a restart re-runs the
+# container against the *dead* ID: it exits 1 and leaves dnsproxy stopped, which
+# is worse than the detached state it was meant to repair. Only recreating the
+# container re-resolves `service:pihole` to the new ID. Measured on a throwaway
+# pair before this was written — restart: exit 1, container exited, still bound
+# to the old ID; compose up --force-recreate: exit 0, running, re-attached.
 - name: compose | Re-attach dnsproxy if pihole was recreated under it
   # `{% raw %}` is not decoration: `{{.State.Pid}}` is a Go template, and Ansible
   # renders the shell body as Jinja first — without it the task dies on
@@ -94,15 +102,32 @@
     {% raw %}
     set -o pipefail
     pp=$(docker inspect -f '{{.State.Pid}}' pihole 2>/dev/null) || exit 0
-    dp=$(docker inspect -f '{{.State.Pid}}' dnsproxy 2>/dev/null) || exit 0
-    [ "$pp" != "0" ] && [ "$dp" != "0" ] || exit 0
-    if [ "$(readlink /proc/$pp/ns/net)" != "$(readlink /proc/$dp/ns/net)" ]; then
-        docker restart dnsproxy >/dev/null
-        echo restarted
+    [ "$pp" != "0" ] || exit 0
+    docker inspect dnsproxy >/dev/null 2>&1 || exit 0
+
+    # An unprivileged readlink returns empty for both, which compares EQUAL and
+    # would make the guard silently never fire. Fail loudly instead.
+    ns_pihole=$(readlink "/proc/$pp/ns/net")
+    [ -n "$ns_pihole" ] || { echo "cannot read pihole netns (needs root)" >&2; exit 1; }
+
+    # A stopped dnsproxy has pid 0 — that is a state to repair, not to skip.
+    dp=$(docker inspect -f '{{.State.Pid}}' dnsproxy 2>/dev/null)
+    if [ "$dp" != "0" ] && [ "$(readlink "/proc/$dp/ns/net")" = "$ns_pihole" ]; then
+        exit 0
     fi
+
+    docker compose --project-directory /opt/homelab up -d --force-recreate dnsproxy \
+        >/dev/null 2>&1 || exit 1
+
+    # Report success only on a verified re-attach: the previous version echoed
+    # unconditionally, so a failed remedy still reported `changed`.
+    np=$(docker inspect -f '{{.State.Pid}}' dnsproxy 2>/dev/null) || exit 1
+    [ "$np" != "0" ] || exit 1
+    [ "$(readlink "/proc/$np/ns/net")" = "$ns_pihole" ] || exit 1
+    echo reattached
     {% endraw %}
   args:
     executable: /bin/bash
   register: dnsproxy_reattach
-  changed_when: "'restarted' in dnsproxy_reattach.stdout"
+  changed_when: "'reattached' in dnsproxy_reattach.stdout"
   check_mode: false
