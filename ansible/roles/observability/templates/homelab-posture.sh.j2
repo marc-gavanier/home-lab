@@ -57,7 +57,10 @@ inspect() { docker inspect -f "$2" "$1" 2>/dev/null; }
 
 
 # --- The declarative half runs first (ADR-032) -------------------------------
-# 326 assertions live in /etc/goss/posture.yaml, generated from compose.yaml:
+# The declarative assertions live in /etc/goss/posture.yaml, generated from
+# compose.yaml at deploy time — 326 of them on this host today, a number that
+# moves with the compose file and is therefore read from goss rather than
+# written down here:
 # every container's privileged flag, dropped and added capabilities, read-only
 # rootfs, no-new-privileges, user, the AppArmor profile the kernel actually
 # applied, netdata's three axes, the fail2ban jails, and the credential store
@@ -261,4 +264,4 @@ if [ {% raw %}${#problems[@]}{% endraw %} -gt 0 ]; then
     exit 1
 fi
 
-notify up "posture OK on $checked/$expected containers"
+notify up "posture OK — $checked checks"
