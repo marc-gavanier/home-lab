@@ -10,6 +10,12 @@
 - name: "Assert the container security posture daily (issue #33)"
   ansible.builtin.import_tasks: posture.yml
 
+# ADR-032 step 1: installs goss and the generated spec beside homelab-posture.sh,
+# which still runs untouched. Both can then be compared on the same machine
+# before either is replaced.
+- name: "Install goss and the declarative posture spec (ADR-032)"
+  ansible.builtin.import_tasks: goss.yml
+
 - name: Run a weekly lynis audit and push the result to Uptime Kuma
   ansible.builtin.import_tasks: lynis.yml
 

@@ -210,3 +210,10 @@ credential_store_modes:
   transmission/config: "0700"
   pihole/etc: "0700"
   forgejo/data: "0700"
+
+# --- goss (ADR-032) ---
+# Checksum taken from the project's own goss_<version>_SHA256SUMS, not computed
+# locally: a digest you compute from the file you downloaded pins that download
+# and proves nothing about what the publisher released.
+goss_version: "0.4.10"
+goss_sha256: "90a59612b4d67d9f1a9038634c000790136bb82526a69de1e81ac075c2f6d2c6"
