@@ -1,0 +1,35 @@
+---
+# The persistence gate, shared by the check scripts (ADR-030).
+#
+# Installed FIRST, before any script that sources it. The scripts degrade loudly
+# if it is absent — they report every gated condition immediately rather than
+# never — so the ordering is about avoiding a noisy deploy window, not about
+# correctness.
+#
+# A new file in a campaign whose measure of success is the line count going
+# down, so the justification belongs here: no installed tool expresses "report
+# this condition only once it has held for N seconds" for an arbitrary shell
+# check. netdata does it for what it collects itself, and its systemdunits
+# collector would have retired most of these gates — but it reaches systemd only
+# through /run/systemd/private, systemd's unauthenticated control channel
+# (measured 2026-08-23). goss has no notion of duration at all. So the memory
+# stays on the host, in one place instead of the seven hand-written copies
+# homelab-health.sh accumulated.
+
+- name: gate | Install the shared persistence gate
+  ansible.builtin.copy:
+    src: homelab-gate.sh
+    dest: /usr/local/lib/homelab-gate.sh
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: gate | Create the gate state directory
+  # The library creates it too; this makes ownership and mode explicit rather
+  # than inherited from whichever script happened to run first.
+  ansible.builtin.file:
+    path: /var/lib/homelab-gate
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
