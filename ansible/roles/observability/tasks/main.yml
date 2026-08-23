@@ -7,14 +7,13 @@
 - name: Push Pi power/thermal health to Uptime Kuma
   ansible.builtin.import_tasks: health.yml
 
-- name: "Assert the container security posture daily (issue #33)"
-  ansible.builtin.import_tasks: posture.yml
-
-# ADR-032 step 1: installs goss and the generated spec beside homelab-posture.sh,
-# which still runs untouched. Both can then be compared on the same machine
-# before either is replaced.
+# Before posture.yml, and that ordering is the dependency: homelab-posture.sh
+# runs goss first and reports its TAP output as its own findings (ADR-032).
 - name: "Install goss and the declarative posture spec (ADR-032)"
   ansible.builtin.import_tasks: goss.yml
+
+- name: "Assert the container security posture daily (issue #33)"
+  ansible.builtin.import_tasks: posture.yml
 
 - name: Run a weekly lynis audit and push the result to Uptime Kuma
   ansible.builtin.import_tasks: lynis.yml

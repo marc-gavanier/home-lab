@@ -1,9 +1,9 @@
 ---
 # goss — ADR-032.
 #
-# Installs the binary and the generated posture spec. homelab-posture.sh still
-# runs and is untouched at this step: the spec exists beside it so both can be
-# compared on the same machine before anything is replaced.
+# Installs the binary and the generated posture spec. homelab-posture.sh runs
+# goss first and reports its TAP output as its own findings, so this must land
+# before the posture task or the daily check reports the spec missing.
 
 - name: goss | Read the installed version, if any
   ansible.builtin.command: goss --version
@@ -46,6 +46,18 @@
       ansible.builtin.file:
         path: /tmp/goss.tar.gz
         state: absent
+
+# `template` does not create parent directories, and nothing else on this host
+# owns /etc/goss. Without this the deploy fails on "Destination directory
+# /etc/goss does not exist" — which is how it was found, the earlier spec
+# validations having copied the file into /tmp by hand.
+- name: goss | Create the spec directory
+  ansible.builtin.file:
+    path: /etc/goss
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
 
 # 0400 root: the spec names every container's expected capability set and the
 # modes of the credential stores. That is a map of where the secrets are and how
