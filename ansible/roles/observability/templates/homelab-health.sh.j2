@@ -43,6 +43,18 @@ problems=()
 pending=()
 report=()
 
+# Persistence gates (ADR-030), sourced rather than reimplemented once per
+# condition. See /usr/local/lib/homelab-gate.sh for the measurement that defines
+# them and for why the memory lives here rather than in a netdata alarm.
+if ! . /usr/local/lib/homelab-gate.sh 2>/dev/null; then
+    problems+=("homelab-gate.sh missing — every grace period disabled")
+    # Degrade LOUD. Without this fallback `gate` is an unknown command, every
+    # call substitutes to nothing, and every gated condition silently stops
+    # being reported — the silent-disablement shape catalogued in #220. Noisy
+    # beats invisible, so the fallback reports everything immediately.
+    gate() { shift 2; [ "$#" -gt 0 ] && printf '%s\n' "$@"; }
+fi
+
 # --- Undervoltage ---
 # The firmware latches undervoltage events into the rpi_volt hwmon alarm.
 uv_seen=0
@@ -66,19 +78,17 @@ done
 # would flash red in the hours before u-u runs. Only alarm if it is STILL
 # nonzero after 48h — a held/failed/stuck update, or a fix that installed but
 # needs a restart needrestart didn't cover. apt-check prints "all;security" on
-# stderr; stamp the first time it goes nonzero, clear the stamp at zero.
+# stderr. The count is deliberately NOT the gate key: it changes as updates land
+# and would restart the clock on every change, so the key is the condition.
 APT_CHECK=/usr/lib/update-notifier/apt-check
-SEC_STAMP=/var/lib/homelab-health/security-pending.stamp
 if [ -x "$APT_CHECK" ]; then
     sec=$("$APT_CHECK" 2>&1 | cut -d';' -f2); sec=${sec//[^0-9]/}; sec=${sec:-0}
     if [ "$sec" -gt 0 ]; then
         report+=("$sec security updates pending")
-        mkdir -p "$(dirname "$SEC_STAMP")"
-        [ -f "$SEC_STAMP" ] || date +%s > "$SEC_STAMP"
-        age=$(( $(date +%s) - $(cat "$SEC_STAMP" 2>/dev/null || echo 0) ))
-        [ "$age" -gt 172800 ] && pending+=("$sec security updates unapplied >48h")
+        [ -n "$(gate security-updates 172800 nonzero)" ] &&
+            pending+=("$sec security updates unapplied >48h")
     else
-        rm -f "$SEC_STAMP"
+        gate security-updates 172800
     fi
 fi
 
@@ -145,7 +155,6 @@ done
 # NXDOMAIN is a success here: the question is whether the upstream ANSWERED, not
 # whether the name exists. SERVFAIL, REFUSED and silence are the failures — they
 # are what a dead dnsproxy produces.
-DNS_STAMP=/var/lib/homelab-health/dns.stamp
 DNS_PROBE_DOMAIN='{{ domain }}'
 if command -v dig >/dev/null 2>&1 && [ -n "$DNS_PROBE_DOMAIN" ]; then
     rand=$(head -c8 /dev/urandom | od -An -tx1 | tr -d ' \n')
@@ -156,18 +165,18 @@ if command -v dig >/dev/null 2>&1 && [ -n "$DNS_PROBE_DOMAIN" ]; then
     case "${dns_rc:-}" in
         NOERROR|NXDOMAIN)
             report+=("dns ok")
-            rm -f "$DNS_STAMP"
+            gate dns-upstream 240
             ;;
         *)
             report+=("dns ${dns_rc:-no-response}")
-            mkdir -p "$(dirname "$DNS_STAMP")"
-            # Second consecutive failure, i.e. sustained for >5 min. Same gate as
-            # the memory alarm: one upstream hiccup is not an outage, and this
-            # probe deliberately leaves the cache out of the path, so it has no
-            # cushion of its own.
-            [ -f "$DNS_STAMP" ] && \
-                problems+=("dns upstream unreachable twice running (${dns_rc:-no response})")
-            date +%s > "$DNS_STAMP"
+            # Sustained across a run, i.e. >4 min. One upstream hiccup is not an
+            # outage, and this probe deliberately leaves the cache out of the
+            # path, so it has no cushion of its own. 240s rather than the 300s
+            # cadence: a timer that fires a few seconds early must not reset the
+            # verdict, which is the failure mode of counting runs instead of
+            # seconds — what the stamp this replaces actually did.
+            [ -n "$(gate dns-upstream 240 unreachable)" ] &&
+                problems+=("dns upstream unreachable, sustained (${dns_rc:-no response})")
             ;;
     esac
 fi
