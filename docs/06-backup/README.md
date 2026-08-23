@@ -8,7 +8,7 @@ Chosen for its deduplication, native encryption (AES-256), incremental support, 
 
 ### What to Back Up
 
-Mirrors exactly what `ansible/roles/deploy/files/backup.sh` does (keep this table and the script in sync).
+Mirrors the `source` list in `ansible/roles/deploy/templates/resticprofile.yaml.j2` (keep this table and that profile in sync).
 
 | Data                   | Source (host path)                                                                              | Method            | Frequency |
 |------------------------|-------------------------------------------------------------------------------------------------|-------------------|-----------|
@@ -61,7 +61,13 @@ LUKS header — the prerequisite for reaching *any* of `/mnt/data` — has its o
 
 ## Automation
 
-- Scripts: `ansible/roles/deploy/files/backup.sh` (nightly) and `local-maintenance.sh` (weekly)
+- Orchestration: `resticprofile`, configured by
+  `ansible/roles/deploy/templates/resticprofile.yaml.j2` (ADR-031). The database
+  dumps and the assertions that check them are NOT in it and are not meant to
+  be: they live in `backup-dumps.sh`, invoked as a pre-backup hook, because no
+  tool expresses them. `backup-notify.sh` builds the Kuma message, because
+  resticprofile's hooks receive no restic output at all.
+- Weekly: `local-maintenance.sh` (prune + check)
 - Scheduling (systemd timers):
   - `homelab-backup.timer` — daily 03:00 (dumps → backup → offsite copy → forget)
   - `homelab-local-maintenance.timer` — Sunday 05:00 (weekly prune + metadata check; deep read-data on the 1st Sunday of the month)

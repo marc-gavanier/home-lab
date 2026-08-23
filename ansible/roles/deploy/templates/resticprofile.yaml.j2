@@ -19,6 +19,20 @@ version: "1"
 homelab:
   repository: '{{ "{{ .Env.RESTIC_REPOSITORY }}" }}'
   password-file: /mnt/data/secrets/restic_password
+  # Concurrency protection, and it replaces something specific: backup.sh wrapped
+  # its copy step in `flock /var/lock/offsite-copy.lock` after a collision
+  # between the 2026-07-12 seed and the nightly copy put ~100 GB of duplicates
+  # on the append-only repository, reclaimable only by a manual prune.
+  #
+  # This lock is stronger than the one it replaces — it covers the WHOLE profile,
+  # backup and copy alike, not just the copy step. Verified: a second invocation
+  # during a running one is refused with "another process is already running
+  # this profile" and the first completes untouched.
+  #
+  # Any manual run must therefore go through resticprofile rather than restic
+  # directly, which is what makes the protection hold.
+  lock: /var/lock/resticprofile-homelab.lock
+
   # A repository on a LUKS volume that may not be mounted. Failing loudly beats
   # initialising a second, empty repository on the mountpoint's own directory.
   initialize: false
@@ -68,6 +82,12 @@ homelab:
     # from configuration, which cannot see any of it.
     run-after:
       - /opt/homelab/scripts/backup-notify.sh up backup
+      # backup.sh removed the dumps once the snapshot held them, and so does
+      # this. On SUCCESS only, deliberately — `run-finally` would also fire on a
+      # failed backup and destroy the dumps that failure needs looking at. The
+      # next run's run-before recreates the directory, so the path set stays
+      # five either way.
+      - rm -rf /mnt/data/backups/dumps
     run-after-fail:
       - /opt/homelab/scripts/backup-notify.sh down backup
 
