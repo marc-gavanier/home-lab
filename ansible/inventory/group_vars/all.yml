@@ -163,6 +163,14 @@ netdata_curated_alarms:
   - file: homelab-undervoltage
     alarm: homelab_undervoltage
     group: resources
+  # Phase 2. Both need the docker collector, which needs IMAGES=1 on the
+  # socket-proxy — measured, see the comment on that variable in compose.yaml.
+  - file: homelab-container-unhealthy
+    alarm: homelab_container_unhealthy
+    group: services
+  - file: homelab-container-down
+    alarm: homelab_container_down
+    group: services
 
 # Available-memory threshold, in MiB. Same reasoning as the swap one: kept in a
 # single place because homelab-health.sh still carries the same number until its
