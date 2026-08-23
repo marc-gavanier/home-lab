@@ -151,11 +151,19 @@ if [ "$(docker inspect -f '{% raw %}{{.State.Status}}{% endraw %}' vaultwarden 2
         # falling back to the raw KEY_FILE line would restore exactly the blind
         # spot being fixed. The resolved value is a hash and is never printed:
         # the comparison below emits key names only.
-        vw_unreadable=""
+        #
+        # Only paths under /run/secrets/, which is where this stack mounts them.
+        # Matching every *_FILE variable was too broad: vaultwarden also sets
+        # LOG_FILE=/data/logs/vaultwarden.log, and logrotate empties that file
+        # every week — so the check read 0 bytes and reported a secret it could
+        # not read, every run, from 2026-08-22 onward. Worse in the other
+        # direction: a NON-empty log would have been spliced into this
+        # line-oriented listing as LOG=<the whole log>, and any log line shaped
+        # like key=value could have raised a conflict out of nothing.
         vw_env=$(docker inspect -f '{% raw %}{{range .Config.Env}}{{println .}}{{end}}{% endraw %}' \
                  vaultwarden 2>/dev/null | while IFS= read -r line; do
             case "$line" in
-                *_FILE=*)
+                *_FILE=/run/secrets/*)
                     vk=${line%%=*}
                     vv=$(docker exec vaultwarden cat "${line#*=}" 2>/dev/null)
                     if [ -n "$vv" ]; then
