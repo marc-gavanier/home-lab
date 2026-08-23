@@ -71,6 +71,33 @@ configuration, and none on the process table, which is the #198 class.
 resolves, so the existing `backup.env` keeps its role and no path is duplicated
 into the configuration.
 
+### A fourth finding, from the first run against the real repository
+
+The spike could not have caught this one, because the sandbox had no equivalent:
+**the dump directory only exists during a run.** `backup.sh` does `rm -rf` then
+`install -d` at the start and `rm -rf` at the end, so between runs
+`/mnt/data/backups/dumps` is simply absent.
+
+Listing it as a source without creating it first makes restic skip it, and the
+snapshot then carries FOUR paths instead of five. That is not cosmetic:
+`restic forget` groups by `host,paths` by default, so a snapshot with a
+different path set forms **its own retention group** and receives its own
+7 daily / 4 weekly / 6 monthly. The first real run produced exactly that — a
+`keep 1 snapshots` group beside the existing ones.
+
+The repository already carries three such groups from earlier changes to the
+source list (secrets added, media added), so the mechanism is not new. What
+would have been new is a fourth group created every night by the migration
+itself.
+
+The profile now creates the directory in `run-before`. The mkdir belongs to the
+profile rather than to the dump script, because it is about what this profile
+CLAIMS to back up, not about the dumps.
+
+**This is the argument for the staged migration in one paragraph.** The
+sandbox passed six criteria; the first contact with the real repository found a
+seventh that none of them covered.
+
 ### resticprofile does NOT manage the schedule
 
 It can generate systemd units, and that is the one criterion the spike could not
