@@ -20,39 +20,42 @@ Uses Pi-hole as DNS (`dns: [${PI_LAN_IP}]` in compose) so that domain lookups fo
 
 ## Monitors Configured
 
-| Monitor                   | Type     | Target                                            |
-|---------------------------|----------|---------------------------------------------------|
+| Monitor                   | Type     | Target                                                                                        |
+|---------------------------|----------|-----------------------------------------------------------------------------------------------|
 | Nextcloud                 | Keyword  | `https://drive.example.com/status.php` — keyword `"maintenance":false,"needsDbUpgrade":false` |
-| Vaultwarden               | HTTP(s)  | `https://vault.example.com/alive`                 |
-| Jellyfin                  | HTTP(s)  | `https://videos.example.com/health`               |
-| Navidrome                 | HTTP(s)  | `https://music.example.com/ping`                  |
-| Immich                    | Keyword  | `https://photos.example.com/api/server/ping`      |
-| SearXNG                   | HTTP(s)  | `https://search.example.com/healthz`              |
-| Dozzle                    | HTTP(s)  | `https://logs.example.com/healthcheck`            |
-| IT-Tools                  | HTTP(s)  | `https://tools.example.com`                       |
-| Calibre-Web               | HTTP(s)  | `https://books.example.com/login`                 |
-| Miniflux                  | HTTP(s)  | `https://rss.example.com/healthcheck`             |
-| Collabora                 | HTTP(s)  | `https://office.example.com/hosting/capabilities` |
-| Forgejo                   | HTTP(s)  | `https://git.example.com/api/healthz`             |
-| Netdata                   | HTTP(s)  | `https://system.example.com/api/v1/info`          |
-| Transmission              | Keyword  | `https://share.example.com/transmission/web/`     |
-| WireGuard                 | HTTP(s)  | `https://vpn.example.com`                         |
-| Traefik HTTPS             | TCP Port | `192.168.1.100:443`                               |
-| Transmission BT Peer Port | TCP Port | `transmission:51413`                              |
-| Pi-hole DNS               | DNS      | Resolver `192.168.1.100`, query `example.com`     |
-| Pi (ping)                 | Ping     | `192.168.1.100`                                   |
-| Backup                    | Push     | resticprofile `backup`, daily 03:00               |
-| DDNS                      | Push     | `cloudflare-ddns.sh`, every 15 min                |
-| Nextcloud notify_push     | Push     | `notify_push:self-test`, hourly                   |
-| Offsite backup            | Push     | resticprofile `copy`, daily 03:00                 |
-| Offsite check             | Push     | resticprofile `offsite check`, Sun 06:00          |
-| Offsite health            | Push     | `offsite-health.sh`, on the offsite Pi            |
-| Pi disk health            | Push     | `homelab-disk.sh`, daily 07:05                    |
-| Pi health                 | Push     | `homelab-health.sh`, every 5 min                  |
-| Pi Lynis audit            | Push     | `homelab-lynis-report.sh`, weekly                 |
-| Pi restic prune+check     | Push     | resticprofile `prune`+`check`, Sun 05:00          |
-| Pi security posture       | Push     | `homelab-posture.sh`, daily 11:00                 |
-| Veille quotidienne        | Push     | `feed-digest/digest.sh`, daily 06:30              |
+| Vaultwarden               | HTTP(s)  | `https://vault.example.com/alive`                                                             |
+| Jellyfin                  | HTTP(s)  | `https://videos.example.com/health`                                                           |
+| Navidrome                 | HTTP(s)  | `https://music.example.com/ping`                                                              |
+| Immich                    | Keyword  | `https://photos.example.com/api/server/ping`                                                  |
+| SearXNG                   | HTTP(s)  | `https://search.example.com/healthz`                                                          |
+| Dozzle                    | HTTP(s)  | `https://logs.example.com/healthcheck`                                                        |
+| IT-Tools                  | HTTP(s)  | `https://tools.example.com`                                                                   |
+| Calibre-Web               | HTTP(s)  | `https://books.example.com/login`                                                             |
+| Miniflux                  | HTTP(s)  | `https://rss.example.com/healthcheck`                                                         |
+| Collabora                 | HTTP(s)  | `https://office.example.com/hosting/capabilities`                                             |
+| Forgejo                   | HTTP(s)  | `https://git.example.com/api/healthz`                                                         |
+| Netdata                   | HTTP(s)  | `https://system.example.com/api/v1/info`                                                      |
+| Transmission              | Keyword  | `https://share.example.com/transmission/web/`                                                 |
+| WireGuard                 | HTTP(s)  | `https://vpn.example.com`                                                                     |
+| Traefik HTTPS             | TCP Port | `192.168.1.100:443`                                                                           |
+| Transmission BT Peer Port | TCP Port | `transmission:51413`                                                                          |
+| Pi-hole DNS               | DNS      | Resolver `192.168.1.100`, query `example.com`                                                 |
+| Pi (ping)                 | Ping     | `192.168.1.100`                                                                               |
+| Backup                    | Push     | resticprofile `backup`, daily 03:00                                                           |
+| DDNS                      | Push     | `cloudflare-ddns.sh`, every 15 min                                                            |
+| Netdata — containers      | Push     | `homelab-netdata-kuma.sh` services group, /5 min                                              |
+| Nextcloud notify_push     | Push     | `notify_push:self-test`, hourly                                                               |
+| Offsite backup            | Push     | resticprofile `copy`, daily 03:00                                                             |
+| Offsite check             | Push     | resticprofile `offsite check`, Sun 06:00                                                      |
+| Offsite health            | Push     | `offsite-health.sh`, on the offsite Pi                                                        |
+| Pi disk health            | Push     | `homelab-disk.sh`, daily 07:05                                                                |
+| Pi health                 | Push     | `homelab-health.sh`, every 5 min                                                              |
+| Pi Lynis audit            | Push     | `homelab-lynis-report.sh`, weekly                                                             |
+| Pi pending action         | Push     | `homelab-health.sh` pending group, every 5 min                                                |
+| Pi resources              | Push     | `homelab-netdata-kuma.sh` resources group, /5 min                                             |
+| Pi restic prune+check     | Push     | resticprofile `prune`+`check`, Sun 05:00                                                      |
+| Pi security posture       | Push     | `homelab-posture.sh`, daily 11:00                                                             |
+| Veille quotidienne        | Push     | `feed-digest/digest.sh`, daily 06:30                                                          |
 
 Defaults for the active checks: 60s interval, 3 retries, accepted codes `200-299`,
 TLS expiry notification on. Since #191 no active monitor accepts anything outside that
@@ -91,6 +94,19 @@ in #179. Re-measurement did not support widening it: the observed maximum gap is
 **two** consecutive missed runs to alarm where one is the useful signal. Doubling a
 detection window costs sensitivity and should be paid for by a measurement, not by
 symmetry with the monitor next to it.
+
+The two **Netdata** push monitors take the same 600s window and zero retries, and add
+the setting the others do not need: `resend_interval`. Each carries SEVERAL curated
+alarms — `Netdata — containers` reports both container conditions — and Kuma notifies
+once when a monitor turns red, not again while it stays red. Without a resend, a second
+alarm firing behind an unresolved first one reaches nobody (#200). That is the price of
+sharing a monitor, and it is what makes the sharing safe: conditions may share a signal
+when they share a LIFETIME, never when one of them can wait for a human.
+
+Both were created by hand, like every monitor here, and `Retries` is the field to get
+right. Setting it to 1 was tried on 2026-08-23 and reverted the same evening on the
+evidence above: the monitor's first real alert read `"No heartbeat in the time window"`
+while the adapter had pushed the name of the alarm that was not loading.
 
 The **Target** column names the endpoint on purpose. A bare `200 on /` would keep a
 service green while it is broken — the case measured on Dozzle, which serves its page
