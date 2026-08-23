@@ -5,3 +5,11 @@ Description=Offsite backup disk health report (df + SMART to Uptime Kuma)
 [Service]
 Type=oneshot
 ExecStart=/usr/local/bin/offsite-health.sh
+# Exit 1 means "problems found and pushed to Kuma", not "the check broke" — the
+# same contract as homelab-disk.service and homelab-posture.service (#220 A5).
+# Both exit-1 branches push BEFORE exiting, so the monitor already goes red
+# without this line and nothing was blind; what it costs is `systemctl --failed`
+# staying meaningful on the host nobody can walk up to — a unit left failed for a
+# week for doing its job is one more thing to explain away when something real
+# fails next to it.
+SuccessExitStatus=1
