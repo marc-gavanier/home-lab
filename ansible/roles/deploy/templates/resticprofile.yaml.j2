@@ -36,10 +36,24 @@ homelab:
     # groups. Creating the directory here keeps the path set stable whether or
     # not anything has populated it yet.
     #
-    # Phase 2's dump script will fill it; the mkdir stays here because it is
-    # about what this profile CLAIMS to back up, not about the dumps.
+    # The dump script does the `rm -rf` + `install -d` itself, as backup.sh did,
+    # so the directory question is settled by the same code that fills it.
+    #
+    # It ALWAYS exits 0, deliberately. A run-before that fails makes
+    # resticprofile abort the backup, and in backup.sh a bad dump never cost the
+    # snapshot — the failure was deferred and reported at the end. The verdict
+    # goes to a status file that the notification hook reads instead.
     run-before:
-      - install -d -m 0700 /mnt/data/backups/dumps
+      - /opt/homelab/scripts/backup-dumps.sh
+
+    # resticprofile hooks receive PROFILE_NAME and PROFILE_COMMAND and nothing
+    # else — no snapshot id, no summary, and there is no run status file either.
+    # So the notification is built by a small adapter rather than reproduced
+    # from configuration, which cannot see any of it.
+    run-after:
+      - /opt/homelab/scripts/backup-notify.sh up
+    run-after-fail:
+      - /opt/homelab/scripts/backup-notify.sh down
 
     # Identical to the list backup.sh passes, including the exclude: the
     # libresign aarch64 blob is regenerated on demand and costs more to store
