@@ -20,6 +20,10 @@
 #
 # No hysteresis and no `up` delay: a latched bit is not a noisy measurement, and
 # waiting to report an electrical fault would be the wrong trade.
+#
+# `units: events` rather than `status`, because the units travel into the Kuma
+# message and from there into a Discord notification. "undervoltage 0 status"
+# says nothing to someone reading it cold; "undervoltage 0 events" does.
 # =============================================================================
 
  template: homelab_undervoltage
@@ -28,7 +32,7 @@
      type: System
 component: Power supply
    lookup: max -1m unaligned of critical
-    units: status
+    units: events
     every: 1m
      warn: $this > 0
     delay: up 0 down 15m
