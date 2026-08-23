@@ -24,6 +24,23 @@ homelab:
   initialize: false
 
   backup:
+    # The dump directory only exists DURING a run — backup.sh does
+    # `rm -rf` then `install -d` at the start and `rm -rf` at the end — so
+    # listing it as a source without creating it first makes restic skip it,
+    # and the snapshot then carries FOUR paths instead of five.
+    #
+    # That is not cosmetic. `restic forget` groups by `host,paths` by default,
+    # so a snapshot with a different path set forms its own retention group and
+    # gets its own 7 daily / 4 weekly / 6 monthly. The first real run of this
+    # profile did exactly that: `keep 1 snapshots` appeared beside the existing
+    # groups. Creating the directory here keeps the path set stable whether or
+    # not anything has populated it yet.
+    #
+    # Phase 2's dump script will fill it; the mkdir stays here because it is
+    # about what this profile CLAIMS to back up, not about the dumps.
+    run-before:
+      - install -d -m 0700 /mnt/data/backups/dumps
+
     # Identical to the list backup.sh passes, including the exclude: the
     # libresign aarch64 blob is regenerated on demand and costs more to store
     # than to rebuild.
