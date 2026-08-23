@@ -5,13 +5,12 @@
 # well clear of the 03:00 backup+copy window (restic check takes an
 # exclusive lock — an overlap would fail one of the two).
 
-- name: offsite | Copy offsite check script
-  ansible.builtin.copy:
-    src: offsite-check.sh
-    dest: /opt/homelab/scripts/offsite-check.sh
-    owner: root
-    group: root
-    mode: "0750"
+# offsite-check.sh is gone (ADR-031): the `offsite` profile is a repository of
+# its own with its own credentials, and `check` against it is the whole script.
+- name: offsite | Remove the superseded offsite check script
+  ansible.builtin.file:
+    path: /opt/homelab/scripts/offsite-check.sh
+    state: absent
 
 - name: offsite | Create offsite check systemd service
   ansible.builtin.copy:
@@ -23,10 +22,20 @@
       Wants=network-online.target
       Requires=mnt-data.mount
       After=network-online.target mnt-data.mount
+      # The script opened with "offsite repo not configured — skipping check"
+      # and exited 0. systemd expresses the same thing without the shell: the
+      # password file is written only when offsite_restic_password is set, so
+      # its absence IS "not configured", and the unit is skipped rather than
+      # failing every Sunday on a host that has no offsite repository.
+      ConditionPathExists=/mnt/data/secrets/offsite_restic_password
 
       [Service]
       Type=oneshot
-      ExecStart=/opt/homelab/scripts/offsite-check.sh
+      # --lock-wait for the same reason as the local maintenance, one repository
+      # further out: the nightly `copy` writes to this repository and takes
+      # restic's own lock on it. An overrunning copy must delay the check, not
+      # fail it.
+      ExecStart=/usr/local/bin/resticprofile --lock-wait 2h -c /opt/homelab/resticprofile.yaml -n offsite check
       EnvironmentFile=/opt/homelab/backup.env
       Environment=HOME=/root
 

@@ -21,8 +21,15 @@
 # Invoked as resticprofile's run-after (success) and run-after-fail (failure),
 # for BOTH commands the nightly job runs:
 #
-#   backup-notify.sh up|down backup   -> the backup monitor, with the dump verdict
-#   backup-notify.sh up|down copy     -> the offsite monitor
+#   backup-notify.sh up|down backup        -> backup monitor, with the dump verdict
+#   backup-notify.sh up|down copy          -> offsite replication monitor
+#   backup-notify.sh up|down maintenance   -> weekly prune + check monitor
+#   backup-notify.sh up|down offsite-check -> weekly offsite integrity monitor
+#
+# Four monitors and not one, deliberately: they fail for different reasons and on
+# different schedules. A weekly integrity check that goes quiet is not the same
+# event as a nightly backup that goes quiet, and folding them together would hide
+# whichever stopped second.
 #
 # The outcome is passed as $1 because a hook cannot tell which one it is, and the
 # command as $2 because PROFILE_COMMAND is not exported to run-after-fail on
@@ -32,20 +39,21 @@
 set -uo pipefail
 
 OUTCOME="${1:-up}"                     # up | down
-WHAT="${2:-backup}"                    # backup | copy
+WHAT="${2:-backup}"                    # backup | copy | maintenance | offsite-check
 DUMP_STATUS="/run/homelab-backup-dumps.status"
 BACKUP_LOG="/var/log/homelab-backup.log"
 
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] notify: $*" | tee -a "$BACKUP_LOG"; }
 
-# The offsite copy has its own monitor, as it did in backup.sh: it fails for
-# entirely different reasons (the tunnel, the remote host) and on its own
-# schedule, so folding it into the backup signal would hide one behind the other.
-if [ "$WHAT" = "copy" ]; then
-    url="${KUMA_OFFSITE_PUSH_URL:-}"
-else
-    url="${KUMA_PUSH_URL:-}"
-fi
+# One monitor per command, as backup.sh already did for the copy: each fails for
+# its own reasons (the tunnel, the remote host, a corrupt pack) and on its own
+# schedule, so a shared signal would hide one behind the other.
+case "$WHAT" in
+    copy)          url="${KUMA_OFFSITE_PUSH_URL:-}" ;;
+    maintenance)   url="${KUMA_LOCAL_MAINT_PUSH_URL:-}" ;;
+    offsite-check) url="${KUMA_OFFSITE_CHECK_PUSH_URL:-}" ;;
+    *)             url="${KUMA_PUSH_URL:-}" ;;
+esac
 # Strip a pasted example query. Kuma's UI shows the push URL decorated with
 # ?status=up&msg=OK&ping=, and appending ours would send each parameter twice —
 # Kuma reads the duplicates as arrays and records the beat DOWN with the message
@@ -61,11 +69,16 @@ readings=""
 # The caller says whether the restic command failed. A hook cannot tell.
 [ "$OUTCOME" = "down" ] && problems+=("${WHAT} command failed")
 
-if [ "$WHAT" = "copy" ]; then
-    # No snapshot count here: a hook sees none of restic's output, and querying
-    # the offsite repository would cross the tunnel for a number that adds
-    # nothing — the monitor going green already means the copy ran clean.
-    readings="offsite copy completed"
+if [ "$WHAT" != "backup" ]; then
+    # No counts here: a hook sees none of restic's output, and re-deriving them
+    # would re-read the repository — or cross the tunnel — for a number that adds
+    # nothing, since the monitor going green already means the command ran clean.
+    case "$WHAT" in
+        copy)          readings="offsite copy completed" ;;
+        maintenance)   readings="prune and check completed" ;;
+        offsite-check) readings="offsite repository intact" ;;
+        *)             readings="${WHAT} completed" ;;
+    esac
     # "copy command failed | offsite copy completed" contradicts itself. A
     # reading only describes a run that finished.
     [ ${#problems[@]} -eq 0 ] || readings=""

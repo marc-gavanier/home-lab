@@ -145,8 +145,15 @@ reviewed by Renovate would be a hole in that process, not a convenience.
 ## Consequences
 
 - `backup.sh` 594 + `local-maintenance.sh` 72 + `offsite-check.sh` 51 = **717
-  lines** become roughly **296** — the dumps and their assertions — plus about
-  50 lines of declarative configuration. Around **420 lines removed**.
+  lines** become **296** — the dumps and their assertions — plus **107** of
+  notification adapter and ~210 lines of declarative configuration.
+
+  Measured after the fact, across the whole repository: **3348 shell lines in 22
+  files → 3050 in 20**. Less than the 420 predicted here, and the gap is the
+  adapter: resticprofile's hooks receive `PROFILE_NAME` and `PROFILE_COMMAND` and
+  nothing else — no snapshot id, no summary, no status file — so every message
+  worth reading has to be rebuilt outside the tool. That is the honest price of
+  this migration, and it is recorded rather than rounded away.
 - **The assertions are kept deliberately**, and this ADR is where that is
   recorded, so a later reader does not mistake them for glue that was missed.
   resticprofile has no equivalent; they are what #190 left behind.
@@ -155,6 +162,21 @@ reviewed by Renovate would be a hole in that process, not a convenience.
   2. run it by hand against the real repository, and **restore from the result**;
   3. only then point the timer at it;
   4. only then remove the sections it replaced.
+
+  All four steps are done for the three timers.
+
+- **One monitor for `prune` and `check`, and the ordering is what keeps it
+  honest.** The two commands run as two `ExecStart` lines under `Type=oneshot`,
+  which stops at the first failure, and resticprofile exits 1 on a failed restic
+  command (probed: exit 1, only `run-after-fail` fired). So `prune` carries a
+  failure hook only: a failed prune pushes DOWN and `check` never runs to
+  overwrite it, while a successful prune stays silent so an hour-long deep check
+  cannot leave Kuma claiming the maintenance already finished. The combined
+  verdict `local-maintenance.sh` computed in shell now falls out of the ordering.
+- **`ConditionPathExists` replaces the "not configured" branch.** `offsite-check.sh`
+  opened by testing the repository variable and exiting 0. The offsite password
+  file is written only when the vault variable is set, so its absence *is* "not
+  configured", and systemd skips the unit instead of failing every Sunday.
 - Two new password files under the secrets directory, `0400 root:root`, rendered
   from the vault like every other secret here.
 

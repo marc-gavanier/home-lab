@@ -125,13 +125,13 @@
 # Weekly local repo maintenance: prune (moved out of the nightly forget) + a
 # rotating read-data integrity check. Sunday 05:00 — clear of the 03:00 nightly
 # backup (both touch the LOCAL repo) and the 06:00 offsite check (different repo).
-- name: backup | Copy local maintenance script
-  ansible.builtin.copy:
-    src: local-maintenance.sh
-    dest: /opt/homelab/scripts/local-maintenance.sh
-    owner: root
-    group: root
-    mode: "0750"
+# local-maintenance.sh is gone (ADR-031): resticprofile's own `prune` and
+# `check` do the work, and the rotating one-twelfth deep check the script
+# computed in shell is now a Go template in the profile.
+- name: backup | Remove the superseded local maintenance script
+  ansible.builtin.file:
+    path: /opt/homelab/scripts/local-maintenance.sh
+    state: absent
 
 - name: backup | Create local maintenance systemd service
   ansible.builtin.copy:
@@ -145,7 +145,18 @@
 
       [Service]
       Type=oneshot
-      ExecStart=/opt/homelab/scripts/local-maintenance.sh
+      # Two commands in order, as in the nightly unit and for the same reason:
+      # resticprofile groups assemble PROFILES, not commands within one.
+      # Type=oneshot stops at the first failure, which is what keeps a single
+      # monitor honest — see the prune section of resticprofile.yaml.j2.
+      #
+      # --lock-wait, because the profile lock is SHARED with the 03:00 nightly
+      # backup and this fires at 05:00. Without it a backup that overran two
+      # hours would make the prune exit non-zero on "another process is already
+      # running this profile" and light the monitor red for a collision that
+      # resolved itself. The maintenance has no deadline; waiting is free.
+      ExecStart=/usr/local/bin/resticprofile --lock-wait 2h -c /opt/homelab/resticprofile.yaml -n homelab prune
+      ExecStart=/usr/local/bin/resticprofile --lock-wait 2h -c /opt/homelab/resticprofile.yaml -n homelab check
       EnvironmentFile=/opt/homelab/backup.env
       Environment=HOME=/root
 

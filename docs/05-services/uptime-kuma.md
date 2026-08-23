@@ -45,12 +45,12 @@ Uses Pi-hole as DNS (`dns: [${PI_LAN_IP}]` in compose) so that domain lookups fo
 | DDNS                      | Push     | `cloudflare-ddns.sh`, every 15 min                |
 | Nextcloud notify_push     | Push     | `notify_push:self-test`, hourly                   |
 | Offsite backup            | Push     | resticprofile `copy`, daily 03:00                 |
-| Offsite check             | Push     | `offsite-check.sh`, Sun 06:00                     |
+| Offsite check             | Push     | resticprofile `offsite check`, Sun 06:00          |
 | Offsite health            | Push     | `offsite-health.sh`, on the offsite Pi            |
 | Pi disk health            | Push     | `homelab-disk.sh`, daily 07:05                    |
 | Pi health                 | Push     | `homelab-health.sh`, every 5 min                  |
 | Pi Lynis audit            | Push     | `homelab-lynis-report.sh`, weekly                 |
-| Pi restic prune+check     | Push     | `local-maintenance.sh`, Sun 05:00                 |
+| Pi restic prune+check     | Push     | resticprofile `prune`+`check`, Sun 05:00          |
 | Pi security posture       | Push     | `homelab-posture.sh`, daily 11:00                 |
 | Veille quotidienne        | Push     | `feed-digest/digest.sh`, daily 06:30              |
 

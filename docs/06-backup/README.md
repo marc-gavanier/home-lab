@@ -67,7 +67,7 @@ LUKS header — the prerequisite for reaching *any* of `/mnt/data` — has its o
   be: they live in `backup-dumps.sh`, invoked as a pre-backup hook, because no
   tool expresses them. `backup-notify.sh` builds the Kuma message, because
   resticprofile's hooks receive no restic output at all.
-- Weekly: `local-maintenance.sh` (prune + check)
+- Weekly: `resticprofile -n homelab prune` then `check`
 - Scheduling (systemd timers):
   - `homelab-backup.timer` — daily 03:00 (dumps → backup → offsite copy → forget)
   - `homelab-local-maintenance.timer` — Sunday 05:00 (weekly prune + metadata check; deep read-data on the 1st Sunday of the month)
