@@ -208,8 +208,14 @@ Mount a config directory into the Netdata container (today only `lib` and
 
 **Phase 2 — move the checks Netdata already collects.**
 One alarm per condition, each replacing one line of `homelab-health.sh`, deleted
-only after it has been observed firing. `systemdunits` also closes #220 A5 on
-the offsite host, and `x509check` replaces the hand-rolled certificate check.
+only after it has been observed firing, and `x509check` replaces the hand-rolled
+certificate check.
+
+This paragraph also claimed `systemdunits` would close #220 A5 on the offsite
+host. It would not have: there is no Netdata agent there, and A5 is a unit left
+in systemd's failure state for reporting what it was asked to report — a
+detector would have surfaced it, not stopped it. Closed directly instead, with
+the `SuccessExitStatus=1` the other two health units already carry.
 
 **Phase 3 — split what remains.**
 Whatever `homelab-health.sh` still holds after phase 2 becomes independent
