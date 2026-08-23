@@ -134,13 +134,15 @@ miniflux_admin_user: "admin"
 # that is still down re-notifies with its CURRENT message — which is what makes
 # a group safe: a new condition inside one still reaches you. See #200, which
 # measured 54 hours of continuous outage for a single notification.
+# There is no `pending` group here on purpose. The "waiting on a human"
+# monitor is fed directly by homelab-health.sh (see homelab_pending_kuma_push_url):
+# a Kuma push monitor takes its status from whoever pushed last, so two
+# independent pushers on one monitor would overwrite each other.
 netdata_alarm_groups:
   - name: resources
     push_url: "{{ netdata_resources_kuma_push_url | default('') }}"
   - name: services
     push_url: "{{ netdata_services_kuma_push_url | default('') }}"
-  - name: pending
-    push_url: "{{ netdata_pending_kuma_push_url | default('') }}"
 
 # One entry per curated alarm.
 #   file   the template, netdata-health-<file>.conf.j2, and the installed name
