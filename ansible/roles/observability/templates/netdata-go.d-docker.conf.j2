@@ -2,40 +2,60 @@
 # =============================================================================
 # Netdata go.d — Docker collector (ADR-030, phase 2 groundwork)
 # =============================================================================
-# Enabled WITHOUT any alarm on it, on purpose. Deploying this only makes new
-# charts appear; nothing can turn a monitor red. The alarms for container state
-# come afterwards, once the charts have been seen to carry real data — the same
-# rule that governs every step of this migration.
+# What it unlocks: the two conditions homelab-health.sh expresses as "unhealthy
+# >10min" and "not running >10min". Those are the only host signals that have no
+# equivalent anywhere else, since Kuma probes services from the outside and
+# cannot see inside the engine at all.
 #
-# What it unlocks: the two conditions homelab-health.sh currently expresses as
-# "unhealthy >10min" and "not running >10min", plus restart counts. Those are
-# the only host signals that today have no equivalent anywhere else, since Kuma
-# probes services from the outside and cannot see a container that is absent.
+# This file first shipped alone, deliberately, under the rule netdata.yml still
+# states: a collector arrives without alarms, so a deploy only makes new charts
+# appear and nothing can turn a monitor red on the strength of a collector
+# nobody has watched. Its alarms arrive WITH it now, and the exception is worth
+# justifying rather than hiding: the charts have been watched, on a throwaway
+# agent against a throwaway proxy (below), and an alarm on a collector that
+# fails cannot report healthy — no chart means no alarm instance, and the
+# adapter reports a name it cannot find as "not loaded in netdata". The failure
+# mode of shipping them together is loud, which is the property the rule exists
+# to protect.
 #
 # The address is the socket-proxy, NOT /var/run/docker.sock as the stock config
 # assumes: this container never gets the raw socket (ADR on the socket proxy),
 # and DOCKER_HOST is already pointed there in compose.yaml.
 #
-# THIS COLLECTOR DOES NOT WORK YET, and the file is kept because the diagnosis
-# is worth more than the config. Deployed on 2026-08-23 it produced no context
-# at all, and the running agent said why:
+# --- It did not work, and here is what it took (resolved 2026-08-23) --------
+# Deployed first with the socket-proxy as it stood, this collector produced no
+# context at all, and the running agent said why:
 #
 #   check failed: Error response from daemon: 403 Forbidden
 #   Request forbidden by administrative rules.   collector=docker job=local
 #
-# The pre-flight test that made this look safe was too narrow — /version and
-# /containers/json both answer 200, so the proxy looked open enough. The
-# collector needs more than that:
+# The pre-flight test that made it look safe was too narrow — /version and
+# /containers/json both answer 200, so the proxy looked open enough:
 #
 #   /version         200      /images/json   403
 #   /info            200      /system/df     403
 #   /containers/json 200      /_ping         200
 #
-# The socket-proxy runs with CONTAINERS=1 and INFO=1; IMAGES is off. Turning it
-# on is a deliberate widening of a security boundary — read-only listing of
-# image names, tags and sizes — and belongs to the operator, not to this file.
-# Until that decision is taken, no alarm references this collector and nothing
-# depends on it.
+# Reading that table, BOTH denied endpoints looked like prerequisites. Only one
+# was. Measured on a throwaway proxy with IMAGES=1: /images/json answers 200,
+# /system/df stays 403, and a throwaway agent against that proxy logged
+#
+#   check success   collector=docker job=probe
+#
+# `/system/df` is only called when `collect_container_size: yes`, which the job
+# below sets to `no`. So the fix was one variable, not two, and the difference
+# was one experiment away — the first diagnosis would have widened the boundary
+# twice as far on the strength of a plausible reading.
+#
+# What the collector then produces, per container:
+#
+#   docker.container_state          running paused exited created restarting …
+#   docker.container_health_status  healthy unhealthy not_running_unhealthy …
+#
+# which is exactly what the two curated alarms need. What it does NOT produce is
+# anything about a container that does not exist: no container, no chart, no
+# alarm instance. That half stays with the goss spec (ADR-032), which walks the
+# service list from compose.yaml and therefore notices an absence.
 #
 # `collect_container_size: no` is kept from the stock config: computing per
 # container disk usage walks the whole layer store, which on this host lives on

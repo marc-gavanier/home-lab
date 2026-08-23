@@ -139,6 +139,24 @@ services:
       # container counts, registry config — with no Env array and no secret in
       # it, and Netdata already reports all of it by design.
       INFO: 1         # Dozzle: fatal at startup without it
+      # Netdata's docker collector, and nothing else asks for it. Measured on a
+      # throwaway proxy rather than inferred, because the first attempt at this
+      # collector failed on a 403 and the endpoint list looked wider than it is:
+      #
+      #   with IMAGES=1   /images/json 200   /system/df 403   /containers/json 200
+      #
+      # `/system/df` stays denied and the collector does not care: it is only
+      # called when `collect_container_size: yes`, which the job config sets to
+      # `no` (walking the layer store lives on the HDD here). A full throwaway
+      # agent against this configuration logged `check success` and produced the
+      # per-container `docker.container_state` and `docker.container_health_status`
+      # charts the alarms need.
+      #
+      # What it grants, exactly: a read-only listing of image names, tags and
+      # sizes. POST stays 0, so nothing here can pull, build or delete. Traefik
+      # and Dozzle inherit the same read — the cost of one shared proxy, taken
+      # deliberately rather than duplicating the proxy to scope it.
+      IMAGES: 1       # netdata docker collector: /images/json, read-only
       POST: 0         # deny all writes (default, made explicit)
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
