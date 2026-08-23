@@ -386,116 +386,97 @@ if command -v docker >/dev/null 2>&1 && mountpoint -q /mnt/data; then
 fi
 
 # --- systemd units ---
-# Nothing watched these until now, and a service can be dead for hours without a
-# signal: claude-remote-control looped 1 112 times over 5h47 on 2026-07-27 while
-# work was going on continuously on this host, and fail2ban — including its sshd
-# jail — was down for six minutes the same morning (issue #52).
+# Two of the five conditions here are now declared in /etc/goss/units.yaml, and
+# the composition that made that possible is the point of this block: goss has
+# no memory, these checks exist ONLY because of one, and the shared gate supplies
+# it — applied to the NAMES of the assertions that failed, so every assertion in
+# the spec gets a grace period without goss knowing anything about it.
 #
-# `systemctl --failed` alone would have caught NEITHER: a unit with
-# Restart=on-failure and StartLimitIntervalSec=0 restarts forever and never
-# reaches the failed state. It sits in activating/auto-restart, and --failed
-# stays empty. That is why NRestarts is compared between runs — a unit that
-# restarted since five minutes ago is flapping, whatever it says about itself.
+# Why the grace period is not optional: Docker restarted on 2026-08-16 at
+# 21:36:23 and was up at 21:37:02. Thirty-nine seconds where systemctl does not
+# say "active", on a check that runs every five minutes — a 13% chance of
+# reporting an outage that resolved itself.
 #
-# Gated on /mnt/data like the check above: before homelab-unlock the stack is
-# legitimately down and claude-remote-control legitimately retries.
-UNITS_STAMP=/var/lib/homelab-health/nrestarts
-# Long-running units whose "active" state is the signal. `is-enabled` is not
-# usable here: docker is deliberately disabled (the staged startup owns it) and
-# ssh is socket-activated, yet both must be running.
-WATCHED_UNITS="docker.service containerd.service fail2ban.service claude-remote-control.service wg-quick@wg0.service"
+# What did NOT move, and why:
+#   activating loop   the units must be enumerated and NAMED, and goss cannot
+#                     report a value — it streams stdout, and every format says
+#                     `object: *bytes.Reader` (measured on the backup dumps)
+#   timer last run    enumerated from `systemctl list-timers homelab-*`, so a new
+#                     timer is covered without editing anything. A static spec
+#                     would trade that for a list to maintain
+#
+# What was DELETED rather than moved: the NRestarts snapshot, its state file and
+# its latch. The check compared the restart counter against the previous run's,
+# which made a restart detectable for exactly ONE run by construction and needed
+# a latch to survive a second beat. Its own measurement retired it: "Measured
+# over 60 days: one real detection and ZERO notifications."
+#
+# Gated on /mnt/data: before the LUKS unlock the stack is legitimately down and
+# claude-remote-control legitimately retries.
+UNITS_SPEC=/etc/goss/units.yaml
 if command -v systemctl >/dev/null 2>&1 && mountpoint -q /mnt/data; then
-    mkdir -p "$(dirname "$UNITS_STAMP")"
 
-    failed=$(systemctl --failed --no-legend --plain 2>/dev/null | awk '{print $1}' | tr '\n' ' ')
-    [ -n "${failed% }" ] && problems+=("systemd failed: ${failed% }")
-
-    # Any unit stuck in auto-restart is looping, whatever it says about itself:
-    # that is the state claude-remote-control sat in for 5h47. Reported on the
-    # second consecutive sighting so a single legitimate restart, which passes
-    # through auto-restart for RestartSec, does not page.
-    LOOP_STAMP=/var/lib/homelab-health/autorestart
-    looping=$(systemctl list-units --state=activating --no-legend --plain 2>/dev/null \
-              | awk '$4 == "auto-restart" {print $1}' | sort | tr '\n' ' ')
-    if [ -n "${looping% }" ]; then
-        seen=""
-        for u in $looping; do
-            grep -qx "$u" "$LOOP_STAMP" 2>/dev/null && seen="$seen $u"
-        done
-        [ -n "$seen" ] && problems+=("restart loop:$seen")
-        printf '%s\n' $looping > "$LOOP_STAMP"
+    if [ ! -f "$UNITS_SPEC" ]; then
+        problems+=("goss spec $UNITS_SPEC missing — unit state was not checked")
+    elif ! command -v goss >/dev/null 2>&1; then
+        problems+=("goss binary missing — unit state was not checked")
     else
-        rm -f "$LOOP_STAMP"
-    fi
-
-    inactive=""; flapping=""
-    : > "${UNITS_STAMP}.new"
-    for u in $WATCHED_UNITS; do
-        state=$(systemctl is-active "$u" 2>/dev/null)
-        [ "$state" = "active" ] || inactive="$inactive $u($state)"
-        n=$(systemctl show "$u" -p NRestarts --value 2>/dev/null)
-        [ -n "$n" ] && echo "$u $n" >> "${UNITS_STAMP}.new"
-        prev=$(awk -v u="$u" '$1 == u {print $2}' "$UNITS_STAMP" 2>/dev/null)
-        if [ -n "$prev" ] && [ -n "$n" ] && [ "$n" -gt "$prev" ]; then
-            flapping="$flapping $u($prev->$n)"
+        units_tap=$(goss -g "$UNITS_SPEC" validate --format tap 2>&1) || true
+        # The plan line is goss's own count. Its absence means it did not parse
+        # the spec, which must read as a failure rather than as nothing to
+        # report: a loop that visits nothing returns true.
+        units_total=$(printf '%s\n' "$units_tap" | sed -n 's/^1\.\.\([0-9]*\)$/\1/p')
+        if [ -z "$units_total" ] || [ "$units_total" -eq 0 ]; then
+            problems+=("goss produced no unit assertions — spec unreadable or empty")
+        else
+            # Both resource types land in the same shape: `Service: docker.service:`
+            # and `Command: systemd-no-failed-units:`. The captured name is what
+            # goes through the gate and what the operator reads.
+            units_bad=$(printf '%s\n' "$units_tap" |
+                        sed -n 's/^not ok [0-9]* - [A-Za-z]*: \([^:]*\):.*/\1/p' | sort -u)
+            # shellcheck disable=SC2086
+            units_bad=$(gate systemd-units 240 $units_bad)
+            [ -n "$units_bad" ] &&
+                problems+=("units: $(printf '%s ' $units_bad | sed 's/ $//')")
         fi
-    done
-    mv "${UNITS_STAMP}.new" "$UNITS_STAMP"
+    fi
 
-    # Age-gated like everything else here: a unit can legitimately be down for a
-    # few seconds — fail2ban waits for /mnt/data and comes up within 30 s of the
-    # unlock, so an immediate alarm would fire on a normal boot.
-    INACTIVE_STAMP=/var/lib/homelab-health/inactive
-    if [ -n "$inactive" ]; then
-        seen=""
-        for u in $inactive; do
-            grep -qx "$u" "$INACTIVE_STAMP" 2>/dev/null && seen="$seen $u"
-        done
-        [ -n "$seen" ] && problems+=("not active:$seen")
-        printf '%s\n' $inactive > "$INACTIVE_STAMP"
-    else
-        rm -f "$INACTIVE_STAMP"
-    fi
-    # Held across a second beat, and that is the whole point. Unlike the two
-    # checks above — which use a two-strike gate and therefore naturally produce
-    # two consecutive bad beats — a restart is detectable for exactly ONE run by
-    # construction: the comparison is against the previous NRestarts snapshot,
-    # which this very run has just overwritten. Measured over 60 days: one real
-    # detection (claude-remote-control.service 7->8, 2026-07-28, recorded
-    # status=2) and ZERO notifications, the only two DOWN beats in that window
-    # being "No heartbeat in the time window" — the dead-man's switch, not the
-    # content.
+    # Any unit stuck in auto-restart is looping, whatever it says about itself.
+    # `systemctl --failed` would catch NEITHER incident that made these checks
+    # exist: a unit with Restart=on-failure and StartLimitIntervalSec=0 restarts
+    # forever and never reaches the failed state — it sits here instead. That is
+    # the state claude-remote-control sat in for 5h47 on 2026-07-27, looping
+    # 1 112 times while work went on continuously on this host.
     #
-    # The diagnosis written here first was wrong and is corrected rather than
-    # deleted, because it is the kind that repeats: it said a single bad beat
-    # became PENDING and that "PENDING does not notify in Kuma v2". PENDING DOES
-    # escalate — with the wrong text. Kuma's push branch raises "No heartbeat in
-    # the time window" whenever the previous beat is not UP, and with a retry it
-    # is that raised beat, not this script's message, that notifies. So the
-    # detection reached a human and named the wrong thing (#179).
-    #
-    # The monitor now runs at maxretries=0, where one bad beat is DOWN and
-    # carries this text. Holding the latch across a second beat is kept anyway:
-    # it costs nothing and gives the message a second chance to land.
-    FLAP_LATCH=/var/lib/homelab-health/flapping
-    if [ -n "$flapping" ]; then
-        printf '%s\n' "$flapping" > "$FLAP_LATCH"
-        problems+=("restarted since last check:$flapping")
-    elif [ -s "$FLAP_LATCH" ]; then
-        problems+=("restarted since last check:$(cat "$FLAP_LATCH") (still)")
-        rm -f "$FLAP_LATCH"
-    fi
+    # Measured tonight and worth knowing before "fixing" it in systemd:
+    # fail2ban and claude-remote-control are precisely the two units with
+    # StartLimitIntervalSec=0, which is what disables the limiter. Giving them a
+    # working one would make systemd declare them failed — and also make them
+    # STOP RETRYING, which for fail2ban is a security decision, not a tidy-up.
+    looping=$(systemctl list-units --state=activating --no-legend --plain 2>/dev/null \
+              | awk '{print $1}' | grep -v '\.target$' || true)
+    # shellcheck disable=SC2086
+    looping=$(gate systemd-activating 240 $looping)
+    [ -n "$looping" ] && problems+=("restart loop: $(printf '%s ' $looping | sed 's/ $//')")
 
     # Timer-driven oneshots rest at inactive/dead, so their state says nothing —
-    # the signal is the result of the last run. Enumerated rather than listed, so
-    # a new timer is covered without editing this script.
+    # the signal is the result of the last run. ENUMERATED rather than listed, so
+    # a new timer is covered without editing this script, which is the property a
+    # declarative spec cannot have.
+    #
+    # A script that exits 1 to mean "I pushed DOWN" is a REPORT, not a failure,
+    # and the units that do it declare SuccessExitStatus=1. homelab-lynis did not
+    # until 2026-08-24, so one event arrived twice: its own monitor red, and this
+    # line naming the unit.
     badrun=""
     for t in $(systemctl list-timers 'homelab-*' --all --no-legend --no-pager 2>/dev/null | awk '{print $NF}'); do
         case "$t" in *.service) ;; *) continue ;; esac
         r=$(systemctl show "$t" -p Result --value 2>/dev/null)
-        [ -z "$r" ] || [ "$r" = "success" ] || badrun="$badrun $t($r)"
+        [ -z "$r" ] || [ "$r" = "success" ] || badrun="$badrun $t"
     done
-    [ -n "$badrun" ] && problems+=("last run failed:$badrun")
+    # shellcheck disable=SC2086
+    badrun=$(gate systemd-timer-result 240 $badrun)
+    [ -n "$badrun" ] && problems+=("last run failed: $(printf '%s ' $badrun | sed 's/ $//')")
 fi
 
 # --- Verdict ---

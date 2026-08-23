@@ -266,6 +266,22 @@ credential_store_modes:
 # Checksum taken from the project's own goss_<version>_SHA256SUMS, not computed
 # locally: a digest you compute from the file you downloaded pins that download
 # and proves nothing about what the publisher released.
+# Long-running units whose "active" state is the signal, asserted by
+# goss-units.yaml. `is-enabled` is deliberately NOT asserted: docker is disabled
+# because the staged startup owns it and ssh is socket-activated, yet both must
+# be running — goss reports the mismatch if you try.
+health_watched_units:
+  - unit: docker.service
+    why: the engine every service depends on
+  - unit: containerd.service
+    why: below docker, and it can die on its own
+  - unit: fail2ban.service
+    why: down for six minutes on 2026-07-27, sshd jail included (#52)
+  - unit: claude-remote-control.service
+    why: looped 1112 times over 5h47 on 2026-07-27 without ever reaching failed
+  - unit: wg-quick@wg0.service
+    why: the only route to this host, and to the offsite one
+
 goss_version: "0.4.10"
 goss_sha256: "90a59612b4d67d9f1a9038634c000790136bb82526a69de1e81ac075c2f6d2c6"
 
