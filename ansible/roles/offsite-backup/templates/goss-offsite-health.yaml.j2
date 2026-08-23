@@ -1,0 +1,167 @@
+# {{ ansible_managed }}
+# =============================================================================
+# Offsite Pi — weekly health, declared (ADR-030, ADR-032)
+# =============================================================================
+# ADR-030 wrote this host off — "the offsite host has no Docker at all, so
+# nothing there moves to Netdata without a native install on a machine nobody
+# can reach physically". True of Netdata, and it was read as true of the whole
+# migration. goss is a single static binary: it never needed Docker.
+#
+# One assertion per failure MODE, named after it, for the reason measured on the
+# backup dumps: goss streams a command's stdout and never materialises it, so
+# every output format reports `object: *bytes.Reader` rather than the value. The
+# name is the only thing it always prints, so the name carries the diagnosis.
+#
+# What is NOT here: the pending-security-updates check. It needs to remember
+# when the count first went nonzero, and goss has no memory. It stays in the
+# runner, on the shared gate (ADR-030).
+#
+# POSIX sh, not bash: goss runs each command with /bin/sh, which is dash here.
+# The first draft used herestrings and process substitution and four assertions
+# came back with exit status 2 — a syntax error, which goss reports exactly like
+# a failed check. Measured on the offsite host before deploying anything, which
+# is the only reason it is not four permanently-red assertions on the machine
+# nobody can reach.
+#
+# Every check runs smartctl afresh. Twelve invocations a week on a drive that is
+# otherwise idle, against one shared parse in the script this replaces — paid
+# deliberately, because a shared variable is what let the 2026-08-17 defect hide:
+# smartctl wrote its refusal to STDOUT, the emptiness test never fired, every
+# attribute lookup came back empty and every check below was skipped in silence
+# while the run still reported success.
+# =============================================================================
+
+mount:
+  # Native resource rather than a command, and the first thing asserted: every
+  # other check on this file is meaningless if the volume is not there.
+  {{ backup_mount_point }}:
+    exists: true
+    opts:
+      - rw
+
+command:
+
+  offsite-disk-capacity:
+    exec: '[ "$(df --output=pcent {{ backup_mount_point }} | tail -1 | tr -dc 0-9)" -lt 85 ]'
+    exit-status: 0
+
+  # A clean filesystem prints NO "FS Error count" line, so its presence is
+  # itself the signal; `Filesystem state` reads "clean with errors" rather than
+  # "clean" once anything has been recorded. A loop that visited NOTHING must
+  # report rather than pass — the guard of #156, kept: `seen` is asserted.
+  offsite-ext4-clean:
+    exec: |
+      findmnt -l -t ext4 -no SOURCE | {
+        seen=0
+        while read -r src; do
+          seen=$((seen + 1))
+          hdr=$(dumpe2fs -h "$src" 2>/dev/null) || exit 1
+          state=$(printf '%s\n' "$hdr" | awk -F: '/^Filesystem state/ { gsub(/^ +| +$/, "", $2); print $2 }')
+          [ "$state" = clean ] || exit 1
+          [ -z "$(printf '%s\n' "$hdr" | awk -F: '/^FS Error count/ { gsub(/ /, "", $2); print $2 }')" ] || exit 1
+        done
+        [ "$seen" -gt 0 ]
+      }
+    exit-status: 0
+
+  # smartctl's exit status is a bitmask: bit 3 (value 8) means the disk is
+  # failing. Bits 0-2 are command/device errors — USB bridge quirks, not a disk
+  # failure — so only bit 3 is asserted here.
+  offsite-smart-verdict:
+    exec: 'smartctl -H {{ backup_disk_device_base }} >/dev/null 2>&1; [ $(( $? & 8 )) -eq 0 ]'
+    exit-status: 0
+
+  # Readability asserted on a VALUE, not on the output being non-empty.
+  # Measured on this host 2026-08-17: smartctl writes its refusals to stdout, so
+  # a device it cannot talk to returns rc=1 with 282 bytes of "Unable to detect
+  # device type" — non-empty. The old guard never fired, and a USB-SATA bridge
+  # that stops passing SAT commands fails exactly that way, on the host least
+  # likely to be looked at directly. Power-on hours is the instrument: present
+  # on every ATA drive, and it can only parse as a number if the attribute table
+  # was genuinely read.
+  offsite-smart-readable:
+    exec: |
+      h=$(smartctl -A {{ backup_disk_device_base }} 2>/dev/null | awk '$1 == 9 { print $10; exit }')
+      case "$h" in ''|*[!0-9]*) exit 1 ;; *) exit 0 ;; esac
+    exit-status: 0
+
+  # Early failure predictors, each its own assertion so the name says which one
+  # moved: media decay (5/170/187), NAND wearout (171/172), data-path corruption
+  # (184), USB cable or bridge trouble (199). Any of them leaving zero reports
+  # long before the overall verdict flips — that verdict stays PASSED until the
+  # drive is nearly dead.
+{% for a in offsite_smart_counters %}
+  offsite-smart-{{ a.name }}:
+    exec: '[ "$(smartctl -A {{ backup_disk_device_base }} 2>/dev/null | awk ''$1 == {{ a.id }} { print $10; exit }'')" = 0 ]'
+    exit-status: 0
+{% endfor %}
+
+  # Remaining spare-block reserve, normalized: 100 is full, the vendor floor is 4.
+  offsite-smart-spare-blocks:
+    exec: '[ "$(smartctl -A {{ backup_disk_device_base }} 2>/dev/null | awk ''$1 == 232 { print $4 + 0; exit }'')" -ge 50 ]'
+    exit-status: 0
+
+  offsite-ssd-temperature:
+    exec: '[ "$(smartctl -A {{ backup_disk_device_base }} 2>/dev/null | awk ''$1 == 194 { print $10; exit }'')" -lt 70 ]'
+    exit-status: 0
+
+  offsite-smart-selftest-result:
+    exec: |
+      line=$(smartctl -l selftest {{ backup_disk_device_base }} 2>/dev/null | awk '/^# 1/ { $1=""; $2=""; print; exit }')
+      [ -n "$line" ] || exit 0
+      printf '%s\n' "$line" | grep -qiE 'fail|aborted' && exit 1
+      exit 0
+    exit-status: 0
+
+  # A dead-man's check on the monthly self-test timer itself. The log stamps
+  # each test in drive power-on hours, so comparing with attribute 9 surfaces a
+  # silently dead timer instead of leaving an eternally green "Completed without
+  # error" from months ago. 840h is 35 days.
+  offsite-smart-selftest-fresh:
+    exec: |
+      out=$(smartctl -A -l selftest {{ backup_disk_device_base }} 2>/dev/null)
+      now=$(printf '%s\n' "$out" | awk '$1 == 9 { print $10; exit }')
+      last=$(printf '%s\n' "$out" | awk '/^# 1/ { for (i = 1; i <= NF; i++) if ($i ~ /%$/) { print $(i + 1); exit } }')
+      [ -n "$last" ] || exit 0
+      [ $((now - last)) -le 840 ]
+    exit-status: 0
+
+  # 70, not the homelab's 80, and the difference is deliberate (#201). This board
+  # idles at ~49C doing nothing while the homelab averages 40C running 28
+  # containers, and its active cooling engages at 60C. So 70 means "the fan has
+  # been running for a while and it is still climbing" — a seized or unplugged
+  # fan — rather than "the SoC is already throttling", which is what 80 catches.
+  # On a host sampled once a week, in someone else's home, with a gpio_fan that
+  # has no tachometer, the warning has to come early enough to be worth having.
+  offsite-cpu-temperature:
+    exec: '[ $(( $(cat /sys/class/thermal/thermal_zone0/temp) / 1000 )) -lt 70 ]'
+    exit-status: 0
+
+  # A sagging power supply silently corrupts disks; the firmware latches
+  # undervoltage into the rpi_volt hwmon alarm. `seen` is asserted for the same
+  # reason as ext4: a kernel that stops exposing rpi_volt would otherwise turn
+  # this into a check that always passes.
+  offsite-undervoltage:
+    exec: |
+      seen=0
+      for h in /sys/class/hwmon/hwmon*; do
+        [ "$(cat "$h/name" 2>/dev/null)" = rpi_volt ] || continue
+        seen=1
+        [ "$(cat "$h/in0_lcrit_alarm" 2>/dev/null)" = 1 ] && exit 1
+      done
+      [ "$seen" -eq 1 ]
+    exit-status: 0
+
+  # Reported, not relied on for detection: the push carrying this verdict
+  # travels THROUGH the tunnel, so a dead tunnel means nothing arrives and it is
+  # the monitor's dead-man window that fires. What this adds is the case that
+  # window cannot see — a tunnel alive but whose handshake is ageing. 600s means
+  # the re-resolve timer (150s gate, 1-minute period) has had four chances and
+  # did not recover it (#180).
+  offsite-tunnel-handshake:
+    exec: |
+      hs=$(wg show wg0 latest-handshakes 2>/dev/null) || exit 1
+      seen=$(printf '%s\n' "$hs" | awk 'NR == 1 { print $2 }')
+      [ -n "$seen" ] || exit 1
+      [ $(( $(date +%s) - seen )) -le 600 ]
+    exit-status: 0

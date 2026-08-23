@@ -1,0 +1,62 @@
+---
+# goss, the binary and its spec directory — ADR-032.
+#
+# Split out from goss.yml so the offsite host can pull the same install without
+# the homelab's posture spec: that host has no Docker and therefore no posture
+# to assert, but the same reasons to declare its disk and SMART checks. Included
+# from the offsite-backup role with `tasks_from`, which is what keeps one
+# pinned version and one checksum for both machines.
+
+- name: goss-install | Read the installed version, if any
+  ansible.builtin.command: goss --version
+  register: goss_installed
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: goss-install | Install the pinned release
+  when: goss_version not in (goss_installed.stdout | default(''))
+  block:
+    # Checksum from the project's own SHA256SUMS, not computed locally: a
+    # self-computed digest pins the artefact you happened to download, which
+    # proves nothing about what the publisher released.
+    - name: goss-install | Download the release archive
+      ansible.builtin.get_url:
+        url: "{{ goss_release_url }}/{{ goss_archive }}"
+        dest: /tmp/goss.tar.gz
+        checksum: "sha256:{{ goss_sha256 }}"
+        mode: "0600"
+      vars:
+        goss_release_url: >-
+          https://github.com/goss-org/goss/releases/download/v{{ goss_version }}
+        goss_archive: >-
+          goss_{{ goss_version }}_linux_arm64.tar.gz
+
+    - name: goss-install | Unpack the binary
+      ansible.builtin.unarchive:
+        src: /tmp/goss.tar.gz
+        dest: /usr/local/bin
+        remote_src: true
+        include:
+          - goss
+        owner: root
+        group: root
+        mode: "0755"
+
+  always:
+    - name: goss-install | Remove the downloaded archive
+      ansible.builtin.file:
+        path: /tmp/goss.tar.gz
+        state: absent
+
+# `template` does not create parent directories, and nothing else on this host
+# owns /etc/goss. Without this the deploy fails on "Destination directory
+# /etc/goss does not exist" — which is how it was found, the earlier spec
+# validations having copied the file into /tmp by hand.
+- name: goss-install | Create the spec directory
+  ansible.builtin.file:
+    path: /etc/goss
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"

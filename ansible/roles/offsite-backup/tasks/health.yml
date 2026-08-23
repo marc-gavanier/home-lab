@@ -1,7 +1,35 @@
 ---
-# Weekly disk-health report (df + SMART → Uptime Kuma push) + monthly self-test.
-# The repo password never lives here, so restic checks run from the homelab;
-# this host only reports what it can see without the password.
+# Weekly disk-health report (goss + a thin runner → Uptime Kuma push) + monthly
+# self-test. The repo password never lives here, so restic checks run from the
+# homelab; this host only reports what it can see without the password.
+#
+# ADR-030 had written this host off — "no Docker at all, so nothing there moves
+# to Netdata". True of Netdata, and read as true of the migration. goss is a
+# single static binary and never needed Docker: sixteen assertions moved out of
+# the script, which went from 119 lines of code to 54.
+
+- name: health | Install goss, shared with the homelab
+  # tasks_from rather than a second copy of the download: one pinned version,
+  # one checksum, two machines.
+  ansible.builtin.include_role:
+    name: observability
+    tasks_from: goss-install.yml
+
+- name: health | Install the shared persistence gate
+  # One assertion needs a memory goss does not have — security updates pending
+  # for more than 48h — so the same library the homelab uses is deployed here.
+  ansible.builtin.include_role:
+    name: observability
+    tasks_from: gate.yml
+
+- name: health | Install the declarative health spec
+  # 0400 root, like every spec here: it names the backup device and mount point.
+  ansible.builtin.template:
+    src: goss-offsite-health.yaml.j2
+    dest: /etc/goss/offsite-health.yaml
+    owner: root
+    group: root
+    mode: "0400"
 
 - name: health | Install disk-health report script
   ansible.builtin.template:
