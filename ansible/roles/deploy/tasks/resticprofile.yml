@@ -74,6 +74,20 @@
   no_log: true
   when: item.value | default('') | length > 0
 
+# The two halves no tool expresses. Extracted from backup.sh line for line —
+# 300 lines, verified identical — because the assertions are the most valuable
+# part of that file and retyping them would be the way to lose one.
+- name: resticprofile | Install the dump and notification scripts
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/opt/homelab/scripts/{{ item }}"
+    owner: root
+    group: root
+    mode: "0750"
+  loop:
+    - backup-dumps.sh
+    - backup-notify.sh
+
 - name: resticprofile | Install the profile
   ansible.builtin.template:
     src: resticprofile.yaml.j2
