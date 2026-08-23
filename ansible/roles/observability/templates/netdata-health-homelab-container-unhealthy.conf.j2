@@ -1,0 +1,53 @@
+# {{ ansible_managed }}
+# =============================================================================
+# Curated alarm — a container failing its healthcheck (ADR-030, phase 2)
+# =============================================================================
+# Replaces the "unhealthy >10min" check in homelab-health.sh, which the heal
+# timer cannot cover: that timer only resurrects containers that EXITED, so one
+# that stays up while failing its healthcheck is invisible to it. The real gap
+# is internal containers — nextcloud-notify-push above all, whose death silently
+# kills mobile push while Nextcloud itself keeps answering 200.
+#
+# --- Why the ten minutes live in the lookup and not in `delay` ---------------
+# This is the thing to get right, and it is not obvious.
+#
+# `delay: up 10m` postpones the NOTIFICATION, not the status transition. The
+# alarm goes WARNING immediately and the API reports it immediately. Netdata
+# notifies nobody here — the host-side adapter READS the status — so a delay
+# would have been decoration, and the ten-minute gate that homelab-health.sh
+# implements with a stamp file would have been silently lost.
+#
+# `min -10m of unhealthy` puts the gate in the VALUE instead: it is 1 only if
+# the dimension was 1 at every point of the window, i.e. the container has been
+# unhealthy continuously for ten minutes. A container is briefly unhealthy on
+# every restart, and `starting` is a separate dimension that this deliberately
+# does not match — same two decisions as the script, arrived at the same way.
+#
+# Recovery is immediate and that is deliberate: one healthy sample drops the
+# minimum to 0. No hysteresis, because unlike a temperature sitting on a
+# threshold, a healthcheck does not oscillate around a line.
+#
+# --- What this alarm cannot see ---------------------------------------------
+# A container that does not EXIST produces no chart, so no instance of this
+# template exists to fail. That half is covered elsewhere and on purpose: the
+# goss spec (ADR-032) runs `docker inspect <name>` for every service in
+# compose.yaml, so an absent container fails its assertion there. Different
+# latency — daily rather than every five minutes — and that difference is the
+# honest cost of the split.
+#
+# PHASE 2 DELETES NOTHING. homelab-health.sh keeps its own check until this one
+# has been observed firing (ADR-030's migration rule).
+# =============================================================================
+
+ template: homelab_container_unhealthy
+       on: docker.container_health_status
+    class: Errors
+     type: Docker
+component: Container
+   lookup: min -10m unaligned of unhealthy
+    units: boolean
+    every: 1m
+     warn: $this == 1
+  summary: A container has been unhealthy for ten minutes
+     info: Container healthcheck failing continuously for 10m — the heal timer cannot see this, it only restarts containers that exited
+       to: silent

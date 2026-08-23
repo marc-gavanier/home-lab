@@ -227,7 +227,7 @@ offsite_check_kuma_push_url: ""  # weekly offsite repo check
 #
 # EMPTY = that group is not installed at all, rather than installed and unread.
 netdata_resources_kuma_push_url: ""   # temperature, undervoltage, memory, swap
-netdata_services_kuma_push_url: ""    # containers, systemd units — not migrated yet
+netdata_services_kuma_push_url: ""    # containers (unhealthy + not running); systemd units not migrated yet
 
 # There is deliberately NO netdata_pending_* here. The "waiting on a human"
 # monitor is fed by homelab-health.sh (see homelab_pending_kuma_push_url at the
