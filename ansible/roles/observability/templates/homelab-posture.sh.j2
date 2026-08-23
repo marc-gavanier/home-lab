@@ -40,7 +40,7 @@ checked=0
 
 # The operator's uid. A service data directory owned by it, under a container
 # that does not itself run as it, is the signature of #138/#144 — see the
-# writability assertion in check_service. Resolved once, and never guessed: an
+# writability derivation below. Resolved once, and never guessed: an
 # unresolvable value makes the assertion report instead of silently passing.
 OPERATOR_UID=$(id -u '{{ ansible_user }}' 2>/dev/null)
 
@@ -55,175 +55,66 @@ fi
 {% raw %}
 inspect() { docker inspect -f "$2" "$1" 2>/dev/null; }
 
-check_service() {
-    local name="$1" want_caps="$2" want_ro="$3" want_nnp="$4" want_aa="$5" want_user="$6"
 
-    # A container that is not running is the health report's business — that
-    # one runs every five minutes, this runs daily.
-    [ "$(inspect "$name" '{{.State.Status}}')" = "running" ] || return 0
-    checked=$((checked + 1))
+# --- The declarative half runs first (ADR-032) -------------------------------
+# 326 assertions live in /etc/goss/posture.yaml, generated from compose.yaml:
+# every container's privileged flag, dropped and added capabilities, read-only
+# rootfs, no-new-privileges, user, the AppArmor profile the kernel actually
+# applied, netdata's three axes, the fail2ban jails, and the credential store
+# modes.
+#
+# They are declared rather than looped over, and that is the point. Four of the
+# ten fixes this file has needed were controls that COULD NOT FAIL — "posture OK
+# on 0 containers" was a green push, ten controls could not report the failure
+# they named. A loop can visit nothing and return true; goss prints its count,
+# so "checked nothing" is not a state it can be in.
+GOSS_SPEC=/etc/goss/posture.yaml
 
-    # Privileged first, because it is the one flag that voids every assertion
-    # below at once — capabilities, no-new-privileges and AppArmor all stop
-    # meaning anything — while leaving each of them green. Everything is
-    # false today, so this is prevention: without it, the check would not
-    # notice the day one of them stopped being.
-    [ "$(inspect "$name" '{{.HostConfig.Privileged}}')" = "false" ] \
-        || problems+=("$name: PRIVILEGED — the assertions below are void")
-
-    # cap_drop: ALL first. Without it the capability list below means nothing —
-    # the default fourteen come back regardless of what cap_add says.
-    case "$(inspect "$name" '{{range .HostConfig.CapDrop}}{{.}} {{end}}')" in
-        *ALL*) ;;
-        *) problems+=("$name: cap_drop ALL missing") ;;
-    esac
-
-    local caps
-    caps=$(inspect "$name" '{{range .HostConfig.CapAdd}}{{.}} {{end}}' \
-           | tr ' ' '\n' | sed 's/^CAP_//' | grep -v '^$' | sort | tr '\n' ' ')
-    caps="${caps% }"
-    [ "$caps" = "$want_caps" ] || problems+=("$name: caps [$caps] want [$want_caps]")
-
-    # Dropping CAP_DAC_OVERRIDE puts a root process back under the permission
-    # bits it used to bypass. A data directory owned by the operator then stops
-    # accepting NEW files while everything already open keeps working — so the
-    # container stays healthy, the service answers, and nothing fails until
-    # something has to be created. #138 (a VPN peer could not be revoked) and
-    # #144 (Vaultwarden's WAL, deleted on the next clean shutdown and then
-    # unrecreatable) both hid there for weeks behind a green container.
-    #
-    # Deliberately narrow: a read-write bind mount owned by the operator's uid,
-    # under a container that does not itself run as that uid. Three wider sweeps
-    # were measured and rejected the same evening — each flagged Forgejo, which
-    # is rootless and legitimately owns its tree, or the Nextcloud pair, whose
-    # uid-33 worker lives a few seconds per cycle and so is absent from any
-    # point-in-time scan of the container's processes.
-    #
-    # wg-easy is excluded until #138: its directory cannot be chowned from a
-    # deploy. The first successful write regenerates wg0.conf from the database
-    # and runs `wg syncconf`, and the live interface is IPv4-only while the
-    # database holds IPv6 for the interface and every peer — that interface is
-    # the only path to this host. Delete this exclusion along with #138.
-    case " $caps " in
-        *" DAC_OVERRIDE "*) ;;   # still bypasses the bits — nothing to assert
-        *)
-            if [ "$name" != "wg-easy" ]; then
-                if [ -z "$OPERATOR_UID" ]; then
-                    problems+=("$name: operator uid unresolved — write check cannot run")
-                else
-                    local ctr_uid src owner
-                    # Empty Config.User means root; Docker surfaces the image's
-                    # own USER here too, which is how Forgejo reads as 1000:1000.
-                    ctr_uid=$(inspect "$name" '{{.Config.User}}')
-                    ctr_uid="${ctr_uid%%:*}"
-                    ctr_uid="${ctr_uid:-0}"
-                    if [ "$ctr_uid" != "$OPERATOR_UID" ]; then
-                        while read -r src; do
-                            [ -d "$src" ] || continue
-                            owner=$(stat -c %u "$src" 2>/dev/null) || continue
-                            [ "$owner" = "$OPERATOR_UID" ] || continue
-                            problems+=("$name: $src owned by uid $owner, container runs as $ctr_uid and cannot create files there")
-                        done < <(inspect "$name" \
-                            '{{range .Mounts}}{{if and (eq .Type "bind") .RW}}{{.Source}}{{"\n"}}{{end}}{{end}}')
-                    fi
-                fi
-            fi
-            ;;
-    esac
-
-    # Nine services declare a `user:` and nothing asserted it, so half of the uid
-    # work in #28 went unmonitored — a container falling back to root looks
-    # identical from the outside. Asserted only where compose actually declares
-    # one: where it does not, the image's own USER decides and there is no
-    # expectation to check against (Forgejo's image sets 1000:1000 by itself,
-    # which is why a blanket comparison would report a service that is correct).
-    if [ -n "$want_user" ]; then
-        local user
-        user=$(inspect "$name" '{{.Config.User}}')
-        [ "$user" = "$want_user" ] || problems+=("$name: user [$user] want [$want_user]")
+if [ ! -r "$GOSS_SPEC" ]; then
+    problems+=("goss spec $GOSS_SPEC missing — the declarative assertions did not run")
+elif ! command -v goss >/dev/null 2>&1; then
+    problems+=("goss binary missing — the declarative assertions did not run")
+else
+    goss_out=$(goss -g "$GOSS_SPEC" validate --format tap 2>&1) || true
+    # The plan line is goss's own count. Its absence means goss failed to parse
+    # the spec rather than found nothing wrong, and those must not read alike.
+    goss_total=$(printf '%s\n' "$goss_out" | sed -n 's/^1\.\.\([0-9]*\)$/\1/p')
+    if [ -z "$goss_total" ] || [ "$goss_total" -eq 0 ]; then
+        problems+=("goss produced no assertions — spec unreadable or empty")
+    else
+        checked=$((checked + goss_total))
+        while IFS= read -r line; do
+            [ -n "$line" ] && problems+=("${line#not ok [0-9]* - }")
+        done < <(printf '%s\n' "$goss_out" | grep '^not ok' || true)
     fi
-
-    local ro
-    ro=$(inspect "$name" '{{.HostConfig.ReadonlyRootfs}}')
-    [ "$ro" = "$want_ro" ] || problems+=("$name: read_only=$ro want $want_ro")
-
-    local nnp
-    case "$(inspect "$name" '{{range .HostConfig.SecurityOpt}}{{.}} {{end}}')" in
-        *no-new-privileges*) nnp=true ;;
-        *) nnp=false ;;
-    esac
-    [ "$nnp" = "$want_nnp" ] || problems+=("$name: no-new-privileges=$nnp want $want_nnp")
-
-    # AppArmor: what the kernel actually applied, not what compose asked for. A
-    # missing profile stops the container (loud); a profile silently replaced by
-    # a permissive one would show up nowhere else.
-    if [ -n "$want_aa" ]; then
-        local actual
-        actual=$(docker exec "$name" cat /proc/1/attr/current 2>/dev/null)
-        case "$actual" in
-            "$want_aa"*enforce*) ;;
-            *) problems+=("$name: apparmor [$actual] want [$want_aa enforce]") ;;
-        esac
-    fi
-}
-{% endraw %}
-
-# --- Per-service expectations, generated from docker/compose.yaml -----------
-{% set compose = lookup('file', playbook_dir + '/../../docker/compose.yaml') | from_yaml %}
-{% for name, svc in compose.services.items() %}
-{%- set cname = svc.container_name | default(name) %}
-{%- set caps = (svc.cap_add | default([])) | sort | join(' ') %}
-{%- set ro = 'true' if svc.read_only | default(false) else 'false' %}
-{#- plain Jinja on purpose: `select('search')` is an Ansible-only test, and a
-    template that cannot be rendered outside Ansible cannot be tested before it
-    is deployed. -#}
-{%- set optstr = (svc.security_opt | default([])) | join(' ') %}
-{%- set nnp = 'true' if 'no-new-privileges' in optstr else 'false' %}
-{%- set aa = optstr.split('apparmor=')[1].split(' ')[0] if 'apparmor=' in optstr else '' %}
-{%- set usr = svc.user | default('') %}
-check_service "{{ cname }}" "{{ caps }}" "{{ ro }}" "{{ nnp }}" "{{ aa }}" "{{ usr }}"
-{% endfor %}
-
-# How many of those calls were rendered — from the same lookup, so it cannot
-# drift from the list above. Read by the verdict.
-expected={{ compose.services | length }}
-
-# --- Netdata: the three axes its failures actually show up on ---------------
-# ADR-018. Status and HTTP prove nothing here: the agent stays healthy and
-# serves its dashboard with a plugin dead, and it runs as root instead of
-# uid 201 when it cannot prepare its own directories — silently, both times.
-NETDATA_PLUGINS="NETWORK-VIEWER apps.plugin go.d.plugin sd-jrnl.plugin sd-unit.plugin spawn-plugins"
-NETDATA_MIN_CONTEXTS=270
-
-if [ "$(docker inspect -f '{% raw %}{{.State.Status}}{% endraw %}' netdata 2>/dev/null)" = "running" ]; then
-    uid=$(docker exec netdata awk '/^Uid:/ {print $2}' /proc/1/status 2>/dev/null)
-    [ "$uid" = "201" ] || problems+=("netdata: uid ${uid:-?} not 201")
-
-    procs=$(docker exec netdata ps -eo comm 2>/dev/null)
-    for p in $NETDATA_PLUGINS; do
-        echo "$procs" | grep -qx "$p" || problems+=("netdata: plugin $p missing")
-    done
-
-    contexts=$(docker exec netdata curl -s --max-time 10 \
-        http://127.0.0.1:19999/api/v3/contexts 2>/dev/null \
-        | python3 -c 'import sys, json; print(len(json.load(sys.stdin).get("contexts", {})))' 2>/dev/null)
-    contexts=${contexts:-0}
-    [ "$contexts" -ge "$NETDATA_MIN_CONTEXTS" ] \
-        || problems+=("netdata: $contexts chart contexts, want >= $NETDATA_MIN_CONTEXTS")
 fi
 
-# --- fail2ban: every configured jail is actually loaded ---------------------
-# A jail whose action or filter is broken is not reported as broken: fail2ban
-# starts, says it is healthy, and silently protects one door less (measured
-# while building #35 — two jails vanished after a one-character config error).
-# Comparing what is configured against what is loaded needs no separate list,
-# so it cannot drift.
-if command -v fail2ban-client >/dev/null 2>&1 && [ -r /etc/fail2ban/jail.local ]; then
-    want=$(grep -oE '^\[[a-z0-9_-]+\]' /etc/fail2ban/jail.local | tr -d '[]' \
-           | grep -v '^DEFAULT$' | sort | tr '\n' ' ')
-    have=$(fail2ban-client status 2>/dev/null | sed -n 's/.*Jail list:[[:space:]]*//p' \
-           | tr -d ' ' | tr ',' '\n' | grep -v '^$' | sort | tr '\n' ' ')
-    [ "$want" = "$have" ] || problems+=("fail2ban: jails loaded [$have] configured [$want]")
+# --- What goss cannot express: a derivation, not an assertion ----------------
+# Whether a container can create files in its own data directory is not a
+# property to look up, it is one to work out: resolve the read-write bind
+# mounts, compare each owner against the uid the container runs as. A container
+# holding DAC_OVERRIDE bypasses the bits anyway, so there is nothing to assert
+# for it (#144).
+if [ -z "$OPERATOR_UID" ]; then
+    problems+=("operator uid unresolved — the writability check cannot run")
+else
+    while read -r name; do
+        [ -n "$name" ] || continue
+        [ "$name" = "wg-easy" ] && continue        # #138: cannot write, tracked
+        case " $(inspect "$name" '{% raw %}{{range .HostConfig.CapAdd}}{{.}} {{end}}{% endraw %}') " in
+            *" CAP_DAC_OVERRIDE "*) continue ;;
+        esac
+        ctr_uid=$(inspect "$name" '{% raw %}{{.Config.User}}{% endraw %}')
+        ctr_uid="${ctr_uid%%:*}"; ctr_uid="${ctr_uid:-0}"
+        [ "$ctr_uid" = "$OPERATOR_UID" ] && continue
+        while read -r sdir; do
+            [ -d "$sdir" ] || continue
+            owner=$(stat -c %u "$sdir" 2>/dev/null) || continue
+            [ "$owner" = "$OPERATOR_UID" ] || continue
+            problems+=("$name: $sdir owned by uid $owner, container runs as $ctr_uid and cannot create files there")
+        done < <(inspect "$name" '{% raw %}{{range .Mounts}}{{if and (eq .Type "bind") .RW}}{{.Source}}{{"\n"}}{{end}}{{end}}{% endraw %}')
+        checked=$((checked + 1))
+    done < <(docker ps --format '{% raw %}{{.Names}}{% endraw %}' 2>/dev/null)
 fi
 
 # --- Vaultwarden: config.json must not contradict the compose environment ---
@@ -352,85 +243,6 @@ if [ -r "$MINIFLUX_DSN" ] && [ -r "$MINIFLUX_PW" ]; then
     elif [ "$dsn_pw" != "$(cat "$MINIFLUX_PW")" ]; then
         problems+=("miniflux: the application connection string and the database password disagree")
     fi
-fi
-
-# --- Credential stores stay closed to other local uids ----------------------
-# Nothing asserted a file mode anywhere, which is why #153 came back as #177:
-# wg-easy's database was fixed in August and Vaultwarden's session-signing key,
-# its vault and Kuma's push tokens were sitting at 0644 next to it, reachable by
-# any local unprivileged account. A fix nothing re-checks is a fix with a
-# half-life.
-#
-# The assertion is on the DIRECTORY, deliberately, and not on a list of files.
-# Two reasons: SQLite recreates `-wal`/`-shm` on every open with the process
-# umask, so a per-file expectation would go red after every container restart
-# and teach everyone to ignore it; and a directory gate covers files nobody has
-# added yet. This mirrors /mnt/data/secrets, whose own directory modes are the
-# only thing making its 0444 files safe.
-#
-# Pi-hole's store joined the list as the sixth (#189): pihole.toml carries
-# `webserver.api.pwhash` and sat at 0644 under two 0755 directories, which is the
-# same exposure the other five were closed against and was simply missed by the
-# sweep. Unlike them, that container reaches its data through DAC_OVERRIDE rather
-# than as the owner, so 0700 costs it nothing.
-# Forgejo's is the seventh (#199), and it was missed the same way Pi-hole's was:
-# the sweep enumerated the directories it had open rather than the property that
-# defines the class — a data directory mounted by exactly one container and
-# holding a credential. Its database carries the password hash, the access
-# tokens, the TOTP secrets and the WebAuthn credentials.
-for store in vaultwarden uptime-kuma navidrome calibre-web transmission/config pihole/etc forgejo/data; do
-    dir="{{ services_data_dir }}/$store"
-    [ -d "$dir" ] || continue
-    dmode=$(stat -c %a "$dir" 2>/dev/null) || { problems+=("$store: directory mode unreadable"); continue; }
-    case "$dmode" in
-        700) ;;
-        *) problems+=("$store: directory mode $dmode, expected 700") ;;
-    esac
-done
-
-# The nightly dump directory is a COPY of those same stores, and the #177 sweep
-# never looked at it (#199). It is absent between runs by design — the backup
-# removes it on the way out — so this asserts it only when present, and that is
-# not a weakened check: the case worth catching is precisely the one where it
-# lingers, because a run that aborted before the cleanup leaves the dumps on
-# disk until the next night.
-dumpdir="{{ backup_dir }}/dumps"
-if [ -d "$dumpdir" ]; then
-    dmode=$(stat -c %a "$dumpdir" 2>/dev/null) || dmode=""
-    case "$dmode" in
-        700) ;;
-        "")  problems+=("backups/dumps: directory mode unreadable") ;;
-        *)   problems+=("backups/dumps: directory mode $dmode, expected 700") ;;
-    esac
-fi
-
-# The secret store itself, which nothing asserted either. `docker` is group-owned
-# and must stay closed to `other`; the parent may be traversable but never
-# readable, or the file names alone enumerate what exists.
-for spec in "/mnt/data/secrets:71[01]" "/mnt/data/secrets/docker:710"; do
-    dir="${spec%:*}"; want="${spec##*:}"
-    [ -d "$dir" ] || continue
-    dmode=$(stat -c %a "$dir" 2>/dev/null) || { problems+=("$dir: mode unreadable"); continue; }
-    case "$dmode" in
-        $want) ;;
-        *) problems+=("$dir: mode $dmode, expected $want") ;;
-    esac
-done
-
-# --- Did the check actually check anything? --------------------------------
-# check_service returns early for a container that is not running, and `checked`
-# had no floor: with the daemon unreachable every inspect returns empty, nothing
-# is asserted, and the push read "posture OK on 0 containers" — in green (#156).
-#
-# The comparison is against the number of services declared in compose.yaml, not
-# a constant, so it moves with the file like every other expectation here. A
-# deliberate consequence, chosen over a floor at zero: taking a service down for
-# maintenance (`docker compose down <svc>`, the documented way to keep the heal
-# timer from resurrecting it) turns this monitor red for the duration. That is
-# the price of noticing the drift that went unremarked in July, when the count
-# moved 21 -> 20 -> 21 with nothing to compare it against.
-if [ "$checked" -lt "$expected" ]; then
-    problems+=("posture checked only $checked of $expected containers")
 fi
 
 # --- Verdict ---------------------------------------------------------------
