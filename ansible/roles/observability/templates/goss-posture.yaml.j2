@@ -66,6 +66,7 @@ command:
 {%- set ro = 'true' if svc.read_only | default(false) else 'false' %}
 {%- set optstr = (svc.security_opt | default([])) | join(' ') %}
 {%- set nnp = 'true' if 'no-new-privileges' in optstr else 'false' %}
+{%- set aa = optstr.split('apparmor=')[1].split(' ')[0] if 'apparmor=' in optstr else '' %}
 {%- set usr = svc.user | default('') %}
   {{ cname }}-not-privileged:
     exec: docker inspect {{ cname }} | jq -r '.[0].HostConfig.Privileged'
@@ -93,4 +94,48 @@ command:
     exit-status: 0
     stdout: ["/^{{ usr }}$/"]
 {% endif %}
+{% if aa %}
+  {{ cname }}-apparmor-enforced:
+    # The profile the KERNEL applied, read from inside the container — not the
+    # one the compose file requested. A profile that failed to load leaves the
+    # request intact and the container unconfined, which is the whole point of
+    # reading /proc/1/attr/current rather than HostConfig.
+    exec: docker exec {{ cname }} cat /proc/1/attr/current
+    exit-status: 0
+    stdout: ["/^{{ aa }} \\(enforce\\)/"]
+{% endif %}
 {% endfor %}
+
+  # --- netdata: the three axes its failures actually show up on --------------
+  # Its plugins are setuid root and it drops to uid 201 only if it managed to
+  # prepare its own directories; when it cannot, it runs entirely as root while
+  # every chart stays present. So the uid is the signal, not the charts.
+  netdata-runs-as-201:
+    exec: docker exec netdata awk '/^Uid:/ {print $2}' /proc/1/status
+    exit-status: 0
+    stdout: ["/^201$/"]
+  netdata-plugins-present:
+    exec: docker exec netdata ps -eo comm
+    exit-status: 0
+    stdout:
+{% for plugin in netdata_expected_plugins %}
+      - "/^{{ plugin }}$/"
+{% endfor %}
+  netdata-context-count:
+    # A count, not a pattern: goss matches stdout, so the comparison has to
+    # happen in the command and surface as an exit status.
+    exec: |
+      n=$(docker exec netdata curl -s --max-time 10 http://127.0.0.1:19999/api/v3/contexts | jq -r '.contexts | length')
+      test "${n:-0}" -ge {{ netdata_min_contexts }}
+    exit-status: 0
+
+  # --- fail2ban: every configured jail is actually loaded --------------------
+  # Comparing two derived lists, so the assertion is the exit status. A jail
+  # present in jail.local and absent from the running set is a jail that looks
+  # configured and bans nobody.
+  fail2ban-jails-all-loaded:
+    exec: |
+      want=$(grep -oE '^\[[a-z0-9_-]+\]' /etc/fail2ban/jail.local | tr -d '[]' | grep -v '^DEFAULT$' | sort | tr '\n' ' ')
+      have=$(fail2ban-client status | sed -n 's/.*Jail list:[[:space:]]*//p' | tr -d ' ' | tr ',' '\n' | grep -v '^$' | sort | tr '\n' ' ')
+      test "$want" = "$have"
+    exit-status: 0

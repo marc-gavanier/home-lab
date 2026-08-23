@@ -217,3 +217,16 @@ credential_store_modes:
 # and proves nothing about what the publisher released.
 goss_version: "0.4.10"
 goss_sha256: "90a59612b4d67d9f1a9038634c000790136bb82526a69de1e81ac075c2f6d2c6"
+
+# --- goss posture: netdata expectations (ADR-032) ---
+# Moved out of homelab-posture.sh unchanged. The plugin list and the context
+# floor were established by running a throwaway agent and diffing it against the
+# real one (#24); they are measurements, not preferences.
+netdata_expected_plugins:
+  - "NETWORK-VIEWER"
+  - "apps.plugin"
+  - "go.d.plugin"
+  - "sd-jrnl.plugin"
+  - "sd-unit.plugin"
+  - "spawn-plugins"
+netdata_min_contexts: 270
