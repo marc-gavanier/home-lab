@@ -4,6 +4,9 @@
 # =============================================================================
 # Thin orchestrator: one file per concern, task names prefixed with the file.
 
+- name: Install the shared persistence gate
+  ansible.builtin.import_tasks: gate.yml
+
 - name: Push Pi power/thermal health to Uptime Kuma
   ansible.builtin.import_tasks: health.yml
 
