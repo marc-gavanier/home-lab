@@ -98,6 +98,34 @@ CLAIMS to back up, not about the dumps.
 sandbox passed six criteria; the first contact with the real repository found a
 seventh that none of them covered.
 
+### The copy is no longer bounded to seven days, and that was a decision
+
+`backup.sh` computed the last seven days of snapshot ids and offered only those.
+This ADR first called that "an optimisation, not a correctness requirement",
+**and that was wrong about the consequence**: the bound did not only make the
+copy faster, it defined what the offsite repository contained. Everything older
+than a week had simply never been replicated.
+
+The first unbounded copy therefore back-filled **18 snapshots** from May, June
+and July, in fifteen minutes rather than the seconds predicted. The offsite
+repository went from ~50 to **68 snapshots**, against 33 held locally — the
+local one applies retention, the remote one never has.
+
+Kept unbounded, deliberately:
+
+- the cost was **one-off**. `restic copy` is idempotent, so with every local
+  snapshot now present remotely, nightly copies return to transferring only the
+  new one;
+- and it turned out to matter the same day. The run that back-filled the history
+  is the run during which the local drive produced its first read error inside
+  the repository (#207). Far more of the history now sits off that disk.
+
+**No retention is applied to the offsite repository, and none can be.** It is
+append-only by design, so that a compromised homelab cannot erase its own
+remote backups. Unbounded growth is the accepted price of that protection, not
+an oversight: 346 GB of 1.8 TB at the time of writing, with restic's
+deduplication behind it.
+
 ### resticprofile does NOT manage the schedule
 
 It can generate systemd units, and that is the one criterion the spike could not
