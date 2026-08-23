@@ -95,7 +95,7 @@ join() { local sep="$1"; shift; local out; out="$(printf "%s${sep}" "$@")"; prin
 
 group() {   # $1 push url, $2.. alarm names
     local url="$1"; shift
-    local problems=() reports=() name row status value
+    local problems=() reports=() name row status value wanted
 
     if [ -z "$ALARM_TABLE" ]; then
         push "$url" down "netdata unreachable — state of $# alarm(s) unknown"
@@ -103,8 +103,21 @@ group() {   # $1 push url, $2.. alarm names
     fi
 
     for name in "$@"; do
+        # A netdata TEMPLATE creates one alarm per chart instance, all sharing
+        # the same name — one temperature sensor today, several the day a second
+        # one appears. Taking the first row would then report a healthy instance
+        # while another is in WARNING, which is the quiet kind of wrong. Rank the
+        # matching rows and keep the WORST.
         # Anchored on the tab so a name cannot match a longer one by prefix.
-        row="$(printf '%s\n' "$ALARM_TABLE" | grep -m1 -P "^\Q$name\E\t" || true)"
+        local rows
+        rows="$(printf '%s\n' "$ALARM_TABLE" | grep -P "^\Q$name\E\t" || true)"
+        row=""
+        for wanted in CRITICAL WARNING UNDEFINED UNINITIALIZED REMOVED CLEAR; do
+            row="$(printf '%s\n' "$rows" | grep -m1 -P "^\Q$name\E\t\Q$wanted\E\t" || true)"
+            [ -n "$row" ] && break
+        done
+        # A status netdata invented that is not in the list above still counts.
+        [ -z "$row" ] && row="$(printf '%s\n' "$rows" | grep -m1 . || true)"
         status="$(printf '%s' "$row" | cut -f2)"
         value="$(printf '%s' "$row" | cut -f3)"
 

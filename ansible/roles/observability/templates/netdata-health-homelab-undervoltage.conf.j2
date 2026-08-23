@@ -1,0 +1,37 @@
+# {{ ansible_managed }}
+# =============================================================================
+# Curated alarm — undervoltage (ADR-030, phase 2)
+# =============================================================================
+# Replaces the rpi_volt check in homelab-health.sh, once seen to fire. Until
+# then both run — and this one matters more than most: undervoltage is the
+# classic silent Pi killer, and the most likely cause behind an "unexplained
+# poweroff", which the runbook answers with an SD reflash.
+#
+# The firmware LATCHES the event into an alarm bit rather than exposing a
+# voltage, which is why `sensors` shows `in0: N/A` and why an earlier attempt
+# concluded this could not be migrated at all. It can: Netdata surfaces the bit
+# as a chart with `clear`, `critical` and `fault` dimensions — verified reading
+# clear=1 critical=0 fault=0, i.e. no event latched.
+#
+# `critical` is the dimension that corresponds to what the script reads at
+# /sys/class/hwmon/hwmon*/in0_lcrit_alarm. A `lookup` over one minute rather
+# than an instantaneous read, because the bit is latched: once set it stays set
+# until cleared, so any sample within the window is the event.
+#
+# No hysteresis and no `up` delay: a latched bit is not a noisy measurement, and
+# waiting to report an electrical fault would be the wrong trade.
+# =============================================================================
+
+ template: homelab_undervoltage
+       on: system.hw.sensor.voltage.alarm
+    class: Errors
+     type: System
+component: Power supply
+   lookup: max -1m unaligned of critical
+    units: status
+    every: 1m
+     warn: $this > 0
+    delay: up 0 down 15m
+  summary: Homelab undervoltage latched by the firmware
+     info: The firmware latched an undervoltage event — check the PSU and cable
+       to: silent

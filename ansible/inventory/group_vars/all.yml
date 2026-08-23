@@ -155,12 +155,23 @@ netdata_curated_alarms:
   - file: homelab-memory
     alarm: homelab_mem_available
     group: resources
+  - file: homelab-cputemp
+    alarm: homelab_cpu_temperature
+    group: resources
+  - file: homelab-undervoltage
+    alarm: homelab_undervoltage
+    group: resources
 
 # Available-memory threshold, in MiB. Same reasoning as the swap one: kept in a
 # single place because homelab-health.sh still carries the same number until its
 # check is removed. Unlike the swap threshold this one IS measured — 19 days of
 # retention, hourly minimum never below 800 MiB.
 netdata_mem_threshold_mib: 800
+
+# CPU temperature, in Celsius. Not a tuned threshold: 80 is where the Pi's
+# firmware starts throttling, so it is a hardware fact. Same number as
+# homelab-health.sh until that check is removed.
+netdata_cpu_temp_threshold_c: 80
 
 # Swap utilisation threshold. Kept in ONE place because homelab-health.sh
 # carries the same number, and two copies of a threshold are a drift waiting to
