@@ -181,3 +181,12 @@ netdata_cpu_temp_threshold_c: 80
 # cold pages until something restarts the containers, so it is not a steady
 # state to project from.
 netdata_swap_threshold_pct: 85
+
+# --- resticprofile (ADR-031) ---
+# The `no_self_update` build: a binary that updates itself on a host whose
+# versions are pinned and reviewed through Renovate would be a hole in that
+# process, not a convenience. Checksum published by the project alongside the
+# release — without it the download is trusted blindly, on the host that holds
+# the backups.
+resticprofile_version: "0.33.1"
+resticprofile_sha256: "58e4fd6fbe2bd460ee6823c3693f39a10f0f24c90635f0215c19b0ab20bbf5df"

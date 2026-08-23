@@ -1,0 +1,83 @@
+---
+# resticprofile — ADR-031, phase 1 of the migration.
+#
+# Installs the binary and the profile. Changes NOTHING else: backup.sh keeps
+# running on its timer, and this exists only so the profile can be exercised by
+# hand against the real repository — including a restore — before anything is
+# switched over.
+#
+# The `no_self_update` build on purpose. A binary that updates itself on a host
+# whose image and package versions are pinned and reviewed through Renovate
+# would be a hole in that process rather than a convenience.
+
+- name: resticprofile | Read the installed version, if any
+  ansible.builtin.command: resticprofile version
+  register: resticprofile_installed
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: resticprofile | Install the pinned release
+  when: resticprofile_version not in (resticprofile_installed.stdout | default(''))
+  block:
+    # Checksum published by the project alongside the release. Without it this
+    # task would trust whatever the network returned, on the host that holds the
+    # backups.
+    - name: resticprofile | Download the release archive
+      ansible.builtin.get_url:
+        url: "{{ resticprofile_release_url }}/{{ resticprofile_archive }}"
+        dest: /tmp/resticprofile.tar.gz
+        checksum: "sha256:{{ resticprofile_sha256 }}"
+        mode: "0600"
+      vars:
+        resticprofile_release_url: >-
+          https://github.com/creativeprojects/resticprofile/releases/download/v{{ resticprofile_version }}
+        resticprofile_archive: >-
+          resticprofile_no_self_update_{{ resticprofile_version }}_linux_arm64.tar.gz
+
+    - name: resticprofile | Unpack the binary
+      ansible.builtin.unarchive:
+        src: /tmp/resticprofile.tar.gz
+        dest: /usr/local/bin
+        remote_src: true
+        include:
+          - resticprofile
+        owner: root
+        group: root
+        mode: "0755"
+
+  always:
+    - name: resticprofile | Remove the downloaded archive
+      ansible.builtin.file:
+        path: /tmp/resticprofile.tar.gz
+        state: absent
+
+# Password FILES, not values in the configuration. Established in the spike:
+# with an inline password, `copy` fails with "an empty password is not allowed"
+# because the SOURCE password is not forwarded to the secondary repository. It
+# is also the right shape — no secret in the config, and none on the process
+# table, which is the #198 class.
+- name: resticprofile | Write the repository password files
+  ansible.builtin.copy:
+    dest: "/mnt/data/secrets/{{ item.name }}"
+    content: "{{ item.value }}"
+    owner: root
+    group: root
+    mode: "0400"
+  loop:
+    - name: restic_password
+      value: "{{ restic_password }}"
+    - name: offsite_restic_password
+      value: "{{ offsite_restic_password }}"
+  loop_control:
+    label: "{{ item.name }}"
+  no_log: true
+  when: item.value | default('') | length > 0
+
+- name: resticprofile | Install the profile
+  ansible.builtin.template:
+    src: resticprofile.yaml.j2
+    dest: /opt/homelab/resticprofile.yaml
+    owner: root
+    group: root
+    mode: "0640"

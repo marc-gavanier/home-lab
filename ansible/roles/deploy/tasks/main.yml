@@ -52,6 +52,12 @@
 - name: Set up the local restic backup and nightly timer
   ansible.builtin.import_tasks: backup.yml
 
+# ADR-031, phase 1: installs resticprofile and its profile and changes nothing
+# else. backup.sh keeps running on its timer; this exists so the profile can be
+# exercised by hand — a backup, then a RESTORE from it — before anything moves.
+- name: "Install resticprofile and its profile (ADR-031, phase 1)"
+  ansible.builtin.import_tasks: resticprofile.yml
+
 - name: Set up the host tunnel to the offsite Pi (ADR-010)
   ansible.builtin.import_tasks: wireguard.yml
 
