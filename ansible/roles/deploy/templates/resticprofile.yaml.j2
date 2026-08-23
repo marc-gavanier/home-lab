@@ -51,9 +51,9 @@ homelab:
     # So the notification is built by a small adapter rather than reproduced
     # from configuration, which cannot see any of it.
     run-after:
-      - /opt/homelab/scripts/backup-notify.sh up
+      - /opt/homelab/scripts/backup-notify.sh up backup
     run-after-fail:
-      - /opt/homelab/scripts/backup-notify.sh down
+      - /opt/homelab/scripts/backup-notify.sh down backup
 
     # Identical to the list backup.sh passes, including the exclude: the
     # libresign aarch64 blob is regenerated on demand and costs more to store
@@ -101,6 +101,20 @@ homelab:
     # The destination exists and is append-only; creating it here would be a
     # symptom of pointing at the wrong place.
     initialize: false
+
+    # Its OWN monitor, as in backup.sh. The copy fails for entirely different
+    # reasons — the tunnel, the remote host — and folding it into the backup
+    # signal would hide one behind the other.
+    #
+    # `backup` does NOT trigger `copy`: verified, only the backup hook fired.
+    # resticprofile's groups assemble PROFILES, not commands within one, so the
+    # nightly job runs both commands from the systemd unit. Switching the timer
+    # to `backup` alone would have stopped offsite replication silently, while
+    # every run reported success.
+    run-after:
+      - /opt/homelab/scripts/backup-notify.sh up copy
+    run-after-fail:
+      - /opt/homelab/scripts/backup-notify.sh down copy
 
   # Weekly maintenance, today local-maintenance.sh and offsite-check.sh.
   prune:
