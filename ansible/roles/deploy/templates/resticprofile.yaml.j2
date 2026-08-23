@@ -1,0 +1,79 @@
+# {{ ansible_managed }}
+# =============================================================================
+# resticprofile — ADR-031
+# =============================================================================
+# The ORCHESTRATION half of backup.sh: what to back up, where to copy it, what
+# to keep. The database dumps and the assertions that check them are NOT here
+# and are not meant to be — no tool expresses them, and the assertions exist
+# because of #190. They keep their own script.
+#
+# PHASE 1: nothing invokes this yet. backup.sh still runs on the timer. This
+# profile is here to be exercised by hand — a backup, then a RESTORE from what
+# it produced — before anything is switched. Deliberately carries no
+# notification hooks for that reason: a manual run must not move a monitor.
+#
+# Repository paths come from the environment, so backup.env stays the single
+# place they are defined and no path is duplicated here.
+version: "1"
+
+homelab:
+  repository: '{{ "{{ .Env.RESTIC_REPOSITORY }}" }}'
+  password-file: /mnt/data/secrets/restic_password
+  # A repository on a LUKS volume that may not be mounted. Failing loudly beats
+  # initialising a second, empty repository on the mountpoint's own directory.
+  initialize: false
+
+  backup:
+    # Identical to the list backup.sh passes, including the exclude: the
+    # libresign aarch64 blob is regenerated on demand and costs more to store
+    # than to rebuild.
+    source:
+      - /mnt/data/services
+      - /mnt/data/media
+      - /mnt/data/backups/dumps
+      - /mnt/data/secrets
+      - /opt/homelab
+    exclude:
+      - /mnt/data/services/nextcloud/data/data/appdata_*/libresign/aarch64
+    tag:
+      - auto
+    # restic's own summary, which the current script parses out of --json to
+    # build its Kuma message. Phase 2 reads it from here instead.
+    verbose: true
+
+  # Nightly forget, weekly prune — the split backup.sh already makes, and for
+  # the same reason: forget is cheap and prune rewrites the repository.
+  retention:
+    after-backup: true
+    keep-daily: 7
+    keep-weekly: 4
+    keep-monthly: 6
+    prune: false
+    # `path: false` is NOT a default — resticprofile otherwise derives a
+    # `--path` filter from the backup sources, and `backup.sh` runs a plain
+    # `restic forget` with no filter at all. The difference is not cosmetic:
+    # a filter EXCLUDES snapshots whose path set does not match, so any older
+    # snapshot taken before a source was added would never be considered for
+    # removal and would accumulate for ever. Caught by reading `resticprofile
+    # show` rather than by trusting the config to mean what it looks like.
+    path: false
+
+  # ADR-010. `restic copy` is idempotent — verified in the spike: a second copy
+  # with nothing changed wrote nothing and left the destination at one snapshot.
+  # So the "last 7 days" bound backup.sh computes with a JSON listing and a
+  # Python filter is an optimisation, not a correctness requirement, and
+  # re-offering a snapshot already present on an append-only repository is a
+  # no-op. That is the most convoluted part of the script gone.
+  copy:
+    repository: '{{ "{{ .Env.OFFSITE_RESTIC_REPOSITORY }}" }}'
+    password-file: /mnt/data/secrets/offsite_restic_password
+    # The destination exists and is append-only; creating it here would be a
+    # symptom of pointing at the wrong place.
+    initialize: false
+
+  # Weekly maintenance, today local-maintenance.sh and offsite-check.sh.
+  prune:
+    dry-run: false
+
+  check:
+    read-data-subset: 5%
