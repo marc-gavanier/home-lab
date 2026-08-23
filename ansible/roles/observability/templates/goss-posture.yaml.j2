@@ -1,0 +1,96 @@
+# {{ ansible_managed }}
+# =============================================================================
+# Container security posture — declarative assertions (ADR-032)
+# =============================================================================
+# GENERATED from docker/compose.yaml, exactly as the bash version was. The list
+# is not hand-maintained here any more than it was there; what changes is the
+# engine that checks it.
+#
+# --- Why this exists, in one measurement -------------------------------------
+# Ten fixes have landed on homelab-posture.sh. Four of them were not wrong
+# expectations but controls that COULD NOT FAIL: "posture OK on 0 containers"
+# was a green push, ten controls could not report the failure they named, a
+# shadowing check could vanish without saying so, four controls looked stronger
+# than they were.
+#
+# A loop can iterate over nothing and return true. A declared assertion cannot:
+# goss counts every one and prints the total, so "checked nothing" is not a
+# state this file can be in.
+#
+# --- The boundary with what stays in bash ------------------------------------
+# Everything here is answerable by `docker inspect`, which works on a stopped
+# container as well as a running one. What needs to ENTER the container
+# (AppArmor's applied profile, netdata's plugins) or to DERIVE before asserting
+# (the writability check, Vaultwarden's config comparison, the credential
+# probes) stays in homelab-posture.sh, which runs goss and then adds those.
+#
+# --- One trap, recorded ------------------------------------------------------
+# goss templates this whole file with Go templates before running anything, so a
+# `docker inspect -f` format string would be eaten by goss before docker ever
+# saw it — the same family as Jinja eating a Go template in the Ansible
+# templates. Everything below goes through `jq` instead, which is also more
+# readable.
+#
+# The rule is stricter than it looks: it applies to COMMENTS too. The first
+# version of this header spelled the offending syntax out to warn about it, and
+# goss died on the warning — "can't evaluate field HostConfig in type
+# *goss.TmplVars", pointing at a line that was never meant to execute. Do not
+# write Go template delimiters anywhere in this file, prose included.
+# =============================================================================
+
+file:
+{% for store, want in credential_store_modes.items() %}
+  {{ services_data_dir }}/{{ store }}:
+    exists: true
+    mode: "{{ want }}"
+{% endfor %}
+  {{ backup_dir }}/dumps:
+    exists: true
+    mode: "0700"
+  /mnt/data/secrets:
+    exists: true
+    mode: "0711"
+  /mnt/data/secrets/docker:
+    exists: true
+    mode: "0710"
+
+command:
+{% set compose = lookup('file', playbook_dir + '/../../docker/compose.yaml') | from_yaml %}
+{% for name, svc in compose.services.items() %}
+{%- set cname = svc.container_name | default(name) %}
+{#- plain Jinja on purpose, as in homelab-posture.sh: `regex_replace` and
+    `select('search')` are Ansible-only, and a template that cannot be rendered
+    outside Ansible cannot be tested before it is deployed. -#}
+{%- set caplist = (svc.cap_add | default([])) | sort %}
+{%- set caps = ('CAP_' ~ caplist | join(' CAP_')) if caplist else '' %}
+{%- set ro = 'true' if svc.read_only | default(false) else 'false' %}
+{%- set optstr = (svc.security_opt | default([])) | join(' ') %}
+{%- set nnp = 'true' if 'no-new-privileges' in optstr else 'false' %}
+{%- set usr = svc.user | default('') %}
+  {{ cname }}-not-privileged:
+    exec: docker inspect {{ cname }} | jq -r '.[0].HostConfig.Privileged'
+    exit-status: 0
+    stdout: ["/^false$/"]
+  {{ cname }}-cap-drop-all:
+    exec: docker inspect {{ cname }} | jq -r '[.[0].HostConfig.CapDrop[]?] | join(" ")'
+    exit-status: 0
+    stdout: ["/(^|\\s)ALL(\\s|$)/"]
+  {{ cname }}-cap-add:
+    exec: docker inspect {{ cname }} | jq -r '[.[0].HostConfig.CapAdd[]?] | sort | join(" ")'
+    exit-status: 0
+    stdout: ["/^{{ caps }}$/"]
+  {{ cname }}-read-only-rootfs:
+    exec: docker inspect {{ cname }} | jq -r '.[0].HostConfig.ReadonlyRootfs'
+    exit-status: 0
+    stdout: ["/^{{ ro }}$/"]
+  {{ cname }}-no-new-privileges:
+    exec: docker inspect {{ cname }} | jq -r '[.[0].HostConfig.SecurityOpt[]?] | join(" ") | test("no-new-privileges")'
+    exit-status: 0
+    stdout: ["/^{{ nnp }}$/"]
+{% if usr %}
+  {{ cname }}-user:
+    exec: docker inspect {{ cname }} | jq -r '.[0].Config.User'
+    exit-status: 0
+    stdout: ["/^{{ usr }}$/"]
+{% endif %}
+{% endfor %}
