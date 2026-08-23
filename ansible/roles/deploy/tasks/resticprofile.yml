@@ -74,19 +74,34 @@
   no_log: true
   when: item.value | default('') | length > 0
 
-# The two halves no tool expresses. Extracted from backup.sh line for line —
-# 300 lines, verified identical — because the assertions are the most valuable
-# part of that file and retyping them would be the way to lose one.
-- name: resticprofile | Install the dump and notification scripts
+# The half no tool expresses. resticprofile's hooks receive PROFILE_NAME and
+# PROFILE_COMMAND and nothing else, so a readable notification has to be built
+# outside the tool. Its sibling backup-dumps.sh is gone: the dump COMMANDS are
+# hooks in the profile and the assertions are the goss spec below.
+- name: resticprofile | Install the notification adapter
   ansible.builtin.copy:
-    src: "{{ item }}"
-    dest: "/opt/homelab/scripts/{{ item }}"
+    src: backup-notify.sh
+    dest: /opt/homelab/scripts/backup-notify.sh
     owner: root
     group: root
     mode: "0750"
-  loop:
-    - backup-dumps.sh
-    - backup-notify.sh
+
+- name: resticprofile | Remove the dump script it replaced
+  # 373 lines. ADR-031 kept it because "resticprofile has no equivalent" for the
+  # assertions, which stopped being true when ADR-032 installed goss.
+  ansible.builtin.file:
+    path: /opt/homelab/scripts/backup-dumps.sh
+    state: absent
+
+- name: resticprofile | Install the dump assertions
+  # /etc/goss is created by the observability role, which site.yml runs first.
+  # Same mode as the posture spec: it names every database path on this host.
+  ansible.builtin.template:
+    src: goss-backup-dumps.yaml.j2
+    dest: /etc/goss/backup-dumps.yaml
+    owner: root
+    group: root
+    mode: "0400"
 
 - name: resticprofile | Install the profile
   ansible.builtin.template:

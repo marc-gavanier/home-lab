@@ -57,7 +57,7 @@ container back within two minutes, so the RAM never actually frees.
 
 ## Backup
 
-Backed up daily by Restic. The database is **not** dumped by `backup-dumps.sh` — Immich
+Backed up daily by Restic. The database is **not** dumped by the backup hooks — Immich
 runs its own scheduled DB backup (Admin → Settings → Backup) to
 `upload/backups/*.sql.gz`, which lives under `/mnt/data/services/immich` and is
 therefore captured in every Restic snapshot. This produces a correctly-formatted

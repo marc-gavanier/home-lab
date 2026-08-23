@@ -63,10 +63,15 @@ LUKS header — the prerequisite for reaching *any* of `/mnt/data` — has its o
 
 - Orchestration: `resticprofile`, configured by
   `ansible/roles/deploy/templates/resticprofile.yaml.j2` (ADR-031). The database
-  dumps and the assertions that check them are NOT in it and are not meant to
-  be: they live in `backup-dumps.sh`, invoked as a pre-backup hook, because no
-  tool expresses them. `backup-notify.sh` builds the Kuma message, because
-  resticprofile's hooks receive no restic output at all.
+  dump COMMANDS are `run-before` hooks in that profile and the assertions that
+  check them are `/etc/goss/backup-dumps.yaml`, both generated from
+  `backup_sql_dumps` and `backup_sqlite_dumps` in group_vars — so a database
+  added there gets dumped AND checked, and cannot get one without the other.
+  This replaced a 373-line script (ADR-031 kept it saying "resticprofile has no
+  equivalent"; ADR-032 installed goss, which has). `backup-notify.sh` remains
+  and builds the Kuma message, because resticprofile's hooks receive no restic
+  output at all — it now reads goss's TAP file and names the failing
+  assertions.
 - Weekly: `resticprofile -n homelab prune` then `check`
 - Scheduling (systemd timers):
   - `homelab-backup.timer` — daily 03:00 (dumps → backup → offsite copy → forget)

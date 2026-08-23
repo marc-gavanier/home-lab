@@ -40,7 +40,7 @@ set -uo pipefail
 
 OUTCOME="${1:-up}"                     # up | down
 WHAT="${2:-backup}"                    # backup | copy | maintenance | offsite-check
-DUMP_STATUS="/run/homelab-backup-dumps.status"
+DUMP_TAP="/run/homelab-backup-dumps.tap"
 BACKUP_LOG="/var/log/homelab-backup.log"
 
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] notify: $*" | tee -a "$BACKUP_LOG"; }
@@ -88,12 +88,23 @@ else
     snapshot=$(restic snapshots --json 2>/dev/null \
       | jq -r 'sort_by(.time) | .[-1].short_id // empty' 2>/dev/null) || snapshot=""
 
-    # An ABSENT status file means the dump step did not run at all, which is not
-    # the same as "no failures" and must not read as success.
-    if [ ! -f "$DUMP_STATUS" ]; then
+    # goss's own TAP output, written by the backup's run-before (ADR-032). An
+    # ABSENT file means the dump step did not run at all, which is not the same
+    # as "no failures" and must not read as success.
+    #
+    # The failing ASSERTION NAMES go into the message rather than a count. goss
+    # cannot report the actual value of a command's stdout — it streams it, and
+    # every output format says `object: *bytes.Reader` — so the spec puts the
+    # failure mode in the name instead, and this is where that pays: the
+    # notification reads `dump-vaultwarden-content` rather than
+    # `1 dump check(s) failed`, and says which database and which way.
+    if [ ! -f "$DUMP_TAP" ]; then
         problems+=("dump step did not run")
-    elif [ -s "$DUMP_STATUS" ]; then
-        problems+=("$(cat "$DUMP_STATUS")")
+    else
+        failed=$(sed -n 's/^not ok [0-9]* - Command: \([^:]*\):.*/\1/p' "$DUMP_TAP" |
+                 sort -u | tr '\n' ' ')
+        failed="${failed% }"
+        [ -n "$failed" ] && problems+=("dump checks failed: $failed")
     fi
 
     readings="dumps ok${snapshot:+, snapshot ${snapshot}}"

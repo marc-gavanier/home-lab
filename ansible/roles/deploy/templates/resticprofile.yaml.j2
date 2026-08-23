@@ -53,27 +53,99 @@ homelab:
     RESTIC_REST_PASSWORD: '{{ "{{ .Env.OFFSITE_REST_PASSWORD }}" }}'
 
   backup:
-    # The dump directory only exists DURING a run — backup.sh does
-    # `rm -rf` then `install -d` at the start and `rm -rf` at the end — so
-    # listing it as a source without creating it first makes restic skip it,
-    # and the snapshot then carries FOUR paths instead of five.
+    # --- Dumps, and then their assertions (ADR-031, ADR-032) ---------------
+    # This was a 373-line script. ADR-031 kept it and said why: "resticprofile
+    # has no equivalent" for the assertions. True when written, and stale since
+    # ADR-032 installed goss — so the dump COMMANDS are hooks and the assertions
+    # are a declared spec, generated from the same two lists in group_vars. A
+    # database added there gets dumped AND checked, and cannot get one without
+    # the other, which is the defect #177 named wearing different clothes.
     #
-    # That is not cosmetic. `restic forget` groups by `host,paths` by default,
-    # so a snapshot with a different path set forms its own retention group and
-    # gets its own 7 daily / 4 weekly / 6 monthly. The first real run of this
-    # profile did exactly that: `keep 1 snapshots` appeared beside the existing
-    # groups. Creating the directory here keeps the path set stable whether or
-    # not anything has populated it yet.
+    # The directory is emptied first, and that is not housekeeping. A `sqlite3
+    # .backup` that fails does NOT touch its destination — measured: 12288
+    # bytes, 2 tables, quick_check ok, byte-for-byte unchanged after a failed
+    # run. So a dump left by an earlier run passes every assertion while being a
+    # day old. It needs a run that ABORTED, and the log shows 103 "started"
+    # against 102 "completed", the orphan being 2026-07-12.
     #
-    # The dump script does the `rm -rf` + `install -d` itself, as backup.sh did,
-    # so the directory question is settled by the same code that fills it.
+    # 0700 explicitly, not the unit's umask (#199): under UMask=0022 `mkdir -p`
+    # gave 0755 and the dumps 0644, under parents 0755 all the way up — so for
+    # the length of every run, any local unprivileged account could read the
+    # complete Vaultwarden vault, the Kuma database with its push tokens,
+    # Nextcloud's password hashes and the Forgejo database. Read back out of a
+    # snapshot, so those are the modes that really existed. The #177 sweep closed
+    # the six LIVE stores and never looked at the copy made of them every night.
     #
-    # It ALWAYS exits 0, deliberately. A run-before that fails makes
-    # resticprofile abort the backup, and in backup.sh a bad dump never cost the
-    # snapshot — the failure was deferred and reported at the end. The verdict
-    # goes to a status file that the notification hook reads instead.
+    # Creating it here also keeps the snapshot's path set stable at five whether
+    # or not anything populated it: `restic forget` groups by `host,paths`, so a
+    # snapshot with four paths forms its own retention group and gets its own
+    # 7 daily / 4 weekly / 6 monthly. The first real run of this profile did
+    # exactly that.
+    #
+    # EVERY dump ends `|| true`, deliberately. A run-before that fails makes
+    # resticprofile abort the backup, and one bad dump must never cost the
+    # snapshot of everything else — the failure is deferred and reported by the
+    # notification hook instead. That is why the assertions exist: a dump command
+    # that fails silently is caught by the check that opens its file, not by an
+    # exit code, which is the lesson of #190 where the file existed and the guard
+    # was satisfied while the content was truncated.
     run-before:
-      - /opt/homelab/scripts/backup-dumps.sh
+      - rm -rf {{ backup_dir }}/dumps
+      - install -d -m 0700 {{ backup_dir }}/dumps
+
+      # Nextcloud MariaDB. The password is read from the secret already mounted
+      # in the container and handed over through MYSQL_PWD — never through
+      # `-p"…"`, which put it in the argv of the host's `docker` client for the
+      # 6 to 9 seconds this takes, every night at a fixed and known hour (#198).
+      # /proc carries no hidepid here. The single quotes keep the expansion
+      # INSIDE the container: expanded on the host, the secret path does not
+      # exist and the dump would run with an empty password.
+      - >-
+        docker exec nextcloud-db sh -c 'MYSQL_PWD=$(cat /run/secrets/nextcloud_db_password)
+        mariadb-dump --single-transaction --routines --triggers
+        -u"${MYSQL_USER:-nextcloud}" "${MYSQL_DATABASE:-nextcloud}"'
+        > {{ backup_dir }}/dumps/nextcloud.sql 2>> {{ backup_log }} || true
+
+      # SQLite, via the Online Backup API. Restic snapshotting a live database
+      # while the service runs can capture a torn WAL state; `.backup` writes a
+      # consistent copy under concurrent writes. Host-side because none of these
+      # images ships the sqlite3 CLI. Kuma gets a busy timeout on top: it is
+      # under constant write pressure (a heartbeat row per monitor per interval)
+      # so unlike the others it genuinely collides, and `.backup` returns
+      # SQLITE_BUSY on a locked source.
+      #
+      # Guarded on the source EXISTING, and that guard is load-bearing rather
+      # than defensive: `sqlite3 <missing> ".backup dest"` does not fail, it
+      # CREATES the missing database and copies the empty result. The dump would
+      # then satisfy the `-source` assertion that exists to catch a moved path,
+      # and leave an empty database sitting in the service's own directory.
+      # Found by rendering this block and reading it, before it ever ran.
+{% for d in backup_sqlite_dumps %}
+      - >-
+        test -f {{ d.source }} && sqlite3 -cmd '.timeout 5000' {{ d.source }}
+        ".backup '{{ backup_dir }}/dumps/{{ d.file }}'" 2>> {{ backup_log }} || true
+{% endfor %}
+
+      # Miniflux PostgreSQL. services/miniflux/db is in the source list below,
+      # but restic walks it file by file while Postgres writes: the copy is not
+      # atomic and can restore to a torn cluster. Plain SQL rather than .gz on
+      # purpose — restic deduplicates a text dump from one day to the next, while
+      # a compressed one changes end to end on any edit and crosses the offsite
+      # link whole every night. No password: the image entrypoint writes
+      # `local all all trust` and docker exec connects over the unix socket.
+      - >-
+        docker exec miniflux-db pg_dump -U '{{ miniflux_db_user | default("miniflux") }}'
+        '{{ miniflux_db_name | default("miniflux") }}'
+        > {{ backup_dir }}/dumps/miniflux.sql 2>> {{ backup_log }} || true
+
+      # The assertions, run BEFORE the snapshot so what is asserted is what gets
+      # snapshotted. `|| true` for the same reason as the dumps: the verdict is
+      # deferred to the notification hook, which reads this TAP file. An ABSENT
+      # file therefore means the dump step did not run at all, which is not the
+      # same as "no failures" and must not read as success.
+      - >-
+        goss -g /etc/goss/backup-dumps.yaml validate --format tap
+        > {{ dump_tap }} 2>&1 || true
 
     # resticprofile hooks receive PROFILE_NAME and PROFILE_COMMAND and nothing
     # else — no snapshot id, no summary, and there is no run status file either.
