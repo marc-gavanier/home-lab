@@ -30,6 +30,20 @@
     line: 'inet_interfaces = loopback-only'
   notify: Restart postfix
 
+# lynis MAIL-8818. The stock banner is `$myhostname ESMTP $mail_name (Ubuntu)`,
+# which names the software and the distribution to anyone who opens the port.
+# Only loopback can, since the task above — so this is depth, not a hole being
+# closed: the value of not naming the version is that a local process which
+# should not be talking to port 25 learns nothing from the answer. Postfix
+# requires the banner to START with $myhostname, so this is the shortest legal
+# form.
+- name: hardening | Postfix banner names the host and nothing else (lynis MAIL-8818)
+  ansible.builtin.lineinfile:
+    path: /etc/postfix/main.cf
+    regexp: '^smtpd_banner\s*='
+    line: 'smtpd_banner = $myhostname ESMTP'
+  notify: Restart postfix
+
 # 5.2.3 — record every sudo command to a dedicated log (use_pty is already a
 # Ubuntu default). Drop-in + visudo validation so a syntax slip can't lock sudo.
 - name: hardening | Enable a dedicated sudo logfile (CIS 5.2.3)
@@ -70,5 +84,28 @@
     path: /etc/systemd/timesyncd.conf
     regexp: '^#?NTP='
     line: 'NTP=0.pool.ntp.org 1.pool.ntp.org 2.pool.ntp.org 3.pool.ntp.org'
+    insertafter: '^\[Time\]'
+  notify: Restart timesyncd
+
+# lynis TIME-3185 warns when /run/systemd/timesync/synchronized is 2048 s old or
+# more. systemd's PollIntervalMaxSec defaults to exactly 2048, so a STABLE clock
+# backs off until the file is permanently between 0 and 2048 seconds old and the
+# weekly audit warns or not depending on where in that cycle it happens to run —
+# measured 1612 s then 1679 s, sixty-seven seconds apart, on a host reporting
+# NTPSynchronized=yes. It cost two points of the hardening index on 2026-08-24
+# and pushed the Kuma monitor DOWN.
+#
+# Capping the interval below the threshold is not silencing the test, it is what
+# makes it able to fail for the right reason: as it stands the age of that file
+# cannot distinguish "backed off to the maximum" from "synchronisation stopped",
+# because both produce the same number. At 1024 the file is always fresher than
+# lynis's threshold while timesyncd is working, and crosses it immediately when
+# it is not. Costs one poll every ~17 minutes instead of ~34, against four pool
+# servers.
+- name: hardening | Cap the timesyncd poll interval below lynis's threshold (TIME-3185)
+  ansible.builtin.lineinfile:
+    path: /etc/systemd/timesyncd.conf
+    regexp: '^#?PollIntervalMaxSec='
+    line: 'PollIntervalMaxSec=1024'
     insertafter: '^\[Time\]'
   notify: Restart timesyncd

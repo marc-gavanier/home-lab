@@ -52,8 +52,48 @@ The full findings, batch detail, deviation rationale and lessons live in
   pinnable tag and had drifted ahead of role 1.6.0, erroring on 28 missing
   variables. Pinning to a matching commit kills the Renovate freshness design;
   hand-supplying the vars is whack-a-mole. Upstream version-sync fragility, not
-  worth it. Revisit if a continuous compliance *score* is ever wanted.
+  worth it. Revisit if a continuous compliance *score* is ever wanted. (goss
+  itself was later adopted for the posture spec — ADR-032. What was rejected here
+  is ansible-lockdown's unpinnable audit CONTENT, not the tool that runs it.)
 - **lynis alone**: kept (complementary), but it is not the full CIS control set.
+
+## Standing lynis warnings that are not findings
+
+The weekly `homelab-lynis-report.sh` push carries a warning count, and a count is
+only readable if what it permanently contains is written down. Recorded
+2026-08-24, when a run of four warnings sent the monitor DOWN and two of them
+turned out to be structural.
+
+**`PKGS-7388` — "Can't find any security repository in /etc/apt/sources.list or
+sources.list.d directory". Cannot be fixed, and must not be.** The security
+repository *is* declared, in the deb822 format Ubuntu 24.04 ships:
+
+```
+/etc/apt/sources.list                    empty, as the distribution leaves it
+/etc/apt/sources.list.d/ubuntu.sources   line 53: Suites: noble-security
+apt-cache policy                         500 …/noble-security, a=noble-security
+unattended-upgrades                      active, Allowed-Origins includes
+                                         ${distro_id}:${distro_codename}-security
+```
+
+lynis 3.0.9 greps legacy one-line `.list` files only. Satisfying it means adding
+a duplicate legacy entry for a repository that is already configured and already
+being pulled from — two sources of truth for the update path, in exchange for a
+parser's opinion. The control the test stands for is verified above, by the three
+readings that actually answer it.
+
+This is the same operating caveat as the check-mode count in the Consequences
+below, arriving from the other tool: a number that cannot reach zero has to be
+read rather than zeroed.
+
+**`TIME-3185` was the other one, and it WAS fixed** — see
+`roles/security/tasks/hardening.yml`. It is recorded here because the shape is
+worth telling apart: lynis warns above 2048 s of clock-file age and systemd's
+default poll interval is exactly 2048 s, so the test could not distinguish a
+healthy backoff from a stopped synchronisation. Capping the interval at 1024 made
+the assertion capable of failing for its stated reason. A warning that flaps is
+not automatically a false positive; sometimes it is a detector that was never
+able to measure what it names.
 
 ## Consequences
 
