@@ -30,7 +30,8 @@ failure *and* when no backup ran at all (Pi down, timer broken, repo unreachable
 7. Deploy (from the `ansible/` directory):
    ```
    ansible-playbook playbooks/site.yml --tags deploy \
-     --start-at-task "backup | Copy backup script" --ask-vault-pass
+     --start-at-task "backup | Template backup environment file (encrypted volume)" \
+     --ask-vault-pass
    ```
    This redeploys the profile and its scripts, and regenerates `backup.env` with `KUMA_PUSH_URL`.
 
@@ -48,17 +49,17 @@ monitor goes red and the notification fires.
 
 ## Local maintenance monitor
 
-The local maintenance job (`local-maintenance.sh`, `homelab-local-maintenance.timer`,
+The local maintenance job (`homelab-local-maintenance.timer`,
 Sunday 05:00: weekly prune + metadata check, monthly deep read-data on the 1st Sunday)
 reports to its own push monitor, same pattern as the offsite check:
 
-| Monitor            | Pinged by                                       | Interval       | Vault variable                                    |
-|--------------------|-------------------------------------------------|----------------|---------------------------------------------------|
-| Local prune+check  | `local-maintenance.sh` (homelab, Sunday 05:00)  | 700000 s (8 d) | `local_maintenance_kuma_push_url` (homelab local) |
+| Monitor           | Pinged by                                            | Interval       | Vault variable                                    |
+|-------------------|------------------------------------------------------|----------------|---------------------------------------------------|
+| Local prune+check | `resticprofile -n homelab prune`+`check` (Sun 05:00) | 700000 s (8 d) | `local_maintenance_kuma_push_url` (homelab local) |
 
 Create the Push monitor first (8 d interval covers a weekly run plus grace), then set
 `local_maintenance_kuma_push_url` in `local.yml` and redeploy with the same
-`--start-at-task "backup | Copy backup script"` command. This variable is **optional**: empty just
+`--start-at-task "backup | Template backup environment file (encrypted volume)"` command. This variable is **optional**: empty just
 disables the monitor ping — the prune+check timer still runs.
 
 ## Offsite monitors (ADR-010)
@@ -68,10 +69,10 @@ Three more push monitors follow the same pattern:
 | Monitor        | Pinged by                                      | Interval       | Vault variable                                     |
 |----------------|------------------------------------------------|----------------|----------------------------------------------------|
 | Offsite copy   | resticprofile `copy` (homelab, nightly)        | 90000 s (25 h) | `offsite_copy_kuma_push_url` (homelab local.yml)   |
-| Offsite check  | `offsite-check.sh` (homelab, Sunday 06:00)     | 700000 s (8 d) | `offsite_check_kuma_push_url` (homelab local.yml)  |
+| Offsite check  | `resticprofile -n offsite check` (Sun 06:00)   | 700000 s (8 d) | `offsite_check_kuma_push_url` (homelab local.yml)  |
 | Offsite health | `offsite-health.sh` (offsite Pi, Sunday 08:00) | 700000 s (8 d) | `offsite_health_kuma_push_url` (offsite local.yml) |
 
-Deploy after filling the vault variables: same `--start-at-task "backup | Copy
+Deploy after filling the vault variables: same `--start-at-task "backup | Template
 backup script"` command for the homelab ones; for the offsite Pi:
 `ansible-playbook playbooks/offsite.yml --tags offsite-backup --ask-vault-pass`.
 

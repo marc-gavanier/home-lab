@@ -174,7 +174,7 @@ a permanently red monitor, which is worse than no monitor. The short test does
 run correctly here, completing in the two minutes it announces.
 
 Losing the surface scan matters less than it sounds, because the media is read
-in full anyway: the nightly backup reads every file, and `local-maintenance.sh`
+in full anyway: the nightly backup reads every file, and the weekly maintenance
 runs a rotating `restic check --read-data-subset` across the repository. A
 sector that cannot be read surfaces there.
 

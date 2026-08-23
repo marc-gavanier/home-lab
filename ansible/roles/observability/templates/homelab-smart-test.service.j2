@@ -16,6 +16,6 @@ Type=oneshot
 # The short test does run properly here — it completed without error in the two
 # minutes it announced. It exercises the electronics and a read sample, which is
 # less than a surface scan but is real. Surface coverage comes from elsewhere:
-# the nightly backup reads every file, and local-maintenance.sh runs a rotating
+# the nightly backup reads every file, and the weekly maintenance runs a rotating
 # `restic check --read-data-subset` over the repository.
 ExecStart=/usr/sbin/smartctl -t short {{ data_disk_device | regex_replace('[0-9]+$', '') }}
