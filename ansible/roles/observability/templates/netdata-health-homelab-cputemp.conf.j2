@@ -1,0 +1,37 @@
+# {{ ansible_managed }}
+# =============================================================================
+# Curated alarm — CPU temperature (ADR-030, phase 2)
+# =============================================================================
+# Replaces the thermal check in homelab-health.sh, once it has been seen to fire
+# and recover. Until then both run.
+#
+# 80 C is carried over unchanged: it is where the Pi's firmware starts throttling,
+# so it is a hardware fact rather than a tuned threshold. The script reports
+# `cpu 38C (throttling)` past that point, and this says the same thing.
+#
+# A TEMPLATE, not an alarm: it applies to every temperature sensor the host
+# exposes, so a second one appearing later is covered without a change here.
+# The adapter ranks matching instances and reports the worst, which is why that
+# is safe.
+#
+# `system.hw.sensor.temperature.input` is Netdata v2's naming — NOT `sensors.*`,
+# which is what a first search looked for and failed to find, concluding wrongly
+# that temperature was not collected. It is, natively, with no go.d collector
+# involved: verified at 36.05 C while homelab-health.sh reported 36C.
+#
+# Hysteresis clears 5 C below so a chip sitting on the line cannot flap.
+# =============================================================================
+
+ template: homelab_cpu_temperature
+       on: system.hw.sensor.temperature.input
+    class: Utilization
+     type: System
+component: CPU
+     calc: $input
+    units: Celsius
+    every: 1m
+     warn: $this >= (($status >= $WARNING) ? ({{ netdata_cpu_temp_threshold_c | int - 5 }}) : ({{ netdata_cpu_temp_threshold_c | int }}))
+    delay: up 2m down 15m multiplier 1.5 max 1h
+  summary: Homelab CPU temperature at or above {{ netdata_cpu_temp_threshold_c | int }}C
+     info: CPU temperature reached the level where the firmware throttles
+       to: silent

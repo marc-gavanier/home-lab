@@ -16,10 +16,26 @@
 # assumes: this container never gets the raw socket (ADR on the socket proxy),
 # and DOCKER_HOST is already pointed there in compose.yaml.
 #
-# Verified reachable from inside the netdata container before writing this:
-#   GET /version          -> 200
-#   GET /containers/json  -> 200, real payload
-# so the proxy's allow-list already covers what this collector needs.
+# THIS COLLECTOR DOES NOT WORK YET, and the file is kept because the diagnosis
+# is worth more than the config. Deployed on 2026-08-23 it produced no context
+# at all, and the running agent said why:
+#
+#   check failed: Error response from daemon: 403 Forbidden
+#   Request forbidden by administrative rules.   collector=docker job=local
+#
+# The pre-flight test that made this look safe was too narrow — /version and
+# /containers/json both answer 200, so the proxy looked open enough. The
+# collector needs more than that:
+#
+#   /version         200      /images/json   403
+#   /info            200      /system/df     403
+#   /containers/json 200      /_ping         200
+#
+# The socket-proxy runs with CONTAINERS=1 and INFO=1; IMAGES is off. Turning it
+# on is a deliberate widening of a security boundary — read-only listing of
+# image names, tags and sizes — and belongs to the operator, not to this file.
+# Until that decision is taken, no alarm references this collector and nothing
+# depends on it.
 #
 # `collect_container_size: no` is kept from the stock config: computing per
 # container disk usage walks the whole layer store, which on this host lives on
