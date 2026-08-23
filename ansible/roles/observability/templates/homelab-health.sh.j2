@@ -19,19 +19,28 @@ KUMA_PUSH_URL='{{ homelab_health_kuma_push_url | default("") }}'
 # Kuma reads the array as DOWN. Strip anything from '?' on so our params win.
 KUMA_PUSH_URL="${KUMA_PUSH_URL%%\?*}"
 
-notify() {
-    [ -n "$KUMA_PUSH_URL" ] || return 0
+# A SECOND monitor, for conditions that wait on a human rather than on the
+# machine. Empty = the split is off and everything rides the monitor above,
+# which is the behaviour this script had until #216.
+PENDING_PUSH_URL='{{ homelab_pending_kuma_push_url | default("") }}'
+PENDING_PUSH_URL="${PENDING_PUSH_URL%%\?*}"
+
+push_to() {   # $1 url, $2 status, $3 message
+    [ -n "$1" ] || return 0
     # The push URL carries the monitor's own token, so it goes in on stdin
     # instead of argv: /proc is mounted without hidepid, any local account can
     # read another process's command line, and this runs unattended on a timer
     # (#177). printf is a shell builtin, so the value never reaches an argv there
     # either.
-    printf 'url = "%s"\n' "$KUMA_PUSH_URL" |
+    printf 'url = "%s"\n' "$1" |
         curl -fsS -m 10 --retry 2 -K - -G \
-            --data-urlencode "status=$1" --data-urlencode "msg=$2" >/dev/null 2>&1 || true
+            --data-urlencode "status=$2" --data-urlencode "msg=$3" >/dev/null 2>&1 || true
 }
 
+notify() { push_to "$KUMA_PUSH_URL" "$1" "$2"; }
+
 problems=()
+pending=()
 report=()
 
 # --- Undervoltage ---
@@ -50,7 +59,7 @@ done
 # waiting on the operator — push DOWN once so Kuma pings, then schedule the
 # reboot+unlock deliberately. State-change only, so it notifies once, not every
 # heartbeat; clears to UP after the reboot.
-[ -f /var/run/reboot-required ] && problems+=("reboot pending — schedule homelab reboot+unlock")
+[ -f /var/run/reboot-required ] && pending+=("reboot pending — schedule homelab reboot+unlock")
 
 # --- Pending security updates (age-gated) ---
 # unattended-upgrades installs security fixes daily, so a bare nonzero count
@@ -67,7 +76,7 @@ if [ -x "$APT_CHECK" ]; then
         mkdir -p "$(dirname "$SEC_STAMP")"
         [ -f "$SEC_STAMP" ] || date +%s > "$SEC_STAMP"
         age=$(( $(date +%s) - $(cat "$SEC_STAMP" 2>/dev/null || echo 0) ))
-        [ "$age" -gt 172800 ] && problems+=("$sec security updates unapplied >48h")
+        [ "$age" -gt 172800 ] && pending+=("$sec security updates unapplied >48h")
     else
         rm -f "$SEC_STAMP"
     fi
@@ -292,7 +301,7 @@ PYEOF
         cert_days=$(( (cached_epoch - $(date +%s)) / 86400 ))
         report+=("certs ${cert_days}d/${cached_count}")
         if [ "$cert_days" -lt "$CERT_MIN_DAYS" ]; then
-            problems+=("certificate $cached_name expires in ${cert_days}d — Traefik renews at 30d, so ACME has been failing for over a week")
+            pending+=("certificate $cached_name expires in ${cert_days}d — Traefik renews at 30d, so ACME has been failing for over a week")
         fi
     else
         problems+=("certificate expiry unreadable in $ACME_JSON")
@@ -481,13 +490,41 @@ if command -v systemctl >/dev/null 2>&1 && mountpoint -q /mnt/data; then
 fi
 
 # --- Verdict ---
+# TWO signals, not one, and that split is the whole point of #216.
+#
+# A pending reboot waits on a human and stays true for days by construction.
+# Folded in with the acute checks it occupied the signal permanently: the
+# monitor sat DOWN for a whole day, and because Kuma notifies on a state CHANGE,
+# every acute condition appearing behind it reached nobody. The checks were
+# working; nothing they found could get out.
+#
+# So conditions that wait on a person go to their own monitor, where they can
+# stay red for a week without deafening anything.
+#
+# If that second monitor is not configured, they fold BACK into the main signal
+# rather than vanishing — an unconfigured URL must not silently drop a check.
 join() { local out; out=$(printf "%s$1" "${@:2}"); echo "${out%"$1"}"; }
 msg=$(join ', ' "${report[@]}")
 
 {# bash ${#array[@]} reads as a Jinja comment opener — shield it #}
-if [ {% raw %}${#problems[@]}{% endraw %} -gt 0 ]; then
+{% raw %}
+if [ -z "$PENDING_PUSH_URL" ] && [ ${#pending[@]} -gt 0 ]; then
+    problems+=("${pending[@]}")
+    pending=()
+fi
+
+if [ -n "$PENDING_PUSH_URL" ]; then
+    if [ ${#pending[@]} -gt 0 ]; then
+        push_to "$PENDING_PUSH_URL" down "$(join '; ' "${pending[@]}")"
+    else
+        push_to "$PENDING_PUSH_URL" up "nothing waiting on a human"
+    fi
+fi
+
+if [ ${#problems[@]} -gt 0 ]; then
     notify down "$(join '; ' "${problems[@]}") | $msg"
     exit 1
 fi
 
 notify up "$msg"
+{% endraw %}

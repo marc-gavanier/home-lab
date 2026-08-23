@@ -229,3 +229,20 @@ offsite_check_kuma_push_url: ""  # weekly offsite repo check
 netdata_resources_kuma_push_url: ""   # temperature, undervoltage, memory, swap, disk
 netdata_services_kuma_push_url: ""    # containers, systemd units, DNS, mirror
 netdata_pending_kuma_push_url: ""     # reboot pending, certificate expiry, SMART
+
+# --- The "waiting on a human" monitor (issue #216) ---
+# homelab-health.sh pushes TWO signals: the acute checks on the monitor above,
+# and the conditions that wait on a person here — a pending reboot, security
+# updates unapplied for over 48 h, a certificate whose renewal has been failing.
+#
+# Those stay true for days by construction. Folded in with the acute checks they
+# occupied the signal permanently, and since Kuma notifies on a state CHANGE,
+# everything appearing behind them reached nobody. That cost a full day on
+# 2026-08-22: the checks worked, nothing they found could get out.
+#
+# Create a second Push monitor in Kuma — "Pi pending action", long interval,
+# retries 0, resend enabled — and put its push URL here.
+#
+# EMPTY = the split is off and these conditions fold BACK into the main signal,
+# exactly as before. They are never silently dropped.
+homelab_pending_kuma_push_url: ""
