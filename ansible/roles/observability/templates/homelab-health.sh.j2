@@ -34,15 +34,6 @@ notify() {
 problems=()
 report=()
 
-# --- CPU temperature ---
-if [ -r /sys/class/thermal/thermal_zone0/temp ]; then
-    cpu_temp=$(( $(cat /sys/class/thermal/thermal_zone0/temp) / 1000 ))
-    report+=("cpu ${cpu_temp}C")
-    [ "$cpu_temp" -ge 80 ] && problems+=("cpu ${cpu_temp}C (throttling)")
-else
-    report+=("no thermal sensor")
-fi
-
 # --- Undervoltage ---
 # The firmware latches undervoltage events into the rpi_volt hwmon alarm.
 uv_seen=0
@@ -103,43 +94,26 @@ for fs in / /mnt/data; do
     [ "$usage" -ge "$DISK_THRESHOLD" ] && problems+=("$fs ${usage}% full")
 done
 
-# --- Memory ---
-# The swap half of this section MOVED to a curated Netdata alarm (ADR-030,
-# phase 1): health.d/homelab-swap.conf, reported by the `Pi resources` monitor.
-# It was removed here only after the whole chain had been seen to fire and
-# recover on 2026-08-23 — threshold lowered under the live value, monitor red
-# with `WARNING: homelab_used_swap 36.5%` and notified, then restored, green and
-# notified again. The reasoning behind the 85 % moved with it rather than being
-# restated; that file is now where it lives.
+# --- Moved to curated Netdata alarms (ADR-030) ------------------------------
+# Swap, available memory and CPU temperature all left this script, each only
+# after the whole chain had been seen to fire AND recover on the real system:
+# threshold pushed past the live value, monitor red and notified, threshold
+# restored, monitor green and notified again. They are now health.d/*.conf,
+# reported through the `Pi resources` monitor, and the reasoning behind each
+# number moved with it rather than being restated here.
+#
+# Undervoltage below stays, and is expected to: the firmware latches a bit, and
+# there is no way to force one without actually browning out the supply — so it
+# cannot be put through the same proof, and it is the signal that explains an
+# unexplained poweroff.
 #
 # The 57 STOCK Netdata alarms still reach nobody, which remains deliberate: they
 # are tuned for a generic server and the disk-backlog one alone would fire on
-# every nightly backup. What changed is that a signal we curate no longer has to
+# every nightly backup. What changed is that a signal WE curate no longer has to
 # be written in bash to reach a human.
 #
-# MemAvailable stays here for now — phase 2 has not moved it yet.
-#
-# MemAvailable, not "free": the page cache is reclaimable and /mnt/data churns
-# hundreds of MB a night, so free memory reads alarmingly low on a healthy Pi.
-# The threshold is measured against 19 days of Netdata retention — the hourly
-# minimum never went below 800 MiB, and the lowest instantaneous dip (756 MiB)
-# is absorbed by requiring two consecutive runs. Zero false alarms over the
-# whole observed period.
-MEM_THRESHOLD_MIB=800
-MEM_STAMP=/var/lib/homelab-health/lowmem.stamp
-if [ -r /proc/meminfo ]; then
-    mem_avail=$(awk '/^MemAvailable:/ {print int($2/1024)}' /proc/meminfo)
-    mem_avail=${mem_avail:-0}
-    report+=("mem ${mem_avail}Mi free")
-    if [ "$mem_avail" -lt "$MEM_THRESHOLD_MIB" ]; then
-        mkdir -p "$(dirname "$MEM_STAMP")"
-        # Second consecutive low reading, i.e. sustained for >5 min, not a dip.
-        [ -f "$MEM_STAMP" ] && problems+=("mem ${mem_avail}Mi available, under ${MEM_THRESHOLD_MIB}Mi twice running")
-        date +%s > "$MEM_STAMP"
-    else
-        rm -f "$MEM_STAMP"
-    fi
-fi
+# One artefact is left behind on the host by this removal:
+# /var/lib/homelab-health/lowmem.stamp, which nothing reads any more.
 
 # --- DNS upstream ---
 # Nothing else detects a dead DoH upstream, and the failure is silent in the
