@@ -149,14 +149,27 @@ reviewed by Renovate would be a hole in that process, not a convenience.
   notification adapter and ~210 lines of declarative configuration.
 
   Measured after the fact, across the whole repository: **3348 shell lines in 22
-  files → 3050 in 20**. Less than the 420 predicted here, and the gap is the
+  files → 3061 in 20** (3050 when this was written, before two later fixes). Less than the 420 predicted here, and the gap is the
   adapter: resticprofile's hooks receive `PROFILE_NAME` and `PROFILE_COMMAND` and
   nothing else — no snapshot id, no summary, no status file — so every message
   worth reading has to be rebuilt outside the tool. That is the honest price of
   this migration, and it is recorded rather than rounded away.
-- **The assertions are kept deliberately**, and this ADR is where that is
-  recorded, so a later reader does not mistake them for glue that was missed.
+- **The assertions were kept deliberately**, and this ADR is where that was
+  recorded, so a later reader would not mistake them for glue that was missed.
   resticprofile has no equivalent; they are what #190 left behind.
+
+  **Superseded 2026-08-24, and the reason is worth keeping visible rather than
+  rewriting away.** That sentence was true when written and stale within two
+  days: ADR-032 installed goss, whose entire job is expressing assertions
+  declaratively. The dump COMMANDS became `run-before` hooks and the assertions
+  `/etc/goss/backup-dumps.yaml`, both generated from two lists in group_vars.
+  373 lines to 19 named checks.
+
+  The lesson is not about goss. A justification for keeping code names the tool
+  that was missing at the time, and **nothing re-reads it when that tool
+  arrives**. This one survived a search for what to migrate because it had a
+  reason attached; it fell to a search for what to DELETE. Any "no tool
+  expresses this" in this repository should be read with its date attached.
 - The migration is staged, and nothing is deleted before it is observed:
   1. install resticprofile and its profile, change nothing else;
   2. run it by hand against the real repository, and **restore from the result**;
