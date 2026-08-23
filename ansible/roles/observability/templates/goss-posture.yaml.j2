@@ -44,9 +44,6 @@ file:
     exists: true
     mode: "{{ want }}"
 {% endfor %}
-  {{ backup_dir }}/dumps:
-    exists: true
-    mode: "0700"
   /mnt/data/secrets:
     exists: true
     mode: "0711"
@@ -55,6 +52,17 @@ file:
     mode: "0710"
 
 command:
+
+  # The dump directory is EPHEMERAL: the backup creates it, the snapshot takes
+  # it, and resticprofile's run-after removes it. So `exists: true` under file:
+  # would report a false problem every day the backup succeeded — which is every
+  # day. The script this replaces wrapped the same check in `if [ -d ]`; absent
+  # is a valid state, a wrong mode is not.
+  backup-dumps-mode:
+    exec: stat -c %a {{ backup_dir }}/dumps 2>/dev/null || echo absent
+    exit-status: 0
+    stdout: ["/^(700|absent)$/"]
+
 {% set compose = lookup('file', playbook_dir + '/../../docker/compose.yaml') | from_yaml %}
 {% for name, svc in compose.services.items() %}
 {%- set cname = svc.container_name | default(name) %}
