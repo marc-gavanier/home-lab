@@ -52,6 +52,21 @@ homelab_wg_ip: "10.8.0.5"
 # (--quiet-unsupported) and the SSD's own background GC handles wear.
 usb_storage_quirks: "174c:55aa:u"
 backup_disk_device: /dev/sda1
+# The whole drive, which is what SMART is queried on — the partition above is
+# what gets mounted. Spelled out rather than derived with a filter so the goss
+# spec renders outside Ansible too, which is how it gets tested.
+backup_disk_device_base: /dev/sda
+
+# SMART attributes that must stay at zero, each an assertion of its own in
+# goss-offsite-health.yaml so the failing NAME says which predictor moved.
+offsite_smart_counters:
+  - {id: 5, name: realloc}
+  - {id: 170, name: grown-bad-blocks}
+  - {id: 171, name: program-fail}
+  - {id: 172, name: erase-fail}
+  - {id: 184, name: end-to-end}
+  - {id: 187, name: uncorrectable}
+  - {id: 199, name: crc-err}
 backup_mount_point: /mnt/backup
 offsite_disk_force_format: false # Set true (once) to format a non-ext4 disk
 
