@@ -83,7 +83,19 @@
 
       [Service]
       Type=oneshot
-      ExecStart=/opt/homelab/scripts/backup.sh
+      # TWO commands, not one. `resticprofile backup` does NOT trigger `copy` —
+      # verified with a two-hook profile, only the backup hook fired — and
+      # resticprofile's groups assemble PROFILES rather than commands within
+      # one. Pointing this at `backup` alone would have stopped offsite
+      # replication while every run reported success.
+      #
+      # Type=oneshot runs them in order and stops at the first failure, which is
+      # what we want: there is nothing to replicate if the backup did not run.
+      # Each command carries its own notification hooks, so the two monitors stay
+      # independent — the copy fails for reasons of its own (the tunnel, the
+      # remote host) and must not hide behind the backup signal.
+      ExecStart=/usr/local/bin/resticprofile -c /opt/homelab/resticprofile.yaml -n homelab backup
+      ExecStart=/usr/local/bin/resticprofile -c /opt/homelab/resticprofile.yaml -n homelab copy
       EnvironmentFile=/opt/homelab/backup.env
       Environment=HOME=/root
 
