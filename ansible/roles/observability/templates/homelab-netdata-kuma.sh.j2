@@ -112,7 +112,7 @@ join() { local sep="$1"; shift; local out; out="$(printf "%s${sep}" "$@")"; prin
 
 group() {   # $1 push url, $2.. alarm names
     local url="$1"; shift
-    local problems=() reports=() name rows bad odd status value chart count n
+    local problems=() reports=() name rows alive bad odd status value chart count n
 
     if [ -z "$ALARM_TABLE" ]; then
         push "$url" down "netdata unreachable — state of $# alarm(s) unknown"
@@ -156,12 +156,25 @@ EOF
             continue
         fi
 
+        # A REMOVED instance is a chart that went away — most often a container
+        # deleted from compose. Measured on this host: netdata drops such a
+        # chart from its listing within 90 s of `docker rm`, so this is a narrow
+        # window rather than a state, and it calls for no action. It must not
+        # turn a monitor red while twenty siblings are fine. EVERY instance
+        # removed is a different event — the collector itself going away — and
+        # that is reported.
+        alive="$(printf '%s\n' "$rows" | grep -Pv "^\Q$name\E\tREMOVED\t" || true)"
+        if [ -z "$alive" ]; then
+            problems+=("${name}: every instance is REMOVED")
+            continue
+        fi
+
         # Nothing is in WARNING or CRITICAL, but a single instance in any state
         # that is not CLEAR still counts. UNDEFINED / UNINITIALIZED / REMOVED are
         # brief after a netdata restart — including the one this role's handler
         # performs — and a real defect if they persist, so they are reported raw
         # rather than smoothed over. A status netdata invents lands here too.
-        odd="$(printf '%s\n' "$rows" | grep -Pv "^\Q$name\E\tCLEAR\t" | head -1 || true)"
+        odd="$(printf '%s\n' "$alive" | grep -Pv "^\Q$name\E\tCLEAR\t" | head -1 || true)"
         if [ -n "$odd" ]; then
             problems+=("${name} is $(printf '%s' "$odd" | cut -f2)")
             continue
@@ -170,11 +183,11 @@ EOF
         # All clear. One instance keeps the original reading; several report
         # their count, because the value of an arbitrary one of 21 containers
         # says nothing that "ok on 21 instances" does not say better.
-        count="$(printf '%s\n' "$rows" | grep -c . || true)"
+        count="$(printf '%s\n' "$alive" | grep -c . || true)"
         if [ "${count:-0}" -gt 1 ]; then
             reports+=("${name} ok on ${count} instances")
         else
-            value="$(printf '%s' "$rows" | cut -f3)"
+            value="$(printf '%s' "$alive" | cut -f3)"
             reports+=("${name}${value:+ ${value}}")
         fi
     done
