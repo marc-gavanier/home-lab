@@ -39,10 +39,27 @@
 # set on it in Kuma (#200). Without that, a second condition appearing while the
 # first is unresolved reaches nobody. The grouping is only safe with it.
 #
-# `{% raw %}` is not decoration: `${#problems[@]}` opens a Jinja COMMENT, so
-# without it this template fails to render with "Missing end of comment tag" —
-# and a stale rendered copy will happily pass `bash -n` while you think you are
-# checking the new one.
+# The raw block below is not decoration. Bash's array-length syntax opens a
+# Jinja COMMENT, so without the block this template fails to render with
+# "Missing end of comment tag" — and a stale rendered copy will happily pass
+# `bash -n` while you think you are checking the new one.
+#
+# This paragraph used to demonstrate the problem by quoting both the offending
+# bash syntax and the marker that cures it, and that was itself the defect,
+# twice over:
+#
+#   - the quoted opening marker OPENED THE BLOCK HERE, ten lines early;
+#   - which is the only reason the template rendered at all, because it then
+#     shielded the array-length syntax quoted right after it. Remove the marker
+#     from this paragraph without also removing the bash syntax and Jinja stops
+#     on the comment instead. Measured, while fixing the first defect.
+#
+# What the early open cost: the real marker below was emitted verbatim into the
+# deployed file, and bash reported it as an unknown command on every run — 288
+# times a day, in a script whose whole job is to make silence suspicious.
+#
+# Outside the block they delimit, DESCRIBE the markers and the bash syntax.
+# Never quote either.
 #
 # The alarm names below must match the `alarm:` lines in health.d/. A name that
 # does not resolve reports its group DOWN saying so, rather than silently
