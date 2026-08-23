@@ -23,6 +23,22 @@ homelab:
   # initialising a second, empty repository on the mountpoint's own directory.
   initialize: false
 
+  # The offsite repository is a REST server behind HTTP auth, and restic reads
+  # those credentials from RESTIC_REST_USERNAME / RESTIC_REST_PASSWORD — names
+  # backup.env does not use. backup.sh set them inline on the copy command; here
+  # they are mapped once.
+  #
+  # Found the hard way: without this the copy dies with
+  #   Fatal: unable to open config file: unexpected HTTP response (401)
+  # which is at least a loud failure, and the notification hook reported it
+  # correctly — that half of the migration proved itself by breaking.
+  #
+  # Harmless on the local repository: it is a filesystem path, so REST
+  # credentials are ignored there.
+  env:
+    RESTIC_REST_USERNAME: '{{ "{{ .Env.OFFSITE_REST_USER }}" }}'
+    RESTIC_REST_PASSWORD: '{{ "{{ .Env.OFFSITE_REST_PASSWORD }}" }}'
+
   backup:
     # The dump directory only exists DURING a run — backup.sh does
     # `rm -rf` then `install -d` at the start and `rm -rf` at the end — so
