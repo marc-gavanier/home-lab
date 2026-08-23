@@ -16,6 +16,23 @@
     dest: /usr/local/bin/homelab-health.sh
     mode: "0750"
 
+# The systemd block kept three hand-written state files. Two of its conditions
+# are now goss assertions and the third — the NRestarts comparison — is gone on
+# its own measurement, so the files are orphans. Removed from the host rather
+# than left: a state file nothing reads is something the next reader has to work
+# out, and this directory is where the next person will look first.
+- name: health | Remove the state files the goss migration orphaned
+  ansible.builtin.file:
+    path: "/var/lib/homelab-health/{{ item }}"
+    state: absent
+  loop:
+    - nrestarts
+    - autorestart
+    - inactive
+    - flapping
+    - dns.stamp
+    - security-pending.stamp
+
 - name: health | Install the health-report service and timer
   ansible.builtin.template:
     src: "{{ item }}.j2"

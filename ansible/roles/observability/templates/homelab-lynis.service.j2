@@ -4,4 +4,17 @@ Description=Homelab weekly lynis security audit (report to Uptime Kuma)
 
 [Service]
 Type=oneshot
+# The script exits 1 when it pushes DOWN, which is a REPORT and not a failure —
+# the same convention the five other push units already declare. Without this,
+# one event is counted twice: the lynis monitor goes red AND systemd records the
+# unit as failed, so `systemctl --failed` reports it and the host-health check
+# reports that. Measured tonight: the 2026-08-24 00:30 audit found the hardening
+# index down 73 -> 71 and pushed DOWN correctly, and Pi health then said
+# "systemd failed: homelab-lynis.service; last run failed: ...(exit-code)" —
+# two lines, one fact, neither of them the index that actually moved.
+#
+# ADR-030 catalogued the inconsistency ("SuccessExitStatus=1 is present on three
+# units and absent on the fourth") and it stayed open until a goss assertion on
+# `systemctl --failed` was about to codify it.
+SuccessExitStatus=1
 ExecStart=/usr/local/bin/homelab-lynis-report.sh

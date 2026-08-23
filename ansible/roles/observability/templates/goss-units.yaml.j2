@@ -1,0 +1,64 @@
+# {{ ansible_managed }}
+# =============================================================================
+# Homelab — systemd unit state, declared (ADR-030, ADR-032)
+# =============================================================================
+# Two of the five conditions homelab-health.sh implemented by hand. The other
+# three did not move, and the reasons are worth knowing before editing this:
+#
+#   activating loop   the units have to be ENUMERATED and named, and goss cannot
+#                     report a value — it streams stdout and every format says
+#                     `object: *bytes.Reader`. It stays in the script.
+#   timer last run    enumerated from `systemctl list-timers homelab-*`, so a new
+#                     timer is covered without editing anything. A static spec
+#                     would trade that for a list to maintain. It stays.
+#   NRestarts delta   DELETED rather than moved, on the script's own measurement:
+#                     "Measured over 60 days: one real detection and ZERO
+#                     notifications". It cost a state file, a latch and the
+#                     subtlest reasoning in that file.
+#
+# --- Why `running` and not `enabled` ----------------------------------------
+# Measured, and it is the repository's own decision showing up in a linter: goss
+# reports docker.service `enabled: Expected false to equal true`, because the
+# staged startup owns docker deliberately and ssh is socket-activated. Both must
+# be RUNNING and neither is enabled. Asserting `enabled` here would fail forever
+# on a correct machine.
+#
+# --- The grace period is NOT here -------------------------------------------
+# goss has no memory, and these checks exist because of one: Docker restarted on
+# 2026-08-16 at 21:36:23 and was up at 21:37:02, 39 seconds where systemctl does
+# not say "active". A check running every five minutes has a 13% chance of
+# landing there. homelab-health.sh passes the names of failing assertions through
+# the shared gate before reporting them, so a transient restart never leaves this
+# spec as a notification. That composition is what made this migration possible
+# at all — the gate arrived first, on purpose.
+#
+# Nothing here is gated on /mnt/data either. The script skips this whole spec
+# before the LUKS unlock, when the stack is legitimately down and
+# claude-remote-control legitimately retries.
+# =============================================================================
+
+service:
+{% for u in health_watched_units %}
+  # {{ u.why }}
+  {{ u.unit }}:
+    running: true
+{% endfor %}
+
+command:
+
+  # The catch-all, and it is the one that names nothing — deliberately. The five
+  # assertions above name their unit; this one exists for a unit NOBODY listed,
+  # which is exactly the case a list cannot cover. When it fires, the operator
+  # runs `systemctl --failed`, which is one command and the same one this runs.
+  #
+  # `systemctl --failed` alone would NOT have caught either incident that made
+  # these checks exist: a unit with Restart=on-failure and StartLimitIntervalSec=0
+  # restarts forever and never reaches the failed state — it sits in
+  # activating/auto-restart, and --failed stays empty. That is why the script
+  # still watches `activating` separately. claude-remote-control looped 1 112
+  # times over 5h47 on 2026-07-27 while work was going on continuously on this
+  # host, and fail2ban — including its sshd jail — was down for six minutes the
+  # same morning (issue #52).
+  systemd-no-failed-units:
+    exec: '[ -z "$(systemctl --failed --no-legend --plain 2>/dev/null)" ]'
+    exit-status: 0
