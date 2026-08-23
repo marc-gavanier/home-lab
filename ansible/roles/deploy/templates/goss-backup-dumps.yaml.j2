@@ -1,0 +1,159 @@
+# {{ ansible_managed }}
+# =============================================================================
+# Home Lab — dump assertions, declared (ADR-031, ADR-032)
+# =============================================================================
+# These were the most valuable lines of backup.sh and then of backup-dumps.sh:
+# what turned "the dump file is present" into "it opens, it is fresh, and it
+# carries its completion marker" (#190, where a guard tested a DIRECTORY and a
+# truncated dump passed for months).
+#
+# ADR-031 kept them in shell and said why: "resticprofile has no equivalent".
+# True when written, and stale since ADR-032 installed goss — whose whole job is
+# exactly this. The reasoning moves here with the commands; none of it is
+# dropped, because the reasoning is the asset.
+#
+# --- The shape: one assertion per failure MODE, named after it --------------
+# The first draft had one check per dump printing a token — `missing`,
+# `truncated`, `corrupt`, `empty` — and asserted the token. It caught every
+# sabotaged dump, and reported each one as:
+#
+#   not ok - Command: dump-vaultwarden: stdout: Expected "object: *bytes.Reader"
+#
+# goss streams stdout and never materialises it for the message, in every output
+# format including json. So the operator would have learned that a dump failed
+# and not which way, losing the diagnosis that `log ERROR ... — truncated` gave.
+# Measured on the real dumps before committing to the shape.
+#
+# So the mode moves into the NAME, which goss always prints. `dump-vaultwarden-
+# content` failing says by itself that the copy opened and held nothing. That is
+# what a declarative spec is for, and it is strictly better than the string the
+# script used to log — it is greppable and it is the same on every run.
+#
+# The counting that used to be `dump_failures` is goss's summary line, and the
+# deferred verdict is its exit status. That is the ~80 lines of bookkeeping this
+# file removes rather than relocates.
+#
+# --- Gated on the CONTAINER, not on the database file (#177) -----------------
+# Both used to hang off the same `[ -f "$DB" ]`, so a version bump that moved a
+# path made the dump, its assertion and every log line disappear TOGETHER: the
+# failure counter stayed 0 and the night reported success with nothing to show.
+# Not theoretical — a bump renamed wg-easy's store from wg0.json to wg-easy.db
+# and nothing noticed for weeks.
+#
+# A service that is not deployed legitimately has no dump and says `ok`. A
+# service that IS deployed and whose database is not where we look says
+# `source-moved`, which is the failure that had no name before.
+#
+# `docker inspect` rather than `docker ps --format`: the format string would put
+# Go template delimiters in this file, and goss renders it as a Go template
+# before parsing it. The braces would be consumed, not asserted.
+# =============================================================================
+command:
+
+  # --- SQL dumps: assert the completion marker, not a byte floor -------------
+  # This used to be a floor of 10240 bytes for all five. Measured against the
+  # run of 2026-08-16, that was 0.037 % of miniflux.sql and 0.85 % of
+  # vaultwarden.sqlite3: a dump cut to one percent of itself passed a check
+  # whose own message said "truncated?" (#127). Raising the number was never the
+  # answer — modelling expected growth buys nothing and breaks on a quiet day.
+  #
+  # The marker is written LAST by both tools, so its absence is exactly what
+  # "died mid-write" looks like, at any size.
+  #
+  # The TAIL, not the last line: pg_dump 18 writes `\unrestrict` AFTER its
+  # completion marker, so a last-line test fails on a perfectly good dump.
+  #
+  # `case` rather than `grep -qF`: grep -q exits on the first match and can
+  # SIGPIPE the tail feeding it, which under pipefail turns a SUCCESSFUL match
+  # into status 141 — a race that reported a good dump as broken on some nights
+  # and not others. A case statement has no pipe to break.
+{% for d in backup_sql_dumps %}
+  dump-{{ d.name }}-present:
+    exec: test -f {{ backup_dir }}/dumps/{{ d.file }}
+    exit-status: 0
+  dump-{{ d.name }}-complete:
+    exec: |
+      t=$(tail -c 4096 {{ backup_dir }}/dumps/{{ d.file }} 2>/dev/null)
+      case "$t" in *'{{ d.marker }}'*) exit 0 ;; *) exit 1 ;; esac
+    exit-status: 0
+{% endfor %}
+
+  # --- SQLite copies: the source, then the copy ------------------------------
+  # Gated on the CONTAINER, not on the database file (#177). Both used to hang
+  # off the same `[ -f "$DB" ]`, so a version bump that moved a path made the
+  # dump, its assertion and every log line disappear TOGETHER: the failure
+  # counter stayed 0 and the night reported success with nothing to show. Not
+  # theoretical — a bump renamed wg-easy's store from wg0.json to wg-easy.db and
+  # nothing noticed for weeks. A service that is not deployed legitimately has no
+  # dump and passes; one that IS deployed with its database elsewhere fails
+  # `-source`, the failure that had no name before.
+  #
+  # `docker inspect` rather than `docker ps --format`: the format string would
+  # put Go template delimiters in this file, and goss renders it as a Go template
+  # before parsing it. The braces would be consumed, not asserted.
+  #
+  # `-content` is not redundant with `-integrity`, and measurement is the only
+  # reason we know it: a ZERO-BYTE file passes quick_check. SQLite reads an empty
+  # file as a valid empty database, and an empty file is exactly what a `.backup`
+  # that failed at the first step leaves behind. Restoring an empty Vaultwarden
+  # is not a lesser disaster than restoring a corrupt one.
+{% for d in backup_sqlite_dumps %}
+  dump-{{ d.name }}-source:
+    exec: docker inspect {{ d.container }} >/dev/null 2>&1 || exit 0; test -f {{ d.source }}
+    exit-status: 0
+  dump-{{ d.name }}-present:
+    exec: docker inspect {{ d.container }} >/dev/null 2>&1 || exit 0; test -f {{ backup_dir }}/dumps/{{ d.file }}
+    exit-status: 0
+  dump-{{ d.name }}-integrity:
+    exec: |
+      docker inspect {{ d.container }} >/dev/null 2>&1 || exit 0
+      f={{ backup_dir }}/dumps/{{ d.file }}
+      [ "$(sqlite3 -cmd '.timeout 5000' "$f" 'pragma quick_check;' 2>&1 | head -1)" = ok ]
+    exit-status: 0
+  dump-{{ d.name }}-content:
+    exec: |
+      docker inspect {{ d.container }} >/dev/null 2>&1 || exit 0
+      f={{ backup_dir }}/dumps/{{ d.file }}
+      [ "$(sqlite3 -cmd '.timeout 5000' "$f" 'select count(*) from sqlite_master;' 2>/dev/null || echo 0)" -ge 1 ]
+    exit-status: 0
+{% endfor %}
+
+  # --- Immich: a STALE dump, not a missing one -------------------------------
+  # Immich is not dumped by the backup — it runs its own scheduled job into the
+  # restic set — so its failure mode is different. keepLastAmount only prunes
+  # when a new dump is written, so if that job ever stops, the last seven sit
+  # there indefinitely and every snapshot keeps carrying a dump of arbitrary
+  # age. Nothing would look wrong anywhere.
+  #
+  # And the content is asserted, not just the mtime: a truncated .sql.gz lands
+  # with a current mtime, gets certified fresh, and keepLastAmount then prunes
+  # the last good one behind it.
+  #
+  # `-usable` does integrity and completeness in ONE pass, deliberately. zcat
+  # decompresses the whole stream to reach the tail and verifies the CRC as it
+  # finishes, so its exit status covers integrity while the tail carries the
+  # marker. Measured on the real 89 MB dump: `gzip -t` 3.60s, `zcat | tail -c
+  # 4096` 4.03s — the tail read is the MORE expensive of the two, so splitting
+  # this into two assertions would pay 4s twice for one answer.
+  dump-immich-present:
+    exec: |
+      docker inspect immich-server >/dev/null 2>&1 || exit 0
+      [ -d {{ immich_backup_dir }} ] && \
+      [ -n "$(find {{ immich_backup_dir }} -name 'immich-db-backup-*.sql.gz' -print -quit 2>/dev/null)" ]
+    exit-status: 0
+  dump-immich-fresh:
+    exec: |
+      docker inspect immich-server >/dev/null 2>&1 || exit 0
+      newest=$(find {{ immich_backup_dir }} -name 'immich-db-backup-*.sql.gz' -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1)
+      [ -n "$newest" ] || exit 1
+      [ $(( ( $(date +%s) - ${newest%%.*} ) / 3600 )) -lt 48 ]
+    exit-status: 0
+  dump-immich-usable:
+    exec: |
+      docker inspect immich-server >/dev/null 2>&1 || exit 0
+      newest=$(find {{ immich_backup_dir }} -name 'immich-db-backup-*.sql.gz' -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1)
+      [ -n "$newest" ] || exit 1
+      t=$(zcat -- "${newest#* }" 2>/dev/null | tail -c 4096) || exit 1
+      case "$t" in *'-- PostgreSQL database dump complete'*) exit 0 ;; *) exit 1 ;; esac
+    exit-status: 0
+    timeout: 120000

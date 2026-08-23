@@ -57,6 +57,49 @@ services_data_dir: "{{ data_mount_point }}/services"
 media_dir: "{{ data_mount_point }}/media"
 backup_dir: "{{ data_mount_point }}/backups"
 
+# Where the backup writes its narrative, and where the dump assertions leave
+# their verdict. The TAP file is goss's own output, read by the notification
+# hook: its ABSENCE means the dump step did not run at all, which is not the
+# same as "no failures" and must not read as success.
+backup_log: /var/log/homelab-backup.log
+dump_tap: /run/homelab-backup-dumps.tap
+
+# --- Database dumps and their assertions (ADR-031) ---------------------------
+# The dump commands live in the resticprofile `backup` hook and the assertions
+# in goss-backup-dumps.yaml; both are generated from these lists, so a database
+# added here gets dumped AND checked, and cannot get one without the other —
+# which is the defect #177 named, wearing different clothes.
+backup_sql_dumps:
+  - name: nextcloud
+    file: nextcloud.sql
+    marker: "-- Dump completed on"
+  - name: miniflux
+    file: miniflux.sql
+    marker: "-- PostgreSQL database dump complete"
+
+# `source` is where the LIVE database is expected. Asserting it separately from
+# the dump is what turns "a version bump moved the path" from a silent skip into
+# a named failure.
+backup_sqlite_dumps:
+  - name: vaultwarden
+    container: vaultwarden
+    source: "{{ services_data_dir }}/vaultwarden/db.sqlite3"
+    file: vaultwarden.sqlite3
+  - name: forgejo
+    container: forgejo
+    # The doubled segment is not a typo: the host directory forgejo/data is
+    # mounted at /var/lib/gitea, and Forgejo keeps its own APP_DATA_PATH one
+    # level under that, so the database lands in forgejo/data/data/.
+    source: "{{ services_data_dir }}/forgejo/data/data/forgejo.db"
+    file: forgejo.sqlite3
+  - name: uptime-kuma
+    container: uptime-kuma
+    source: "{{ services_data_dir }}/uptime-kuma/kuma.db"
+    file: uptime-kuma.sqlite3
+
+# Immich dumps itself on its own schedule, into the restic set. Only asserted.
+immich_backup_dir: "{{ services_data_dir }}/immich/upload/backups"
+
 # --- Backup ---
 # No backup_schedule here on purpose. One used to sit at this line holding
 # "0 3 * * *" — the correct time, read by nothing. Editing it to move the
