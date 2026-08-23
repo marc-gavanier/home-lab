@@ -41,10 +41,10 @@ Uses Pi-hole as DNS (`dns: [${PI_LAN_IP}]` in compose) so that domain lookups fo
 | Transmission BT Peer Port | TCP Port | `transmission:51413`                              |
 | Pi-hole DNS               | DNS      | Resolver `192.168.1.100`, query `example.com`     |
 | Pi (ping)                 | Ping     | `192.168.1.100`                                   |
-| Backup                    | Push     | `backup.sh`, daily 03:00                          |
+| Backup                    | Push     | resticprofile `backup`, daily 03:00               |
 | DDNS                      | Push     | `cloudflare-ddns.sh`, every 15 min                |
 | Nextcloud notify_push     | Push     | `notify_push:self-test`, hourly                   |
-| Offsite backup            | Push     | `backup.sh` copy stage, daily 03:00               |
+| Offsite backup            | Push     | resticprofile `copy`, daily 03:00                 |
 | Offsite check             | Push     | `offsite-check.sh`, Sun 06:00                     |
 | Offsite health            | Push     | `offsite-health.sh`, on the offsite Pi            |
 | Pi disk health            | Push     | `homelab-disk.sh`, daily 07:05                    |

@@ -8,10 +8,10 @@
 > Earlier (2026-07-11): `restic check --read-data-subset=2%`, Vaultwarden scratch restore,
 > Nextcloud dump into a throwaway MariaDB (156 tables).
 
-Backups are made by `ansible/roles/deploy/files/backup.sh` (daily `homelab-backup.timer`) into the Restic repo
+Backups are made by `homelab-backup.timer`, which runs resticprofile (ADR-031), into the Restic repo
 at `/mnt/data/backups/restic-repo`. They cover `/mnt/data/services` (service data),
 `/mnt/data/media` (photos/music/videos), `/mnt/data/secrets` (the credential files —
-omitted from this list until #178, though `backup.sh` has always included them), the
+omitted from this list until #178, though the backup has always included them), the
 DB dumps, and `/opt/homelab`. See
 `docs/06-backup/README.md`.
 

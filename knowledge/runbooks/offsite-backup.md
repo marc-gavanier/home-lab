@@ -6,8 +6,9 @@ append-only mode. The repo password is deliberately NOT stored on it.
 
 ## Daily operation (all automatic)
 
-- 03:00 — homelab `backup.sh`: local backup, then an offsite copy of every snapshot
-  from the **last 7 days** that is not already there (Kuma push monitor "offsite copy").
+- 03:00 — `homelab-backup.service` runs resticprofile twice: a local backup, then
+  an offsite copy of **every** snapshot not already there (Kuma push monitor
+  "offsite copy").
   It is a retry window, not a single `restic copy latest`: a night that failed its copy
   is picked up by the following nights instead of being lost (#158). Re-offering
   snapshots already present creates no duplicates — the message reads e.g.
@@ -93,9 +94,13 @@ each other's packs as **permanent duplicates** (append-only blocks the
 cleanup; interrupted copies also leave unindexed packs that the next run
 re-uploads entirely). The 2026-07-12 initial seed collided with the 03:00
 nightly copy this way: ~100 GB of duplicates, reclaimed by a one-time manual
-prune. `backup.sh` now guards its copy step with
-`flock /var/lock/offsite-copy.lock`; any manual copy/seed MUST use the same
-lock:
+prune. The profile now guards the WHOLE run — backup and copy alike — with
+`lock: /var/lock/resticprofile-homelab.lock`, which is wider than the
+`flock` on the copy step it replaces. A second invocation is refused with
+"another process is already running this profile".
+
+That protection only holds if manual runs go through resticprofile rather than
+calling restic directly:
 
 ```bash
 flock /var/lock/offsite-copy.lock restic copy ...

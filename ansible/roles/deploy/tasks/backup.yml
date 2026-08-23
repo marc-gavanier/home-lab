@@ -16,13 +16,14 @@
     group: root
     mode: "0750"
 
-- name: backup | Copy backup script
-  ansible.builtin.copy:
-    src: backup.sh
-    dest: /opt/homelab/scripts/backup.sh
-    owner: root
-    group: root
-    mode: "0750"
+# backup.sh is gone (ADR-031 phase 3): resticprofile does the orchestration, and
+# its dumps and assertions live in backup-dumps.sh. Removed from the host too —
+# a 594-line script that nothing invokes is not a safety net, it is something the
+# next reader has to work out.
+- name: backup | Remove the superseded backup script
+  ansible.builtin.file:
+    path: /opt/homelab/scripts/backup.sh
+    state: absent
 
 - name: backup | Template backup environment file (encrypted volume)
   ansible.builtin.template:

@@ -1,12 +1,12 @@
 # Runbook — Backup monitoring (Uptime Kuma push)
 
-The daily Restic backup (`ansible/roles/deploy/files/backup.sh`, run by `homelab-backup.timer`) reports its
+The daily Restic backup (resticprofile, run by `homelab-backup.timer` — ADR-031) reports its
 outcome to an Uptime Kuma **Push** monitor — a dead-man's switch that goes red both on
 failure *and* when no backup ran at all (Pi down, timer broken, repo unreachable).
 
 ## How it works
 
-- On exit, `backup.sh` pings the monitor via a `trap`: `status=up` on success,
+- On exit, `backup-notify.sh` pings the monitor from resticprofile's hooks: `status=up` on success,
   `status=down` (with the error) on failure.
 - If Uptime Kuma receives no ping within the monitor's interval, it marks the monitor
   down and fires the attached notification.
@@ -32,7 +32,7 @@ failure *and* when no backup ran at all (Pi down, timer broken, repo unreachable
    ansible-playbook playbooks/site.yml --tags deploy \
      --start-at-task "backup | Copy backup script" --ask-vault-pass
    ```
-   This redeploys `backup.sh` and regenerates `backup.env` with `KUMA_PUSH_URL`.
+   This redeploys the profile and its scripts, and regenerates `backup.env` with `KUMA_PUSH_URL`.
 
 ## Test
 
@@ -67,7 +67,7 @@ Three more push monitors follow the same pattern:
 
 | Monitor        | Pinged by                                      | Interval       | Vault variable                                     |
 |----------------|------------------------------------------------|----------------|----------------------------------------------------|
-| Offsite copy   | `backup.sh` copy step (homelab, nightly)       | 90000 s (25 h) | `offsite_copy_kuma_push_url` (homelab local.yml)   |
+| Offsite copy   | resticprofile `copy` (homelab, nightly)        | 90000 s (25 h) | `offsite_copy_kuma_push_url` (homelab local.yml)   |
 | Offsite check  | `offsite-check.sh` (homelab, Sunday 06:00)     | 700000 s (8 d) | `offsite_check_kuma_push_url` (homelab local.yml)  |
 | Offsite health | `offsite-health.sh` (offsite Pi, Sunday 08:00) | 700000 s (8 d) | `offsite_health_kuma_push_url` (offsite local.yml) |
 

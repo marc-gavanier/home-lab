@@ -299,7 +299,7 @@ Retention: 7 daily, 4 weekly, 6 monthly snapshots.
 
 Manual backup:
 ```bash
-ssh homelab "sudo /opt/homelab/scripts/backup.sh"
+ssh homelab "sudo systemctl start homelab-backup.service"
 ```
 
 Check snapshots:
