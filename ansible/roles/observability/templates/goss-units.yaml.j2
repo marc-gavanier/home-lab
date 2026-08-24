@@ -62,3 +62,18 @@ command:
   systemd-no-failed-units:
     exec: '[ -z "$(systemctl --failed --no-legend --plain 2>/dev/null)" ]'
     exit-status: 0
+
+  # e2scrub_all.timer is masked because it scrubs LVM logical volumes and this
+  # host has none — it was green every week since installation over ZERO bytes
+  # (#154). The mask is what this asserts, not the absence of the package: the
+  # timer ships with e2fsprogs, so an update can put the unit file back, and the
+  # thing that must survive is the decision, not the file.
+  #
+  # `is-enabled` on a masked unit prints `masked` and exits 1 (measured on
+  # lynis.timer, which is masked here for the same class of reason). Asserting
+  # BOTH the word and the exit status matters: `enabled` also exits 0, so an
+  # exit-status assertion alone would pass on exactly the state this forbids.
+  e2scrub-timer-still-masked:
+    exec: systemctl is-enabled e2scrub_all.timer
+    exit-status: 1
+    stdout: ["/^masked$/"]

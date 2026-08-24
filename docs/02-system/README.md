@@ -68,3 +68,16 @@ See `docs/06-backup/` for backup strategy.
 ├── backups/           # Restic repositories
 └── swapfile           # Swap (4 GiB)
 ```
+
+### Filesystem integrity — what checks what
+
+| Volume | Checked by | When |
+|--------|------------|------|
+| `/mnt/data` (HDD) | `e2fsck -p` inside `homelab-unlock`, on the still-unmounted mapper | every unlock — about a second on a clean filesystem, a real scan after an unclean shutdown |
+| `/` (SD) | nothing | `passno=0`, `Maximum mount count: -1`, `Check interval: 0` — see #154, deliberately still open |
+| both | the daily disk report reads the superblock error counters (`ext4 clean`) | daily — this catches errors the kernel **already noticed**, which is not a consistency check |
+
+`e2scrub_all.timer` is **masked on both hosts** and is not part of that table.
+It scrubs LVM logical volumes; neither host has LVM, so it ran green every week
+over zero bytes. A goss assertion now keeps it masked, because the unit ships
+with `e2fsprogs` and a package update could put the green no-op back.
