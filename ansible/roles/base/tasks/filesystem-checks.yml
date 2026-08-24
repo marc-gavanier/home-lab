@@ -1,0 +1,73 @@
+---
+# =============================================================================
+# base | Filesystem integrity — and one control that only looks like it (#154)
+# =============================================================================
+# Measured on BOTH hosts (2026-08-16, re-measured 2026-08-24):
+#
+#   systemctl is-enabled e2scrub_all.timer   -> enabled, active, green weekly
+#   e2scrub_all -n                           -> (empty output)
+#   vgs                                      -> (empty output)
+#
+# e2scrub only ever scrubs LVM LOGICAL VOLUMES — checking a mounted filesystem
+# requires a snapshot, and the snapshot is what LVM provides. Neither host has
+# LVM, so this timer has fired every week since installation over ZERO bytes.
+# It is not misconfigured: it is structurally incapable of examining the volumes
+# this lab actually has, and it has been reporting success for doing so.
+#
+# That is the shape this repository keeps finding and removing — a control that
+# is present, exits 0, and can never report the failure it appears to name. A
+# green timer that checks nothing is worse than no timer, because it answers the
+# question "is anything verifying these filesystems?" with a yes.
+#
+# Masked rather than disabled, and for the same reason as lynis.timer next door
+# in security/audit.yml: a package update must not be able to put a green no-op
+# back on the schedule quietly.
+#
+# --- Here rather than in `storage`, which is the whole of #155 ---------------
+# The storage role runs on the homelab only. The offsite Pi has the same inert
+# timer and the same absence of LVM (verified over the tunnel, 2026-08-24), so a
+# fix in `storage` would have left it running there — exactly what happened to
+# lynis.timer. `base` runs on both, which is the property that matters.
+#
+# --- What actually checks these filesystems, so masking loses nothing --------
+#   /mnt/data   `homelab-unlock` runs `e2fsck -p` on the still-unmounted mapper
+#               at every unlock (storage/unlock.yml). A clean filesystem costs
+#               about a second; a real scan happens after an unclean shutdown,
+#               which is the case that matters.
+#   /           nothing. `passno=0` in fstab, `Maximum mount count: -1`,
+#               `Check interval: 0`, last checked 2026-02-10. Restoring a
+#               boot-time trigger costs boot time on a Pi, and that decision is
+#               deliberately NOT taken here — #154 keeps it open.
+#   both        the daily disk report reads the superblock error counters
+#               (`ext4 clean`), which catches errors the kernel has ALREADY
+#               noticed. That is detection after the fact, not a consistency
+#               check, and the two are easy to mistake for each other.
+#
+# e2scrub_reap.service is deliberately left enabled: it removes stale e2scrub
+# snapshots, and with the timer masked it will never have one to remove. Leaving
+# it alone keeps this change to the single unit that makes a false claim.
+# =============================================================================
+
+- name: filesystem-checks | Look for the distribution's e2scrub timer
+  ansible.builtin.stat:
+    path: /usr/lib/systemd/system/e2scrub_all.timer
+  register: e2scrub_distro_timer
+
+# Stop and mask in SEPARATE tasks, in this order. Combining `masked: true` with
+# `state: stopped` is the equivalent of `systemctl mask --now`: the fragment
+# becomes /dev/null, systemd can no longer load the unit it is being asked to
+# stop, and it records the unit as FAILED. Measured on the host on 2026-08-16
+# for lynis.timer, and the reasoning is identical here — `systemctl --failed`
+# staying empty is itself an assertion this lab makes.
+- name: filesystem-checks | Stop the e2scrub timer, which scrubs nothing here
+  ansible.builtin.systemd:
+    name: e2scrub_all.timer
+    enabled: false
+    state: stopped
+  when: e2scrub_distro_timer.stat.exists
+
+- name: filesystem-checks | Mask it so a package update cannot re-enable it
+  ansible.builtin.systemd:
+    name: e2scrub_all.timer
+    masked: true
+  when: e2scrub_distro_timer.stat.exists
