@@ -63,6 +63,28 @@ command:
     exit-status: 0
     stdout: ["/^(700|absent)$/"]
 
+  # The assertion above watches ONE directory. #218 was an 87 MB Immich dump —
+  # `public."user"` password column, `api_key`, `session` — sitting 0664 in
+  # {{ backup_dir }} itself since 5 July, one level ABOVE it, written by hand at
+  # the v3 migration rather than by the dump job. The shell check this file
+  # replaced was scoped to `dumps/` and its translation inherited the scope, so
+  # nothing ever looked at the file: the same one-level-short mistake already
+  # recorded in #198, #199 and #217.
+  #
+  # Depth 2, not the whole tree: restic writes every pack 0400 (measured,
+  # 21411 of 21411) under a 0700 repository, so walking 340 GB nightly could
+  # only ever re-confirm what restic itself put there. Depth 2 covers this root,
+  # `dumps/*` and `wg-easy-v14/*`, which is every path a human or a job writes.
+  #
+  # `find` exiting 0 is asserted too — an unreadable directory makes it exit 1,
+  # and a scan that could not read is not a scan that found nothing.
+  # When this fails, the paths are one command away:
+  #   sudo find {{ backup_dir }} -maxdepth 2 -type f -perm /o+r -printf '%m %p\n'
+  backup-root-nothing-world-readable:
+    exec: find {{ backup_dir }} -maxdepth 2 -type f -perm /o+r -printf '%m %p\n'
+    exit-status: 0
+    stdout: ["!/./"]
+
 {% set compose = lookup('file', playbook_dir + '/../../docker/compose.yaml') | from_yaml %}
 {% for name, svc in compose.services.items() %}
 {%- set cname = svc.container_name | default(name) %}
