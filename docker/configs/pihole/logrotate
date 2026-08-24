@@ -1,0 +1,63 @@
+# Managed by the home-lab repository — bind-mounted over the image's own
+# /etc/logrotate.d/pihole (issue #202).
+#
+# WHY THIS FILE EXISTS
+# --------------------
+# The image ships this same file with `create` + a `postrotate` that signals FTL
+# to reopen. That signal did not arrive on 2026-08-17, and upstream's own
+# `|| true` swallowed the failure, so nothing reported it:
+#
+#     postrotate
+#         kill -USR2 $(cat /run/pihole-FTL.pid 2>/dev/null) 2>/dev/null || true
+#     endscript
+#
+# The rotation had already renamed the file, FTL kept writing to the renamed
+# inode, and `pihole.log` stayed at 0 bytes. `notifempty` then skipped it every
+# subsequent night, so the state sustained itself: five days later the rotated
+# file was 71 MB and still growing, and by 2026-08-25 it was 38 MB into a second
+# stretch. Confirmed at the descriptor rather than inferred from sizes — from
+# the host, `readlink /proc/<ftl>/fd/*` returned
+# `/var/log/pihole/pihole.log.1`.
+#
+# `copytruncate` copies the file and truncates the ORIGINAL, so the descriptor a
+# process is holding stays valid and keeps pointing at the live log. It does not
+# depend on the process cooperating with a signal it may never receive, which is
+# the whole failure above. The known trade-off is a small window between copy
+# and truncate where lines can be lost; for a query log whose queryable history
+# lives in pihole-FTL.db that is the right side of the trade.
+#
+# ONLY pihole.log changes. FTL.log and webserver.log are opened and closed for
+# each line, which is why they rotated correctly throughout — verified on
+# 2026-08-25, three generations present and rotating. Changing what works to
+# match what did not is how a fix becomes a regression.
+/var/log/pihole/pihole.log {
+    daily
+    copytruncate
+    rotate 5
+    compress
+    delaycompress
+    notifempty
+    nomail
+}
+
+# Unchanged from the image, deliberately: these two are opened and closed per
+# line, so `create` is correct for them and no postrotate was ever needed.
+/var/log/pihole/FTL.log {
+    weekly
+    create 640 pihole pihole
+    rotate 3
+    compress
+    delaycompress
+    notifempty
+    nomail
+}
+
+/var/log/pihole/webserver.log {
+    weekly
+    create 640 pihole pihole
+    rotate 3
+    compress
+    delaycompress
+    notifempty
+    nomail
+}

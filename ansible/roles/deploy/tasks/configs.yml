@@ -33,6 +33,18 @@
     mode: "0640"
   notify: Restart traefik
 
+# Verbatim, so it belongs here rather than in templates/ (see the header). Read
+# by logrotate running as root inside the container, which holds DAC_OVERRIDE —
+# 0640 <user>:docker is the same treatment as the split-DNS config next to it.
+- name: configs | Copy the Pi-hole logrotate override (#202)
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../../docker/configs/pihole/logrotate"
+    dest: /opt/homelab/configs/pihole/logrotate
+    owner: "{{ ansible_user }}"
+    group: docker
+    mode: "0640"
+  notify: Restart pihole
+
 - name: configs | Template Pi-hole split DNS config (resolve variables)
   ansible.builtin.template:
     src: pihole-05-homelab.conf.j2

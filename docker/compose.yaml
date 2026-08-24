@@ -295,6 +295,17 @@ services:
       - ${SERVICES_DATA_DIR}/pihole/etc:/etc/pihole
       - ${SERVICES_DATA_DIR}/pihole/dnsmasq:/etc/dnsmasq.d
       - ./configs/pihole/05-homelab.conf:/etc/dnsmasq.d/05-homelab.conf:ro
+      # The image's rotation for pihole.log depends on FTL answering a SIGUSR2,
+      # and upstream's own `|| true` swallows the failure when it does not. On
+      # 2026-08-17 it did not: FTL kept writing to the renamed inode, pihole.log
+      # stayed 0 bytes, and `notifempty` then skipped it every night after —
+      # a self-sustaining state (#202). This file is the same rotation with
+      # `copytruncate` for that one log, which does not need the process to
+      # cooperate. The log directory itself is deliberately NOT bind-mounted:
+      # the queryable history is pihole-FTL.db, which is already persisted and
+      # already in the restic set, so persisting the text log would duplicate
+      # the household's DNS history into the offsite backup for nothing.
+      - ./configs/pihole/logrotate:/etc/logrotate.d/pihole:ro
     networks:
       - proxy
       - internal
