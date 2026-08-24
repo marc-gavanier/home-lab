@@ -92,8 +92,16 @@
 # backs off until the file is permanently between 0 and 2048 seconds old and the
 # weekly audit warns or not depending on where in that cycle it happens to run —
 # measured 1612 s then 1679 s, sixty-seven seconds apart, on a host reporting
-# NTPSynchronized=yes. It cost two points of the hardening index on 2026-08-24
-# and pushed the Kuma monitor DOWN.
+# NTPSynchronized=yes.
+#
+# It cost NOTHING in hardening points, and that was measured after this task was
+# written rather than assumed: removing this warning and MAIL-8818 left the index
+# at 71, unchanged. The two points came from KRNL-5830 alone —
+# `Hardening: assigned partial number of hardening points (0 of 5)` for the
+# pending reboot — and so did the DOWN. What TIME-3185 actually cost is the
+# warning COUNT the push carries, which is the number an operator reads to decide
+# whether to look. That is a smaller claim than the one first written here, and
+# it is still worth the two lines below.
 #
 # Capping the interval below the threshold is not silencing the test, it is what
 # makes it able to fail for the right reason: as it stands the age of that file
