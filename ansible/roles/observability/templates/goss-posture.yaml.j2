@@ -39,11 +39,6 @@
 # =============================================================================
 
 file:
-{% for store, want in credential_store_modes.items() %}
-  {{ services_data_dir }}/{{ store }}:
-    exists: true
-    mode: "{{ want }}"
-{% endfor %}
   /mnt/data/secrets:
     exists: true
     mode: "0711"
@@ -52,6 +47,75 @@ file:
     mode: "0710"
 
 command:
+
+  # --- Credential stores: the property, not a list of them (#217) ------------
+  # This replaced seven hardcoded paths. The seven had been carried by hand
+  # through a `for` loop, a variable and this spec, and each rewrite reproduced
+  # the same defect: Pi-hole was missed (#189), then Forgejo (#199), then
+  # Jellyfin — while the comment four lines above the list already stated the
+  # property that would have caught all three. A hand-maintained enumeration
+  # presented as a continuous assertion is a to-do disguised as a control.
+  #
+  # The property, evaluated against the containers that exist rather than the
+  # ones anyone remembered: a directory under the services data root, bind-
+  # mounted by EXACTLY ONE container. `uniq -c` then `awk` is the whole of it,
+  # and the "exactly one" is load-bearing — nextcloud/data is mounted by three
+  # containers and drops out on its own, which is correct: a shared directory
+  # cannot be closed to one uid without breaking another.
+  #
+  # `docker ps -aq` and not `-q`: a stopped container still declares its mounts,
+  # and a store must not leave the assertion because its service is down.
+  #
+  # On its first run this found two directories the list of seven did not have:
+  # jellyfin/config (six non-expiring device tokens and the admin hash, 0644
+  # under 0755) and traefik/acme (the ACME account key and eighteen
+  # certificates, 0755). Both are closed by the deploy role in the same change.
+  credential-stores-all-closed:
+    exec: |
+      base={{ services_data_dir }}
+      exempt="{{ credential_store_exemptions.keys() | list | join(' ') }}"
+      # `stat -c %a` prints 700, Ansible's convention writes 0700, and comparing
+      # the two makes every store fail. Caught by running this under dash on the
+      # host before deploying it, which is the rule this file states for itself.
+      want={{ credential_store_default_mode }}; want=${want#0}
+      bad=""
+      for src in $(docker inspect $(docker ps -aq) \
+            | jq -r --arg b "$base/" '.[] | .Mounts[]? | select(.Type == "bind") | select(.Source | startswith($b)) | .Source' \
+            | sort | uniq -c | awk '$1 == 1 { print $2 }'); do
+        [ -d "$src" ] || continue
+        rel=${src#$base/}
+        case " $exempt " in *" $rel "*) continue ;; esac
+        mode=$(stat -c %a "$src")
+        [ "$mode" = "$want" ] || bad="$bad $rel=$mode"
+      done
+      [ -z "$bad" ] || { echo "not $want:$bad"; exit 1; }
+    exit-status: 0
+
+  # The same derivation, asserted for SIZE rather than for modes, and it is a
+  # separate assertion on purpose: goss streams stdout and never materialises it,
+  # so the name is the only thing an operator sees. "All closed" passing over
+  # zero stores and "the derivation found nothing" have to be distinguishable,
+  # because the first is the failure mode that made ADR-032 necessary — a loop
+  # can iterate over nothing and return true.
+  #
+  # The floor is a measurement (12 on 2026-08-24), not a target. It fails if a
+  # store stops being derivable — a container removed, a mount moved, a jq
+  # expression that quietly stops matching.
+  credential-stores-derivation-nonempty:
+    exec: |
+      base={{ services_data_dir }}
+      exempt="{{ credential_store_exemptions.keys() | list | join(' ') }}"
+      n=0
+      for src in $(docker inspect $(docker ps -aq) \
+            | jq -r --arg b "$base/" '.[] | .Mounts[]? | select(.Type == "bind") | select(.Source | startswith($b)) | .Source' \
+            | sort | uniq -c | awk '$1 == 1 { print $2 }'); do
+        [ -d "$src" ] || continue
+        rel=${src#$base/}
+        case " $exempt " in *" $rel "*) continue ;; esac
+        n=$((n + 1))
+      done
+      [ "$n" -ge {{ credential_store_min_count }} ] || { echo "derivation returned $n stores"; exit 1; }
+    exit-status: 0
 
   # The dump directory is EPHEMERAL: the backup creates it, the snapshot takes
   # it, and resticprofile's run-after removes it. So `exists: true` under file:
