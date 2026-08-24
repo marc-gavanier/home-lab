@@ -45,6 +45,20 @@ command:
     exec: '[ "$(df --output=pcent {{ backup_mount_point }} | tail -1 | tr -dc 0-9)" -lt 85 ]'
     exit-status: 0
 
+  # The assertion above this one is about the filesystem's CONTENT; this one is
+  # about the thing that claimed to verify it. e2scrub_all.timer was enabled and
+  # green here every week, and `e2scrub_all -n` returns nothing on this host —
+  # it scrubs LVM logical volumes and there is no LVM (#154). Masked by the base
+  # role, on both hosts, for the reason #155 taught: a fix applied to the
+  # homelab's roles leaves this machine running the no-op for another day.
+  #
+  # `is-enabled` prints `masked` and exits 1. Both are asserted — `enabled`
+  # exits 0, so the exit status alone would pass on the very state this forbids.
+  offsite-e2scrub-timer-masked:
+    exec: systemctl is-enabled e2scrub_all.timer
+    exit-status: 1
+    stdout: ["/^masked$/"]
+
   # A clean filesystem prints NO "FS Error count" line, so its presence is
   # itself the signal; `Filesystem state` reads "clean with errors" rather than
   # "clean" once anything has been recorded. A loop that visited NOTHING must
