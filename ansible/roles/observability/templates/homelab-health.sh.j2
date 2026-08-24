@@ -453,8 +453,16 @@ if command -v systemctl >/dev/null 2>&1 && mountpoint -q /mnt/data; then
     # StartLimitIntervalSec=0, which is what disables the limiter. Giving them a
     # working one would make systemd declare them failed — and also make them
     # STOP RETRYING, which for fail2ban is a security decision, not a tidy-up.
+    #
+    # `$4 == "auto-restart"` is the SUB-state, and it is the whole filter. A unit
+    # that is merely starting sits in `start`; only one systemd is restarting
+    # after a failure sits in auto-restart. Dropping that condition for a
+    # `grep -v .target` was tried in this very commit's first draft and caught by
+    # reading the gate's state file: `homelab-health.service` is itself
+    # `activating` while its ExecStart runs, so the check reported ITSELF as a
+    # restart loop, and would have done so on every second run.
     looping=$(systemctl list-units --state=activating --no-legend --plain 2>/dev/null \
-              | awk '{print $1}' | grep -v '\.target$' || true)
+              | awk '$4 == "auto-restart" {print $1}')
     # shellcheck disable=SC2086
     looping=$(gate systemd-activating 240 $looping)
     [ -n "$looping" ] && problems+=("restart loop: $(printf '%s ' $looping | sed 's/ $//')")
