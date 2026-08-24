@@ -64,6 +64,15 @@ only readable if what it permanently contains is written down. Recorded
 2026-08-24, when a run of four warnings sent the monitor DOWN and two of them
 turned out to be structural.
 
+The accounting, because it was not what it looked like: **only KRNL-5830 moved
+the index** — `Hardening: assigned partial number of hardening points (0 of 5)`
+in `/var/log/lynis.log`, for a reboot pending since a kernel update. Fixing the
+other two took the run from four warnings to two and left the index at 71,
+unchanged. Warnings and hardening points are separate currencies here, and a
+warning of weight L buys neither. The count still matters — it is what the Kuma
+push carries and what an operator reads to decide whether to look — but a
+warning appearing is not evidence that the index fell.
+
 **`PKGS-7388` — "Can't find any security repository in /etc/apt/sources.list or
 sources.list.d directory". Cannot be fixed, and must not be.** The security
 repository *is* declared, in the deb822 format Ubuntu 24.04 ships:
