@@ -223,6 +223,31 @@ command:
       test "${n:-0}" -ge {{ netdata_min_contexts }}
     exit-status: 0
 
+  # --- Pi-hole: the property that actually protects its store ----------------
+  # pihole/etc is a credential store — pihole.toml carries `webserver.api.pwhash`
+  # with TOTP and app-password empty, so that hash is the only factor, and
+  # pihole-FTL.db is every DNS query the household has made. It is NOT in the
+  # derived 0700 assertion above, and that is a measurement rather than a
+  # concession: the image's prestart script runs
+  # `find /etc/pihole/ -type d -exec chmod 0755` on every container start, so a
+  # directory mode set from Ansible survives exactly until the next restart.
+  #
+  # The same script sets every file to 0640 (0600 for keys) and re-applies that
+  # on every start too, which is why a different unprivileged account is refused
+  # every credential file here while the directory is 0755 — verified with
+  # controls on 2026-08-25.
+  #
+  # So the file modes are the property that holds, and this is what asserts them.
+  # It would also have caught #189's original finding, pihole.toml at 0644, which
+  # the directory gate closed only as a side effect.
+  #
+  # `versions` is excluded by name: the same prestart script chmods it 0644
+  # deliberately, and it holds version strings and nothing else.
+  pihole-etc-no-world-readable-file:
+    exec: find {{ services_data_dir }}/pihole/etc -type f -perm /o+r ! -name versions -printf '%m %p\n'
+    exit-status: 0
+    stdout: ["!/./"]
+
   # --- Pi-hole: FTL must be writing the log that is named `pihole.log` -------
   # The query log was orphaned from 2026-08-17 to 2026-08-25 and NOTHING saw it.
   # The rotation renamed the file, FTL kept its descriptor on the renamed inode,

@@ -107,21 +107,31 @@
 # `mode` only, never `owner`: chowning a directory is what triggers the #138
 # reconciliation write, and this file must stay safe to run from a deploy.
 #
-# Pi-hole's store is the sixth, added by #189, and it is the exception to the
-# sentence above rather than another instance of it. It runs as root over an
-# /etc/pihole owned by uid 1000, so it does NOT reach its data as the owner —
-# it gets in because it holds DAC_OVERRIDE (with CHOWN, FOWNER and SETFCAP; the
-# reasons are argued at its capability list in compose.yaml). The five others
-# are safe because they never needed the capability, this one is safe because
-# it has it, and neither can be locked out by the bits. Exactly one container
-# mounts the path, as for the rest.
+# Pi-hole's store was the sixth, added by #189, and it was REMOVED from this list
+# on 2026-08-25 because the mode cannot hold. The image's prestart script runs
 #
-# What it closes: pihole.toml carries `webserver.api.pwhash` — populated, with
-# TOTP and app-password empty, so that hash is the only factor — and it sat at
-# 0644 under two 0755 directories, readable by any local account. The same
-# directory holds pihole-FTL.db, which is every DNS query the household has
-# made. Not `pihole` itself: its other mount, `pihole/dnsmasq`, is configuration
-# and closing it would gate more than the finding.
+#     find /etc/pihole/ /var/log/pihole/ -type d -exec chmod 0755 {} +
+#
+# on EVERY container start. So this task set 0700, the next start put 0755 back,
+# and the only reason it ever looked applied is that this task runs before
+# `compose up` and Pi-hole restarts rarely. A restart for #202 turned the derived
+# assertion red within the minute — the assertion doing exactly what it was added
+# for.
+#
+# Setting a mode the application reverts on every start is worse than not setting
+# it: it reports as applied, stays green for as long as nobody restarts the
+# container, and hides the question of whether the data is actually protected.
+#
+# It is. The same prestart script sets every file to 0640 (0600 for keys) and
+# re-applies that on every start too. Verified from a genuinely different
+# unprivileged account, with controls, on 2026-08-25: /etc/passwd READABLE,
+# /etc/shadow refused, pihole.toml refused, pihole-FTL.db refused, cli_pw
+# refused. Only the listing of file NAMES is permitted.
+#
+# So what is asserted now is the property that holds —
+# `pihole-etc-no-world-readable-file` in the posture spec, which would also have
+# caught #189's original finding (pihole.toml at 0644) and does not depend on a
+# directory mode the image owns.
 - name: data_dirs | Gate the service directories that hold credentials
   ansible.builtin.file:
     path: "{{ services_data_dir }}/{{ item }}"
@@ -132,7 +142,6 @@
     - navidrome
     - calibre-web
     - transmission/config
-    - pihole/etc
     # The eighth store (#217), and the last one that will ever have to be added
     # here by hand: jellyfin.db was 0644 under two 0755 directories, holding six
     # non-expiring device access tokens — bearer credentials with no expiry,
