@@ -34,7 +34,15 @@
     mode: "{{ item.mode }}"
   loop:
     - { path: vaultwarden, mode: "0700" }
-    - { path: traefik/acme, mode: "0755" }
+    # 0755 until 2026-08-24, and nothing had decided that — it was the mode the
+    # directory happened to have when this task was written to fix its OWNER.
+    # What it holds: the ACME account private key and eighteen certificates with
+    # their keys, in acme.json at 0600 under a directory any local account could
+    # traverse. Found by the derived assertion (#217) on its first run, not by
+    # anyone reading the list. 0700 costs Traefik nothing — it owns the
+    # directory and additionally carries CAP_DAC_READ_SEARCH — and the health
+    # script that parses acme.json since #157 runs as root.
+    - { path: traefik/acme, mode: "0700" }
     - { path: immich/upload, mode: "0755" }
   loop_control:
     label: "{{ item.path }} {{ item.mode }}"
@@ -125,6 +133,22 @@
     - calibre-web
     - transmission/config
     - pihole/etc
+    # The eighth store (#217), and the last one that will ever have to be added
+    # here by hand: jellyfin.db was 0644 under two 0755 directories, holding six
+    # non-expiring device access tokens — bearer credentials with no expiry,
+    # full API as that user — and the admin password hash. Proven readable as an
+    # unprivileged account with /etc/shadow refused in the same call.
+    #
+    # Safe for the same reason as the five above: Jellyfin runs as root over a
+    # tree the storage role already owns root:root recursively, with
+    # `cap_add: []`, so it reaches its data as the owner and cannot be locked
+    # out by the bits — this cannot replay #138.
+    #
+    # It is listed rather than derived because this file ENFORCES; the spec
+    # DERIVES and would have failed on it either way. The two now disagree only
+    # while a new store is waiting to be closed, which is exactly when they
+    # should.
+    - jellyfin/config
 
 # Belt as well as braces, on the files an application does NOT recreate: if a
 # directory mode ever regresses, these do not hand the contents over with it.

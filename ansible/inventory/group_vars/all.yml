@@ -253,14 +253,49 @@ resticprofile_sha256: "58e4fd6fbe2bd460ee6823c3693f39a10f0f24c90635f0215c19b0ab2
 # The eighth store (#217, jellyfin) is deliberately NOT here yet: it is at 0644
 # today, so adding it would turn the monitor red on a known, tracked defect
 # rather than on a regression. It joins the list with the fix.
-credential_store_modes:
-  vaultwarden: "0700"
-  uptime-kuma: "0700"
-  navidrome: "0700"
-  calibre-web: "0700"
-  transmission/config: "0700"
-  pihole/etc: "0700"
-  forgejo/data: "0700"
+# --- Credential stores: derived, not enumerated (#217) -----------------------
+# What replaced the list of seven. A store is not something anyone remembers to
+# add here any more; it is a PROPERTY, evaluated against the running containers
+# by goss-posture.yaml: a directory under services_data_dir that is bind-mounted
+# by exactly one container. Everything the derivation returns must be 0700
+# unless it is named below, with the reason it is not a credential store.
+#
+# The list of seven was carried by hand three times over (a `for` loop, then
+# this map, then the spec) and missed the next store every time — Pi-hole (#189),
+# Forgejo (#199), then Jellyfin AND Traefik's ACME storage, which the derivation
+# found on its first run. The inversion is the point: a service added tomorrow
+# starts INSIDE the assertion and has to be argued out of it.
+credential_store_default_mode: "0700"
+
+# A floor, not a count to maintain. goss cannot report a value, so a derivation
+# that silently returned nothing would be a green assertion over zero stores —
+# the exact defect ADR-032 exists to make impossible. Measured at 12 on
+# 2026-08-24; it fails if a store stops being derivable.
+credential_store_min_count: 12
+
+# Out of scope, each with the reason. Not "known exceptions to fix later" — a
+# directory listed here is one the property reaches and that holds no credential,
+# except where a mode change would break the container, which is stated as such.
+credential_store_exemptions:
+  wireguard: >-
+    0700 here would BREAK wg-easy and possibly the only route to this host. It
+    runs as root over a directory owned by uid 1000 without DAC_OVERRIDE, so it
+    gets in through the other bits — removing them is precisely the failure #138
+    documents. Sequenced behind the chown that fixes #138, at the machine.
+  transmission/downloads: completed torrents — media the operator browses, no credential
+  transmission/watch: the .torrent drop folder, written from outside the container
+  pihole/dnsmasq: dnsmasq configuration fragments; the credential store is pihole/etc
+  netdata/lib: netdata's registry and metrics database, 0750 as it ships, no credential
+  netdata/cache: metrics page cache
+  netdata/go.d: collector configuration, rendered from this repository
+  netdata/health.d: alarm definitions, rendered from this repository
+  jellyfin/cache: transcoding scratch, rewritten continuously
+  immich/ml-cache: downloaded ML model weights, public artefacts
+  immich/upload: >-
+    the photo library itself. Media rather than a credential, so it is out of
+    scope for this assertion — but it is household photographs at 0755, and
+    whether it should be closed too is a real question this issue deliberately
+    does not answer.
 
 # --- goss (ADR-032) ---
 # Checksum taken from the project's own goss_<version>_SHA256SUMS, not computed
