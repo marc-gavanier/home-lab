@@ -54,6 +54,40 @@ The SFR TV decoder breaks when filtered by Pi-hole. Exclude it:
 | `/mnt/data/services/pihole/etc/`     | Pi-hole configuration (`pihole.toml`) |
 | `/mnt/data/services/pihole/dnsmasq/` | Custom dnsmasq configs                |
 
+### Logs are deliberately NOT persisted
+
+`/var/log/pihole` lives in the container's writable layer and is discarded on a
+recreate. That is a decision, not an oversight: `pihole-FTL.db` (332 MB, under
+`pihole/etc/`) already holds every query, is already persisted and is already in
+the restic set. Persisting the text log would put the household's DNS history
+into the offsite backup a second time, in cleartext, for no capability that
+Pi-hole's own database does not provide. The writable layer is on
+`/mnt/data/docker` — the HDD — so the growth never touches the SD card either.
+
+**Rotation uses `copytruncate`, and this repository owns that file.** The image's
+own rotation asks FTL to reopen with a `SIGUSR2` and hides the failure behind
+upstream's `|| true`. On 2026-08-17 the signal did not land: the file had already
+been renamed, FTL kept writing to the renamed inode, `pihole.log` stayed at 0
+bytes, and `notifempty` then skipped it every night after — self-sustaining, and
+by 2026-08-25 the rotated file was 38 MB into a second stretch (#202).
+
+The symptom is invisible to every check that looks at outcomes — the container is
+healthy, DNS answers, the files are present with sane modes and `pihole.log`
+exists. What is wrong is *which file the writer has open*, so that is what
+`pihole-ftl-writes-the-current-log` asserts, at the descriptor, from the host:
+
+```bash
+for p in $(pgrep -x pihole-FTL); do sudo readlink /proc/$p/fd/*; done | grep /var/log/pihole/
+```
+
+It has to run on the host — reading another uid's `/proc/PID/fd` needs
+`CAP_SYS_PTRACE`, which this container does not have and must not be given.
+
+`FTL.log` and `webserver.log` keep the image's `create` rotation: they are opened
+and closed per line, which is why they rotated correctly throughout. The offsite
+Pi runs no Pi-hole and has no `/var/log/pihole` — both checked when this was
+fixed.
+
 ## Restore
 
 From Restic backup:

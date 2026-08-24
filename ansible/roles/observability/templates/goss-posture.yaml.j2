@@ -223,6 +223,31 @@ command:
       test "${n:-0}" -ge {{ netdata_min_contexts }}
     exit-status: 0
 
+  # --- Pi-hole: FTL must be writing the log that is named `pihole.log` -------
+  # The query log was orphaned from 2026-08-17 to 2026-08-25 and NOTHING saw it.
+  # The rotation renamed the file, FTL kept its descriptor on the renamed inode,
+  # and the `postrotate` that should have told it to reopen ends in upstream's
+  # own `|| true`. `pihole.log` then sat at 0 bytes, `notifempty` skipped it
+  # every subsequent night, and the state sustained itself while the rotated
+  # file grew past 70 MB (#202).
+  #
+  # Every SHAPE of check that looked at the outcome would have passed: the
+  # container was healthy, DNS answered, the files were all present with sane
+  # modes, and `pihole.log` existed. What was wrong was WHICH FILE the writer
+  # had open — so that is what this asserts, at the descriptor, from the host.
+  # `docker exec` cannot do it: reading another uid's /proc/PID/fd needs
+  # CAP_SYS_PTRACE, which this container does not have and must not get.
+  #
+  # Empty output fails on purpose (`${open:-nothing}`): FTL not appearing at all
+  # means the query log is off or the process is gone, and neither is a state
+  # this should report as fine.
+  pihole-ftl-writes-the-current-log:
+    exec: |
+      open=$(for p in $(pgrep -x pihole-FTL); do readlink /proc/$p/fd/* 2>/dev/null; done \
+             | grep '^/var/log/pihole/pihole\.log' | sort -u)
+      [ "$open" = "/var/log/pihole/pihole.log" ] || { echo "FTL holds: ${open:-nothing}"; exit 1; }
+    exit-status: 0
+
   # --- Uptime Kuma: an incident that notifies once is an incident nobody is
   # --- being told about any more (#200)
   # Kuma sends ONE message at the state transition and nothing afterwards while
