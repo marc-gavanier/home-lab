@@ -1075,6 +1075,36 @@ services:
       - ${PI_LAN_IP}
     volumes:
       - ${SERVICES_DATA_DIR}/uptime-kuma:/app/data
+    # The image's own healthcheck PRINTS the status code and never compares it:
+    # `Health Check OK [Res Code: 401]`, exit 0 — measured against Transmission's
+    # authenticated endpoint from inside this container (#200). Only a transport
+    # failure could make it fail, so a Kuma that answers and has stopped serving
+    # correctly stayed `healthy` — on the one container with no external monitor
+    # watching it, because it IS the external monitoring.
+    #
+    # Third instance of the #145 / #156 class and the first that arrived through
+    # an IMAGE rather than through this file, which is why the earlier sweeps
+    # did not reach it. Same shape and same cadence as the netdata fix above.
+    #
+    # Cadence copied from the image's declaration (interval 60s, timeout 30s,
+    # start_period 180s, retries 5, read back with `docker inspect`) so the test
+    # is the only thing that changes.
+    #
+    # Why the grep and not `curl -fsS` alone: Kuma is a single-page app and
+    # serves its index with **200** for any unmatched route, so a bare 2xx check
+    # passes on the fallback page. `/api/entry-page` is a real handler —
+    # `application/json`, `{"type":"entryPage"…}`, read out of SQLite — and the
+    # marker is what distinguishes it from the HTML the router falls through to.
+    #
+    # Four modes measured in the running container before this was written:
+    # the endpoint passes, the SPA fallthrough fails, a 4xx from the same server
+    # fails, and a refused connection fails.
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS --max-time 10 http://127.0.0.1:3001/api/entry-page | grep -q entryPage"]
+      interval: 60s
+      timeout: 30s
+      start_period: 180s
+      retries: 5
     networks:
       - proxy
     labels:

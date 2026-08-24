@@ -95,13 +95,44 @@ in #179. Re-measurement did not support widening it: the observed maximum gap is
 detection window costs sensitivity and should be paid for by a measurement, not by
 symmetry with the monitor next to it.
 
-The two **Netdata** push monitors take the same 600s window and zero retries, and add
-the setting the others do not need: `resend_interval`. Each carries SEVERAL curated
-alarms — `Netdata — containers` reports both container conditions — and Kuma notifies
-once when a monitor turns red, not again while it stays red. Without a resend, a second
-alarm firing behind an unresolved first one reaches nobody (#200). That is the price of
-sharing a monitor, and it is what makes the sharing safe: conditions may share a signal
-when they share a LIFETIME, never when one of them can wait for a human.
+### Every active monitor resends — the rule, and why it is not a preference
+
+Kuma notifies **once**, at the state transition, and never again while the condition
+stays red. Measured cost, from `stat_daily` (the right instrument — `heartbeat` prunes
+ordinary beats):
+
+```
+Pi health | 2026-07-31 |  57 up | 424 down
+Pi health | 2026-08-01 |   0 up | 528 down     <- a full day, entirely down
+Pi health | 2026-08-02 | 153 up | 236 down
+```
+
+Roughly **54 hours of continuous outage of the dead-man's switch itself**, for one
+Discord message sent 54 hours earlier. #179 fixed *which text* notifies; nobody had
+looked at *how many times*.
+
+Since 2026-08-25 every active monitor carries a `resend_interval`, targeted at a
+reminder roughly every **6 hours**. Kuma counts that field in CHECKS, not in seconds,
+so the value differs per monitor and is derived rather than chosen:
+
+```
+resend_interval = max(1, round(21600 / interval))
+```
+
+A 60s HTTP check gets 360; a 600s push monitor gets 36; a push monitor whose own
+cadence is a day or a week gets 1, which is the most frequent reminder its interval
+allows. Monitors are created by hand — Kuma v2 has no editing API — so a new monitor
+starts at `0`, and `kuma-every-active-monitor-resends` in the posture spec fails until
+it is set.
+
+The two **Netdata** push monitors take the same 600s window and zero retries, and were
+the first here to carry `resend_interval` — for a reason that is *not* the rule above.
+Each carries SEVERAL curated alarms (`Netdata — containers` reports both container
+conditions), so without a resend a second alarm firing behind an unresolved first one
+reaches nobody (#200). That is the price of sharing a monitor, and it is what makes the
+sharing safe: conditions may share a signal when they share a LIFETIME, never when one
+of them can wait for a human. The rule above would have given them a resend anyway; this
+is why they cannot be the ones without it.
 
 Both were created by hand, like every monitor here, and `Retries` is the field to get
 right. Setting it to 1 was tried on 2026-08-23 and reverted the same evening on the

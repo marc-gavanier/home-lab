@@ -223,6 +223,30 @@ command:
       test "${n:-0}" -ge {{ netdata_min_contexts }}
     exit-status: 0
 
+  # --- Uptime Kuma: an incident that notifies once is an incident nobody is
+  # --- being told about any more (#200)
+  # Kuma sends ONE message at the state transition and nothing afterwards while
+  # the outage lasts, unless the monitor carries a resend interval. Every active
+  # monitor had `resend_interval = 0`, and stat_daily records what that cost:
+  # 2026-07-31 to 08-02, roughly 54 hours of continuous outage OF THE DEAD-MAN'S
+  # SWITCH ITSELF, for a single Discord message sent 54 hours earlier.
+  #
+  # Monitors are created by hand here — Kuma v2 has no editing API and the
+  # tooling that automated v1 does not work — so the setting is exactly the kind
+  # of thing a new monitor is created without. That is what this assertion is
+  # for: not to re-verify a value someone set once, but to catch the 32nd
+  # monitor on the day it is added.
+  #
+  # `${n:-1}` on purpose: an unreadable database or a query that returns nothing
+  # must FAIL rather than compare an empty string and pass. A control that
+  # cannot report its own blindness is the defect ADR-032 exists to prevent.
+  kuma-every-active-monitor-resends:
+    exec: |
+      n=$(docker exec uptime-kuma sqlite3 "file:/app/data/kuma.db?mode=ro" \
+            "select count(*) from monitor where active = 1 and resend_interval = 0")
+      [ "${n:-1}" -eq 0 ] || { echo "$n active monitors never resend"; exit 1; }
+    exit-status: 0
+
   # --- fail2ban: every configured jail is actually loaded --------------------
   # Comparing two derived lists, so the assertion is the exit status. A jail
   # present in jail.local and absent from the running set is a jail that looks
