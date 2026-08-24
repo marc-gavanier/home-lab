@@ -225,10 +225,17 @@ TODAY="$(date +%F)"
 NOTE="${DIGEST_DIR}/${TODAY} - ${NOTE_SUFFIX}.md"
 
 log "running claude -p on ${FETCHED} entries"
-# --print with no tools: the model reads stdin and writes markdown to stdout.
-# Nothing here needs the filesystem, so nothing here gets it.
+# --print with NO TOOLS, and `--tools ""` is what makes that true rather than
+# aspirational. The comment here used to read "nothing here needs the
+# filesystem, so nothing here gets it" while the invocation carried the default
+# tool set — Read included — on the account that owns the vault and reaches the
+# secrets directory. Same defect as ADR-004's sandbox claim, in the same role
+# (#203, #219): a sentence describing an intention as though it were a control.
+#
+# The job genuinely needs no tool: the model reads stdin and writes markdown to
+# stdout, and this SCRIPT writes the note.
 BODY="$(printf '%s\n\n---\n\n# Entries\n\n%s\n' "$(cat "$PROMPT_FILE")" "$INPUT" \
-    | "$CLAUDE_BIN" -p 2>>"$LOG")" || fail "claude -p failed"
+    | "$CLAUDE_BIN" -p --tools "" 2>>"$LOG")" || fail "claude -p failed"
 
 [ -n "${BODY//[[:space:]]/}" ] || fail "claude -p returned an empty digest"
 

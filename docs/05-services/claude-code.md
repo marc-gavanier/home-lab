@@ -9,9 +9,11 @@ mobile app. Hardened design: see [ADR-004](../../knowledge/decisions/ADR-004-cla
 - Drive it from the **Claude mobile app** or **`claude.ai/code`** (any browser).
 - Runs as a dedicated unprivileged user `claude`, under Claude Code's own sandbox
   (`~claude/.claude/settings.json`). **What that sandbox constrains is writes and
-  network, not reads**: writes are confined to the vault and outbound traffic to a
-  single domain, while reads are unrestricted apart from one denied path. There is
-  no `/sandbox` on the host — this line used to name one.
+  network, plus an explicit read deny list**: writes are confined to the vault,
+  outbound traffic to a single domain, and reads are unrestricted apart from the
+  denied paths — the account's own credentials file and the secrets directory
+  (widened from a single file on 2026-08-24, #219). There is no `/sandbox` on the
+  host — this line used to name one.
 
 ## What It Does
 

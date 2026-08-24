@@ -47,7 +47,15 @@ Units that consume these files are gated on the volume
 (`RequiresMountsFor=/mnt/data`) and, when they must start at unlock rather
 than at boot, pulled in by `mnt-data.mount` via `systemctl add-wants`
 (wg-quick@wg0, vault-mount). Everything here only runs after `homelab-unlock`
-anyway — the change costs nothing operationally.
+anyway — inside a running system the change costs nothing.
+
+It costs one thing at the boundary, and it is worth stating plainly because a
+runbook was written as though it did not: `wg0.conf` is one of these files, so
+**the VPN cannot come up before the unlock**, and the unlock is reached over the
+VPN from anywhere but the LAN. A reboot is therefore a LAN-only operation on this
+host. That is the price of keeping the interface's private key off the SD card,
+and it is accepted deliberately — but it belongs in the reboot schedule, not in a
+surprise. See the warning at the top of the boot-and-unlock runbook.
 
 `/mnt/data/secrets` is part of the restic backup set (the symlinked entries
 under `/opt/homelab` are stored as symlinks, so the real files must be backed
