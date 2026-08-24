@@ -54,6 +54,42 @@ The SFR TV decoder breaks when filtered by Pi-hole. Exclude it:
 | `/mnt/data/services/pihole/etc/`     | Pi-hole configuration (`pihole.toml`) |
 | `/mnt/data/services/pihole/dnsmasq/` | Custom dnsmasq configs                |
 
+### The directory mode is the image's, the file modes are what protect the data
+
+`pihole/etc` is a credential store — `pihole.toml` carries `webserver.api.pwhash`
+with TOTP and app-password empty, so that hash is the only factor, and
+`pihole-FTL.db` is every DNS query the household has made.
+
+It is **not** held at `0700`, and that is measured rather than conceded. The
+image's prestart script runs, on every container start:
+
+```
+find /etc/pihole/ /var/log/pihole/ -type d -exec chmod 0755 {} +
+find /etc/pihole/ /var/log/pihole/ -type f ! \( -name '*.pem' -o -name '*.crt' \) -exec chmod 0640 {} +
+```
+
+So a directory mode set from Ansible survives until the next restart, and #189's
+gate had been reverted every time Pi-hole started since it was applied — visible
+only when a restart happened to fall between two posture runs, which it finally
+did on 2026-08-25.
+
+The second line is what matters: the files are `0640` and re-asserted on every
+start. From a genuinely different unprivileged account, with controls:
+
+```
+READABLE   /etc/passwd                    <- control
+refused    /etc/shadow                    <- control
+refused    .../pihole/etc/pihole.toml
+refused    .../pihole/etc/pihole-FTL.db
+refused    .../pihole/etc/cli_pw
+```
+
+Only the listing of file *names* is permitted. The posture spec therefore asserts
+`pihole-etc-no-world-readable-file` — which would also have caught #189's original
+finding (`pihole.toml` at `0644`) and does not depend on a mode the image owns.
+`versions` is excluded by name: the same script sets it `0644` deliberately and it
+holds version strings.
+
 ### Logs are deliberately NOT persisted
 
 `/var/log/pihole` lives in the container's writable layer and is discarded on a

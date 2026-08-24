@@ -270,8 +270,10 @@ credential_store_default_mode: "0700"
 # A floor, not a count to maintain. goss cannot report a value, so a derivation
 # that silently returned nothing would be a green assertion over zero stores —
 # the exact defect ADR-032 exists to make impossible. Measured at 12 on
-# 2026-08-24; it fails if a store stops being derivable.
-credential_store_min_count: 12
+# 2026-08-24, then 11 on 2026-08-25 when pihole/etc moved to the exemptions —
+# see its entry: the image reverts that directory's mode on every start, so the
+# file modes are asserted instead. It fails if a store stops being derivable.
+credential_store_min_count: 11
 
 # Out of scope, each with the reason. Not "known exceptions to fix later" — a
 # directory listed here is one the property reaches and that holds no credential,
@@ -284,7 +286,24 @@ credential_store_exemptions:
     documents. Sequenced behind the chown that fixes #138, at the machine.
   transmission/downloads: completed torrents — media the operator browses, no credential
   transmission/watch: the .torrent drop folder, written from outside the container
-  pihole/dnsmasq: dnsmasq configuration fragments; the credential store is pihole/etc
+  pihole/dnsmasq: dnsmasq configuration fragments, no credential
+  pihole/etc: >-
+    IS a credential store, and 0700 on it is not enforceable. The image runs
+    `find /etc/pihole/ -type d -exec chmod 0755 {} +` from its prestart script on
+    EVERY start, so #189's directory gate was reverted by the next container
+    start and only looked applied because Ansible re-set it afterwards and
+    Pi-hole rarely restarts. Measured 2026-08-25, when a restart for #202 turned
+    the assertion red within the minute.
+
+    What actually protects the data is the FILE modes, set by the same script
+    (0640, and 0600 for keys) and re-applied on every start. Verified from a
+    different unprivileged account with controls: /etc/passwd readable,
+    /etc/shadow refused, pihole.toml refused, pihole-FTL.db refused, cli_pw
+    refused. Only the listing of file NAMES is permitted.
+
+    So the directory mode is exempted and the property that holds is asserted
+    instead — see `pihole-etc-no-world-readable-file` in the posture spec, which
+    is also what would have caught #189's original 0644 finding.
   netdata/lib: netdata's registry and metrics database, 0750 as it ships, no credential
   netdata/cache: metrics page cache
   netdata/go.d: collector configuration, rendered from this repository
