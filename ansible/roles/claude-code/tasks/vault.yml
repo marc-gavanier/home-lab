@@ -99,6 +99,20 @@
     mode: "0700"
   when: vault_mounted.rc != 0
 
+# denyRead is an enumeration, and ADR-004 described it as a policy — "credential
+# reads are denied" — while exactly one path was listed (#203, #219). Two files
+# the `claude` account owns sat outside it: its rclone configuration (0600) and
+# the Miniflux API key (0400), both under the secrets directory. Owned by that
+# account means the sandbox is the only thing that could have stopped a read.
+#
+# The DIRECTORY is denied rather than the two files, so a third secret added
+# there tomorrow is covered without anyone remembering this list — the same
+# reasoning as #217, where a hand-maintained enumeration kept producing an nth
+# entry.
+#
+# Nothing outside the sandbox is affected: the vault mount and the feed digest
+# both read these files from systemd units running as `claude`, not through
+# Claude Code's Bash tool. Verified after deploying.
 - name: vault | Deploy Claude Code sandbox settings
   ansible.builtin.copy:
     dest: /home/claude/.claude/settings.json
@@ -112,7 +126,10 @@
           "failIfUnavailable": true,
           "filesystem": {
             "allowWrite": ["/home/claude/vault"],
-            "denyRead": ["/home/claude/.claude/.credentials.json"]
+            "denyRead": [
+              "/home/claude/.claude/.credentials.json",
+              "/mnt/data/secrets"
+            ]
           },
           "network": {
             "allowedDomains": ["api.anthropic.com"]

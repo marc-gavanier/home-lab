@@ -3,11 +3,25 @@
 What to expect and do when the Pi comes back up. Design rationale in
 [ADR-007](../decisions/ADR-007-staged-container-startup.md).
 
+> **A reboot cannot be undone from outside the LAN — plan for that before you
+> cause one.** `/etc/wireguard/wg0.conf` is a symlink onto the encrypted volume
+> (ADR-011). Before the unlock it dangles, so `wg-quick@wg0` cannot start and
+> neither can `wg-easy` — and `ssh homelab` travels through that tunnel. There
+> is no unlock without the tunnel and no tunnel without the unlock, so **the
+> first `homelab-unlock` after any reboot has to be typed from the LAN**, at the
+> machine or from something already inside the network. Everything below assumes
+> you are.
+>
+> The offsite Pi is not in this position: it has no LUKS volume and reboots on
+> its own at 04:00.
+
 ## Normal sequence
 
-1. **Boot (~1 min).** The Pi boots from the unencrypted SD. SSH is available;
-   **nothing else is** — no Docker, no swap, no `/mnt/data`, no LAN DNS (point
-   a client at `1.1.1.1` if you need internet meanwhile).
+1. **Boot (~1 min).** The Pi boots from the unencrypted SD. SSH is available
+   **on the LAN**, and only there — the VPN is down until step 2 finishes, for
+   the reason in the box above. **Nothing else is up either** — no Docker, no
+   swap, no `/mnt/data`, no LAN DNS (point a client at `1.1.1.1` if you need
+   internet meanwhile).
 
    This is the expected pre-unlock state — worth glancing at, it proves the
    guards hold:
@@ -109,8 +123,10 @@ by *reachability*, not raw CVSS:
 | Routine kernel bump — no active exploitation, or an LPE with no reachable foothold | **≤ 14 days** (next maintenance window) |
 | Actively exploited **and** reachable — CISA KEV / public PoC in the netstack, WireGuard, or an unauth-reachable path | **≤ 48 h** |
 
-A reboot is just power-cycle-then-`homelab-unlock` (this runbook). Check what's
-pending with `cat /var/run/reboot-required.pkgs`. The offsite Pi has no LUKS and
+A reboot is power-cycle-then-`homelab-unlock` (this runbook) — but it is not
+*just* that: it can only be finished from the LAN, so the window is bounded by
+someone being able to reach the machine, not only by the CVSS. Schedule it
+accordingly. Check what's pending with `cat /var/run/reboot-required.pkgs`. The offsite Pi has no LUKS and
 auto-reboots at 04:00, so this cadence is homelab-only. Rationale:
 [ADR-013](../decisions/ADR-013-update-patching-strategy.md).
 

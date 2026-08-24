@@ -62,7 +62,11 @@ All services are **VPN-only**. The `vpn-only` middleware is applied globally on 
   (`9.9.9.9`, `149.112.112.112`) on purpose — a service that *is* the DNS path
   should not need DNS to start; Quad9's certificate carries IP SANs, so TLS
   validation is unchanged
-  (RFC 8484 / HTTP2). Upstream queries no longer leave in cleartext to the ISP.
+  (RFC 8484 / HTTP2). Queries **that go through Pi-hole** — i.e. the LAN clients
+  and the VPN clients — no longer leave in cleartext to the ISP. The host's own
+  lookups and the containers' do: they use `/etc/resolv.conf` (`1.1.1.1`,
+  `8.8.8.8`) via Docker's embedded resolver, measured 28 of 28 containers. See
+  the consequences section of ADR-015, which used to claim the wider perimeter.
 - The upstream is pinned in `compose.yaml` (`FTLCONF_dns_upstreams`), not the
   manual `pihole.toml` — version-controlled, no drift. See ADR-015.
 

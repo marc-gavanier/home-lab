@@ -23,10 +23,17 @@ axes — all automated by the `claude-code` Ansible role:
 
 1. **Dedicated unprivileged user `claude`** — *no sudo, no docker group*. It cannot read
    `/opt/homelab/.env`, use Docker, or touch other services' data.
-2. **Claude Code `/sandbox`** (bubblewrap + socat): the Bash tool is confined to the vault,
-   credential reads are denied, and network egress is restricted to `api.anthropic.com`. An
-   AppArmor profile allows *only* `bwrap` to use user namespaces (Ubuntu 24.04 restricts
-   these globally).
+2. **Claude Code's sandbox** (bubblewrap + socat), which constrains three things and it is
+   worth naming them exactly, because this paragraph used to overstate one of them:
+   **writes** are confined to the vault, **network** egress to `api.anthropic.com`, and
+   **reads** are unrestricted *apart from an explicit deny list* — the account's Claude
+   credentials file and the secrets directory. It is a deny list, not a policy: a credential
+   stored anywhere else is readable, and the directory is denied rather than its files so a
+   new secret is covered without an edit. An AppArmor profile allows *only* `bwrap` to use
+   user namespaces (Ubuntu 24.04 restricts these globally).
+
+   Until 2026-08-24 the list held one entry while this line claimed "credential reads are
+   denied"; two files the `claude` account owns were outside it (#203, #219).
 3. **Vault-only view**: Claude sees the notes vault and nothing else of the host. The vault
    is an **rclone WebDAV mount** of `nextcloud:Notes` at `~/vault`, so Claude acts as a
    Nextcloud *client* — writes go through WebDAV and Nextcloud indexes them immediately, with

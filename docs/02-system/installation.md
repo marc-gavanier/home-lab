@@ -204,11 +204,15 @@ ssh homelab "sudo homelab-lock"
 ### Boot Flow
 
 ```
-Power on → Ubuntu boots (SD, unencrypted) → SSH available
-                                                 │
-                                        User runs: ssh homelab "sudo homelab-unlock"
+Power on → Ubuntu boots (SD, unencrypted) → SSH available ON THE LAN ONLY
+                                                 │   (wg0.conf is a symlink onto
+                                                 │    the locked volume, so the
+                                                 │    VPN cannot come up yet)
+                                        From the LAN: ssh homelab "sudo homelab-unlock"
                                                  │
                                         Enter passphrase → /mnt/data mounted → Docker starts
+                                                 │
+                                        WireGuard starts → remote SSH works again
 ```
 
 ## Step 10 — Network Configuration (Phase 2)

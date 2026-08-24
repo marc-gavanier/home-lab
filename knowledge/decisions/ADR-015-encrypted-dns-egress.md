@@ -42,12 +42,38 @@ anycast plus `restart: unless-stopped` is deemed reliable enough.
 ## Consequences
 
 **Positive**
-- DNS egress is encrypted (DoH/HTTP2) — no cleartext domain names to the ISP.
+- **LAN client** DNS egress is encrypted (DoH/HTTP2): anything that resolves
+  through Pi-hole leaves this network over HTTPS to Quad9, and the ISP sees no
+  domain name for it. That is the traffic this decision was taken for, and it is
+  the majority of the lab's queries.
 - The upstream is reproducible from Ansible; no more `pihole.toml` drift.
 - No new public exposure: cloudflared makes only outbound HTTPS; nothing is
   published.
 
 **Negative / cost**
+- **The perimeter is Pi-hole's clients, not the whole machine.** This section
+  used to read "no cleartext domain names to the ISP", full stop, which is not
+  what the host does. Measured on 2026-08-22 and re-measured on 2026-08-24:
+
+  ```
+  /etc/resolv.conf          -> nameserver 1.1.1.1 / 8.8.8.8
+  /etc/docker/daemon.json   -> no dns key
+  container resolv.conf     -> 127.0.0.11  (28 of 28 — Docker's embedded resolver)
+  ```
+
+  Docker's embedded resolver forwards whatever it cannot answer to the **host's**
+  nameservers, so a container looking up an update server, and the host itself
+  doing the same for apt or NTP, both leave over plaintext UDP/53. Only a service
+  carrying an explicit `dns:` in `compose.yaml` escapes that, and the container's
+  own `resolv.conf` does not show the difference — it says `127.0.0.11` either
+  way, which is why this went unnoticed for so long.
+
+  Volume is low (one query in 60 s with an empty house), and the amendment is
+  deliberate rather than a plan to fix: pointing every container at Pi-hole makes
+  Pi-hole a start-order dependency for the whole stack, on a host whose only
+  remote path is a tunnel that starts inside that stack. The claim is corrected
+  to the perimeter that was actually built; widening the perimeter stays open in
+  #219 as a separate decision.
 - cloudflared is now on the **critical path** for all external resolution: if it
   is down, Pi-hole has no working upstream. Mitigated by `restart: unless-stopped`
   (Tier 0, same as Pi-hole) — but there is deliberately **no cleartext fallback**
