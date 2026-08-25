@@ -307,3 +307,36 @@ command:
       have=$(fail2ban-client status | sed -n 's/.*Jail list:[[:space:]]*//p' | tr -d ' ' | tr ',' '\n' | grep -v '^$' | sort | tr '\n' ' ')
       test "$want" = "$have"
     exit-status: 0
+
+  # --- The VPN's IPv6 cannot be removed, so it has to be caught arriving ------
+  # compose.yaml sets DISABLE_IPV6=true on wg-easy, with the measurement next to
+  # it: v15 emits ip6tables rules through its bundled LEGACY binaries, the
+  # ip6_tables module is absent on a host running the nf_tables backend,
+  # wg-quick exits 3 and NO tunnel comes up — while the container stays green.
+  # That flag is a declaration of intent. This is the only thing that checks the
+  # outcome.
+  #
+  # It is not paranoia about a flag being deleted. wg-easy's data model has no
+  # way to express "no IPv6", and that is measured rather than assumed (#236):
+  #
+  #   sqlite schema      ipv6_cidr text NOT NULL, ipv6_address text NOT NULL
+  #   POST an empty one  HTTP 400, "CIDR must be at least 1 Character"
+  #
+  # So the database holds an IPv6 prefix permanently, and it is not inert
+  # migration residue either — a client created on 2026-08-26 was assigned
+  # fdcc:…:cafe:6 on the spot. The interface prefix is a live generator.
+  # DISABLE_IPV6 strips it when the configuration is WRITTEN, which is the one
+  # and only thing standing between that database column and a dead tunnel.
+  #
+  # The generated FILE is asserted rather than the running interface, and the
+  # difference matters: wg-quick reads this file at the next start, so a file
+  # that has gone wrong is detectable while the tunnel is still up from the
+  # previous one — and it stays detectable with the container stopped, which is
+  # exactly when the next start is about to happen.
+  #
+  # `grep -c` prints 0 and exits 1 with no match; both are asserted, because an
+  # unreadable file also exits non-zero and would otherwise pass.
+  wg-generated-config-carries-no-ipv6:
+    exec: grep -cE '([0-9a-f]{0,4}:){2,}' {{ services_data_dir }}/wireguard/wg0.conf
+    exit-status: 1
+    stdout: ["/^0$/"]
