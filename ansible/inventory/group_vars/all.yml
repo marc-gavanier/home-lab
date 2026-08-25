@@ -37,6 +37,14 @@ data_filesystem: ext4
 luks_mapper_name: data_crypt
 # luks_passphrase: set via --extra-vars or ansible-vault, NEVER in plain text
 
+# Boot-time fsck triggers on the ROOT filesystem (#154). Both are set, because
+# they cover opposite failure modes: the interval catches a host that never
+# reboots, the mount count a host that reboots constantly. See
+# roles/base/tasks/filesystem-checks.yml for what each half actually does and
+# for the emergency-shell trade-off this accepts.
+root_fsck_max_mounts: 30
+root_fsck_interval_days: 30
+
 # --- Docker ---
 docker_data_root: /mnt/data/docker  # Docker images/layers on HDD
 

@@ -77,3 +77,32 @@ command:
     exec: systemctl is-enabled e2scrub_all.timer
     exit-status: 1
     stdout: ["/^masked$/"]
+
+  # The root filesystem's boot-time check needs BOTH halves, and each is
+  # asserted separately because each can be lost on its own (#154).
+  #
+  # The fstab half is the fragile one, and not hypothetically: cloud-init's
+  # `mounts` module is enabled on this host and rewrites /etc/fstab, and
+  # /etc/hosts is already wiped on every boot by the same mechanism. A passno
+  # silently reset to 0 leaves the superblock triggers below still armed and
+  # still green, with nothing ever consulting them — a check that is configured,
+  # asserted, and never runs.
+  root-fstab-has-fsck-pass:
+    exec: awk '!/^#/ && $2 == "/" { print $6 }' /etc/fstab
+    exit-status: 0
+    stdout: ["/^[1-9]$/"]
+
+  # The superblock half. These two values are what systemd-fsck-root.service
+  # consults once fstab lets it run; with `Maximum mount count: -1` and
+  # `Check interval: 0` — the state both hosts shipped in — it starts, finds
+  # nothing due, and exits 0 forever.
+  #
+  # Asserted against the values the repository sets rather than "not the
+  # default", so a hand-run `tune2fs` that loosens them fails here instead of
+  # passing for not being -1.
+  root-fsck-triggers-armed:
+    exec: tune2fs -l "$(findmnt -no SOURCE /)"
+    exit-status: 0
+    stdout:
+      - "/Maximum mount count:\\s+{{ root_fsck_max_mounts }}\\b/"
+      - "/Check interval:\\s+{{ root_fsck_interval_days | int * 86400 }}\\b/"

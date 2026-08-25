@@ -1,21 +1,60 @@
 # {{ ansible_managed }}
 [Unit]
-Description=Start a SMART short self-test on the homelab data disk
+Description=Start a SMART extended self-test on the homelab data disk
 
 [Service]
 Type=oneshot
-# SHORT, not long, and that is measured rather than preferred. The long test
-# was tried first on 2026-08-15: the drive announces 228 minutes for it, then
-# returns "Completed: read failure" at LBA 730424728 within seconds — twice in a
-# row, at the identical LBA — while that LBA and the 64 MiB around it read
-# without error from the host, with every SMART counter at zero and nothing in
-# dmesg. A WD50NDZW is a USB-native SMR drive whose bridge does not implement
-# the extended self-test; the result is canned, not a finding. Building alerts
-# on it would have meant a permanently red monitor.
+# LONG, and the short test this replaced is the reason #207 went unseen for a
+# week. Both halves of that are measured.
 #
-# The short test does run properly here — it completed without error in the two
-# minutes it announced. It exercises the electronics and a read sample, which is
-# less than a surface scan but is real. Surface coverage comes from elsewhere:
-# the nightly backup reads every file, and the weekly maintenance runs a rotating
-# `restic check --read-data-subset` over the repository.
-ExecStart=/usr/sbin/smartctl -t short {{ data_disk_device | regex_replace('[0-9]+$', '') }}
+# --- What the short test cannot do -------------------------------------------
+# `-t short` samples: electronics, a read of the first and last few megabytes,
+# a seek test. It does not walk the surface. It could neither have found the
+# three bad regions on this drive nor tracked them, and it reported "Completed
+# without error" every Wednesday while one of them was making a live Nextcloud
+# file unreadable. Same shape as the timer masked in base/filesystem-checks.yml
+# and as the offsite CPU-temperature gap in #201 — a control that reports on
+# something it does not exercise.
+#
+# --- The 2026-08-15 measurement that removed it, and why it was wrong --------
+# This unit used to carry a careful argument for `-t short`: the long test
+# returned "Completed: read failure" at LBA 730424728 within seconds, twice at
+# the identical LBA, while that LBA and the 64 MiB around it read WITHOUT ERROR
+# from the host, with every SMART counter at zero and nothing in dmesg. Read as
+# a USB-native SMR bridge returning a canned result rather than a finding.
+#
+# Every one of those observations was correct. The conclusion drawn from them
+# was not. That is exactly what a marginal sector looks like: the host path
+# succeeds through retries and ECC, the self-test reads strictly and fails, and
+# the pending counter cannot clear because only a WRITE retires a pending
+# sector. The evidence used to dismiss the result was the signature of the
+# defect being real.
+#
+# What it cost: the extended test was the ONLY control on this host that read
+# the live surface. Removing it left the nightly restic backup, which skips a
+# file whose metadata has not changed and therefore cannot see rot in a file
+# that never changes; `restic check --read-data-subset`, which reads the
+# repository and not the live tree; and the daily superblock read, which
+# reports errors the kernel has already noticed. None of them read cold bytes.
+# Nine days later a second sector was throwing unrecoverable read errors into
+# the kernel log and a third had taken a live file with it.
+#
+# --- What was measured on 2026-08-25, after repairing the three regions ------
+# All three were rewritten in place (`dd conv=notrunc` onto the same extents,
+# verified by filefrag), which is what forces the drive to rewrite or reallocate
+# a pending sector. Raw `O_DIRECT` reads of LBA 730424728, 7131556272 and
+# 9320359320 then all succeeded, including the one that had been a hard
+# Unrecovered read error minutes earlier. `Reallocated_Sector_Ct` stayed 0: the
+# drive rewrote in place, it did not need to retire anything.
+#
+# With those repaired, the extended test ran past the point where it had
+# previously aborted three times in a row within seconds — which settles the
+# bridge question that could not be settled in August: the drive implements it.
+#
+# --- Cost ---------------------------------------------------------------------
+# 228 minutes announced, longer in practice because the drive suspends the scan
+# while the host does I/O. It is a background test: no host I/O of its own, no
+# volume to unmount, nothing stopped. That is the property that made it the
+# right answer here — the surface question does NOT need the maintenance window
+# an `e2fsck -c` would need.
+ExecStart=/usr/sbin/smartctl -t long {{ data_disk_device | regex_replace('[0-9]+$', '') }}
