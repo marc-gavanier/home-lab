@@ -103,7 +103,13 @@ if [ -z "$OPERATOR_UID" ]; then
 else
     while read -r name; do
         [ -n "$name" ] || continue
-        [ "$name" = "wg-easy" ] && continue        # #138: cannot write, tracked
+        # wg-easy was exempted here from 2026-08-17 to 2026-08-25 with the note
+        # "#138: cannot write, tracked". A known defect became a permanent hole
+        # in the control that would have caught it coming back — and #160, the
+        # deploy-path half of the same defect, was found by an audit rather than
+        # by this check, because this check had been told not to look. An
+        # exemption that outlives the ticket it names is indistinguishable from
+        # a blind spot. #138 is fixed; the exemption is gone with it.
         case " $(inspect "$name" '{% raw %}{{range .HostConfig.CapAdd}}{{.}} {{end}}{% endraw %}') " in
             *" CAP_DAC_OVERRIDE "*) continue ;;
         esac
