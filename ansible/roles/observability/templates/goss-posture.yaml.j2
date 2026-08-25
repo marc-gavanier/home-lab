@@ -340,3 +340,47 @@ command:
     exec: grep -cE '([0-9a-f]{0,4}:){2,}' {{ services_data_dir }}/wireguard/wg0.conf
     exit-status: 1
     stdout: ["/^0$/"]
+
+  # --- The allow-list entry that does the work is not the one that looks like
+  # --- it (#128)
+  # `vpn-only` admits the LAN and `172.18.0.0/16`. There is no WireGuard subnet
+  # in it, because none ever arrives: wg-easy masquerades 10.8.0.0/24 out of its
+  # eth0, the client is full-tunnel so the packet leaves for the Pi's LAN
+  # address, and the host hairpin-NATs it back into the bridge as 172.18.0.1.
+  # Two NAT hops. Fourteen days of access logs, 77 395 requests, ZERO from
+  # 10.8.0.0/24.
+  #
+  # So the docker entry is the one holding the tunnel open, and it reads like
+  # internal plumbing. Anyone tightening this by eye removes it. This assertion
+  # is what makes that a red monitor within five minutes instead of a lockout
+  # discovered from outside the house — which on this host means physically
+  # present or not at all.
+  #
+  # It is a REQUEST, not a reading of the config file. A config assertion would
+  # pass on a list that is syntactically perfect and semantically closed, and
+  # would say nothing about the hairpin address changing underneath it.
+  #
+  # `!= 403` rather than `= 200`, and both halves were measured on 2026-08-26 by
+  # temporarily removing the entry and putting it back:
+  #
+  #   admitted   HTTP 200, backend reached, "vaultwarden@docker" "http://…"
+  #   refused    HTTP 403, NINE bytes, backend field "-", 0 ms
+  #
+  # Vaultwarden's root is the target because it answers 200 unauthenticated. The
+  # trap avoided: a backend can return 403 on its own — Pi-hole's admin does,
+  # 3 433 bytes with a real backend in the log — and pointing this at that host
+  # would have made the assertion pass on a denial and fail on a success.
+  #
+  # Traefik's address is resolved rather than hardcoded, and via jq because goss
+  # templates this file before running it.
+  traefik-allowlist-admits-the-proxy-network:
+    exec: |
+      ip=$(docker inspect traefik | jq -r '.[0].NetworkSettings.Networks.proxy.IPAddress')
+      case "$ip" in ""|null) echo "traefik has no address on the proxy network"; exit 1 ;; esac
+      code=$(docker exec uptime-kuma curl -sk -o /dev/null -w '%{http_code}' --max-time 10 \
+               --resolve "vault.{{ domain }}:443:$ip" "https://vault.{{ domain }}/")
+      case "$code" in
+        403) echo "vpn-only refuses the proxy network — every VPN client is locked out"; exit 1 ;;
+        ""|000) echo "no answer from traefik at $ip"; exit 1 ;;
+      esac
+    exit-status: 0

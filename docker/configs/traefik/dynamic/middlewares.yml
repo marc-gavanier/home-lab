@@ -4,13 +4,55 @@
 
 http:
   middlewares:
-    # Restrict access to VPN clients only (WireGuard subnet)
+    # Restrict access to the LAN and the VPN — 403 to anything else.
+    #
+    # --- READ THIS BEFORE TIGHTENING (#128) ---------------------------------
+    # There is no WireGuard subnet in this list, and its absence is the fix
+    # rather than an oversight. The line that admits VPN clients is the
+    # DOCKER one. That is counter-intuitive enough to have been dangerous:
+    # the list used to open with `10.8.0.0/24  # WireGuard subnet`, which read
+    # as the load-bearing rule and matched nothing at all, so anyone tidying
+    # this up would have deleted the entry that actually works and locked
+    # themselves out of a host whose only route in is that tunnel.
+    #
+    # Why no VPN address ever arrives, measured end to end:
+    #
+    #   wg-easy   -A POSTROUTING -s 10.8.0.0/24 -o eth0 -j MASQUERADE
+    #             so 10.8.0.x leaves the container as 172.18.0.3
+    #   clients   AllowedIPs 0.0.0.0/0 — full tunnel, so they reach services by
+    #             the Pi's LAN address and the packet goes out to the host
+    #   host      docker hairpin-NATs it back into the bridge as 172.18.0.1
+    #
+    # Two NAT hops, no HTTP proxy anywhere in the path — so there is also no
+    # X-Forwarded-For to trust and read, and `forwardedHeaders` would change
+    # nothing. Recovering the real client address would mean dropping that
+    # MASQUERADE *and* giving Traefik a route back to 10.8.0.0/24, which it
+    # cannot install (`cap_drop: ALL`) and which would otherwise have to be
+    # done on the host, on the only path to the machine. Deliberately not done.
+    #
+    # 14 days of access logs, 77 395 requests, three source addresses ever:
+    #   59 844  192.168.1.100   the Pi itself
+    #   17 527  172.18.0.1      the hairpin — this is every VPN client
+    #        1  172.18.0.8      uptime-kuma
+    #        0  10.8.0.0/24     in fourteen days
+    #
+    # `172.18.0.0/16` rather than the `172.16.0.0/12` it replaces: /12 spans
+    # 172.16 through 172.31, admitting all three docker networks — including
+    # `homelab_socketproxy` (172.21), where the Docker socket proxy lives — plus
+    # thirteen /16s that do not exist. Nothing outside 172.18 has reached Traefik
+    # in those fourteen days, so this excludes nothing observed and closes a
+    # lateral path that was open for no reason.
+    #
+    # If wg-easy ever stops masquerading, VPN clients start arriving as
+    # 10.8.0.x and this list has to get that subnet back. The posture assertion
+    # `traefik-allowlist-admits-the-proxy-network` is what turns that, and any
+    # other tightening that breaks VPN access, into a red monitor instead of a
+    # lockout discovered from outside the house.
     vpn-only:
       ipAllowList:
         sourceRange:
-          - "10.8.0.0/24"     # WireGuard subnet
-          - "192.168.1.0/24"  # LAN subnet
-          - "172.16.0.0/12"   # Docker internal networks
+          - "192.168.1.0/24"  # LAN
+          - "172.18.0.0/16"   # the `proxy` docker network — AND every VPN client
 
     # Security headers applied to every service (attached at the websecure
     # entrypoint). SAMEORIGIN rather than frameDeny: a global frameDeny would
@@ -67,9 +109,17 @@ http:
     # is reachable from outside — and 100/s sustained is still a real cap.
     #
     # Caveat worth keeping: this sample was taken while the household was away,
-    # so it is one user's traffic. #128 makes every VPN client share this single
-    # bucket, so concurrent users add up inside it; revisit if 429s reappear with
-    # the house occupied.
+    # so it is one user's traffic. Every VPN client shares this single bucket,
+    # so concurrent users add up inside it; revisit if 429s reappear with the
+    # house occupied.
+    #
+    # That sharing is PERMANENT, not a pending fix, and #128 closed on saying so.
+    # `rateLimit` buckets by source address, and every VPN client reaches Traefik
+    # as 172.18.0.1 after two NAT hops — the mechanism is written out in full
+    # above `vpn-only`. A per-client limit over the VPN is not reachable without
+    # dismantling the NAT and routing 10.8.0.0/24 back to Traefik, on the only
+    # path into this host. So this number has to be sized for the whole VPN at
+    # once rather than per person, and that is what it is.
     rate-limit:
       rateLimit:
         average: 100
