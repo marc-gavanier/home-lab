@@ -57,4 +57,34 @@ Type=oneshot
 # volume to unmount, nothing stopped. That is the property that made it the
 # right answer here — the surface question does NOT need the maintenance window
 # an `e2fsck -c` would need.
+#
+# --- Overlap is not a failure, and the short test could never meet it ---------
+# Found by this change on 2026-08-26, within a minute of deploying it. Moving
+# the timer from 04:30 to 07:30 made systemd treat the just-passed Wednesday
+# 07:30 as a missed run — `Persistent=true` doing exactly its job — so the
+# service fired immediately, onto a drive already running a manual extended
+# test. smartctl refused, correctly:
+#
+#   Can't start self-test without aborting current test (10% remaining)
+#   exit status 4
+#
+# systemd recorded a FAILED unit, and `systemctl --failed` staying empty is one
+# of this lab's own assertions — so a benign overlap turned the posture spec red.
+#
+# A two-minute short test could not collide with anything. A four-hour one can:
+# with a manual run, or a scheduled run that has not finished when the next
+# Wednesday comes round, this is reachable in normal operation.
+#
+# ExecCondition rather than a wrapper or SuccessExitStatus=4, and the difference
+# matters. A non-zero ExecCondition SKIPS the unit without marking it failed,
+# which is what "a test is already running, there is nothing to do" actually
+# means. SuccessExitStatus=4 would swallow the other things smartctl reports
+# with that bit — a failed command to the disk, a checksum error — which are
+# precisely what this unit exists to surface.
+#
+# The condition is inverted on purpose: it exits 0 when NO test is in progress.
+# If smartctl itself cannot talk to the drive it prints no match, the condition
+# passes, and ExecStart runs and fails loudly. The overlap case is silenced; the
+# broken case is not.
+ExecCondition=/bin/sh -c "! /usr/sbin/smartctl -c {{ data_disk_device | regex_replace('[0-9]+$', '') }} | grep -q 'Self-test routine in progress'"
 ExecStart=/usr/sbin/smartctl -t long {{ data_disk_device | regex_replace('[0-9]+$', '') }}
