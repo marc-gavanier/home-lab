@@ -11,7 +11,9 @@
 # created. Two bugs hid there for weeks:
 #
 #   #138  wg-easy could not write its database, so a VPN peer could not be
-#         REVOKED. Not fixed here: see the note at the bottom.
+#         REVOKED — and `wg_easy_config` could verify the VPN settings it
+#         claims to enforce and never write them (#160). Fixed here since
+#         2026-08-25; the hazard that kept it out is measured below.
 #   #144  Vaultwarden. Its vault is a SQLite database in WAL mode, and it wrote
 #         fine only because db.sqlite3-wal and -shm predated the capability
 #         drop by six days. SQLite deletes both on a clean shutdown and
@@ -44,6 +46,18 @@
     # script that parses acme.json since #157 runs as root.
     - { path: traefik/acme, mode: "0700" }
     - { path: immich/upload, mode: "0755" }
+    # The fourth, and it took #138 and #160 with it. Held out of this loop for
+    # eight days by a hazard that was reasoned rather than measured — see the
+    # block below — and out of the 0700 list further down for the same reason,
+    # which is why the mode moves here in the same change: this directory holds
+    # the interface private key, every client private key and every pre-shared
+    # key. It was the most sensitive store in the lab and the only credential
+    # store still world-traversable.
+    #
+    # 0700 verified on the running host before being written here: the container
+    # runs as root and OWNS the directory, so it loses nothing, and an
+    # unprivileged account is refused where it could previously list.
+    - { path: wireguard, mode: "0700" }
   loop_control:
     label: "{{ item.path }} {{ item.mode }}"
 
@@ -53,9 +67,10 @@
 # and 0640; only this one is not, which is why it reads as the application's
 # default rather than a decision.
 #
-# The container runs as root and owns the file, so 0600 costs it nothing. Mode
-# only, never ownership: chowning the DIRECTORY is what triggers the #138
-# reconciliation write, and this task must stay safe to run from a deploy.
+# The container runs as root and owns the file, so 0600 costs it nothing. This
+# stays a mode-only task now that the loop above owns the directory: the two are
+# not redundant, because the application rewrites this FILE with its own umask
+# and a directory mode cannot reach into that.
 #
 # Re-asserted every deploy rather than set once, because the application may
 # recreate the file on a restart and take its umask with it.
@@ -73,11 +88,34 @@
     mode: "0600"
   when: wg_easy_db.stat.exists
 
-# NOT wireguard, deliberately. The same one-line change fixes #138, but it
-# cannot be made from here: the first successful write regenerates wg0.conf from
-# the database and runs `wg syncconf`, and the live interface is IPv4-only while
-# the database holds IPv6 for the interface and for every peer. That interface
-# is the only path to this host. #138 is done at the machine.
+# --- The hazard that kept wireguard out of the loop above, and what it was ---
+# This file used to say: not wireguard, deliberately — the first successful
+# write regenerates wg0.conf from the database and runs `wg syncconf`, the live
+# interface is IPv4-only while the database holds IPv6 for the interface and for
+# every peer, and that interface is the only path to this host.
+#
+# The premise was right and the conclusion was worse than the risk. Measured on
+# 2026-08-25, on the LAN, with wg0.conf and the database backed up first:
+#
+#   chown root:root       -> the container writes (`touch` in /etc/wireguard OK)
+#   idempotent POST of the CURRENT userconfig, to exercise the write path
+#                         -> HTTP 200, user_configs_table.updated_at moved
+#   wg0.conf              -> REWRITTEN (mtime moved) and byte-identical,
+#                            md5 eb8ac06c… before and after
+#   wg show wg0           -> the same four IPv4 /32 peers, no IPv6
+#   ssh offsite           -> answers through the tunnel
+#
+# So the regeneration path does run on a write, and `DISABLE_IPV6=true` is
+# honoured when it GENERATES, not only at startup as ADR-020 records. The IPv6
+# in the database is migration residue that never reaches the interface.
+#
+# What that leaves: the residue is still a drift nothing asserts, and it is no
+# longer the reason this task is absent — it is its own follow-up.
+#
+# The general lesson is the one this repository keeps relearning from the other
+# direction: an unmeasured hazard froze a one-line fix for eight days while the
+# defect it protected stayed live, and the measurement cost twenty minutes on a
+# LAN session with a backup in place.
 
 # --- Credential-bearing service data: gate the DIRECTORY, not each file (#177)
 #
@@ -104,8 +142,10 @@
 # calibre-web and transmission's config. None of them depends on DAC_OVERRIDE to
 # get in, so this does not repeat #138.
 #
-# `mode` only, never `owner`: chowning a directory is what triggers the #138
-# reconciliation write, and this file must stay safe to run from a deploy.
+# `mode` only, never `owner`, and now for the reason that actually holds rather
+# than the #138 one: every directory in this list is already owned by the uid
+# its container runs as. Setting an owner here would assert something that is
+# true by construction, and would be the wrong tool the day it stopped being.
 #
 # Pi-hole's store was the sixth, added by #189, and it was REMOVED from this list
 # on 2026-08-25 because the mode cannot hold. The image's prestart script runs

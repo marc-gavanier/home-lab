@@ -149,6 +149,70 @@ which is untouched by this change.
 
 `wg_easy_config.yml` — the second task file described above — is unaffected and
 still re-asserts the settings on every deploy. It is the subject of open issue
-#160.
+#160, and see the correction below: until 2026-08-25 it could not write at all.
 
 First application of ADR-030 (tier 0: delete what has already run).
+
+---
+
+## Correction, 2026-08-25 — the re-assertion had never once written
+
+This ADR made two claims that were not true of the running system. Both are
+recorded here rather than edited away, because the way they stayed true-looking
+is the useful part.
+
+### "keep this repository the source of truth by re-asserting the settings"
+
+The re-assertion task could **verify** and could never **enforce**. Every write
+into wg-easy returned HTTP 500 with `SQLITE_READONLY`: `cap_drop: ALL` takes
+`CAP_DAC_OVERRIDE` from a container running as root, and its data directory was
+owned by uid 1000, so the database's rollback journal could not be created. The
+database was reachable and could not be written (#138). Adding or **revoking** a
+VPN peer failed the same way, from the same cause.
+
+`homelab-wg-easy-config.sh` exited 0 on every deploy for a month — on "settings
+already match", never on a write. A mechanism that would have failed the first
+time it was needed, whose daily success is what hid it. Worse, `failed_when: rc
+not in [0, 2]` meant the first genuine configuration change would have aborted
+the deploy at step 4 of 12, on the host whose only route in is the tunnel this
+same service manages (#160).
+
+Fixed by `chown root:root` on the data directory, expressed in
+`roles/deploy/tasks/data_dirs.yml`. No capability is handed back — the opposite
+of reopening `DAC_OVERRIDE`.
+
+Verified end to end on 2026-08-25, which is the part that was missing:
+
+| Step | Result |
+|---|---|
+| POST the CURRENT settings back (write path, no semantic change) | HTTP 200, `user_configs_table.updated_at` moved |
+| deliberate drift: `defaultMtu` 1420 → 1380 through the API | accepted, read back as 1380 |
+| `homelab-wg-easy-config.sh` | `settings drifted — rewriting them`, exit **2** |
+| read back | `defaultMtu = 1420`, host and DNS intact |
+| run it again | `settings already match`, exit **0** |
+
+So the sentence at the top of this ADR describes the system for the first time
+since it was written.
+
+### "`migrate` assigns IPv6 addresses even with the flag set"
+
+True, and the conclusion drawn from it was too narrow. The residue is still in
+the database today — `ipv6_cidr` on the interface and an `ipv6_address` on all
+four clients — and this ADR's reading of it (cleanup runs *at startup*, the
+migration runs *after*) left a hazard on the record: that the first write would
+regenerate `wg0.conf` from the database and take IPv6 with it, which on a host
+with no global IPv6 makes `wg-quick up wg0` fail outright and leaves **no tunnel
+at all behind a green container**.
+
+That hazard blocked the one-line fix above for eight days. It was reasoned, not
+measured. Measured now, on the LAN, with `wg0.conf` and the database backed up
+first: the write **does** regenerate `wg0.conf` — its mtime moves — and the file
+is byte-identical, `md5 eb8ac06c…` before and after. `wg show wg0` keeps the
+same four IPv4 `/32` peers, `ssh offsite` still answers through the tunnel.
+
+`DISABLE_IPV6=true` is therefore honoured when the configuration is
+**generated**, not only during the startup cleanup. The IPv6 in the database
+never reaches the interface.
+
+It is still drift that nothing asserts, and it is now its own follow-up rather
+than the reason a fix cannot land.
