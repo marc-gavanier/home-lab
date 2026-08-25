@@ -108,13 +108,21 @@ else
         [ "$hdd_temp" -ge 60 ] && problems+=("hdd ${hdd_temp}C")
     fi
 
-    # Last self-test (a SHORT one, started weekly by homelab-smart-test.timer —
-    # the extended test is not usable on this drive, see that unit for the
-    # measurement). Only the most recent log entry is read, so an old extended
-    # failure sitting further down the log does not alarm forever.
+    # Last self-test — an EXTENDED one since #207, started weekly by
+    # homelab-smart-test.timer. Only the most recent log entry is read, so a
+    # failure that has since been repaired does not alarm forever.
+    #
+    # The condition is stated positively, and that is the fix rather than a
+    # style choice. It used to read `grep -qiE 'fail|aborted'`, which alarms on
+    # the two outcomes somebody thought of and stays silent on every other —
+    # "Interrupted (host reset)", "Completed: unknown failure", a status a
+    # future smartctl invents, or a log this parser failed to read. Each of
+    # those is a self-test that did not clean-complete, reported as health.
+    # Anything that is not a clean completion or a run still going is a problem.
     selftest=$(awk '/^# 1/ { $1=""; $2=""; print; exit }' <<<"$smart_out" | xargs)
     if [ -n "$selftest" ]; then
-        grep -qiE 'fail|aborted' <<<"$selftest" && problems+=("self-test: $selftest")
+        grep -qiE 'completed without error|in progress' <<<"$selftest" \
+            || problems+=("self-test: $selftest")
         # Dead-man's check on the timer itself: the log stamps each test in
         # drive power-on hours, so comparing with attribute 9 catches a silently
         # dead timer instead of leaving an eternally green "Completed without

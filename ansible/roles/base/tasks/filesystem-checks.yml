@@ -34,10 +34,11 @@
 #               at every unlock (storage/unlock.yml). A clean filesystem costs
 #               about a second; a real scan happens after an unclean shutdown,
 #               which is the case that matters.
-#   /           nothing. `passno=0` in fstab, `Maximum mount count: -1`,
-#               `Check interval: 0`, last checked 2026-02-10. Restoring a
-#               boot-time trigger costs boot time on a Pi, and that decision is
-#               deliberately NOT taken here — #154 keeps it open.
+#   /           nothing, until the second half of this file. `passno=0` in
+#               fstab, `Maximum mount count: -1`, `Check interval: 0`, last
+#               checked 2026-02-10 — the date the image was built, on BOTH
+#               hosts. That decision was left open when this file was written;
+#               it is taken below.
 #   both        the daily disk report reads the superblock error counters
 #               (`ext4 clean`), which catches errors the kernel has ALREADY
 #               noticed. That is detection after the fact, not a consistency
@@ -71,3 +72,84 @@
     name: e2scrub_all.timer
     masked: true
   when: e2scrub_distro_timer.stat.exists
+
+# =============================================================================
+# The root filesystem, which nothing has ever checked (#154, option 2)
+# =============================================================================
+# Measured on BOTH hosts, 2026-08-25:
+#
+#   Maximum mount count:  -1                      -> mount-count trigger off
+#   Check interval:       0 (<none>)              -> time trigger off
+#   Last checked:         Tue Feb 10 04:01:10 2026 -> the image build date
+#
+# 2026-02-10 is not "the last time someone checked". It is the mkfs timestamp
+# baked into the Ubuntu image, identical on two machines flashed months apart.
+# Neither root filesystem has EVER been checked, and both were configured so
+# that neither ever would be.
+#
+# --- Two halves, and one without the other does nothing ----------------------
+#   fstab passno=1   set in system.yml, on the task that owns that line. It
+#                    makes systemd pull in systemd-fsck-root.service at boot.
+#                    Alone it changes nothing: the service asks the superblock
+#                    whether a check is due, and the superblock said "never".
+#   superblock       set here. `-c` and `-i` are the two triggers the service
+#                    consults. They live in the superblock rather than in a
+#                    file, which is the property that matters on this host:
+#                    cloud-init's `mounts` module is enabled and rewrites
+#                    /etc/fstab, and /etc/hosts is already wiped on every boot
+#                    for the same reason. It cannot reach these.
+#
+# --- Why the first firing is the next boot, deliberately ---------------------
+# `Last checked` is 196 days old, so a 30-day interval is already exceeded and
+# the check runs at the very next boot rather than in a month. That boot is the
+# supervised on-site one this work is being sequenced around — which is the only
+# honest way to enable this. A trigger whose first firing nobody watches is the
+# same bet as the controls this repository keeps deleting.
+#
+# --- The cost, stated rather than discovered ---------------------------------
+# ~10 GB used on a 57 GB card: tens of seconds at boot, once a month or once
+# every 30 mounts, on a host that reboots a few times a year. Both triggers are
+# kept because they fail in opposite directions — the interval covers a host
+# that never reboots, the mount count covers one that reboots constantly.
+#
+# The real cost is not time. systemd-fsck runs `e2fsck -p`, which fixes only
+# what is unambiguously safe and exits non-zero on anything else, and systemd
+# turns that into an emergency shell. On a host reachable only through a tunnel
+# that needs the encrypted volume unlocked, that means physically present or not
+# at all. That is the correct outcome — a root filesystem e2fsck refuses to
+# preen should not silently carry on serving — but it is a real change in
+# failure mode and it is why this waited for a decision rather than shipping
+# with the mask above.
+# =============================================================================
+
+- name: filesystem-checks | Resolve the device behind /
+  ansible.builtin.set_fact:
+    root_fs_device: >-
+      {{ ansible_facts['mounts'] | selectattr('mount', 'equalto', '/')
+         | map(attribute='device') | first }}
+
+- name: filesystem-checks | Read the root filesystem's check triggers
+  ansible.builtin.command: "tune2fs -l {{ root_fs_device }}"
+  register: root_fs_superblock
+  changed_when: false
+  check_mode: false
+
+# `-c` and `-i` are both set in one call so a half-applied state is not
+# reachable, and the guard reads the superblock rather than a marker file: the
+# thing being asserted is the filesystem's own state, and it is the only thing
+# that can answer honestly after a reflash.
+- name: filesystem-checks | Arm both boot-time triggers on the root filesystem
+  ansible.builtin.command:
+    cmd: >-
+      tune2fs -c {{ root_fsck_max_mounts }}
+              -i {{ root_fsck_interval_days }}d
+              {{ root_fs_device }}
+  vars:
+    current_max_mounts: "{{ root_fs_superblock.stdout
+      | regex_search('Maximum mount count:\\s+(-?\\d+)', '\\1') | first }}"
+    current_interval: "{{ root_fs_superblock.stdout
+      | regex_search('Check interval:\\s+(\\d+)', '\\1') | first }}"
+  when: >-
+    current_max_mounts != (root_fsck_max_mounts | string)
+    or current_interval != (root_fsck_interval_days | int * 86400) | string
+  changed_when: true

@@ -140,7 +140,7 @@ is asleep.
 
 `homelab-disk.sh` (daily at 07:00, its own Kuma push monitor) watches the 5 TB
 drive: SMART early-warning counters, capacity, temperature, and the result of
-the weekly short self-test started by `homelab-smart-test.timer`.
+the weekly extended self-test started by `homelab-smart-test.timer`.
 
 It exists because until 2026-08-15 nothing watched that disk at all — while the
 offsite Pi, which holds only a *copy*, had a weekly SMART report and a monthly
@@ -163,20 +163,40 @@ from `homelab-health.sh` for the same reason the posture check is: a reallocated
 sector is not an outage, it is a countdown, and it would be buried inside a
 five-minute signal carrying CPU temperature.
 
-**The self-test is short, not extended, and that was measured.** The extended
-test was tried first: the drive announces 228 minutes for it, then returns
-`Completed: read failure` at LBA 730424728 within seconds — twice, at the
-identical LBA — while that sector and the 64 MiB around it read without error
-from the host, every SMART counter stays at zero and dmesg is silent. The
-WD50NDZW is a USB-native SMR drive whose bridge does not implement the extended
-self-test; the verdict is canned, not a finding. Alerting on it would have meant
-a permanently red monitor, which is worse than no monitor. The short test does
-run correctly here, completing in the two minutes it announces.
+**The self-test is extended, and it was short for nine days because a true
+positive was read as a bug.** On 2026-08-15 the extended test was tried and
+returned `Completed: read failure` at LBA 730424728 within seconds — twice, at
+the identical LBA — while that sector and the 64 MiB around it read without
+error from the host, every SMART counter sat at zero and dmesg was silent. That
+was read as a USB-native SMR bridge returning a canned verdict, and the test was
+replaced with `-t short` to avoid a permanently red monitor.
 
-Losing the surface scan matters less than it sounds, because the media is read
-in full anyway: the nightly backup reads every file, and the weekly maintenance
-runs a rotating `restic check --read-data-subset` across the repository. A
-sector that cannot be read surfaces there.
+Every one of those observations was correct and the conclusion was wrong. A
+marginal sector looks exactly like that: the host path succeeds through retries
+and ECC, the self-test reads strictly and fails, and the pending counter cannot
+clear because only a **write** retires a pending sector. Nine days later a
+second sector was throwing unrecoverable read errors into the kernel log and a
+third had made a live Nextcloud file unreadable (#207). The control that found
+the defect first was the one that got removed for finding it.
+
+The three regions were repaired on 2026-08-25 by rewriting each affected file in
+place — `dd conv=notrunc` onto the same extents, which is what forces the drive
+to rewrite or reallocate a pending sector — after verifying the replacement
+bytes (restic packs against their own name-hash, the jpg against the snapshot).
+All three LBAs then read cleanly with `O_DIRECT` from the raw device, and
+`Reallocated_Sector_Ct` stayed 0: the drive rewrote in place rather than
+retiring anything.
+
+**What made the gap invisible for those nine days is worth stating on its own**,
+because this page used to assert the opposite: *the media is not read in full
+anyway*. The nightly backup skips a file whose metadata has not changed, so it
+had not re-read the damaged jpg since 27 July and reported `snapshot saved`
+without error every night. `restic check --read-data-subset` reads the
+repository, not the live tree. The daily superblock read reports errors the
+kernel has **already** noticed. None of them read cold bytes. The extended
+self-test is the only control here that does, which is why it is back — and it
+costs nothing that needs a maintenance window: the drive scans in the
+background, no volume is unmounted and nothing is stopped.
 
 **They are generated when the `observability` role templates the script, not
 when the stack is deployed** — the running script holds a snapshot, it does not

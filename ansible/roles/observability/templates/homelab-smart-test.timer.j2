@@ -1,13 +1,28 @@
 # {{ ansible_managed }}
 [Unit]
-Description=Weekly SMART short self-test on the homelab data disk
+Description=Weekly SMART extended self-test on the homelab data disk
 
 [Timer]
-# Weekly rather than the offsite's monthly, because a short test costs two
-# minutes instead of hours — there is no reason to space it out. Wednesday
-# keeps it away from the Sunday cluster (restic prune 05:00, offsite check
-# 06:00), and 04:30 is after the nightly backup window.
-OnCalendar=Wed *-*-* 04:30
+# Weekly, not the offsite's monthly. A drive that produced three bad regions in
+# three days is not a drive to sample monthly, and the test costs nothing the
+# host can feel — the drive scans in the background and yields to host I/O.
+#
+# 07:30 Wednesday, and the half hour matters: the daily disk report fires at
+# 07:00 with up to 10 minutes of jitter and reads the newest self-test log
+# entry. Starting BEFORE it would leave that report parsing "in progress" every
+# Wednesday. Starting after it gives the run the rest of the day and the night,
+# and Thursday's report is the one that reads the result.
+#
+# The announced 228 minutes is a floor, not a duration: the drive yields to host
+# I/O, and this one serves 25 services continuously — the first supervised run
+# was still under 20 % after 50 minutes. The schedule is built so that does not
+# matter. Nothing waits on the test, an unfinished run reads as "in progress"
+# rather than as a failure, and a run still going when the next Wednesday comes
+# is simply restarted.
+#
+# Wednesday also keeps it off the Sunday cluster (restic prune 05:00, offsite
+# check 06:00) and clear of the 03:00 backup window.
+OnCalendar=Wed *-*-* 07:30
 Persistent=true
 RandomizedDelaySec=15m
 

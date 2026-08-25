@@ -209,12 +209,20 @@
     line: 'gpu_mem=16'
   notify: Reboot required
 
-- name: system | Add noatime to SD card mount
+# This task owns the root line of /etc/fstab, so both properties that line
+# carries are set here: `noatime` for SD longevity, and `passno` for #154.
+#
+# passno=1 is HALF of a boot-time check and does nothing on its own — it only
+# makes systemd-fstab-generator pull in systemd-fsck-root.service, which then
+# asks the superblock whether a check is due. The superblock said "never" on
+# both hosts; the other half arms it, in filesystem-checks.yml.
+- name: system | Own the root fstab line — noatime, and a boot-time fsck pass
   ansible.posix.mount:
     path: /
     src: "{{ ansible_facts['mounts'] | selectattr('mount', 'equalto', '/') | map(attribute='device') | first }}"
     fstype: ext4
     opts: defaults,noatime
+    passno: "1"
     state: mounted
 
 # Weekly TRIM lets the SD (and the offsite SSD) controller wear-level free
