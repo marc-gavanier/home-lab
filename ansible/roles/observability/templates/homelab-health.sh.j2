@@ -480,7 +480,23 @@ if command -v systemctl >/dev/null 2>&1 && mountpoint -q /mnt/data; then
     for t in $(systemctl list-timers 'homelab-*' --all --no-legend --no-pager 2>/dev/null | awk '{print $NF}'); do
         case "$t" in *.service) ;; *) continue ;; esac
         r=$(systemctl show "$t" -p Result --value 2>/dev/null)
-        [ -z "$r" ] || [ "$r" = "success" ] || badrun="$badrun $t"
+        # `exec-condition` is a RUN THAT DECIDED IT HAD NOTHING TO DO, not a
+        # failure — systemd's own word for an ExecCondition that declined. It
+        # became reachable on 2026-08-26 when the SMART self-test grew from two
+        # minutes to four hours and had to stop starting a second test on top of
+        # a running one (#207). This check named one healthy value and treated
+        # every other as broken, so the correct outcome read as a failure and the
+        # monitor stayed red after the real failure was fixed.
+        #
+        # Accepting it does NOT re-open the hole it guards. A condition that is
+        # false forever means the timer never does its job — and that is caught
+        # elsewhere, on purpose: homelab-disk.sh compares the self-test's
+        # power-on-hour stamp against the drive's current one and reports
+        # `self-test stale` after two missed weekly runs. The unit result says
+        # "the last run was not a failure"; the dead-man check says "runs are
+        # actually happening". Neither answers the other's question.
+        case "$r" in ""|success|exec-condition) continue ;; esac
+        badrun="$badrun $t"
     done
     # shellcheck disable=SC2086
     badrun=$(gate systemd-timer-result 240 $badrun)
