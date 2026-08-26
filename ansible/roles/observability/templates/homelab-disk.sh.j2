@@ -111,29 +111,56 @@ else
         [ "$hdd_temp" -ge 60 ] && problems+=("hdd ${hdd_temp}C")
     fi
 
-    # Last self-test — an EXTENDED one since #207, started weekly by
-    # homelab-smart-test.timer. Only the most recent log entry is read, so a
-    # failure that has since been repaired does not alarm forever.
+    # --- Two readings of the self-test log, because it answers two questions --
+    #   selftest   the newest entry: what did the last recorded run DO?
+    #   done_test  the newest entry containing "Completed": what is the last
+    #              real VERDICT on the surface, clean or failed?
     #
-    # The condition is stated positively, and that is the fix rather than a
-    # style choice. It used to read `grep -qiE 'fail|aborted'`, which alarms on
-    # the two outcomes somebody thought of and stays silent on every other —
-    # "Interrupted (host reset)", "Completed: unknown failure", a status a
-    # future smartctl invents, or a log this parser failed to read. Each of
-    # those is a self-test that did not clean-complete, reported as health.
-    # Anything that is not a clean completion or a run still going is a problem.
+    # They differ exactly when the top of the log is an abort, an interruption
+    # or a run still going, and that difference is the whole of this block.
     selftest=$(awk '/^# 1/ { $1=""; $2=""; print; exit }' <<<"$smart_out" | xargs)
+    done_test=$(awk '/^#[[:space:]]+[0-9]+/ { if ($0 ~ /Completed/) { $1=""; $2=""; print; exit } }' \
+                <<<"$smart_out" | xargs)
+
     if [ -n "$selftest" ]; then
-        grep -qiE 'completed without error|in progress' <<<"$selftest" \
-            || problems+=("self-test: $selftest")
+        # An abort is not bad news, it is the ABSENCE of news, and treating the
+        # two alike was a defect this file shipped for one day. The condition
+        # here read `completed without error|in progress` — and "in progress"
+        # never appears in THIS drive's log at all (measured 2026-08-26: a test
+        # was running while entry #1 still read "Aborted by host" from hours
+        # earlier). So the escape hatch did not exist, and any reboot during the
+        # four-to-eight-hour weekly scan would have held this monitor red until
+        # the following week. A red monitor nobody can act on is the thing #207
+        # is about.
+        #
+        # Unknown statuses still alarm. That part was right: a status a future
+        # smartctl invents, or a log this parser failed to read, must be loud
+        # rather than assumed benign.
+        case "$(tr '[:upper:]' '[:lower:]' <<<"$selftest")" in
+            *"completed without error"*) ;;
+            *"completed:"*)              problems+=("self-test: $selftest") ;;
+            *abort*|*interrupt*|*"in progress"*)
+                                         report+=("self-test: $selftest") ;;
+            *)                           problems+=("self-test: $selftest") ;;
+        esac
+
         # Dead-man's check on the timer itself: the log stamps each test in
         # drive power-on hours, so comparing with attribute 9 catches a silently
         # dead timer instead of leaving an eternally green "Completed without
         # error" from a year ago — which is exactly the state this drive was
         # found in, its only self-test dating back to 16 power-on hours out of
         # 2363. 336 h = two missed weekly runs.
-        test_h=$(awk '/^# 1/ { for (i = 1; i <= NF; i++) if ($i ~ /%$/) { print $(i + 1); exit } }' <<<"$smart_out")
-        if [ -n "$test_h" ] && [ $((power_on_h - test_h)) -gt 336 ]; then
+        #
+        # Measured against the last COMPLETED run, not the last entry, and that
+        # is what closes the hole the case above would otherwise open: an abort
+        # stamps recent power-on hours, so reading entry #1 here would let a
+        # scan that is aborted every single week reset this clock forever while
+        # the status check stays quiet about it. Two silences making a third.
+        test_h=$(awk '/^#[[:space:]]+[0-9]+/ { if ($0 ~ /Completed/) { for (i = 1; i <= NF; i++) if ($i ~ /%$/) { print $(i + 1); exit } } }' \
+                 <<<"$smart_out")
+        if [ -z "$test_h" ]; then
+            problems+=("no completed self-test in the log")
+        elif [ $((power_on_h - test_h)) -gt 336 ]; then
             problems+=("self-test stale ($(((power_on_h - test_h) / 24))d ago)")
         fi
     else
@@ -192,9 +219,6 @@ else
         last=$(cat "$PENDING_STATE" 2>/dev/null || true)
         mkdir -p "$(dirname "$PENDING_STATE")" 2>/dev/null || true
         printf '%s\n' "$pending" > "$PENDING_STATE" 2>/dev/null || true
-
-        done_test=$(awk '/^#[[:space:]]+[0-9]+/ { if ($0 ~ /Completed/) { $1=""; $2=""; print; exit } }' \
-                    <<<"$smart_out" | xargs)
 
         if [ -n "$last" ] && [ "$pending" -gt "$last" ] 2>/dev/null; then
             problems+=("SMART pending rose $last -> $pending")

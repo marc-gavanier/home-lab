@@ -175,10 +175,27 @@ completed self-test that was not clean. The steady state — a non-zero count wi
 a clean full-surface scan behind it — is "weak sectors, act at leisure", and it
 reads green so that a change can be seen.
 
-Two parses of the same log, on purpose: the self-test alarm asks *did the
-scheduled scan run properly*, so an abort is a finding there. The pending check
-asks *what does the surface evidence say*, and an abort is not evidence — it
-looks past it to the last real verdict.
+**The self-test log is read twice, on purpose**, because it answers two
+questions. The newest entry says what the last recorded run *did*; the newest
+entry containing `Completed` says what the last real *verdict* on the surface
+was. They differ exactly when the top of the log is an abort, an interruption,
+or a run still going.
+
+An abort is not bad news — it is the absence of news — and treating the two
+alike shipped a defect for one day. The status check briefly read "anything that
+is not a clean completion **or a run in progress**", and this drive never logs a
+run in progress at all: a test was live on 2026-08-26 while entry #1 still read
+`Aborted by host` from hours earlier. So a reboot during the four-to-eight-hour
+weekly scan would have held the monitor red until the following week. Aborts and
+interruptions are reported now, not alarmed; an unknown status still alarms,
+because a status a future smartctl invents must be loud rather than assumed
+benign.
+
+The staleness check moved with it, and that is what stops the two silences
+becoming a third: it measures against the last **completed** run. An abort
+stamps recent power-on hours, so reading the newest entry there would let a scan
+aborted every single week reset the clock forever while the status check stayed
+quiet about it.
 
 Daily rather than the offsite's weekly, because this drive takes writes from 25
 services continuously while the offsite one is read once a night. It is separate
