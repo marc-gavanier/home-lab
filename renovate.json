@@ -12,7 +12,7 @@
   "osvVulnerabilityAlerts": true,
   "packageRules": [
     {
-      "description": "Group patch/minor updates into a single weekly PR; majors stay individual",
+      "description": "Group patch/minor updates into a single weekly PR; majors stay individual. A package that must not ride in this batch leaves it by setting groupName to null in a LATER rule — see uptime-kuma below, which needed exactly that.",
       "matchUpdateTypes": ["minor", "patch"],
       "groupName": "minor & patch updates"
     },
@@ -29,8 +29,14 @@
       "dependencyDashboardApproval": true
     },
     {
-      "description": "Uptime Kuma runs knex migrations at start and exits 1 before listening if one fails — 2.5.0 did exactly that on 2026-08-02 (fix-stat-daily-overflow, 'no such savepoint: trx6'), and since this container IS the monitoring, nothing was left to raise the alarm. Never merge it in the weekly batch: back the DB up first and follow knowledge/runbooks/uptime-kuma-migration-failure.md.",
+      "description": "Uptime Kuma runs knex migrations at start and exits 1 before listening if one fails — 2.5.0 did exactly that on 2026-08-02 (fix-stat-daily-overflow, 'no such savepoint: trx6'), and since this container IS the monitoring, nothing was left to raise the alarm. Never merge it in the weekly batch: back the DB up first and follow knowledge/runbooks/uptime-kuma-migration-failure.md. groupName null is what makes that true rather than merely stated: without it the rule above had already put 2.5.0 -> 2.5.3 into PR #88, where dependencyDashboardApproval no longer applied and the batch could be merged blind. Observed 2026-08-26, the rule had been decorative since it was written.",
       "matchPackageNames": ["louislam/uptime-kuma"],
+      "groupName": null,
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "Pinned binaries downloaded with a checksum the deploy verifies (get_url checksum:). Renovate can see a new release but cannot compute the new SHA256, so an auto-merged bump would produce a green PR that fails the deploy on a mismatch. Detection is still worth having — before this they were invisible, and 'they happen to be current' is luck rather than a control. So: Renovate NOTICES, a human does the work, which means bumping the version AND its *_sha256 together.",
+      "matchPackageNames": ["creativeprojects/resticprofile", "goss-org/goss"],
       "dependencyDashboardApproval": true
     },
     {
@@ -40,6 +46,24 @@
     }
   ],
   "customManagers": [
+    {
+      "customType": "regex",
+      "description": "resticprofile binary, pinned by version + sha256 in group_vars. Detection only — see its packageRule for why an automatic bump is a trap.",
+      "managerFilePatterns": ["/^ansible/inventory/group_vars/all\\.yml$/"],
+      "matchStrings": ["resticprofile_version: \"(?<currentValue>[0-9.]+)\""],
+      "depNameTemplate": "creativeprojects/resticprofile",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    },
+    {
+      "customType": "regex",
+      "description": "goss binary, same shape and the same reason.",
+      "managerFilePatterns": ["/^ansible/inventory/group_vars/all\\.yml$/"],
+      "matchStrings": ["goss_version: \"(?<currentValue>[0-9.]+)\""],
+      "depNameTemplate": "goss-org/goss",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    },
     {
       "customType": "regex",
       "description": "SEARXNG_IMAGE in the branding task must follow the compose pin",
