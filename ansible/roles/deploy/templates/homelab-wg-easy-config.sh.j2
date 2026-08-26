@@ -50,13 +50,33 @@ trap 'rm -f "$COOKIE"' EXIT
 # decided at the end rather than by whichever pass happens to run first.
 CHANGED=0
 
-curl -sf -c "$COOKIE" -X POST "$API/api/session" -H 'Content-Type: application/json' \
+# `/api/auth/password`, not `/api/session`. wg-easy moved the login endpoint in
+# 15.4.0 — a MINOR release — and 15.3.0's path now returns 404. Everything else
+# this script uses survived: GET /api/client, GET and POST /api/client/<id>, GET
+# and POST /api/admin/userconfig all still answer 200, and the per-client values
+# came through the upgrade untouched. Measured 2026-08-26, right after the bump
+# landed.
+#
+# The status code is read rather than relying on `curl -sf`, because the old
+# message named the wrong cause and cost twenty minutes: a 404 was reported as
+# "is WG_ADMIN_PASSWORD still correct?", which sends you to the credential store
+# for a problem that is in the URL. A wrong password and a moved endpoint are
+# different failures and now say so.
+AUTH_CODE="$(curl -s -o /dev/null -w '%{http_code}' -c "$COOKIE" \
+    -X POST "$API/api/auth/password" -H 'Content-Type: application/json' \
     --data-binary @<(python3 -c "
 import json,os
 print(json.dumps({'username': os.environ['WG_ADMIN_USERNAME'],
                   'password': os.environ['WG_ADMIN_PASSWORD'],
-                  'remember': False}))") \
-    >/dev/null || die "cannot authenticate (is WG_ADMIN_PASSWORD still correct?)"
+                  'remember': False}))"))"
+
+case "$AUTH_CODE" in
+    200) ;;
+    404) die "the login endpoint is gone (HTTP 404 on /api/auth/password) — wg-easy has moved it again, this script needs updating, the password is not the problem" ;;
+    401|403) die "authentication REJECTED (HTTP $AUTH_CODE) — is WG_ADMIN_PASSWORD still correct?" ;;
+    000) die "wg-easy is not answering on $API — is it still starting?" ;;
+    *)   die "unexpected HTTP $AUTH_CODE from the login endpoint" ;;
+esac
 
 CURRENT="$(curl -sf -b "$COOKIE" "$API/api/admin/userconfig")" \
     || die "cannot read the current user config"
