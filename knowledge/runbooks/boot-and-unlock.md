@@ -12,8 +12,12 @@ What to expect and do when the Pi comes back up. Design rationale in
 > machine or from something already inside the network. Everything below assumes
 > you are.
 >
-> The offsite Pi is not in this position: it has no LUKS volume and reboots on
-> its own at 04:00.
+> The offsite Pi is not in this position: it has no LUKS volume, and it comes
+> back on its own — 50 seconds, measured 2026-08-26, WireGuard rejoined without
+> help. "Reboots on its own at 04:00" used to be written here and reads as
+> nightly; it is not. It is `Unattended-Upgrade::Automatic-Reboot "true"` with
+> `Automatic-Reboot-Time "04:00"` — it reboots *when an update requires one*, at
+> that hour. Measured boot durations: 28, 24, 42 and 23 days. Roughly monthly.
 
 ## Normal sequence
 
@@ -135,7 +139,8 @@ A reboot is power-cycle-then-`homelab-unlock` (this runbook) — but it is not
 *just* that: it can only be finished from the LAN, so the window is bounded by
 someone being able to reach the machine, not only by the CVSS. Schedule it
 accordingly. Check what's pending with `cat /var/run/reboot-required.pkgs`. The offsite Pi has no LUKS and
-auto-reboots at 04:00, so this cadence is homelab-only. Rationale:
+reboots itself when an update needs it (unattended-upgrades, at 04:00 — roughly
+monthly, not nightly), so this cadence is homelab-only. Rationale:
 [ADR-013](../decisions/ADR-013-update-patching-strategy.md).
 
 ## Related
