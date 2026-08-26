@@ -44,16 +44,35 @@ fi
 # Wait until a container is healthy (or merely running, if it has no healthcheck).
 # Bounded by a timeout so a stuck/perma-unhealthy service never blocks the boot.
 # A *missing* container is fatal: at every call site it must already exist
-# (Tier 0 auto-started by the daemon, wave members created by `compose up`).
+# (Tier 0 created below, wave members created by `compose up`).
+#
+# The missing branch used to be unreachable, and was so from the day it was
+# written for the 2026-07-04 post-mortem. `docker inspect` on an absent
+# container writes an empty line to stdout *before* exiting non-zero, and
+# `2>/dev/null` hides the error but not that line, so `$(… || echo missing)`
+# yielded "\nmissing" — which `case` never matches against `missing)`. The run
+# fell through to the timeout instead: 300 s of waiting, then every remaining
+# wave dispatched with no DNS. Measured twice on 2026-08-26 (#252).
+#
+# Testing the exit status of the assignment removes the string collision
+# entirely. But `docker inspect` fails identically for a container that does
+# not exist and for a daemon that blinked, and only the first deserves a FATAL —
+# so `docker info` arbitrates. Without it, this fix would turn a transient
+# daemon hiccup into an aborted boot.
 wait_healthy() {
     local name=$1 timeout=${2:-180} elapsed=0 status
     while true; do
-        status=$(docker inspect -f \
+        if ! status=$(docker inspect -f \
             '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \
-            "$name" 2>/dev/null || echo missing)
+            "$name" 2>/dev/null); then
+            if docker info >/dev/null 2>&1; then
+                fatal "container $name does not exist — store problem?"
+            fi
+            log "WARN: docker not responding while waiting for $name — retrying"
+            status=unavailable
+        fi
         case "$status" in
             healthy|running) log "$name is $status (${elapsed}s)"; return 0 ;;
-            missing) fatal "container $name does not exist — store problem?" ;;
         esac
         if [ "$elapsed" -ge "$timeout" ]; then
             log "WARN: $name still '$status' after ${timeout}s — continuing"
@@ -78,10 +97,39 @@ up() {
 
 log "staged startup begin"
 
-# Tier 0 (pihole/traefik/wg-easy) is auto-started by Docker. Block on DNS first —
-# nothing else matters until the LAN can resolve names again. Generous timeout:
-# at a cold start FTL reloads gravity and can take >2 min to pass its
-# healthcheck; waiting here IS the point (DNS before the herd).
+# Tier 0 is auto-started by Docker — but a restart policy only ever applies to a
+# container that still EXISTS, and `docker compose down`, the documented
+# maintenance path, removes them. On 2026-08-26 this script waited 300 s for a
+# pihole nobody was going to create, then dispatched all three waves with no
+# DNS, no reverse proxy and no VPN (#253).
+#
+# Only the missing ones are created, never the whole tier: `compose up -d`
+# RECREATES a container whose definition drifted since it was started, so an
+# unconditional call would cut DNS and the VPN at every boot that follows a
+# pending pin bump — the same trap as a targeted deploy shipping the whole
+# compose file.
+#
+# The list is the set of services carrying `restart: unless-stopped` in
+# docker/compose.yaml, which is the source of truth; check it with
+#   docker compose config --format json | jq -r \
+#     '.services | to_entries[] | select(.value.restart=="unless-stopped") | .key'
+# A service gaining or losing that policy without this list following would fail
+# silently, so the stack-startup role asserts the two agree at deploy time — the
+# comparison runs on the workstation, keeping jq and python3 off the boot path
+# of the one script that has to work when nothing else does.
+for svc in dnsproxy pihole socket-proxy traefik wg-easy; do
+    docker inspect "$svc" >/dev/null 2>&1 || missing_tier0="${missing_tier0:-} $svc"
+done
+if [ -n "${missing_tier0:-}" ]; then
+    log "tier 0 absent after a maintenance down — creating:${missing_tier0}"
+    # shellcheck disable=SC2086  # deliberate word splitting: a service list
+    up $missing_tier0
+fi
+
+# Block on DNS first — nothing else matters until the LAN can resolve names
+# again. Generous timeout: at a cold start FTL reloads gravity and can take
+# >2 min to pass its healthcheck; waiting here IS the point (DNS before the
+# herd).
 wait_healthy pihole 300
 
 # Wave 1 — light services

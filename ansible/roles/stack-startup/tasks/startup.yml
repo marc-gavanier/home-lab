@@ -1,6 +1,40 @@
 ---
 # Staged-startup orchestrator: DNS first, then health-gated waves.
 
+# The orchestrator creates any Tier 0 container a maintenance `compose down`
+# removed, and it names that tier in a hardcoded list. The source of truth is
+# `restart: unless-stopped` in docker/compose.yaml, so the two can drift — and a
+# drift would be silent in the worst possible way: a service that gained the
+# policy but is missing from the list would simply never be created after a
+# maintenance window, and the wave gated on it would time out.
+#
+# Deploy-time rather than runtime, deliberately. Deriving the list on the host
+# would put jq or python3 on the boot path of the one script that has to work
+# when nothing else does; comparing here costs nothing and fails on the
+# workstation, before the change ships.
+- name: startup | The orchestrator's Tier 0 list must match compose.yaml
+  vars:
+    compose_tier0: >-
+      {{ (lookup('file', playbook_dir ~ '/../../docker/compose.yaml') | from_yaml).services
+         | dict2items
+         | selectattr('value.restart', 'defined')
+         | selectattr('value.restart', 'equalto', 'unless-stopped')
+         | map(attribute='key') | sort }}
+    script_tier0: >-
+      {{ (lookup('file', role_path ~ '/files/homelab-stack-startup.sh')
+          | regex_search('for svc in [^;]+; do')
+          | regex_replace('^for svc in ', '')
+          | regex_replace('; do$', '')).split() | sort }}
+  ansible.builtin.assert:
+    that: compose_tier0 == script_tier0
+    fail_msg: >-
+      Tier 0 drifted. compose.yaml declares {{ compose_tier0 | join(' ') }}
+      with restart: unless-stopped, but homelab-stack-startup.sh lists
+      {{ script_tier0 | join(' ') }}. Update the `for svc in ...` loop in
+      ansible/roles/stack-startup/files/homelab-stack-startup.sh to match.
+    success_msg: "Tier 0 agrees: {{ compose_tier0 | join(' ') }}"
+    quiet: true
+
 - name: startup | Deploy the staged-startup orchestrator script
   ansible.builtin.copy:
     src: homelab-stack-startup.sh
