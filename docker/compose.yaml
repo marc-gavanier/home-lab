@@ -840,11 +840,20 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
-      # Measured on the cold boot of 2026-08-27: started 00:14:02, first served
-      # by 00:17:00 — 2 min 58 s, with the disk at 98 % utilisation. The old
-      # 10 s start_period was not a margin, it was a rounding error, and this
-      # container reported UNHEALTHY on every cold boot because of it.
-      start_period: 300s
+      # Two measurements on 2026-08-27, and the second is why this is 420 s and
+      # not the 300 s it was first set to:
+      #
+      #   cold boot, 28 containers   started 00:14:02, served 00:17:00   2 min 58 s
+      #   warm redeploy, 5 containers started 01:05:20, served 01:09:00   3 min 40 s
+      #
+      # The LIGHTER run was the slower one. Whatever dominates jellyfin's
+      # bootstrap here is not the boot-wide disk contention the cold figure was
+      # supposed to capture, so that figure was not the worst case and 300 s
+      # left only 1 min 20 s of margin against the second run. 420 s is sized on
+      # the larger of the two, and the old 10 s was not a margin at all — it was
+      # a rounding error, and it made this container report UNHEALTHY on every
+      # cold boot.
+      start_period: 420s
       start_interval: 15s
 
   # --- Navidrome (Music) ---
