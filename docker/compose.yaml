@@ -688,6 +688,20 @@ services:
   # --- Collabora Online (collaborative editing inside Nextcloud) ---
   collabora:
     image: collabora/code:26.04.3.1.1
+    # Only start_period and start_interval are declared. `test` is deliberately
+    # absent so the image's own healthcheck is kept — this file has no business
+    # re-implementing it, and #156 is the reminder of what happens when a
+    # healthcheck here and the image's disagree. Verify the test survived with
+    # `docker inspect -f '{{.Config.Healthcheck.Test}}' <container>` after any
+    # change here: a partial override that silently dropped it would disable
+    # the probe with nothing at all to show for it.
+    # Measured 2026-08-27, cold boot: started 00:14:01, first served by
+    # 00:21:55 — 7 min 54 s, against an inherited start_period of 0 s. The
+    # ~80 s quoted in the startup script is the WARM figure; this is what a
+    # saturated disk does to it.
+    healthcheck:
+      start_period: 600s
+      start_interval: 15s
     container_name: collabora
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     # NO no-new-privileges here (the second exception after netdata, and for the
@@ -826,6 +840,12 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+      # Measured on the cold boot of 2026-08-27: started 00:14:02, first served
+      # by 00:17:00 — 2 min 58 s, with the disk at 98 % utilisation. The old
+      # 10 s start_period was not a margin, it was a rounding error, and this
+      # container reported UNHEALTHY on every cold boot because of it.
+      start_period: 300s
+      start_interval: 15s
 
   # --- Navidrome (Music) ---
   navidrome:
@@ -866,6 +886,19 @@ services:
     # Pinned version (floating 'release' once turned a restore into a surprise
     # v3 upgrade); bump deliberately, server and ML together.
     image: ghcr.io/immich-app/immich-server:v3.0.1
+    # Only start_period and start_interval are declared. `test` is deliberately
+    # absent so the image's own healthcheck is kept — this file has no business
+    # re-implementing it, and #156 is the reminder of what happens when a
+    # healthcheck here and the image's disagree. Verify the test survived with
+    # `docker inspect -f '{{.Config.Healthcheck.Test}}' <container>` after any
+    # change here: a partial override that silently dropped it would disable
+    # the probe with nothing at all to show for it.
+    # Measured 2026-08-27, cold boot with the disk at 98 %: started 00:17:45,
+    # first served by 00:23:19 — 5 min 34 s. It had NO start_period at all, so
+    # it published UNHEALTHY on every cold boot while it was merely booting.
+    healthcheck:
+      start_period: 480s
+      start_interval: 15s
     container_name: immich-server
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
@@ -905,6 +938,20 @@ services:
   immich-machine-learning:
     # Pinned: must match immich-server (see above)
     image: ghcr.io/immich-app/immich-machine-learning:v3.0.1
+    # Only start_period and start_interval are declared. `test` is deliberately
+    # absent so the image's own healthcheck is kept — this file has no business
+    # re-implementing it, and #156 is the reminder of what happens when a
+    # healthcheck here and the image's disagree. Verify the test survived with
+    # `docker inspect -f '{{.Config.Healthcheck.Test}}' <container>` after any
+    # change here: a partial override that silently dropped it would disable
+    # the probe with nothing at all to show for it.
+    # The only one of these measured exactly rather than bounded, from its own
+    # log: started 22:16:14Z, "Application startup complete" at 22:20:56Z —
+    # 4 min 42 s. Two minutes of that is probing absent GPUs and building the
+    # Matplotlib font cache, both unavoidable and both on every cold start.
+    healthcheck:
+      start_period: 420s
+      start_interval: 15s
     container_name: immich-ml
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
@@ -1521,7 +1568,12 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 120s       # measured: first boot creates app.db and takes ~90 s
+      # 120 s came from a warm measurement of the s6 init (~90 s). On a cold
+      # boot with the disk saturated it is not close: started 00:14:04, first
+      # served by 00:21:53 on 2026-08-27 — 7 min 49 s. It went unhealthy on
+      # that boot, and on the one before it.
+      start_period: 600s
+      start_interval: 15s
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.calibre-web.rule=Host(`books.${DOMAIN}`)"
