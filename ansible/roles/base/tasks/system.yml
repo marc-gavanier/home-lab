@@ -5,11 +5,32 @@
   ansible.builtin.hostname:
     name: "{{ hostname }}"
 
-- name: system | Update /etc/hosts
-  ansible.builtin.lineinfile:
-    path: /etc/hosts
-    regexp: '^127\.0\.1\.1'
-    line: "127.0.1.1 {{ hostname }}"
+# There is no `Update /etc/hosts` task here any more, and its absence is the fix.
+#
+# It rewrote the 127.0.1.1 line to `127.0.1.1 <hostname>` on every run, and
+# cloud-init writes that same line from its own template on every boot as
+# `127.0.1.1 <fqdn> <hostname>`. Two owners, one line, and the file
+# flipped between them forever:
+#
+#   homelab   /etc/hosts mtime 09:48:58 (the reboot), content `127.0.1.1 homelab homelab`
+#             — cloud-init's form, because `base` had not run since
+#   offsite    /etc/hosts mtime 14:45:10 (the deploy),  content `127.0.1.1 backup`
+#             — ansible's form, and the deploy reported changed=1 for it
+#
+# Both measured 2026-08-26. The cost is not the file, it is the SIGNAL: every
+# deploy after a reboot reported a change that meant nothing, in a repository
+# where `changed=0` is how an idempotent run is recognised. A task that cries
+# changed on every boot is a task that hides the ones that matter.
+#
+# Removing it loses nothing. `manage_etc_hosts: True` on both hosts (verified),
+# so cloud-init writes the line at every boot, derived from /etc/hostname — set
+# by the task directly above this comment. Its version is also the better one:
+# it carries the fqdn field that the ansible line dropped.
+#
+# If a host ever runs with `manage_etc_hosts` false, nothing here will write
+# that line. That is the condition to check before assuming this file still
+# covers it, and it is why this comment names it rather than leaving the removal
+# silent.
 
 - name: system | Set timezone
   community.general.timezone:
