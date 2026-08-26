@@ -99,7 +99,14 @@ if [ "$index" -lt "$MIN_INDEX" ]; then
     exit 1
 fi
 
-if [ "$best_ver" != "$lynis_ver" ] && [ "$best" -gt 0 ]; then
+# `unknown` means this file did not exist yet, which is NOT a version change —
+# it is the state every host is in the first time this runs. Treating the two
+# alike would discard the recorded baseline on that first run and quietly accept
+# whatever the index happened to be, which is the one moment a regression would
+# be invisible. Found on deployment, 2026-08-26: best-index held 73 and the
+# version file was absent, so the next scheduled audit would have rebaselined
+# instead of comparing.
+if [ "$best_ver" != "unknown" ] && [ "$best_ver" != "$lynis_ver" ] && [ "$best" -gt 0 ]; then
     # Not a regression: a different ruler. Report it, rebaseline, stay green —
     # and name both versions so the next audit knows the comparison restarted.
     printf '%s\n' "$index" > "$BEST_FILE"
