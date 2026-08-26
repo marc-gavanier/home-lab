@@ -151,11 +151,40 @@ wait_healthy vaultwarden 120
 up nextcloud-db nextcloud-redis nextcloud nextcloud-cron nextcloud-notify-push transmission
 wait_healthy nextcloud 240
 
-# Wave 3 — Immich stack, Jellyfin, Netdata, Collabora, Calibre-Web (heavy; no
-# gating after the last wave). Collabora belongs here rather than with
+# Waves 3a/3b — the heavy tail, split. Collabora belongs here rather than with
 # Nextcloud: it takes ~80 s to serve, and nothing needs it until someone opens a
 # document. Calibre-Web is here for the same reason — its s6 init takes ~90 s
 # before the login page answers, and nothing in the stack depends on it.
-up immich-redis immich-db immich-machine-learning immich-server jellyfin netdata collabora calibre-web
+#
+# --- Why this wave is two, and why in this order ----------------------------
+# A wave is a DISPATCH unit; it was never a concurrency unit, and the last one
+# was where that showed. Eight heavy containers reading their state off the same
+# USB disk at once, measured 2026-08-26 during a real startup:
+#
+#   %util     98.06 % -> 99.00 %
+#   r_await   21.28 ms -> 50.98 ms
+#   aqu-sz    ~2
+#   load      11.89 on 4 cores    (RAM was never the constraint: 5.7 GiB free)
+#
+# Read-dominated — image layers, not writes. Four of the eight (immich-server,
+# immich-ml, calibre-web, collabora) exhausted their start_period and reported
+# unhealthy with connection-refused, i.e. merely slow to bind. All four
+# recovered unaided within ~8 minutes, so nothing here was ever broken; the cost
+# was eight minutes of red monitors on every unlock and a disk too busy to serve
+# whoever was waiting on it.
+#
+# The ordering principle is that the LAST group must be the one nobody waits
+# for. Immich is the heaviest and the least urgent, and nothing follows it, so
+# it can take as long as it likes without holding anything up. Netdata leads
+# because it is cheap and because monitoring coming back before the herd is
+# worth something when a startup goes wrong.
+#
+# The gate is netdata rather than jellyfin: it binds in seconds where jellyfin
+# scans libraries, so gating on it releases 3b as soon as the disk has actually
+# quietened, not merely when the slowest member of 3a has finished.
+up jellyfin netdata collabora calibre-web
+wait_healthy netdata 120
+
+up immich-redis immich-db immich-machine-learning immich-server
 
 log "staged startup complete — all waves dispatched"
