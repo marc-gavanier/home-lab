@@ -53,12 +53,32 @@
       PartOf=homelab-services.target
       Requires=docker.service
       After=mnt-data.mount docker.service
+      # StartLimitIntervalSec is set EXPLICITLY and it is not decoration. The
+      # default window is 10 s, and with RestartSec=60 no two failures could
+      # ever fall inside it — the burst would never be reached and the unit
+      # would retry forever. 1800 s comfortably spans three attempts.
+      StartLimitIntervalSec=1800
+      StartLimitBurst=3
 
       [Service]
       Type=oneshot
       RemainAfterExit=yes
       TimeoutStartSec=600
       ExecStart=/usr/local/sbin/homelab-stack-startup.sh
+      # A failed startup used to be terminal, and #241 assumed the crash-heal
+      # was the net under it. It is not: heal only restarts containers that
+      # EXITED non-zero, and a wave that never dispatched leaves its containers
+      # non-existent — there is nothing for it to restart. On 2026-08-26 waves 2
+      # and 3 never ran and 15 containers simply did not exist; heal would have
+      # found nothing to do even with its gate fixed. This is the only mechanism
+      # that recovers that.
+      #
+      # Burst counts the initial start, so this is one attempt plus two retries,
+      # then the unit stays `failed` — which is what raises the alert, and what
+      # finally lets the crash-heal run (its gate accepts is-failed). During the
+      # retries the unit is `activating`, so heal correctly stays out of the way.
+      Restart=on-failure
+      RestartSec=60
 
       [Install]
       WantedBy=homelab-services.target

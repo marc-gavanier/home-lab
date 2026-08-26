@@ -108,6 +108,26 @@ The script is fail-fast on purpose; the message says which guard fired:
 > directory. Restarting Docker *after* the mount reloads the real store with
 > all containers and images (the 2026-07-04 wipe was an avoidable full re-pull).
 
+Since #241 a FATAL is no longer terminal: the unit retries **twice more, 60 s
+apart**, then stays `failed`. So before intervening, check whether it is still
+trying:
+
+```bash
+systemctl status homelab-stack-startup.service   # activating = a retry is pending
+journalctl -t homelab-startup -f
+```
+
+A transient cause — a database still replaying its WAL, a disk still saturated
+by the previous wave — is usually gone by the second attempt. A structural one
+(the table above) will fail all three times and needs the fix in the table.
+
+Do not confuse the retries with the crash-heal: `homelab-stack-heal` only
+restarts containers that **exited** non-zero, so it can do nothing about a wave
+that never dispatched and whose containers therefore do not exist. That was the
+gap on 2026-08-26, and the retry is what closes it. Heal deliberately stays out
+of the way while the unit is `activating`, and starts working once it is
+`failed`.
+
 ## Crash recovery & maintenance
 
 While unlocked, `homelab-stack-heal.timer` (every 2 min) restarts any compose
