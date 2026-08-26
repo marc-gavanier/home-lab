@@ -324,66 +324,45 @@ elif mountpoint -q /mnt/data; then
     problems+=("$ACME_JSON absent while /mnt/data is mounted — no certificate expiry is being watched")
 fi
 
-# --- Unhealthy containers ---
-# The heal timer only resurrects containers that EXITED; one that stays up but
-# fails its healthcheck is invisible. User-facing services are covered
-# indirectly by the Kuma HTTP monitors — the real gap is internal containers,
-# notably nextcloud-notify-push, whose death silently kills mobile push while
-# Nextcloud itself keeps answering 200.
-# Age-gated: a container is briefly unhealthy on every restart (and "starting"
-# is deliberately not matched), so only alarm once it has stayed that way
-# across two runs, i.e. >10 min.
-UNHEALTHY_STAMP=/var/lib/homelab-health/unhealthy.stamp
-if command -v docker >/dev/null 2>&1; then
-    unhealthy=$(docker ps --filter health=unhealthy \
-        --format '{% raw %}{{.Names}}{% endraw %}' 2>/dev/null | sort | tr '\n' ' ')
-    unhealthy="${unhealthy% }"
-    if [ -n "$unhealthy" ]; then
-        mkdir -p "$(dirname "$UNHEALTHY_STAMP")"
-        [ -f "$UNHEALTHY_STAMP" ] || date +%s > "$UNHEALTHY_STAMP"
-        age=$(( $(date +%s) - $(cat "$UNHEALTHY_STAMP" 2>/dev/null || echo 0) ))
-        if [ "$age" -gt 600 ]; then
-            problems+=("unhealthy >10min: $unhealthy")
-        else
-            report+=("unhealthy: $unhealthy")
-        fi
-    else
-        rm -f "$UNHEALTHY_STAMP"
-    fi
-fi
-
-# --- Expected containers that are not running ---
-# The check above cannot see them: `docker ps --filter health=unhealthy` only
-# lists running containers, and the heal timer only resurrects ones that
-# EXITED. A container that fails to come back is invisible to both. That is how
-# a stopped socket-proxy would go unnoticed while Traefik keeps answering 200
-# from its in-memory routes, blind to every container change (issue #34).
-# The list is generated from docker/compose.yaml, so it cannot drift.
-# Age-gated like the check above: the staged startup brings the waves up over
-# several minutes, and /mnt/data is unlocked by hand, so only alarm past 10 min.
-MISSING_STAMP=/var/lib/homelab-health/missing.stamp
-if command -v docker >/dev/null 2>&1 && mountpoint -q /mnt/data; then
-{% set compose = lookup('file', playbook_dir + '/../../docker/compose.yaml') | from_yaml %}
-    expected="{% for name, svc in compose.services.items() %}{{ svc.container_name | default(name) }} {% endfor %}"
-    running=$(docker ps --format '{% raw %}{{.Names}}{% endraw %}' 2>/dev/null)
-    missing=""
-    for c in $expected; do
-        echo "$running" | grep -qx "$c" || missing="$missing $c"
-    done
-    missing="${missing# }"
-    if [ -n "$missing" ]; then
-        mkdir -p "$(dirname "$MISSING_STAMP")"
-        [ -f "$MISSING_STAMP" ] || date +%s > "$MISSING_STAMP"
-        age=$(( $(date +%s) - $(cat "$MISSING_STAMP" 2>/dev/null || echo 0) ))
-        if [ "$age" -gt 600 ]; then
-            problems+=("not running >10min: $missing")
-        else
-            report+=("not running: $missing")
-        fi
-    else
-        rm -f "$MISSING_STAMP"
-    fi
-fi
+# --- Containers: both checks retired here, ADR-030 phase 2 ---------------
+# Two blocks lived here — "unhealthy for >10 min" and "expected but not
+# running" — and both are gone because their replacements were OBSERVED firing,
+# which is the only thing that lets a line leave under ADR-030's rule.
+#
+#   homelab_container_unhealthy   2026-08-24 01:45. A deliberately unhealthy
+#                                 throwaway container, NAMED in the push rather
+#                                 than counted.
+#   homelab_container_down        2026-08-26 22:14. A container stopped and left
+#                                 stopped: alarm at 10 min 44 s, adapter pushed
+#                                 `[docker_local.container_zz-down_state]` to
+#                                 Kuma 51 seconds later.
+#   through a supervised reboot   2026-08-26 10:04-10:28. It never fired, and
+#                                 structurally cannot: netdata is itself in the
+#                                 LAST startup wave, so by the time its docker
+#                                 collector has any chart every container is
+#                                 already up. The boot-window noise the alarm's
+#                                 own header predicts is unreachable.
+#
+# --- One latency trade, recorded rather than discovered later ----------------
+# The second block also caught a container ABSENT from the engine entirely, not
+# merely stopped. That case now falls to the goss spec, which runs DAILY where
+# this ran every five minutes — measured 2026-08-26:
+#
+#   homelab-health.timer / homelab-netdata-kuma.timer   every 5 min
+#   homelab-posture.timer                               daily, 11:02
+#
+# So "someone removed a container" goes from ~15 minutes to up to 24 hours. That
+# is accepted because it is not the case this check was written for: its
+# motivating incident (#34) was a socket-proxy STOPPED while Traefik kept
+# answering 200 from its in-memory routes, and a stopped container is exactly
+# what homelab_container_down catches, at the same latency as before.
+#
+# goss does catch the absent case, and that was measured rather than assumed —
+# it-tools removed from the engine on 2026-08-26 turned five assertions red
+# within the same run, each naming it.
+#
+# Two stamp files under /var/lib/homelab-health/ are left behind by this
+# removal: unhealthy.stamp and missing.stamp. Nothing reads them any more.
 
 # --- systemd units ---
 # Two of the five conditions here are now declared in /etc/goss/units.yaml, and
