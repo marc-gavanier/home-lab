@@ -568,6 +568,11 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+      # Same reasoning as miniflux-db (#241), longer because this is the bigger
+      # database of the two and MariaDB's crash recovery has more to replay.
+      # interval 30s x retries 3 gave it 90 s of tolerance by accident; this
+      # makes it deliberate and adds a real bootstrap window on top.
+      start_period: 180s
 
   nextcloud-redis:
     image: redis:8.10.1-alpine
@@ -978,6 +983,10 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+      # Same reasoning as miniflux-db (#241). Longest of the three: this one
+      # carries the photo library's vector index and is the heaviest to bring
+      # back after an unclean shutdown.
+      start_period: 180s
 
   # --- Transmission (BitTorrent) ---
   transmission:
@@ -1592,6 +1601,21 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+      # No start_period until 2026-08-26, and that is what broke the boot. Without
+      # one, docker counts health failures from the first second: interval 10s x
+      # retries 3 declares the container UNHEALTHY after ~30 s, and `compose up`
+      # abandons a wave the moment a depends_on target says unhealthy.
+      #
+      # `pg_isready` failing is exactly what a Postgres replaying its WAL looks
+      # like — it is the correct answer to "are you ready", not a fault. Measured
+      # on the 2026-08-26 reboot: wave dispatched 10:03:21, compose gave up
+      # 10:03:57 (three failed checks), the database was ready 10:04:06. Nine
+      # seconds, and it took the whole staged startup down with it (#241).
+      #
+      # During start_period a failing check leaves the container `starting`, so
+      # compose waits instead of giving up. A genuinely dead database still ends
+      # up unhealthy, just 90 s later — which is the right trade at boot.
+      start_period: 90s
 
   # --- Forgejo (private git forge, GitHub pull-mirror) ---
   forgejo:
