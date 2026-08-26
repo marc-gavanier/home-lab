@@ -1295,11 +1295,35 @@ services:
     # thing that changes. `curl` is the image's own binary (/usr/bin/curl) and
     # /api/v1/info answers 200 on 127.0.0.1:19999 — both verified in the
     # running container before writing this.
+    #
+    # start_period and start_interval are NOT copied from the image, because the
+    # image declares neither and that is the defect. Measured on the cold boot of
+    # 2026-08-27: with no start_period and a 60 s interval, the first probe lands
+    # 68 s after start, and netdata answered on the third — 3 min 23 s.
+    #
+    #   00:13:59  started
+    #   00:15:07  probe 1 -> fail
+    #   00:16:22  probe 2 -> fail (curl exit 22)
+    #   00:17:22  probe 3 -> healthy
+    #
+    # Two separate costs. Without start_period those early failures count toward
+    # `retries`, so a container that is merely still booting is published as
+    # UNHEALTHY — the same false alarm #250 fixed for the databases. And with a
+    # 60 s interval and nothing finer during startup, readiness is discovered up
+    # to a minute after it happens; that is what made a 120 s gate on netdata
+    # time out even though the agent was up well before the gate expired.
+    #
+    # 300 s covers the measured 3 min 23 s, which was taken under a saturated
+    # disk (%util 98 %), i.e. the worst case this host produces. start_interval
+    # probes every 10 s while inside start_period only — the steady-state
+    # cadence stays the image's 60 s.
     healthcheck:
       test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:19999/api/v1/info"]
       interval: 60s
       timeout: 10s
       retries: 3
+      start_period: 300s
+      start_interval: 10s
     networks:
       - proxy
       - socketproxy
