@@ -150,12 +150,35 @@ had reached 2363.
 
 The overall `smartctl -H` verdict is deliberately not trusted on its own: it
 stays PASSED until a drive is nearly dead. The counters that predict failure
-early are checked individually — reallocated and pending sectors, offline
-uncorrectable, end-to-end errors, and the interface CRC count that catches a bad
-cable or bridge — and any of them leaving zero reports DOWN. The self-test
-result is checked for failure *and* for staleness, comparing its power-on-hour
-stamp against the drive's current one, so a silently dead timer surfaces instead
-of leaving an eternally green result from a year ago.
+early are checked individually — reallocated sectors, offline uncorrectable,
+end-to-end errors, and the interface CRC count that catches a bad cable or
+bridge — and any of them leaving zero reports DOWN. The self-test result is
+checked for failure *and* for staleness, comparing its power-on-hour stamp
+against the drive's current one, so a silently dead timer surfaces instead of
+leaving an eternally green result from a year ago.
+
+**`Current_Pending_Sector` is the exception, and it is deliberate.** It does not
+mean what the others mean: it counts sectors the drive judged *unstable* — ones
+that needed unusual effort to read. Such a sector still returns its data, so a
+full-surface read walks straight over it, and **only a write retires it**. On
+2026-08-26 the extended self-test completed without error across the whole
+4.6 TB while the counter sat at 2, and nothing read-only could move it. Treating
+that like a reallocated sector produced a monitor that was correct and useless:
+permanently red, and a permanently red monitor stops being read. That is not a
+worry, it is a measurement — the count went from 1 to 2 on 2026-08-24 behind an
+already-red monitor and nobody saw it.
+
+So the count is always *reported* and alarms on the two things that mean
+something: a **rise** since the previous run (unconditionally — that is the case
+above, and without it this would just be painting the red green), or a last
+completed self-test that was not clean. The steady state — a non-zero count with
+a clean full-surface scan behind it — is "weak sectors, act at leisure", and it
+reads green so that a change can be seen.
+
+Two parses of the same log, on purpose: the self-test alarm asks *did the
+scheduled scan run properly*, so an abort is a finding there. The pending check
+asks *what does the surface evidence say*, and an abort is not evidence — it
+looks past it to the last real verdict.
 
 Daily rather than the offsite's weekly, because this drive takes writes from 25
 services continuously while the offsite one is read once a night. It is separate

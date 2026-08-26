@@ -89,11 +89,14 @@ if ! [[ "$power_on_h" =~ ^[0-9]+$ ]]; then
     problems+=("SMART unreadable (rc=$rc)")
 else
     # Each of these is an early failure predictor, and each must stay at zero:
-    # media decay (5/197/198), data-path corruption (184), read failures the
+    # media decay (5/198), data-path corruption (184), read failures the
     # drive corrected but should not have had (187), and USB cable or bridge
     # trouble (199) — the fault that killed the first candidate disk.
+    # 197 (pending) is deliberately NOT in this list — it is the one attribute
+    # here that does not mean what the others mean, and it has its own block
+    # below the self-test parsing, which it depends on.
     for spec in 5:realloc 184:end-to-end 187:uncorrectable \
-                197:pending 198:offline-uncorrectable 199:crc-err; do
+                198:offline-uncorrectable 199:crc-err; do
         v=$(raw "${spec%%:*}")
         if [ -n "$v" ] && [ "$v" != "0" ]; then
             problems+=("SMART ${spec#*:}=$v")
@@ -135,6 +138,71 @@ else
         fi
     else
         report+=("no self-test yet")
+    fi
+
+    # --- Pending sectors are not unreadable sectors (#207) -------------------
+    # `Current_Pending_Sector` counts sectors the drive judged UNSTABLE: ones
+    # that needed unusual effort to read. Such a sector still returns its data,
+    # so a full-surface read passes straight over it, and only a WRITE retires
+    # it. Treating it like the other attributes in the loop above produced a
+    # monitor that was correct and useless:
+    #
+    #   2026-08-26  extended self-test: Completed without error, whole surface,
+    #               zero unreadable sectors anywhere on 4.6 TB
+    #               Current_Pending_Sector: 2, and nothing read-only can move it
+    #
+    # That combination is "two weak sectors, act at leisure". The same number
+    # with a self-test that FAILED is "data is going". The report gave both the
+    # same red, which is how it stayed red — and a permanently red monitor is
+    # not read. This issue predicted that about itself and then demonstrated it:
+    # the count went from 1 to 2 on 2026-08-24 behind an already-red monitor and
+    # nobody saw it.
+    #
+    # So: always REPORTED, alarms on the two things that actually mean something.
+    #
+    # A RISE alarms unconditionally, clean scan or not — "the count no longer
+    # stands still" is the whole title of #207, and without this the fix would
+    # just be painting the red green. It needs one number of memory, which is
+    # the smallest state this script has ever kept.
+    #
+    # The newest entry that says something about the SURFACE is what counts,
+    # not the newest entry. An "Aborted by host" tells you nothing either way —
+    # it is an absence of evidence, not evidence of trouble — and a reboot
+    # during the weekly run leaves exactly that at the top of the log for up to
+    # a week. Measured on this drive 2026-08-26: a test aborted at 09:47 sits as
+    # entry #1 while the clean full-surface scan of 05:33 sits at #2, and a test
+    # RUNNING at the time of reading does not appear in the log at all.
+    #
+    # Matching on "Completed" covers both: an aborted, interrupted or running
+    # entry says something else and is skipped, so this reads the last real
+    # verdict — clean or failed.
+    #
+    # Note this parses DIFFERENTLY from the self-test alarm above, on purpose.
+    # That one asks "did the scheduled scan run properly", so an abort is a
+    # legitimate finding there. This one asks "what does the surface evidence
+    # say", and an abort is not evidence. Same log, two questions.
+    PENDING_STATE=/var/lib/homelab-disk/pending.last
+    pending=$(raw 197)
+    if [ -z "$pending" ]; then
+        problems+=("SMART pending unreadable")
+    elif [ "$pending" = "0" ]; then
+        rm -f "$PENDING_STATE" 2>/dev/null || true
+    else
+        report+=("pending $pending")
+        last=$(cat "$PENDING_STATE" 2>/dev/null || true)
+        mkdir -p "$(dirname "$PENDING_STATE")" 2>/dev/null || true
+        printf '%s\n' "$pending" > "$PENDING_STATE" 2>/dev/null || true
+
+        done_test=$(awk '/^#[[:space:]]+[0-9]+/ { if ($0 ~ /Completed/) { $1=""; $2=""; print; exit } }' \
+                    <<<"$smart_out" | xargs)
+
+        if [ -n "$last" ] && [ "$pending" -gt "$last" ] 2>/dev/null; then
+            problems+=("SMART pending rose $last -> $pending")
+        elif [ -z "$done_test" ]; then
+            problems+=("SMART pending=$pending and no completed self-test to weigh it against")
+        elif ! grep -qi 'completed without error' <<<"$done_test"; then
+            problems+=("SMART pending=$pending, last completed self-test: $done_test")
+        fi
     fi
 fi
 
