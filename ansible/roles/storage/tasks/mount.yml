@@ -22,9 +22,33 @@
     content: |
       [Unit]
       Description=Home Lab encrypted data volume
-      # No [Install] section: never started at boot — the LUKS mapping only
-      # exists after a manual unlock (homelab-unlock starts this unit, or
-      # homelab-services.target pulls it in via Requires=).
+      # No [Install] section: never started at boot. That is NOT the same as
+      # "only homelab-unlock starts it", which is what this comment used to
+      # claim. Every unit carrying RequiresMountsFor={{ data_mount_point }} —
+      # docker.service, fail2ban.service — has a job queued from boot that pulls
+      # this unit the moment the mapper appears. Measured 2026-08-26: device
+      # found 09:55:03.303, mounted 09:55:03.816, docker starting at 09:55:03.834.
+      #
+      # 513 ms is faster than any integrity check and slower than the next line
+      # of homelab-unlock, which is why that script used to race systemd for its
+      # own fsck and why this gate exists. homelab-unlock owns the flag and
+      # clears it from an EXIT trap; nothing else writes it.
+      #
+      # ASSERT, not CONDITION, and the difference is the whole safety of this
+      # line. Measured on this host with throwaway units, 2026-08-26:
+      #
+      #   ConditionPathExists=!  gate present -> unit SKIPPED, dependent ACTIVE
+      #   AssertPathExists=!     gate present -> unit blocked, dependent INACTIVE
+      #                                          ("A dependency job failed")
+      #
+      # A skipped unit satisfies Requires=. So a Condition here would let
+      # docker.service start with the volume unmounted and initialise a ghost
+      # store on the SD card under the mount point — the 2026-07-04 incident
+      # this file already exists to prevent, reintroduced by the fix for
+      # something else. The assert leaves the unit `inactive` rather than
+      # `failed`, so nothing lingers in `systemctl --failed` either; verified in
+      # the same measurement.
+      AssertPathExists=!/run/homelab/unlock-fsck-in-progress
 
       [Mount]
       What=/dev/mapper/{{ luks_mapper_name }}

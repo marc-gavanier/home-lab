@@ -14,6 +14,55 @@
       DEVICE="{{ data_disk_device }}"
       MOUNT="{{ data_mount_point }}"
 
+      # --- Why a gate file, and why the obvious guard was not one -------------
+      # `if ! mountpoint -q` was not a guard, it was a coin toss, and both
+      # outcomes were bad. Measured on 2026-08-26 after a real reboot:
+      #
+      #   09:54:23.996  operator runs `cryptsetup open`
+      #   09:55:03.303  systemd: Found device dev-mapper-data_crypt.device
+      #   09:55:03.816  Mounted mnt-data.mount        <- 513 ms later
+      #   09:55:03.834  Starting docker.service
+      #
+      # Units queued at boot with RequiresMountsFor=/mnt/data — docker.service,
+      # fail2ban.service — pull the mount the instant the mapper appears. That
+      # is 513 ms after the device, and roughly 513 ms AFTER this script's next
+      # line has already run. So:
+      #
+      #   this script opens the mapper   -> `mountpoint` says no, e2fsck starts,
+      #                                     systemd mounts it read-write half a
+      #                                     second later, UNDERNEATH the check.
+      #                                     On a clean volume e2fsck exits first
+      #                                     and nothing happens. On a dirty one
+      #                                     — the only case this check exists
+      #                                     for — it is a repair running against
+      #                                     a mounted filesystem.
+      #   someone opens it by hand first -> volume already mounted, the whole
+      #                                     block skipped in silence.
+      #
+      # The second is not hypothetical: it is what happened on 2026-08-26. The
+      # volume mounted at 09:55:03, this script ran at 10:03:18, and a 4.6 TB
+      # volume went unchecked after a shutdown that left PostgreSQL replaying
+      # its WAL. `Last checked` on it still reads 2026-05-10.
+      #
+      # Masking was tried first and CANNOT work here: `systemctl mask` needs to
+      # put a symlink at /etc/systemd/system/mnt-data.mount, and that path is
+      # the unit file itself, deployed by this role —
+      #   Failed to mask unit: File /etc/systemd/system/mnt-data.mount already exists.
+      # Measured on the host, 2026-08-26, before this was written.
+      #
+      # So the gate is a ConditionPathExists drop-in instead. It is stronger
+      # than winning a race: while the flag is present the mount unit ASSERTS out,
+      # taking its dependents with it, whatever wants it and however fast. The trap
+      # is not optional — a flag left behind cannot mount the data volume.
+      GATE="/run/homelab/unlock-fsck-in-progress"
+      clear_gate() { rm -f "$GATE" 2>/dev/null || true; }
+      trap clear_gate EXIT
+
+      if ! mountpoint -q "$MOUNT"; then
+        mkdir -p /run/homelab
+        : > "$GATE"
+      fi
+
       if [ -b "/dev/mapper/$MAPPER" ]; then
         echo "Volume already unlocked."
       else
@@ -21,7 +70,15 @@
         cryptsetup open --type luks "$DEVICE" "$MAPPER"
       fi
 
-      if ! mountpoint -q "$MOUNT"; then
+      if mountpoint -q "$MOUNT"; then
+        # Re-run on an already-mounted volume, or the gate did not hold. Either
+        # way the check cannot run — and saying so is the whole point. The old
+        # code took this branch silently, which is how a skipped integrity check
+        # reads as a successful unlock.
+        SKIP="integrity check SKIPPED: $MOUNT was already mounted when the check was due"
+        echo "WARNING: $SKIP" >&2
+        logger -t homelab-unlock -p daemon.warning "$SKIP"
+      else
         # The data volume is never in fstab (no passno), so nothing ever fsck's
         # it — the one disk holding all data + Docker's data-root gets no
         # integrity check. Run a preen pass here, on the still-unmounted mapper
@@ -33,13 +90,25 @@
         echo "Checking data volume integrity..."
         rc=0; e2fsck -p "/dev/mapper/$MAPPER" || rc=$?
         if [ "$rc" -ge 4 ]; then
+          # The gate STAYS UP on this path, and the trap is disarmed to keep it
+          # there. Without that, "NOT mounting" would be advice rather than a
+          # refusal: clearing the flag hands the volume straight back to
+          # docker.service's queued job, which mounts a filesystem e2fsck has
+          # just declined to repair. The operator has to clear it deliberately,
+          # which is the correct amount of friction for that decision.
+          trap - EXIT
           echo "fsck could not auto-repair (rc=$rc)."
-          echo "Run 'e2fsck /dev/mapper/$MAPPER' by hand before mounting. NOT mounting."
+          echo "Run 'e2fsck /dev/mapper/$MAPPER' by hand. NOT mounting, and"
+          echo "nothing else can mount it either while $GATE exists."
+          echo "When the filesystem is repaired: rm -f $GATE && homelab-unlock"
           exit 1
         fi
+        clear_gate
         echo "Mounting $MOUNT..."
         systemctl start mnt-data.mount
       fi
+
+      clear_gate
 
       # Arm the USB tamper response (ADR-008) as soon as the volume key is in
       # RAM — that key is exactly what the tamper poweroff protects. Guarded:
