@@ -216,3 +216,55 @@ never reaches the interface.
 
 It is still drift that nothing asserts, and it is now its own follow-up rather
 than the reason a fix cannot land.
+
+---
+
+## Correction, 2026-08-26 — "the settings" meant the defaults only
+
+The re-assertion described above compares six fields, and every one of them is a
+**default**: `host`, `port`, `defaultDns`, `defaultAllowedIps`, `defaultMtu`,
+`defaultPersistentKeepalive`. A default is read exactly once, when a client is
+created, and never looked at again.
+
+So the values that actually reach a phone — the ones written into the
+configuration file it imports — were asserted by nothing. This ADR said the
+repository was the source of truth for "the VPN settings"; it was the source of
+truth for what a *future* client would be born with.
+
+That is not a theoretical gap. It is #125: the repository's DNS was right, the
+default was right, and all four existing clients kept Cloudflare's `1.1.1.1` —
+off Pi-hole, off split DNS, queries leaving the box.
+
+Extended on 2026-08-26 (#238) to compare and rewrite the per-client values too.
+Two fields, chosen rather than swept up:
+
+| Field | Asserted | Why |
+|---|---|---|
+| `dns` | yes | no client has a legitimate reason to resolve elsewhere, and #125 is what happens when nothing checks |
+| `allowedIps` | yes | it was the one drifting — every client carried `["0.0.0.0/0", "::/0"]`, migration residue routing a client's IPv6 into a tunnel with none |
+| `mtu` | no | nothing has ever moved it, and it harms nothing if it does |
+| `persistentKeepalive` | no | a roaming phone behind a bad NAT has a real reason to want its own |
+
+The cost of asserting `allowedIps` is worth naming: a split-tunnel client now
+has to be expressed in the repository rather than clicked in the web UI. That is
+this ADR's model applied, not a side effect.
+
+**What it does not do.** These fields produce the configuration FILE at download
+time; they do not steer a running peer. Correcting a client here fixes what the
+next import contains — the device keeps what it was given until someone
+re-imports it. That was the painful half of #125 as well, and it is easy to
+misremember in the other direction.
+
+Verified end to end on 2026-08-26, both fields:
+
+```
+allowedIps  4 clients drifted -> detected by name, rewritten, exit 2
+            second run: "per-client values already match", exit 0
+dns         client 1 driven to 1.1.1.1 -> detected, rewritten, exit 2
+            second run: exit 0
+```
+
+`wg0.conf` md5 unchanged throughout (`eb8ac06c…`), four peers up, offsite
+reachable through the tunnel — a client-side setting does not touch the server
+configuration, which is what made the change safe to exercise on the live
+system.

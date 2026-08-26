@@ -46,6 +46,10 @@ set +a
 COOKIE="$(mktemp)"
 trap 'rm -f "$COOKIE"' EXIT
 
+# Two passes now — the defaults, then every client — so the exit code is
+# decided at the end rather than by whichever pass happens to run first.
+CHANGED=0
+
 curl -sf -c "$COOKIE" -X POST "$API/api/session" -H 'Content-Type: application/json' \
     --data-binary @<(python3 -c "
 import json,os
@@ -73,14 +77,12 @@ want = {
 sys.exit(0 if all(cur.get(k) == v for k, v in want.items()) else 1)
 PY
 then
-    log "settings already match the repository"
-    exit 0
-fi
-
-log "settings drifted from the repository — rewriting them"
-curl -sf -b "$COOKIE" -X POST "$API/api/admin/userconfig" \
-    -H 'Content-Type: application/json' \
-    --data-binary @<(python3 -c "
+    log "defaults already match the repository"
+else
+    log "defaults drifted from the repository — rewriting them"
+    curl -sf -b "$COOKIE" -X POST "$API/api/admin/userconfig" \
+        -H 'Content-Type: application/json' \
+        --data-binary @<(python3 -c "
 import json,os
 print(json.dumps({
   'host': os.environ['WG_HOST'], 'port': int(os.environ['WG_PORT']),
@@ -90,7 +92,106 @@ print(json.dumps({
   'defaultAllowedIps': [x.strip() for x in os.environ['WG_ALLOWED_IPS'].split(',')],
   'defaultJC': 7, 'defaultJMin': 10, 'defaultJMax': 1000,
   'defaultI1': '', 'defaultI2': '', 'defaultI3': '', 'defaultI4': '', 'defaultI5': ''}))") \
-    >/dev/null || die "the update call failed"
+        >/dev/null || die "the update call failed"
+    log "defaults restored from the repository"
+    CHANGED=1
+fi
 
-log "settings restored from the repository"
+# =============================================================================
+# Per-client values (#238)
+# =============================================================================
+# Everything above is a DEFAULT, and a default is read exactly once — when a
+# client is created. It is never looked at again. So the values that actually
+# reach a phone were asserted by nothing, and that is not a hypothesis: it is
+# the whole of #125. The repository's DNS was right, the default was right, and
+# all four existing clients kept Cloudflare's 1.1.1.1 — off Pi-hole, off split
+# DNS, queries leaving the box. It was repaired by hand with a direct SQLite
+# UPDATE, going around an API that could not write at all (#138).
+#
+# What this asserts, and what it deliberately does not:
+#
+#   dns          asserted. No client has a legitimate reason to resolve
+#                somewhere else, and #125 is what happens when nothing checks.
+#   allowedIps   asserted, and it is the one that was drifting: every client
+#                carried ["0.0.0.0/0", "::/0"] against the repository's
+#                "0.0.0.0/0" — migration residue that routes a client's IPv6
+#                into a tunnel with no IPv6 to carry it. The cost is real and
+#                worth naming: a split-tunnel client now has to be expressed in
+#                the repository rather than clicked in the web UI. That is the
+#                ADR-020 model, not an accident of this script.
+#   mtu, persistentKeepalive   NOT asserted, deliberately. A roaming phone
+#                behind a bad NAT has a real reason to want its own keepalive,
+#                and asserting it would mean fighting the operator over a
+#                setting that harms nothing. Assert what must not drift, not
+#                everything that can.
+#
+# What this does NOT do, stated because it is easy to misremember: these fields
+# produce the configuration FILE at download time. They do not steer a running
+# peer. Correcting a client here fixes what the next import will contain; the
+# device keeps whatever it was given until someone re-imports. That was the
+# painful half of #125 too.
+#
+# The POST needs the whole client object back — the validator rejects a partial
+# one, field by field. It is built from the GET rather than from a hand-written
+# list, so a field this repository has no opinion about survives untouched. The
+# server-owned fields are dropped, and that includes privateKey and
+# preSharedKey: measured 2026-08-26, the schema accepts the body without them,
+# so no key material passes through this script.
+CLIENTS="$(curl -sf -b "$COOKIE" "$API/api/client")" || die "cannot list the clients"
+
+DRIFTED="$(python3 - "$CLIENTS" <<'PYDRIFT'
+import json, os, sys
+want_dns = [x.strip() for x in os.environ["WG_DNS"].split(",")]
+want_aips = [x.strip() for x in os.environ["WG_ALLOWED_IPS"].split(",")]
+rows = []
+for c in json.loads(sys.argv[1]):
+    bad = []
+    if c.get("dns") != want_dns:
+        bad.append("dns=%s" % json.dumps(c.get("dns")))
+    if c.get("allowedIps") != want_aips:
+        bad.append("allowedIps=%s" % json.dumps(c.get("allowedIps")))
+    if bad:
+        rows.append("%s\t%s\t%s" % (c["id"], c["name"], " ".join(bad)))
+print("\n".join(rows))
+PYDRIFT
+)" || die "cannot compare the clients"
+
+if [ -z "$DRIFTED" ]; then
+    log "per-client values already match the repository"
+else
+    # A here-string, NOT a pipeline: `while ... | read` runs the body in a
+    # subshell, where `die` would kill only that subshell and let the script
+    # carry on reporting success after a failed update.
+    while IFS="$(printf '\t')" read -r cid cname cwhat; do
+        [ -n "$cid" ] || continue
+        log "client '$cname' drifted from the repository — $cwhat"
+        CUR_CLIENT="$(curl -sf -b "$COOKIE" "$API/api/client/$cid")" \
+            || die "cannot read client $cid"
+        BODY="$(mktemp)"
+        python3 - "$CUR_CLIENT" > "$BODY" <<'PYBODY'
+import json, os, sys
+c = json.loads(sys.argv[1])
+# Server-owned or derived. The validator rejects them, and none of them is
+# ours to state — privateKey and preSharedKey included, which is why no key
+# material passes through this script.
+drop = {"id", "createdAt", "updatedAt", "interfaceId", "userId", "publicKey",
+        "privateKey", "preSharedKey", "endpoint", "latestHandshakeAt",
+        "transferRx", "transferTx", "oneTimeLink"}
+body = {k: v for k, v in c.items() if k not in drop}
+body["dns"] = [x.strip() for x in os.environ["WG_DNS"].split(",")]
+body["allowedIps"] = [x.strip() for x in os.environ["WG_ALLOWED_IPS"].split(",")]
+print(json.dumps(body))
+PYBODY
+        curl -sf -b "$COOKIE" -X POST "$API/api/client/$cid" \
+            -H 'Content-Type: application/json' --data-binary "@$BODY" >/dev/null \
+            || die "the update call failed for client $cid"
+        rm -f "$BODY"
+        log "client '$cname' restored from the repository"
+        CHANGED=1
+    done <<EOF
+$DRIFTED
+EOF
+fi
+
+[ "$CHANGED" = "0" ] && exit 0
 exit 2
