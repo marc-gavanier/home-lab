@@ -4,31 +4,47 @@ Description=Weekly SMART extended self-test on the homelab data disk
 
 [Timer]
 # Weekly, not the offsite's monthly. A drive that produced three bad regions in
-# three days is not a drive to sample monthly, and the test costs nothing the
-# host can feel — the drive scans in the background and yields to host I/O.
+# three days is not a drive to sample monthly.
 #
-# 07:30 Wednesday, and the half hour matters: the daily disk report fires at
-# 07:00 with up to 10 minutes of jitter and reads the newest self-test log
-# entry. Starting BEFORE it would leave that report parsing "in progress" every
-# Wednesday. Starting after it gives the run the rest of the day and the night,
-# and Thursday's report is the one that reads the result.
+# It is NOT free, and this comment used to say it was — "costs nothing the host
+# can feel" was written before anyone measured it. Read latency on sda,
+# 30-minute averages, 2026-08-26:
 #
-# The announced 228 minutes is a floor, not a duration: the drive yields to host
-# I/O, and this one serves 25 services continuously — the first supervised run
-# was still under 20 % after 50 minutes. The schedule is built so that does not
-# matter. Nothing waits on the test, an unfinished run reads as "in progress"
-# rather than as a failure, and a run still going when the next Wednesday comes
-# is simply restarted.
+#     no test running        5-6 ms
+#     test running          15-30 ms, peaks at 62
+#
+# A factor of 3 to 5, for the four to eight hours it runs. The drive does yield
+# to host I/O, but yielding is not being invisible — Jellyfin seeks and Immich
+# thumbnails come off this disk.
+#
+# 03:30 Wednesday, chosen against two constraints:
+#
+#   AFTER the nightly backup, which finishes around 03:07. That job is the data
+#   protection path and is the one thing that must not be slowed down — an
+#   earlier start would run the scan straight through it.
+#   BEFORE the working day, using the quiet 03:30-07:00 window. Contention is
+#   also what makes the test slow, so quiet hours make it finish sooner:
+#   around 09:30 rather than mid-afternoon.
+#
+# What is NOT a constraint, though it was written here as one until today: the
+# daily 07:00 disk report parsing an "in progress" entry. Measured on this drive
+# the same day — a running test does not appear in the self-test log at all, so
+# that report reads the last COMPLETED entry whatever the time. Removing that
+# false constraint is what freed the schedule.
 #
 # Wednesday also keeps it off the Sunday cluster (restic prune 05:00, offsite
-# check 06:00) and clear of the 03:00 backup window.
-OnCalendar=Wed *-*-* 07:30
+# check 06:00).
+#
+# The announced 228 minutes is a floor, not a duration. Nothing waits on the
+# test, and a run still going when the next Wednesday comes round is skipped by
+# the service's ExecCondition rather than restarted or failed.
+OnCalendar=Wed *-*-* 03:30
 # Kept, and it has a sharp edge worth naming: on a schedule CHANGE, systemd
 # compares the new calendar against the stored stamp and can decide a run was
 # missed, firing the moment the timer is restarted. That is what happened when
-# this moved from 04:30 to 07:30 (2026-08-26) and it is why the service now
-# carries an ExecCondition. The catch-up itself is wanted — a host that was off
-# on Wednesday should still get its scan.
+# this moved 04:30 -> 07:30 -> 03:30 (both on 2026-08-26) and it is why the
+# service carries an ExecCondition. The catch-up itself is wanted — a host that
+# was off on Wednesday should still get its scan.
 Persistent=true
 RandomizedDelaySec=15m
 
