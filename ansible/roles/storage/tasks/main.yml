@@ -19,6 +19,9 @@
 - name: Install the homelab-unlock / homelab-lock scripts
   ansible.builtin.import_tasks: unlock.yml
 
+- name: Arm the data volume's integrity checks and install homelab-fsck
+  ansible.builtin.import_tasks: fsck.yml
+
 - name: Install the LUKS header backup operator script
   ansible.builtin.import_tasks: header-backup.yml
 

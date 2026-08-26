@@ -45,6 +45,22 @@ luks_mapper_name: data_crypt
 root_fsck_max_mounts: 30
 root_fsck_interval_days: 30
 
+# The same triggers on the DATA volume (#254), and deliberately not the same
+# values. /mnt/data is mounted once per unlock, so the mount count is nearly
+# dead weight here — a host that reboots twice a year would reach 30 unlocks in
+# a decade — while the interval is the trigger that actually fires. `0` disables
+# the mount count rather than setting a number that pretends to mean something.
+#
+# Nothing new runs these: `e2fsck -p` in homelab-unlock already honours both
+# triggers, and returned in 30 ms on an unarmed volume for exactly that reason
+# (measured 2026-08-26). Arming the superblock is the whole change.
+#
+# The cost lands on the unlock where the interval has elapsed: 3 min 27 s on
+# 4.6 TB / 730 GB used, during which DNS stays down. Everything about this
+# volume being checkable only while unmounted follows from that.
+data_fsck_max_mounts: 0
+data_fsck_interval_days: 30
+
 # --- Docker ---
 docker_data_root: /mnt/data/docker  # Docker images/layers on HDD
 

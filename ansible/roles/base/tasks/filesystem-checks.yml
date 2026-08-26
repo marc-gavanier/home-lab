@@ -31,9 +31,14 @@
 #
 # --- What actually checks these filesystems, so masking loses nothing --------
 #   /mnt/data   `homelab-unlock` runs `e2fsck -p` on the still-unmounted mapper
-#               at every unlock (storage/unlock.yml). A clean filesystem costs
-#               about a second; a real scan happens after an unclean shutdown,
-#               which is the case that matters.
+#               at every unlock (storage/unlock.yml). This paragraph used to
+#               stop there, and it was too generous: preen honours the
+#               superblock triggers, /mnt/data had NONE, and so that check only
+#               ever did work after an unclean shutdown. `Last checked` on it
+#               read 2026-05-10 for 108 days while this file claimed it was
+#               covered. The triggers are armed as of #254
+#               (storage/tasks/fsck.yml), which is what makes the sentence
+#               true — the check itself never changed.
 #   /           nothing, until the second half of this file. `passno=0` in
 #               fstab, `Maximum mount count: -1`, `Check interval: 0`, last
 #               checked 2026-02-10 — the date the image was built, on BOTH

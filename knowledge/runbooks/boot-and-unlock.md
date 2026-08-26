@@ -121,6 +121,44 @@ docker compose down <svc>                    # removes it — nothing to heal
 systemctl stop homelab-stack-heal.timer     # or pause healing (restart after)
 ```
 
+`docker compose down` (no service named) also removes the Tier 0 containers, and
+a restart policy cannot bring back a container that no longer exists. The
+orchestrator recreates the missing ones itself since #253, so the stack comes
+back from `homelab-unlock` unaided — but nothing recreates them if you only
+restart Docker.
+
+## Checking the data volume
+
+`e2fsck` on a mounted filesystem corrupts it, so every check below needs the
+stack down and `/mnt/data` unmounted, with the LUKS mapper still open.
+
+Never run `e2fsck` directly. Use the wrapper, which raises the mount gate so
+nothing — systemd, a queued Docker job, or someone else's `homelab-unlock` —
+can mount the volume underneath the scan:
+
+```bash
+homelab-fsck            # read-only, forcing: e2fsck -fn (the default)
+homelab-fsck -fy        # repair, once you have READ the read-only output
+```
+
+Budget about 3 min 30 s (measured 2026-08-26: 4.6 TB, 730 GB used, metadata
+only, over USB). The gate is cleared on exit, including when the check reports
+errors — `-fn` exits 4 whenever it finds anything, which is a normal result and
+not a reason to leave the volume unmountable.
+
+Running `e2fsck` by hand without the gate is what destroyed a diagnosis on
+2026-08-26: `homelab-unlock` was started mid-scan, mounted the volume
+read-write underneath it, and the resulting Pass 5 output was read as real
+corruption for half an hour. `homelab-unlock` now refuses to start while a gate
+it did not place is up.
+
+**Automatic checks.** Since #254 the volume carries a 30-day interval in its
+superblock, honoured by the `e2fsck -p` that `homelab-unlock` already runs. On
+the first unlock past that interval, `Checking data volume integrity...` takes
+minutes instead of a second and shows a progress bar. That is expected — DNS
+returns later than the usual 1–3 minutes on that boot, and interrupting it is
+the one thing not to do.
+
 ## Security-update reboot cadence
 
 Security updates install automatically but **never auto-reboot** the homelab (a

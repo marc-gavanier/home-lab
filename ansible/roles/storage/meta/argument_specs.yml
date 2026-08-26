@@ -20,6 +20,20 @@ argument_specs:
         type: str
         required: true
         description: Device-mapper name of the opened volume.
+      data_fsck_max_mounts:
+        type: int
+        required: true
+        description: >-
+          Mounts before e2fsck forces a check on the data volume. 0 disables the
+          trigger, and the superblock then reads -1. Near-useless here — the
+          volume mounts once per unlock — so 0 is the expected value.
+      data_fsck_interval_days:
+        type: int
+        required: true
+        description: >-
+          Days before e2fsck forces a check on the data volume. This is the
+          trigger that actually fires; honoured by the existing `e2fsck -p` in
+          homelab-unlock, which is why no new job runs it.
       luks_passphrase:
         type: str
         required: true
