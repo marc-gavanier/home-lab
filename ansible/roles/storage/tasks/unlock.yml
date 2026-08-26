@@ -56,6 +56,26 @@
       # is not optional — a flag left behind cannot mount the data volume.
       GATE="/run/homelab/unlock-fsck-in-progress"
       clear_gate() { rm -f "$GATE" 2>/dev/null || true; }
+
+      # A gate that is ALREADY up is not ours, and taking it would be the same
+      # mistake this file was written to stop — just aimed at a human instead of
+      # at systemd. Measured on 2026-08-26: an operator was running
+      # `e2fsck -fn` by hand when this script was started; the old code did
+      # `: > "$GATE"` without looking, absorbed the flag as if it had placed it,
+      # mounted the volume read-write under the running scan, and cleared the
+      # flag from its EXIT trap. Nothing was damaged — the repair pass refused a
+      # mounted filesystem, which is the correct failure — but three minutes of
+      # diagnosis were destroyed and read as real corruption for half an hour.
+      #
+      # The trap is armed only AFTER this check, so refusing here cannot delete
+      # a flag this run does not own.
+      if [ -e "$GATE" ] && ! mountpoint -q "$MOUNT"; then
+        echo "Another integrity check holds $MOUNT (gate present, not ours)." >&2
+        echo "Wait for it to finish — homelab-fsck clears the gate on exit." >&2
+        echo "If you are certain nothing is running: rm -f $GATE" >&2
+        exit 1
+      fi
+
       trap clear_gate EXIT
 
       if ! mountpoint -q "$MOUNT"; then
@@ -88,7 +108,14 @@
         # stops (rc >= 4) on anything needing a human, so we refuse to mount a
         # filesystem too damaged to repair automatically.
         echo "Checking data volume integrity..."
-        rc=0; e2fsck -p "/dev/mapper/$MAPPER" || rc=$?
+        # -C 0 draws a progress bar. It matters more than it looks: the check
+        # below is normally instant, but on the run where tune2fs's interval has
+        # elapsed it takes minutes (3 min 27 s measured on 4.6 TB / 730 GB used,
+        # 2026-08-26) and preen mode prints NOTHING while it works. An operator
+        # watching a console go silent for three and a half minutes, right after
+        # "Checking data volume integrity...", is an operator reaching for the
+        # power button.
+        rc=0; e2fsck -p -C 0 "/dev/mapper/$MAPPER" || rc=$?
         if [ "$rc" -ge 4 ]; then
           # The gate STAYS UP on this path, and the trap is disarmed to keep it
           # there. Without that, "NOT mounting" would be advice rather than a
@@ -98,9 +125,13 @@
           # which is the correct amount of friction for that decision.
           trap - EXIT
           echo "fsck could not auto-repair (rc=$rc)."
-          echo "Run 'e2fsck /dev/mapper/$MAPPER' by hand. NOT mounting, and"
-          echo "nothing else can mount it either while $GATE exists."
-          echo "When the filesystem is repaired: rm -f $GATE && homelab-unlock"
+          echo "NOT mounting, and nothing else can mount it either while"
+          echo "$GATE exists."
+          echo
+          echo "  1. rm -f $GATE       # homelab-fsck takes it back immediately"
+          echo "  2. homelab-fsck         # read-only first — READ the output"
+          echo "  3. homelab-fsck -fy     # only once you know what it will fix"
+          echo "  4. homelab-unlock"
           exit 1
         fi
         clear_gate
