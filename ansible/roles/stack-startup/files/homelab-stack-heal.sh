@@ -23,7 +23,28 @@ log() { logger -t homelab-heal "$*"; }
 
 # Never race the staged startup: the oneshot reports "active" (RemainAfterExit)
 # only once all waves have been dispatched — "activating" while they run.
-systemctl -q is-active homelab-stack-startup.service || exit 0
+#
+# `is-active` ALONE was the bug (#241). It is false for two different states,
+# and only one of them means "do not heal yet":
+#
+#   activating / inactive   the waves are still running, or have not started.
+#                           Healing here would fight the orchestrator. Correct.
+#   failed                  the startup ran and gave up. Every container it did
+#                           not reach is stopped and nothing else will start
+#                           them. This is the case healing exists FOR, and it
+#                           was the one being skipped.
+#
+# Measured on 2026-08-26: wave 1 died because miniflux-db was nine seconds short
+# of finishing its crash recovery, homelab-stack-startup went to `failed`, and
+# 15 containers sat stopped while this timer fired every two minutes into an
+# empty `exit 0` — `journalctl -t homelab-heal -b` returned "-- No entries --"
+# for the whole outage. Two safety mechanisms, one failure: the stack could not
+# restart itself and the thing whose job is to restart it had been switched off
+# by the same event.
+if ! systemctl -q is-active homelab-stack-startup.service &&
+   ! systemctl -q is-failed homelab-stack-startup.service; then
+    exit 0
+fi
 
 cd "$COMPOSE_DIR" || { log "FATAL: $COMPOSE_DIR missing"; exit 1; }
 
