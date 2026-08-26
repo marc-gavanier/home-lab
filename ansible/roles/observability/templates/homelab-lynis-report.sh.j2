@@ -16,6 +16,8 @@ MIN_INDEX={{ lynis_min_index | default(65) }}
 REPORT=/var/log/lynis-report.dat
 STATE_DIR=/var/lib/homelab-lynis
 BEST_FILE="$STATE_DIR/best-index"
+BEST_VER_FILE="$STATE_DIR/best-index-lynis-version"
+LAST_REPORT="$STATE_DIR/last-green-report.dat"
 
 notify() {
     [ -n "$KUMA_PUSH_URL" ] || return 0
@@ -54,28 +56,83 @@ fi
 
 index=$(awk -F= '/^hardening_index=/{print $2; exit}' "$REPORT")
 index=${index//[^0-9]/}; index=${index:-0}
+
+# The warning TEST IDs, not just how many. On 2026-08-23 this monitor said
+# "index 71 (best 73), 4 warnings — regression, was 73" and there was no way to
+# learn WHICH four: the report is rewritten by the next audit, and a manual run
+# two hours later had already destroyed it. The regression turned out to be
+# KRNL-5830, "reboot of system is most likely needed" — a legitimate, temporary,
+# operator-actionable condition that held this monitor red for three days.
+# Naming them would have said so in the first message.
+warn_ids=$(awk -F'|' '/^warning\[\]=/{sub(/^warning\[\]=/,"",$1); printf "%s ", $1}' "$REPORT")
+warn_ids=${warn_ids% }
 warns=$(grep -c '^warning\[\]=' "$REPORT" 2>/dev/null || echo 0)
 
+mkdir -p "$STATE_DIR"
+
+# --- The baseline, and the trap that was in it ------------------------------
 # A ratchet on the best index ever recorded, because the absolute floor is
 # decorative: MIN_INDEX is 65 and the index has measured 74 on five consecutive
 # samples with zero variance, so a fall to 66 — nine points of hardening lost —
 # is reported green. The floor stays as a backstop; the ratchet is what actually
-# guards. It never lowers itself, so a regression keeps reporting until it is
-# fixed. To accept a drop deliberately, remove $BEST_FILE.
-mkdir -p "$STATE_DIR"
+# guards.
+#
+# It never lowers itself, and that was a time bomb: the hardening index is
+# computed by lynis, so a lynis UPGRADE that adds tests lowers it for everyone,
+# permanently, with no path back to green. The monitor would have been red
+# forever for a reason that is not a regression at all — a change of ruler, not
+# of what is being measured.
+#
+# So the baseline is tied to the version that produced it. A new lynis version
+# resets it and SAYS SO rather than alarming; a regression under the same
+# version is a real regression. To accept a drop deliberately under the same
+# version, remove $BEST_FILE.
+lynis_ver=$(lynis show version 2>/dev/null | tr -cd '0-9.'); lynis_ver=${lynis_ver:-unknown}
 best=$(cat "$BEST_FILE" 2>/dev/null); best=${best//[^0-9]/}; best=${best:-0}
+best_ver=$(cat "$BEST_VER_FILE" 2>/dev/null); best_ver=${best_ver:-unknown}
+
 msg="hardening index ${index} (best ${best}), ${warns} warnings"
+[ -n "$warn_ids" ] && msg="$msg [${warn_ids}]"
 
 if [ "$index" -lt "$MIN_INDEX" ]; then
     notify down "$msg — below the floor of ${MIN_INDEX}"
     exit 1
 fi
 
+if [ "$best_ver" != "$lynis_ver" ] && [ "$best" -gt 0 ]; then
+    # Not a regression: a different ruler. Report it, rebaseline, stay green —
+    # and name both versions so the next audit knows the comparison restarted.
+    printf '%s\n' "$index" > "$BEST_FILE"
+    printf '%s\n' "$lynis_ver" > "$BEST_VER_FILE"
+    cp -f "$REPORT" "$LAST_REPORT" 2>/dev/null || true
+    notify up "$msg — baseline reset, lynis ${best_ver} -> ${lynis_ver}"
+    exit 0
+fi
+
 if [ "$index" -lt "$best" ]; then
-    notify down "$msg — regression, was ${best}"
+    # Name what is NEW since the last run rather than leaving "regression, was
+    # 73" to be investigated against a report that no longer exists. The copy
+    # below is what makes this possible at all.
+    new_ids=""
+    if [ -r "$LAST_REPORT" ]; then
+        prev=$(awk -F'|' '/^warning\[\]=/{sub(/^warning\[\]=/,"",$1); print $1}' "$LAST_REPORT")
+        for w in $warn_ids; do
+            printf '%s\n' "$prev" | grep -qx "$w" || new_ids="$new_ids $w"
+        done
+        new_ids=${new_ids# }
+    fi
+    [ -n "$new_ids" ] && msg="$msg — new since last run: ${new_ids}"
+    notify down "$msg — regression, was ${best} (lynis ${lynis_ver})"
     exit 1
 fi
 
 [ "$index" -gt "$best" ] && printf '%s\n' "$index" > "$BEST_FILE"
+printf '%s\n' "$lynis_ver" > "$BEST_VER_FILE"
+
+# Keep the report that produced a GREEN verdict, so the next regression has
+# something to be compared against. lynis rewrites /var/log/lynis-report.dat on
+# every run, including a manual one, so without this copy the evidence for a
+# regression is gone by the time anyone reads the message about it.
+cp -f "$REPORT" "$LAST_REPORT" 2>/dev/null || true
 
 notify up "$msg"

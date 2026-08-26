@@ -573,7 +573,47 @@ unhealthy ~105 s after the proxy stops answering. It probes `/_ping` through
 the proxy rather than testing the port, since a HAProxy still listening but no
 longer reaching the Docker socket would pass a port test.
 
-A weekly Lynis run pushes its hardening score to a separate monitor.
+### The weekly Lynis audit
+
+A weekly Lynis run pushes its hardening score to a separate monitor. The alarm
+is not the score itself — an absolute floor of 65 is decorative when the index
+has measured 73-74 for months — but a **ratchet on the best index ever
+recorded**, so a fall from 74 to 66 reports red instead of sitting above the
+floor.
+
+**The ratchet is tied to the Lynis version**, and that is not a refinement. The
+index is computed by Lynis, so an upgrade that adds tests lowers it for
+everybody — permanently, with no path back to green, for a change of ruler
+rather than a change in what is being measured. A new version therefore resets
+the baseline and says so in the message; a drop under the same version is a real
+regression. The floor is still checked first, so a version bump that genuinely
+takes the posture below 65 still alarms.
+
+**The message names the warning test IDs, and a regression names what is new.**
+On 2026-08-23 it said `index 71 (best 73), 4 warnings — regression, was 73` and
+there was no way to find out which four: Lynis rewrites
+`/var/log/lynis-report.dat` on every run, including a manual one, and a manual
+run two hours later had already destroyed the evidence. The cause turned out to
+be `KRNL-5830`, *"reboot of system is most likely needed"* — a legitimate,
+temporary, operator-actionable condition that held the monitor red for three
+days and would have held it there until the following Monday even after the
+reboot, because the audit only runs weekly. The report behind each green verdict
+is now kept, so the next regression can be told what changed.
+
+**`PKGS-7388` is a known false positive on this host and is deliberately NOT
+skipped.** Lynis 3.0.9 (Ubuntu 24.04's version, built 2023-08-03) looks for a
+security repository by reading `/etc/apt/sources.list` and `.list` files; this
+host declares its channel in the deb822 format Ubuntu moved to —
+`/etc/apt/sources.list.d/ubuntu.sources`, `Suites: noble-security` — which that
+version cannot parse. The channel works: `apt-check` tracks security updates and
+`unattended-upgrades` installs them.
+
+It is left in rather than added to a skip list on purpose. An exemption outlives
+the reason for it and becomes a blind spot — the same shape as the wg-easy
+exemption removed from the posture check in #235 — and skipping the test would
+raise the index, moving the ratchet for a reason unrelated to hardening. It
+costs one test ID in a weekly message, and that ID now appears in the message,
+which is what makes this paragraph findable.
 
 ### DDNS (push dead-man's switch)
 
