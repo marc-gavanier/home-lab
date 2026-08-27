@@ -76,6 +76,19 @@ Two notes on beating Navidrome's metadata handling rather than fighting it:
 - **Organise as `Artist/Album/Track.ext`**, and drop a `cover.jpg` in the album
   folder — Navidrome prefers it to the per-track embedded art, which is often
   inconsistent across an album.
+- **Renaming leaves a ghost.** Navidrome keeps the entry of a file that vanished
+  — that is how a track which merely moved keeps its play counts and rating.
+  Rename a track *and* leave a different file at the old path, and the orphan
+  stays, counted in `album.song_count`: the album header reads six tracks over a
+  list of five. `ND_SCANNER_PURGEMISSING=full` clears them on the next full scan,
+  which the bundled CLI can force without touching the web UI:
+
+  ```bash
+  docker exec navidrome navidrome scan --full
+  ```
+
+  The hourly incremental scan keeps its move detection, since only full scans
+  purge.
 
 ## /tmp Is Not Optional
 

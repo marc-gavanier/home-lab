@@ -910,6 +910,13 @@ services:
       ND_SCANNER_SCHEDULE: 1h
       ND_LOGLEVEL: info
       ND_BASEURL: ""
+      # Missing entries are kept by default, and that default is right: it is how
+      # a file that merely moved keeps its play counts and rating. A rename that
+      # ALSO puts a different file at the old path leaves an orphan behind, and
+      # album.song_count counts it — measured 2026-08-27, an album whose header
+      # said six tracks over a list of five. `full` purges those during full
+      # scans only, so the hourly incremental keeps its move detection.
+      ND_SCANNER_PURGEMISSING: full
     volumes:
       - ${SERVICES_DATA_DIR}/navidrome:/data
       - ${MEDIA_DIR}/music:/music:ro
