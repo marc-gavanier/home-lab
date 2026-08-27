@@ -27,6 +27,12 @@ x-security-opt: &no-new-privs
 # running — not guessed. Writable paths are declared explicitly: a sized tmpfs
 # for state meant to be lost, a bind mount for state that is not. Services
 # without `read_only` carry the reason why in their own block.
+# That measurement has one blind spot, and navidrome paid for it: `docker diff`
+# only sees paths a container HAS written, so a code path never exercised leaves
+# no trace behind. Every read_only service therefore carries a small /tmp tmpfs.
+# Where that is insurance rather than a measurement, the block says so — an
+# unwritten tmpfs allocates no page, so the standing cost is nothing while the
+# failure it prevents is silent by nature.
 x-cap-drop: &cap-drop-all
   - ALL
 
@@ -350,6 +356,8 @@ services:
       # mechanism as ping in uptime-kuma and pihole-FTL (ADR-017).
       - NET_BIND_SERVICE
     read_only: true          # measured: writes nothing, configured by flags alone
+    tmpfs:
+      - /tmp:size=8m           # insurance, not a measurement — see the header
     # Sharing Pi-hole's netns has a consequence worth stating where it is
     # created: **restarting Pi-hole silently kills this container's networking**.
     # Docker tears the namespace down and builds a new one; dnsproxy stays up,
@@ -586,6 +594,8 @@ services:
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     read_only: true          # measured: no volume and no write outside its socket
+    tmpfs:
+      - /tmp:size=8m           # insurance, not a measurement — see the header
     # redis 8 no longer declares VOLUME /data, so on a read-only rootfs the RDB
     # snapshot fails and redis then DISABLES ALL WRITES (stop-writes-on-bgsave-
     # error). Measured the hard way: both caches accepted reads and writes for
@@ -660,6 +670,8 @@ services:
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     read_only: true          # measured: runs a single binary out of the mounted app directory
+    tmpfs:
+      - /tmp:size=8m           # insurance, not a measurement — see the header
     cap_add:
       # Only *reads* Nextcloud's config.php, owned by www-data — the narrower
       # read/traverse override is enough, no write bypass needed.
@@ -768,6 +780,11 @@ services:
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     read_only: true          # measured: its only image-layer entries are the secret mount points
+    tmpfs:
+      # Insurance: Rocket buffers multipart uploads through std::env::temp_dir(),
+      # and ROCKET_TEMP_DIR is not set, so attaching a file to an entry lands
+      # here. Never observed, because no attachment has been added since #32.
+      - /tmp:size=16m
     cap_add:
       # Binds :80 inside the container (Traefik terminates TLS).
       - NET_BIND_SERVICE
@@ -874,6 +891,16 @@ services:
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     read_only: true          # measured: writes only into the mounted /data and /music
+    tmpfs:
+      # ...and into /tmp, which the `docker diff` above could not see. Navidrome
+      # reads tags through a WASM module that unpacks into /tmp the first time it
+      # has a new file to parse, so a library that gains no file never triggers
+      # it: months of running wrote nothing there and the measurement came back
+      # clean. Under read_only the unpacking fails once and for all ("get runtime
+      # once"), every file is skipped, and the scan still reports success with
+      # tracksImported=0. Measured 2026-08-27: the first album added since May
+      # imported nothing, container green, scan green, database unchanged.
+      - /tmp:size=64m
     environment:
       # ND_SCANNER_SCHEDULE, not ND_SCANSCHEDULE: 0.63.2 reads Scanner.Schedule,
       # and an unknown ND_* warns about nothing — so the container logged
@@ -993,6 +1020,8 @@ services:
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     read_only: true          # measured: no volume and no write outside its socket
+    tmpfs:
+      - /tmp:size=8m           # insurance, not a measurement — see the header
     # redis 8 no longer declares VOLUME /data, so on a read-only rootfs the RDB
     # snapshot fails and redis then DISABLES ALL WRITES (stop-writes-on-bgsave-
     # error). Measured the hard way: both caches accepted reads and writes for
@@ -1150,6 +1179,11 @@ services:
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     read_only: true          # measured: everything it keeps is in the mounted /app/data
+    tmpfs:
+      # Insurance: no monitor needs /tmp today (34 active — push, http, keyword,
+      # port, dns, ping), but the real-browser type runs a Chromium out of it,
+      # and that failure would surface as one monitor stuck down.
+      - /tmp:size=16m
     cap_add:
       # Kuma spawns /usr/bin/ping, which carries cap_net_raw=ep as a file
       # capability. Under cap_drop ALL that capability is outside the bounding
@@ -1411,6 +1445,8 @@ services:
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     read_only: true
+    tmpfs:
+      - /tmp:size=8m           # insurance, not a measurement — see the header
     # No tmpfs. `docker diff` on a live probe showed an empty write set — the
     # only entries were /data and the users file, both artefacts of the bind
     # mount below. Dozzle is a single Go binary serving from its own image and
@@ -1608,6 +1644,8 @@ services:
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     read_only: true
+    tmpfs:
+      - /tmp:size=8m           # insurance, not a measurement — see the header
     # No tmpfs at all, and that is measured rather than hoped for: `docker diff`
     # on a probe that ran the 132 migrations, created the admin account and
     # served /healthcheck came back with an EMPTY write set. Miniflux is one Go
