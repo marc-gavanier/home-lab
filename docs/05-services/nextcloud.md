@@ -85,7 +85,13 @@ Music reaches that folder by a different route: the workstation mounts
 `/mnt/data/media/music` read-write over sshfs (ADR-033). Nextcloud stays a
 read-only view of whatever lands there.
 
-After adding new media (e.g. via rsync), run a scan so Nextcloud sees it:
+The three mounts carry `filesystem_check_changes: 1`, so Nextcloud revalidates a
+directory when you open it and media added out-of-band appears on the next
+browse — no scan to run. Nextcloud browses its own index rather than the disk,
+and this option is what keeps the two honest.
+
+It only revalidates what you actually open. After a bulk import into a corner of
+the tree nobody browses, force it:
 ```bash
 docker exec -u www-data nextcloud php occ files:scan --path='admin/files/Photos'
 ```

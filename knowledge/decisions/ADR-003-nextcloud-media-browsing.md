@@ -1,7 +1,8 @@
 # ADR-003: Browse Media in Nextcloud via Read-Only External Storage
 
 **Date**: 2026-05-23
-**Status**: Accepted
+**Status**: Accepted. Amended 2026-08-27 — the first con below is resolved,
+by the option this ADR guessed at rather than by the cron job it imagined.
 **Deciders**: Marc Gavanier
 
 ## Context
@@ -53,9 +54,16 @@ They appear as `/Photos`, `/Music`, `/Videos` in every user's file tree.
   container (running as root, occ as www-data) can read them with no ownership change.
 
 ### Cons
-- **Manual scan after additions**: new files added out-of-band (e.g. rsync) are not
-  visible until `occ files:scan --path='admin/files/<Mount>'` runs. Could be
-  automated via the cron job later if it becomes a chore.
+- ~~**Manual scan after additions**~~ — *resolved 2026-08-27.* New files added
+  out-of-band were invisible until `occ files:scan --path='admin/files/<Mount>'`
+  ran, and this ADR guessed the fix would be a cron job. It became a chore the
+  day ADR-033 turned the workstation's `~/Music` into the library itself, and
+  the answer turned out to be a mount option Nextcloud already had:
+  `filesystem_check_changes: 1` revalidates a directory on direct access, so
+  media appears on the next browse. Verified on `/Music` with `/Photos` and
+  `/Videos` held back as a control — a folder created outside Nextcloud showed
+  up with no scan run. Now set on all three by the deploy role. A manual scan
+  remains the tool for a bulk import into a path nobody browses.
 - **Preview generation cost**: browsing thousands of photos can trigger thumbnail
   generation (CPU on the Pi). Acceptable for occasional browsing.
 - **Read-only by design**: managing files (rename/delete/upload) from Nextcloud is

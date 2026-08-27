@@ -216,3 +216,29 @@
     - item.configuration.datadir is defined
     - item.configuration.datadir.startswith('/external/')
   changed_when: false
+
+# Nextcloud browses its own index, not the disk, so a file that arrives any way
+# other than through Nextcloud stays invisible until something rescans. ADR-003
+# accepted that as a con and left it "could be automated later if it becomes a
+# chore"; ADR-033 made it one, by turning the workstation's ~/Music into the
+# library itself. `filesystem_check_changes: 1` is Nextcloud's own answer — it
+# revalidates a directory on direct access, so a new album shows up when you
+# open the folder. The cost is one stat per directory browsed, not a walk of the
+# tree, and the desktop client syncs neither of these mounts.
+#
+# Verified 2026-08-27 on /Music with /Photos and /Videos left untouched as the
+# control: a folder created on the Pi outside Nextcloud appeared on the next
+# browse, with no occ files:scan run.
+- name: nextcloud | Let media external storages notice out-of-band changes
+  ansible.builtin.command:
+    cmd: >
+      docker exec -u www-data nextcloud php occ files_external:option
+      {{ item.mount_id }} filesystem_check_changes 1
+  loop: "{{ (nc_ext_list2.stdout | from_json) if (nc_ext_list2.stdout | default('')) else [] }}"
+  loop_control:
+    label: "{{ item.mount_point | default('?') }}"
+  when:
+    - nextcloud_up
+    - item.configuration.datadir is defined
+    - item.configuration.datadir.startswith('/external/')
+  changed_when: false
