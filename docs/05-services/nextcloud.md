@@ -81,6 +81,10 @@ The media folders are mounted **read-only** into the container and exposed as Ex
 | `/Music`  | `/mnt/data/media/music`  | `/external/music`  |
 | `/Videos` | `/mnt/data/media/videos` | `/external/videos` |
 
+Music reaches that folder by a different route: the workstation mounts
+`/mnt/data/media/music` read-write over sshfs (ADR-033). Nextcloud stays a
+read-only view of whatever lands there.
+
 After adding new media (e.g. via rsync), run a scan so Nextcloud sees it:
 ```bash
 docker exec -u www-data nextcloud php occ files:scan --path='admin/files/Photos'
