@@ -14,6 +14,19 @@
 # The first time a new service is introduced, run a FULL deploy (no
 # deploy_services) or `docker compose up -d <svc>` on the host once; afterwards
 # targeted deploys keep it in sync. (Learned adding cloudflared, ADR-015.)
+#
+# SAME CAVEAT, SECOND FORM — a NEW MOUNT on an existing service. `docker
+# restart` cannot add a bind mount to a container that already exists; only a
+# recreate can, and `compose up` recreates only the services it was TARGETED
+# with. Deploying the Nextcloud JIT override with `-e deploy_services=nextcloud`
+# therefore mounted it in `nextcloud`, left `nextcloud-cron` untouched, and the
+# handler's `docker restart` reported success over a container still running the
+# old definition. Measured 2026-08-27: `nextcloud` on jit_buffer_size=0,
+# `nextcloud-cron` still on 8M, deploy green.
+#
+# When a change adds or moves a mount, every service sharing it has to be named:
+#   -e '{"deploy_services": "nextcloud nextcloud-cron"}'
+# The JSON form is not optional here, for the reason stated above.
 
 - name: compose | Copy Docker Compose file
   ansible.builtin.copy:
