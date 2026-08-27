@@ -84,6 +84,15 @@
 # when the file changes for any other reason, and because removing it would
 # leave the secret with no consumer at all — but a rotation needs
 # knowledge/runbooks/rotate-a-secret.md, not a deploy.
+# Both containers run PHP out of the same image and both mount the JIT
+# override, so both have to come back for the setting to be uniform. The
+# notify_push container shares the image too but runs a Rust binary, not PHP,
+# and is deliberately left out.
+- name: Restart nextcloud
+  ansible.builtin.command:
+    cmd: docker restart nextcloud nextcloud-cron
+  changed_when: true
+
 - name: Restart nextcloud-db
   ansible.builtin.command:
     cmd: docker restart nextcloud-db

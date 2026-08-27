@@ -15,6 +15,7 @@
   loop:
     - traefik/dynamic
     - pihole
+    - nextcloud
 
 - name: configs | Copy Traefik dynamic configuration
   ansible.builtin.copy:
@@ -53,6 +54,28 @@
     group: docker
     mode: "0640"
   notify: Restart pihole
+
+# Verbatim, so it belongs here rather than in templates/ (see the header).
+#
+# 0644, not the 0640 used above it, and the reason is the SearXNG lesson in
+# this same file one paragraph down: container UIDs are arbitrary. `nextcloud`
+# reads its PHP config as root and holds DAC_OVERRIDE, so 0640 would work
+# there — but `nextcloud-cron` runs cron.php as www-data (uid 33) with only
+# SETUID/SETGID, and would silently start without the file. Silently, because
+# PHP does not report an unreadable .ini in conf.d: it skips it. The setting
+# holds no secret, so world-readable costs nothing.
+#
+# The directory mode does not gate this one: the container bind-mounts the
+# FILE, so the host directory is traversed by the daemon as root and never by
+# the container.
+- name: configs | Copy the Nextcloud PHP JIT override
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../../docker/configs/nextcloud/zz-disable-jit.ini"
+    dest: /opt/homelab/configs/nextcloud/zz-disable-jit.ini
+    owner: "{{ ansible_user }}"
+    group: docker
+    mode: "0644"
+  notify: Restart nextcloud
 
 # settings.yml embeds secret_key, so it stays on the encrypted volume — but as a
 # file the container bind-mounts directly, NOT as a symlink from a mounted

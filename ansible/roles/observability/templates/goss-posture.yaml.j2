@@ -384,3 +384,33 @@ command:
         ""|000) echo "no answer from traefik at $ip"; exit 1 ;;
       esac
     exit-status: 0
+
+  # --- The PHP JIT, which an image bump turns back on without a word ---------
+  # The nextcloud image ships opcache-recommended.ini with opcache.jit=1255 and
+  # an 8M buffer. On this board that segfaults an Apache child on every PHP
+  # request — but only after a trace goes hot, which on 2026-08-27 took 2 h 13
+  # of ordinary healthcheck traffic. Six hours of outage, three Kuma monitors
+  # and the rclone vault mount, from a Renovate patch bump.
+  #
+  # The override is a mounted zz-*.ini. Nothing about that mount is asserted by
+  # the compose file itself, and the failure mode is silent twice over: PHP
+  # SKIPS an unreadable .ini without complaining, and the JIT it re-enables
+  # does not bite until hours later. So this reads the value PHP actually
+  # resolved, in each container that runs PHP, rather than checking that a file
+  # exists.
+  #
+  # `php -i` prints `opcache.jit_buffer_size => 0 => 0` (local => master); the
+  # local value is the one that decides. notify-push shares the image and is
+  # deliberately absent: it runs a Rust binary and has no PHP to configure.
+  nextcloud-php-jit-is-disabled:
+    exec: |
+      for c in nextcloud nextcloud-cron; do
+        v=$(docker exec "$c" php -i 2>/dev/null |
+              sed -n 's/^opcache\.jit_buffer_size => \([^ ]*\) .*/\1/p')
+        case "$v" in
+          0)  ;;
+          "") echo "$c: opcache.jit_buffer_size unreadable — php -i gave nothing"; exit 1 ;;
+          *)  echo "$c: JIT buffer is $v — the tracing JIT is back, PHP will segfault"; exit 1 ;;
+        esac
+      done
+    exit-status: 0
