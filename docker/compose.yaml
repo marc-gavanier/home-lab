@@ -502,6 +502,11 @@ services:
       LC_ALL: C.UTF-8
     volumes:
       - ${SERVICES_DATA_DIR}/nextcloud/data:/var/www/html
+      # The image's opcache-recommended.ini turns the tracing JIT on, which
+      # segfaults every PHP request on this board about two hours after the
+      # container starts. conf.d is read alphabetically, so zz- wins. See the
+      # file for the measurement.
+      - ./configs/nextcloud/zz-disable-jit.ini:/usr/local/etc/php/conf.d/zz-disable-jit.ini:ro
       # Media libraries mounted read-only for browsing via External Storage
       # (no copy, no sync — Immich/Jellyfin/Navidrome stay the players)
       - ${MEDIA_DIR}/photos:/external/photos:ro
@@ -629,6 +634,11 @@ services:
         condition: service_started
     volumes:
       - ${SERVICES_DATA_DIR}/nextcloud/data:/var/www/html
+      # The image's opcache-recommended.ini turns the tracing JIT on, which
+      # segfaults every PHP request on this board about two hours after the
+      # container starts. conf.d is read alphabetically, so zz- wins. See the
+      # file for the measurement.
+      - ./configs/nextcloud/zz-disable-jit.ini:/usr/local/etc/php/conf.d/zz-disable-jit.ini:ro
     # Same codebase as `nextcloud`, therefore the same pins: cron.php runs the
     # richdocuments background jobs, which fetch the WOPI discovery over the
     # public name. Without these the container comes up, stays up, and fails
