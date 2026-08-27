@@ -90,6 +90,22 @@ Two notes on beating Navidrome's metadata handling rather than fighting it:
   The hourly incremental scan keeps its move detection, since only full scans
   purge.
 
+  **The first full scan after enabling it clears the whole backlog, not just the
+  orphan you are chasing.** Measured 2026-08-27: one known ghost, 238 entries
+  purged — 237 of them dead rows accumulated over years, whose play counts and
+  ratings went with them. Nothing playable is lost, since these are entries with
+  no file on disk, but it is irreversible and there is no way to review the list
+  afterwards. Count them before, not after:
+
+  ```bash
+  docker exec navidrome sqlite3 'file:/data/navidrome.db?mode=ro' \
+    "select count(*) from media_file where missing = 1;"
+  ```
+
+  A corollary worth knowing: `select count(*) from media_file` counts those dead
+  rows too, so it overstates the library. Filter on `missing = 0` for the real
+  figure.
+
 ## /tmp Is Not Optional
 
 Navidrome reads tags through a WASM module that unpacks itself into `/tmp` the
