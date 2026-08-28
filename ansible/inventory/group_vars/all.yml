@@ -310,11 +310,14 @@ credential_store_min_count: 11
 # directory listed here is one the property reaches and that holds no credential,
 # except where a mode change would break the container, which is stated as such.
 credential_store_exemptions:
-  wireguard: >-
-    0700 here would BREAK wg-easy and possibly the only route to this host. It
-    runs as root over a directory owned by uid 1000 without DAC_OVERRIDE, so it
-    gets in through the other bits — removing them is precisely the failure #138
-    documents. Sequenced behind the chown that fixes #138, at the machine.
+  # The `wireguard` exemption was REMOVED here on 2026-08-29 (#261). It read
+  # "0700 here would BREAK wg-easy … sequenced behind the chown that fixes
+  # #138, at the machine". That chown was done during the 2026-08-26 visit,
+  # #138 is closed, and the directory is 0700 root:root today — so the most
+  # sensitive store in the lab was the one the continuous assertion had been
+  # told not to look at. `ca6d72e` removed the twin exemption in posture.sh and
+  # left this one. An exemption that outlives the ticket it names is
+  # indistinguishable from a blind spot.
   transmission/downloads: completed torrents — media the operator browses, no credential
   transmission/watch: the .torrent drop folder, written from outside the container
   pihole/dnsmasq: dnsmasq configuration fragments, no credential

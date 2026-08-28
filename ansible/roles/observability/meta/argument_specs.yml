@@ -35,3 +35,96 @@ argument_specs:
         type: int
         required: false
         description: lynis hardening-index floor (inline default 65); the weekly report pushes DOWN below it.
+      homelab_pending_kuma_push_url:
+        type: str
+        required: false
+        no_log: true
+        description: >-
+          Uptime Kuma push URL for the "waiting on a human" monitor, fed directly by
+          homelab-health.sh (token = secret). Empty/absent = disabled. A Kuma push monitor
+          takes its status from whoever pushed last, which is why this is its own monitor
+          rather than a second pusher on an existing one.
+      netdata_alarm_groups:
+        type: list
+        elements: dict
+        required: true
+        description: >-
+          One entry per Kuma monitor that reports Netdata alarms, each `{name, push_url}`.
+          A group with an empty push_url is skipped, and every alarm belonging to it is
+          then not installed at all rather than installed and unreported.
+      netdata_curated_alarms:
+        type: list
+        elements: dict
+        required: true
+        description: >-
+          One entry per curated alarm, each `{file, alarm, group}` — the template
+          netdata-health-<file>.conf.j2, the `alarm:` line inside it (the contract with the
+          adapter), and which group reports it.
+      netdata_cpu_temp_threshold_c:
+        type: int
+        required: true
+        description: >-
+          CPU temperature alarm, in Celsius. Not a tuned threshold — it is where the Pi's
+          firmware starts throttling, so it is a hardware fact.
+      netdata_mem_threshold_mib:
+        type: int
+        required: true
+        description: MemAvailable floor in MiB, below which the resources monitor goes down.
+      netdata_swap_threshold_pct:
+        type: int
+        required: true
+        description: >-
+          Swap utilisation percentage. Kept in ONE place because homelab-health.sh carries
+          the same number, and two copies of a threshold are a drift waiting to happen.
+      netdata_min_contexts:
+        type: int
+        required: true
+        description: >-
+          Floor on the number of metric contexts Netdata must expose. A collector that dies
+          silently shrinks this rather than raising anything.
+      root_fsck_max_mounts:
+        type: int
+        required: true
+        description: Mount count after which the root filesystem is checked at boot (asserted, not set, here).
+      root_fsck_interval_days:
+        type: int
+        required: true
+        description: >-
+          Day interval after which the root filesystem is checked at boot (asserted here).
+          See #260 before trusting it: neither Pi has an RTC, so the initramfs stamps
+          `Last checked` with a pre-timesync clock and the interval half cannot fire.
+      goss_version:
+        type: str
+        required: true
+        description: Pinned goss release installed at /usr/local/bin/goss (ADR-032).
+      goss_sha256:
+        type: str
+        required: true
+        description: Checksum of the goss arm64 archive for that version — the install fails rather than trusting the download.
+      domain:
+        type: str
+        required: true
+        description: Public domain of the lab; the posture spec probes service URLs under it.
+      homelab_wg_ip:
+        type: str
+        required: true
+        description: >-
+          The homelab host's own WireGuard client address. The posture spec binds a probe to
+          it to prove Traefik's allow-list still admits 10.8.0.0/24 — the offsite host's only
+          reporting path (#259).
+      services_data_dir:
+        type: path
+        required: true
+        description: Root of the per-service data directories the posture spec asserts against.
+      data_mount_point:
+        type: path
+        required: true
+        description: Mount point of the encrypted volume; several assertions are gated on it being mounted.
+      data_disk_device:
+        type: str
+        required: true
+        description: Partition holding the data volume, queried by the daily disk-health report.
+      backup_dir:
+        type: path
+        required: true
+        description: Backup root on the encrypted volume, read by the disk-health report.
