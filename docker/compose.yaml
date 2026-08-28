@@ -866,7 +866,19 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:8096/health"]
       interval: 30s
       timeout: 5s
-      retries: 3
+      # SIX, not three (#262). `start_period` stops protecting this container
+      # the moment a probe first succeeds — that is what ends the `starting`
+      # state, and jellyfin serves /health as soon as Kestrel listens, well
+      # before it is ready. The remaining start period never applies again, so
+      # the 300 -> 420 s raise below could not have had its intended effect:
+      # measured on the 01:05 container WITH 300 s already in force, first
+      # healthy at +1 min 30 s, then unhealthy from +2 min to +3 min 30 s.
+      # Three retries at a 30 s interval tolerates 90 s and that episode was
+      # ~90 s — the edge, not a margin. Six tolerates 180 s. The cost is
+      # symmetrical and accepted: a REAL jellyfin failure is now noticed after
+      # 180 s rather than 90 s, which is well inside the ten minutes
+      # homelab_container_unhealthy needs before it says anything.
+      retries: 6
       # Two measurements on 2026-08-27, and the second is why this is 420 s and
       # not the 300 s it was first set to:
       #

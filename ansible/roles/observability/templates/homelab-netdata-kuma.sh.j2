@@ -79,10 +79,24 @@ log() { echo "$*"; }   # stdout -> journal
 # megabyte, so it is flattened ONCE into "name<TAB>status<TAB>value" and the
 # lookups below only grep it — the adapter's cost must not grow with the number
 # of conditions it reports on.
-if ! alarms_json="$(docker exec "$CONTAINER" \
-        curl --silent --max-time "$TIMEOUT" "$API" 2>/dev/null)"; then
+# Read it up to three times before believing it (#262). A single failed read
+# marked EVERY group down, and with `maxretries: 0` on both push monitors that
+# reached the operator immediately: the two adapter monitors produced 33 of 94
+# notifications over the audited period, two of them intentional and none
+# leading to an action. The retry belongs here rather than in Kuma's retry
+# count — Kuma cannot re-ask a push monitor for its state, it can only wait for
+# the next push, so a monitor-side retry would just delay the same wrong verdict.
+alarms_json=""
+for attempt in 1 2 3; do
+    if alarms_json="$(docker exec "$CONTAINER" \
+            curl --silent --max-time "$TIMEOUT" "$API" 2>/dev/null)" \
+       && [ -n "$alarms_json" ]; then
+        [ "$attempt" -gt 1 ] && log "netdata alarm API answered on attempt $attempt"
+        break
+    fi
     alarms_json=""
-fi
+    [ "$attempt" -lt 3 ] && sleep 5
+done
 ALARM_TABLE=""
 if [ -n "$alarms_json" ]; then
     ALARM_TABLE="$(printf '%s' "$alarms_json" |

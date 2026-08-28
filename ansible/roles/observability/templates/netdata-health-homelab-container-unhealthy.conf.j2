@@ -39,6 +39,53 @@
 # has been observed firing (ADR-030's migration rule).
 # =============================================================================
 
+# --- The gate the lookup could not provide on its own (#262) -----------------
+# `min -10m` is TRUE for a container that has existed for one minute and been
+# unhealthy for all of it. The window is only as long as the chart, and a
+# recreated container gets a brand-new chart. Measured over every transition
+# netdata retained: twelve raises, and TEN of them came from UNINITIALIZED —
+# collabora, calibre-web, immich-server and immich-ml, seconds after a deploy
+# recreated them, clearing again after 233 to 508 s.
+#
+# Two fixes were tried against the recorded data before this one, and both were
+# refuted by it:
+#   - `null2zero` on the lookup. The pre-creation period yields no slots to
+#     convert, so the aggregate is computed over the samples that exist. At the
+#     08:15 raise it returns 1 with the option and 1 without.
+#   - a `starting`-aware condition. The `starting` dimension was 0 throughout
+#     the whole episode; the container went straight to unhealthy on the new
+#     chart. There was no `starting` to key on.
+#
+# What separates them is the SAMPLE COUNT, so that is what the floor is built
+# on. `homelab_container_health_samples` sums every dimension over the same
+# window; exactly one dimension is 1 per sample, so its value is the number of
+# samples the window actually holds. Measured on the recorded data:
+#
+#   collabora 08:15, spurious   min = 1   samples =  53   -> now suppressed
+#   collabora 08:17, spurious   min = 1   samples = 173   -> now suppressed
+#   nextcloud, the JIT outage   min = 1   samples = 660   -> still fires
+#
+# The floor is 540, ninety per cent of the 600 a full window holds at the docker
+# collector's `update_every: 1`. That coupling is the one thing here that could
+# fail silently — a collector running slower would never reach 540 and this
+# alarm would simply stop firing — so `docker-collector-samples-every-second`
+# in the goss spec asserts the resolution the floor assumes.
+#
+# The summary now says what is enforced. It claimed ten minutes while the alarm
+# could fire on one, and the one episode that DID last past ten minutes was the
+# 2026-08-27 nextcloud JIT outage — 5 h 53 m, raised from CLEAR on a mature
+# chart, which is the shape this alarm is for.
+ template: homelab_container_health_samples
+       on: docker.container_health_status
+    class: Errors
+     type: Docker
+component: Container
+   lookup: sum -10m unaligned of healthy,unhealthy,starting,no_healthcheck,not_running_unhealthy
+    units: samples
+    every: 1m
+     info: Samples the ten-minute window actually holds — a value carrier for the alarm below, never an alarm itself
+       to: silent
+
  template: homelab_container_unhealthy
        on: docker.container_health_status
     class: Errors
@@ -47,7 +94,7 @@ component: Container
    lookup: min -10m unaligned of unhealthy
     units: boolean
     every: 1m
-     warn: $this == 1
-  summary: A container has been unhealthy for ten minutes
-     info: Container healthcheck failing continuously for 10m — the heal timer cannot see this, it only restarts containers that exited
+     warn: $this == 1 AND $homelab_container_health_samples > 540
+  summary: A container has been unhealthy for a full ten-minute window
+     info: Container healthcheck failing continuously for 10m, on a chart old enough to prove it — the heal timer cannot see this, it only restarts containers that exited
        to: silent
