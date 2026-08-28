@@ -59,8 +59,10 @@ One user, one scheduled mirror job, no concurrency: Postgres would buy nothing a
 cost ~70 MB plus a container to start, health-gate and back up. SQLite it is.
 
 That choice has one consequence that must not be skipped. `restic` snapshotting a
-live `.db` can capture a torn WAL state, so `backup.sh` takes the database through
-SQLite's Online Backup API into the dump directory first — exactly as it already does
+live `.db` can capture a torn WAL state, so the backup takes the database through
+SQLite's Online Backup API into the dump directory first — `backup.sh` when this
+was written, a `backup_sqlite_dumps` entry run from a resticprofile hook since
+ADR-031, with the result asserted by `/etc/goss/backup-dumps.yaml` (ADR-032) — exactly as it already does
 for Vaultwarden. **For this service the point is sharper than usual**: the whole
 reason Forgejo exists here is to be the copy that survives losing GitHub, and a backup
 that restores to a corrupt database would defeat the entire exercise. The git object

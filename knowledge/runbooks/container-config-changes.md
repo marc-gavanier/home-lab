@@ -195,9 +195,16 @@ the service *does* beyond answering.
    (ADR-020) and a targeted `--tags deploy` left the check accusing a correct
    container. Harmless but expensive: it looks exactly like a real finding, and
    the reflex is to go hunting in the container rather than in the expectation.
-   Check the script's own copy first — `grep <service> /usr/local/bin/homelab-posture.sh`
+   Check the expectations' own copy first — `sudo grep <service> /etc/goss/posture.yaml`
    against the compose block — before believing a posture finding that arrives
    right after a deploy.
+
+   > **Corrected 2026-08-29.** This step named
+   > `/usr/local/bin/homelab-posture.sh` until today. ADR-032 moved the
+   > expectations into a goss spec: replayed on wg-easy, the script has **one**
+   > hit and it is a comment, while `/etc/goss/posture.yaml` has fourteen. The
+   > script keeps only what goss cannot express. `sudo` because the spec is not
+   > world-readable.
 
 ## Restarting a container that others share a namespace with
 

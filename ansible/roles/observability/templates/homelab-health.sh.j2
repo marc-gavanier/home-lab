@@ -4,12 +4,15 @@
 # Homelab Pi — host health report
 # =============================================================================
 # Pushes the host-level signals that need a human to a single Uptime Kuma push
-# monitor: CPU temperature, undervoltage, pending reboot, stuck security
-# updates, disk capacity and unhealthy containers. A sagging PSU/cable silently
-# corrupts the SD and is the prime suspect behind an unexplained poweroff; a
-# Pi 4 also throttles at ~80-85C. Reads kernel sensors directly (vcgencmd is
-# not guaranteed on Ubuntu Server arm64). No-ops when no push URL is
-# configured.
+# monitor: undervoltage, pending reboot, stuck security updates, disk capacity,
+# DNS upstream, systemd unit and timer state, the git mirror and certificate
+# expiry. CPU temperature, available memory, swap and the two container
+# conditions are NOT in this list any more — see the "Moved to curated Netdata
+# alarms" note below. This header claimed temperature and unhealthy containers
+# until #263; keep it level with `problems+=(` rather than with memory.
+# A sagging PSU/cable silently corrupts the SD and is the prime suspect behind
+# an unexplained poweroff. Reads kernel sensors directly (vcgencmd is not
+# guaranteed on Ubuntu Server arm64). No-ops when no push URL is configured.
 
 set -uo pipefail
 

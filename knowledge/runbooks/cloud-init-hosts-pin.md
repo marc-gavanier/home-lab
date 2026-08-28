@@ -8,7 +8,7 @@ external source IP → rejected **403** by the vpn-only `ipAllowList`, see
 | Domain              | Who needs it    | Why                                    |
 |---------------------|-----------------|----------------------------------------|
 | `drive.<domain>`    | rclone (claude) | vault WebDAV mount → Claude Code       |
-| `services.<domain>` | `backup.sh`     | Uptime Kuma push for backup monitoring |
+| `services.<domain>` | `backup-notify.sh` | Uptime Kuma push for backup monitoring |
 
 ## Symptom
 

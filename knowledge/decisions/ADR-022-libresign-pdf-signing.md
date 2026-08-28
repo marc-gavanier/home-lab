@@ -59,7 +59,8 @@ published beside the Adoptium release, JSignPdf and pdftk against MD5 constants
 compiled into the app — weak as a hash, but over HTTPS to a release URL, and not
 ours to change.
 
-The binaries are **excluded from the backup** (`backup.sh`): 185 MB that one
+The binaries are **excluded from the backup** (`resticprofile.yaml`, the
+`backup.exclude` list — `backup.sh` until ADR-031): 185 MB that one
 command rebuilds is not worth copying offsite over the parents' uplink. The
 exclusion is scoped to the architecture directory, because the root CA sits in
 a *sibling* directory under `libresign/` and must never leave the backup set.

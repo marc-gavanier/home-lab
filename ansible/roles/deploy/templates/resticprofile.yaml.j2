@@ -162,7 +162,7 @@ homelab:
     run-after-fail:
       - /opt/homelab/scripts/backup-notify.sh down backup
 
-    # Identical to the list backup.sh passes, including the exclude: the
+    # Identical to the list backup.sh passed, including the exclude: the
     # libresign aarch64 blob is regenerated on demand and costs more to store
     # than to rebuild.
     source:

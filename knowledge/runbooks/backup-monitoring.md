@@ -73,8 +73,17 @@ Three more push monitors follow the same pattern:
 | Offsite health | `offsite-health.sh` (offsite Pi, Sunday 08:00) | 700000 s (8 d) | `offsite_health_kuma_push_url` (offsite local.yml) |
 
 Deploy after filling the vault variables: same `--start-at-task "backup | Template
-backup script"` command for the homelab ones; for the offsite Pi:
-`ansible-playbook playbooks/offsite.yml --tags offsite-backup --ask-vault-pass`.
+backup environment file (encrypted volume)"` command for the homelab ones; for the
+offsite Pi: `ansible-playbook playbooks/offsite.yml --tags offsite-backup --ask-vault-pass`.
+
+> **Corrected 2026-08-29.** This line named `backup | Template backup script`
+> until today — a task that went with `backup.sh` under ADR-031 and no longer
+> exists. `--start-at-task` on a name matching nothing runs **no tasks at all**
+> and exits successfully, so an operator following this line believed the push
+> URL was deployed when nothing had been. The two earlier occurrences on this
+> page (steps 7 and the local prune+check paragraph) always named the task that
+> does exist; only this third one was stale, and a line-oriented `grep` could
+> not catch it because markdown wrapped the name across a newline.
 
 "Offsite health" watches the SMART early-warning counters individually (the
 overall `smartctl -H` verdict stays PASSED until a drive is nearly dead) and

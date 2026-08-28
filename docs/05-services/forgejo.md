@@ -258,7 +258,8 @@ before writing anything.
 
 No new path: `/mnt/data/services` is already backed up wholesale by restic.
 
-The database gets one extra step in `backup.sh`, and it matters more here than
+The database gets one extra step in the backup — a `backup_sqlite_dumps` entry
+run from a resticprofile hook, `backup.sh` until ADR-031 — and it matters more here than
 elsewhere. A live SQLite file snapshotted by restic can capture a torn WAL state, so
 the database is taken through SQLite's Online Backup API into the dump directory
 first, exactly as Vaultwarden's is:
