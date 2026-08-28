@@ -114,6 +114,66 @@ service or changing a capability updates the expectation. Verified by regressing
 a real service (navidrome, `read_only` removed and recreated) and confirming the
 report caught it.
 
+### goss — where the assertions actually live
+
+ADR-032 moved the assertions out of shell and into declared specs. Four of them
+run across the two hosts, and until #263 they appeared in no runbook and nowhere
+on this page — while Kuma is able to display `goss spec … missing` to someone
+with nothing to look it up in.
+
+| Spec | Host | Checks | Run by | When |
+|------|------|--------|--------|------|
+| `/etc/goss/posture.yaml` | homelab | **325** | `homelab-posture.sh` | daily, 11:00 + up to 10 min jitter |
+| `/etc/goss/units.yaml` | homelab | **12** | `homelab-health.sh` | every 5 min |
+| `/etc/goss/backup-dumps.yaml` | homelab | **19** | a resticprofile hook, result read by `backup-notify.sh` | nightly, inside the 03:00 backup |
+| `/etc/goss/offsite-health.yaml` | offsite | **20** | `offsite-health.sh` | Sunday, 08:00 + jitter |
+
+**376 checks in total.** The counts are goss's own (`Count:` in the default
+output, `1..N` in TAP) and were measured on 2026-08-29; treat them as an order
+of magnitude, since every spec is templated from `docker/compose.yaml` and
+group_vars and grows with the stack. The binary is `/usr/local/bin/goss` on both
+hosts. The specs are not world-readable — every command below needs `sudo`.
+
+**Running one by hand:**
+
+```bash
+sudo goss -g /etc/goss/posture.yaml validate              # human-readable, ends in "Count: N, Failed: 0"
+sudo goss -g /etc/goss/posture.yaml validate --format tap # what the scripts consume
+```
+
+**One trap, and it looks like a disaster.** `backup-dumps.yaml` asserts the
+database dumps, and **the dump directory only exists during a backup run**
+(ADR-031). Run by hand at any other time it reports `Count: 19, Failed: 13` —
+`dump-nextcloud-present`, `dump-miniflux-complete` and the rest. That is the
+correct answer to the question asked at the wrong moment, not a broken backup.
+It is only meaningful as the hook, where `backup-notify.sh` reads its TAP.
+
+**Why the consumers all look for the plan line.** goss failing to *start* — an
+unreadable spec, a missing binary, a parse error — and goss finding nothing
+wrong both produce output with no `not ok` line in it. A consumer that greps
+only for `not ok` reads the first as the second. So each one checks, in order:
+spec readable → binary present → a `1..N` plan line with N > 0, and only then
+counts failures. `homelab-posture.sh` says it in its own comment: *"The plan
+line is goss's own count. Its absence means goss failed to parse the spec
+rather than found nothing wrong, and those must not read alike."* Any new
+consumer must do the same three checks.
+
+**Where the specs come from.** Never edit `/etc/goss/*.yaml` on the host — they
+are templated and the next deploy overwrites them:
+
+| Spec | Template | Deployed by |
+|------|----------|-------------|
+| `posture.yaml` | `roles/observability/templates/goss-posture.yaml.j2` | `--tags observability` |
+| `units.yaml` | `roles/observability/templates/goss-units.yaml.j2` | `--tags observability` |
+| `backup-dumps.yaml` | `roles/deploy/templates/goss-backup-dumps.yaml.j2` | `--tags deploy` |
+| `offsite-health.yaml` | `roles/offsite-backup/templates/goss-offsite-health.yaml.j2` | `playbooks/offsite.yml --tags offsite-backup` |
+
+The consequence is the one `container-config-changes.md` spells out: changing a
+capability, `read_only` or `security_opt` in `compose.yaml` means deploying
+`--tags deploy,observability`, not `--tags deploy`. Deploy only the stack and
+the spec keeps yesterday's expectations, so a container that is exactly right is
+reported as drifted.
+
 ### The hourly notify_push self-test
 
 `homelab-notify-push.sh` (hourly, its own Kuma push monitor) runs Nextcloud's
@@ -432,27 +492,46 @@ internet except WireGuard.
 ### Host health (push, every 5 min)
 
 `homelab-health.sh` pushes one monitor covering the host-level signals that
-need a human:
+need a human. Six of the conditions below are no longer evaluated by that
+script — ADR-030 moved them to curated Netdata alarms and ADR-032 to a goss
+spec — so the third column names what actually watches each one. Without it the
+table reads as coverage, which is how a deleted check sat in it unnoticed:
 
-| Signal               | Alarms when                                                                                        |
-|----------------------|----------------------------------------------------------------------------------------------------|
-| CPU temperature      | ≥ 80 °C (Pi 4 throttles at ~80-85 °C)                                                              |
-| Undervoltage         | the `rpi_volt` hwmon alarm has latched                                                             |
-| Pending reboot       | `/var/run/reboot-required` exists — auto-reboot is disabled by policy, so it waits on the operator |
-| Security updates     | still pending after **48 h** (age-gated: unattended-upgrades runs daily)                           |
-| Disk capacity        | `/` or `/mnt/data` ≥ **85 %** full                                                                 |
-| Available memory     | `MemAvailable` < **800 MiB** on two consecutive runs (> 5 min)                                     |
-| Swap occupancy       | ≥ **85 %** of the 4 GiB swap file — provisional threshold, see below                               |
-| DNS upstream         | a cache-busting query gets no answer, or a non-answer rcode, on two consecutive runs (> 5 min)     |
-| Unhealthy container  | a container fails its healthcheck for > **10 min**                                                 |
-| Container missing    | an expected container is not running at all for > **10 min**                                       |
-| systemd unit failed  | anything in `systemctl --failed`                                                                   |
-| systemd restart loop | a unit stuck in `auto-restart` across two consecutive runs                                         |
-| Expected unit down   | docker, containerd, fail2ban, claude-remote-control or wg-quick@wg0 not `active`                   |
-| Timer last run       | a `homelab-*` timer whose triggered service did not end in `success`                               |
-| Unit restarted       | a watched unit's `NRestarts` moved since the last run — held across a second beat                  |
-| Git mirror stale     | the mirror's `next_update_unix` is more than **1 h** in the past — so > 9 h since the last completed sync — or its state is unreadable twice running |
-| Certificate expiry   | the soonest of the 18 certificates is under **21 days**, unreadable, or `acme.json` is absent       |
+| Signal               | Alarms when                                                                                                                                          | Watched by                            |
+|----------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------|
+| CPU temperature      | ≥ 80 °C (Pi 4 throttles at ~80-85 °C)                                                                                                                | netdata `homelab-cputemp`             |
+| Undervoltage         | the `rpi_volt` hwmon alarm has latched                                                                                                               | netdata + the script ¹                |
+| Pending reboot       | `/var/run/reboot-required` exists — auto-reboot is disabled by policy, so it waits on the operator                                                   | `homelab-health.sh`                   |
+| Security updates     | still pending after **48 h** (age-gated: unattended-upgrades runs daily)                                                                             | `homelab-health.sh`                   |
+| Disk capacity        | `/` or `/mnt/data` ≥ **85 %** full                                                                                                                   | `homelab-health.sh`                   |
+| Available memory     | `MemAvailable` < **800 MiB** on two consecutive runs (> 5 min)                                                                                       | netdata `homelab-memory`              |
+| Swap occupancy       | ≥ **85 %** of the 4 GiB swap file — provisional threshold, see below                                                                                 | netdata `homelab-swap`                |
+| DNS upstream         | a cache-busting query gets no answer, or a non-answer rcode, on two consecutive runs (> 5 min)                                                       | `homelab-health.sh`                   |
+| Unhealthy container  | a container fails its healthcheck for > **10 min**                                                                                                   | netdata `homelab-container-unhealthy` |
+| Container missing    | an expected container is not running at all for > **10 min**                                                                                         | netdata `homelab-container-down`      |
+| systemd unit failed  | anything in `systemctl --failed`                                                                                                                     | goss `units.yaml` ²                   |
+| systemd restart loop | a unit stuck in `auto-restart` across two consecutive runs                                                                                           | `homelab-health.sh`                   |
+| Expected unit down   | docker, containerd, fail2ban, claude-remote-control or wg-quick@wg0 not `active`                                                                     | goss `units.yaml` ²                   |
+| Timer last run       | a `homelab-*` timer whose triggered service did not end in `success`                                                                                 | `homelab-health.sh`                   |
+| Git mirror stale     | the mirror's `next_update_unix` is more than **1 h** in the past — so > 9 h since the last completed sync — or its state is unreadable twice running | `homelab-health.sh`                   |
+| Certificate expiry   | the soonest of the 18 certificates is under **21 days**, unreadable, or `acme.json` is absent                                                        | `homelab-health.sh`                   |
+
+¹ Both, deliberately. ADR-030's migration rule is that no bash line is deleted
+until its replacement has been **observed** firing, and an undervoltage alarm
+cannot be observed on demand. The script's check stays until it is.
+² Evaluated by the goss spec, reported by `homelab-health.sh`, which reads its
+TAP output — so the condition still arrives on the host-health monitor.
+
+> **`Unit restarted` was removed from this table on 2026-08-29.** It read *"a
+> watched unit's `NRestarts` moved since the last run — held across a second
+> beat"*, and nothing has watched that since ADR-030. It was **deleted, not
+> moved**, and both files say so in as many words —
+> `homelab-health.sh.j2:387` (*"What was DELETED rather than moved: the
+> NRestarts snapshot, its state file and its latch"*) and
+> `goss-units.yaml.j2:14`. Its own measurement retired it: sixty days, one real
+> detection, zero notifications. The row sat directly above `systemd restart
+> loop`, which is real and implemented — the #201 shape, an unwatched condition
+> reading as watched because a watched one is next to it.
 
 > The mirror row said "> 4 h" until it was checked against the machine. The
 > alarm cannot fire that early and never could: `next_update_unix` is set to
@@ -462,10 +541,15 @@ need a human:
 > detection window means shortening the mirror interval, which is a decision
 > about how fresh the copy has to be, not a threshold to tune here.
 
-The table is generated from nothing — keep it level with `problems+=(` in
-`homelab-health.sh.j2` by hand. It drifted to eleven rows against twenty-one
-conditions before #178, and the gap was made of exactly the two mechanisms added
-most recently, which is the shape to expect next time.
+The table is generated from nothing, and it now spans three mechanisms rather
+than one. Keeping it honest means checking all three by hand: `problems+=(` in
+`homelab-health.sh.j2`, the alarm files in
+`ansible/roles/observability/templates/netdata-health-*.conf.j2`, and
+`goss-units.yaml.j2`. It drifted to eleven rows against twenty-one conditions
+before #178, and the gap was made of exactly the two mechanisms added most
+recently. It drifted the other way for #263 — a row surviving its own deletion —
+and the mechanism that made that possible is a table with no column saying who
+does the watching.
 
 **Why 800 MiB.** `MemAvailable` rather than free memory: the page cache is
 reclaimable and `/mnt/data` churns hundreds of MB a night, so free memory reads

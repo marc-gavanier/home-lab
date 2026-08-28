@@ -35,7 +35,9 @@ Pi is now canonical. The workstation copy is a **cold archive**.
 Two side effects worth recording:
 
 - It lands in the restic set for free, since `/mnt/data/media` is already backed
-  up — **+2.1 GB** to local and offsite targets, no change to `backup.sh`.
+  up — **+2.1 GB** to local and offsite targets, no change to the backup
+  configuration (`backup.sh` when this was written; `resticprofile.yaml` since
+  ADR-031).
 - `rsync -a` faithfully preserved the source's `777` permissions, which came from
   some long-ago copy off a foreign filesystem. Normalised to 755/644. The group
   was then reset by CWA's own init, which chowns its three mounts to

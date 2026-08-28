@@ -103,8 +103,15 @@ That protection only holds if manual runs go through resticprofile rather than
 calling restic directly:
 
 ```bash
-flock /var/lock/offsite-copy.lock restic copy ...
+resticprofile -c /opt/homelab/resticprofile.yaml -n homelab copy
 ```
+
+> **Corrected 2026-08-29.** Until today this block showed
+> `flock /var/lock/offsite-copy.lock restic copy ...` — a direct restic call
+> holding the narrower lock that ADR-031 replaced, which is exactly what the
+> sentence above it forbids. Someone reaching for a manual copy under pressure
+> copies the block, not the sentence, and this page is the one that documents
+> what that costs.
 
 Also disable the backup timer for the duration of any multi-hour seed:
 `systemctl disable --now homelab-backup.timer` (re-enable after).

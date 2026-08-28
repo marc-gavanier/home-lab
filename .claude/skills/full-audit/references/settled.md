@@ -1221,3 +1221,149 @@ Also open: **Renovate PR #88**, eleven image bumps, one of which is wg-easy.
 Four of these now share one moment: #207, #154, #138 and #160 all resolve during
 the same on-site visit, and the reboot that #207 needs is the one #154's
 verification wants. Plan them as one trip, not four.
+
+---
+
+## Between 2026-08-23 and 2026-08-27 — twenty-six issues closed, three ADRs shipped
+
+Ninety-nine commits and forty PRs (#205–#258) since the entry above. Nothing in
+this block is open work. An agent that reports any of it is re-reporting a fix.
+
+### The on-site visit happened — 2026-08-26, 23:54
+
+The reboot that four issues were waiting on took place. `uptime -s` says
+2026-08-26 23:54 (`last reboot` disagrees: wtmp still shows the 28 July boot as
+running — **do not read the reboot date from `last`**). The four issues planned
+as one trip are all closed: **#207** (marginal sector), **#154** (neither ext4
+volume ever checked), **#138** (wg-easy cannot write its database), **#160**
+(`wg_easy_config` cannot write and would abort the deploy).
+
+The consequence for this run: the stack has been up for about ninety minutes,
+several containers for twenty. **Any figure that accumulates — swap occupancy,
+container memory, log sizes, restart counts — is reading a machine that restarted
+tonight.** Say so before quoting one, and do not project from it.
+
+### The three ADRs — the glue is gone, and that changes where to look
+
+- **ADR-030, "configure the installed tools, don't write the glue."** Curated
+  Netdata alarms route through Kuma rather than straight to Discord, one monitor
+  per action. Its migration rule is load-bearing and still in force: *no bash
+  line is deleted until its replacement has been **observed** firing.*
+- **ADR-031, resticprofile.** `backup.sh` (deleted), `local-maintenance.sh`
+  (deleted), `offsite-check.sh` (deleted). The nightly job is `resticprofile`
+  with hooks; the single notify site left is `backup-notify.sh`.
+- **ADR-032, goss.** `backup-dumps.sh` (373 lines) and the posture assertions
+  became declared specs. **Four specs across the two hosts, 376 checks**,
+  measured 2026-08-29: posture 325, backup-dumps 19, units 12 on the homelab,
+  offsite-health 20 on the offsite Pi. `posture.sh` keeps only what goss cannot
+  express. They are documented in `docs/07-observability/README.md` since #263 —
+  including the one trap: `backup-dumps.yaml` run by hand outside the backup
+  window reports 13 of 19 failed, because the dump directory only exists during
+  a run. That is not a finding.
+
+Net effect: **roughly a thousand lines of shell were deleted in five days.** The
+audit's usual hunting ground — a script whose guard is inert — has moved into
+YAML. Read `/etc/goss/*.yaml` and the resticprofile profile for the same shapes:
+an assertion that watches the wrong path, a gate that can only pass, a hook whose
+failure is swallowed.
+
+### Closed, with the defect each names — do not re-report
+
+| # | What it was |
+|---|---|
+| #128 | Traefik saw every VPN client as one Docker gateway address |
+| #138 | wg-easy could not write its own database |
+| #154 | Neither ext4 volume was ever checked; a weekly green timer scrubbed zero bytes |
+| #160 | `wg_easy_config` could not write, would abort the deploy at step 4 of 12 |
+| #198 | The argv sweep enumerated curl, not argv |
+| #199 | The credential sweep closed the live stores and never their nightly copies |
+| #200 | An incident notified once and never again; Kuma's own healthcheck could not fail |
+| #201 | The offsite health report never thresholded what the runbook said it watched |
+| #202 | Pi-hole's query log orphaned eight days, every future rotation skipped |
+| #203 | Fourteen documentary statements contradicting ADR, runbook or container |
+| #204 | The Traefik rate limit rejected 851 real requests in nine days |
+| #207 | Two more bad sectors, one making a live file unreadable |
+| #215 | The dnsproxy re-attach guard could detect but never repair |
+| #216 | Both host-health monitors latched DOWN on a scheduled item, muting 17 acute checks |
+| #217 | The credential-store assertion was a hand-maintained list of seven |
+| #218 | A world-readable Immich dump beside the closed dumps directory since 5 July |
+| #219 | Three assertions the machine did not honour (reboot runbook, ADR-004, ADR-015) |
+| #220 | Five latent one-liners of the silent-disablement shape |
+| #236 | wg-easy's database carried the migration's IPv6, nothing asserted either way |
+| #238 | `wg_easy_config` asserted defaults, and a default is read exactly once |
+| #241 | The staged startup gave up nine seconds before Postgres finished recovering |
+| #242 | The unlock gate was deployed and had never run |
+| #252 | The fail-fast guard added after 2026-07-04 had never been able to fire |
+| #253 | The staged startup assumed Docker had already brought Tier 0 up |
+| #254 | The one volume holding every byte of data was the one nothing ever checked |
+
+Plus, from the same stretch and never issue-tracked: `/etc/hosts` rewritten
+forever by ansible and cloud-init in turn; an offsite deploy that only ever
+worked from outside the house; wg-easy moving its login endpoint in a MINOR
+release; the hardening ratchet that could only go one way and erased its own
+evidence; the weekly surface scan running through the working day; the heal that
+switched off with the failure it existed for.
+
+### Settled by the same stretch — do not re-derive
+
+- **Splitting the last startup wave was measured and bought nothing** (reverted
+  in 03d6dbe). Wave 3 concurrency plus retry is the shipped answer. Do not propose
+  re-splitting it.
+- **`start_period` is now set deliberately, per container**, on cold-startup
+  measurement: the databases (#250), then netdata, jellyfin, immich-server,
+  immich-ml, calibre-web, collabora (#258, e8bae61 — jellyfin was re-sized after
+  the first figure turned out not to be the worst case). A container reporting
+  `(health: starting)` shortly after a boot is the design, not a defect.
+- **Renovate's weekly batch rule was decorative** and is fixed; the Dependency
+  Dashboard is issue **#8** and is not a finding.
+- **An abort is not a failure**, in three separate places now: a SMART extended
+  test that meets itself, a skipped run, a Netdata instance with no verdict yet,
+  a REMOVED instance. Monitors were red for each of these and are not any more.
+  A red-looking word in a monitor message is not automatically a defect.
+
+### The state this run starts from
+
+Both hosts: **zero failed units**. Homelab: **28 containers, all up, 24 of the
+28 with a healthcheck reporting healthy** (`dnsproxy`, `nextcloud-cron`,
+`nextcloud-notify-push`, `searxng` have none). **34 active Kuma monitors, all
+UP** — counted `select count(*) from monitor where active=1` on 2026-08-29, and
+there are no inactive rows. An earlier version of this line said 35; do not
+carry that figure forward. `goss` and `resticprofile` are installed at `/usr/local/bin`. The Kuma
+database is at `/mnt/data/services/uptime-kuma/kuma.db` — **not**
+`/mnt/data/uptime-kuma/`, which is where a previous run's command pointed and
+failed.
+
+### What the 2026-08-27 run produced — filed, not lost
+
+Five issues, **#259 to #263**. They are tracked; report them as known rather
+than as new findings, and check their state before spending budget on them.
+
+- **#259 — closed 2026-08-28** (PR #266). `#128` removed `10.8.0.0/24` from the
+  `vpn-only` allow-list on a census drawn from an access log filtered to
+  400-599 — a log of refusals, in which the offsite host's successful pushes
+  could not appear. Offsite was mute from 2026-08-24. The subnet is back, the
+  accessLog filter is gone so the log can answer who is present, and there is
+  now one assertion per allow-list entry: the single one that existed probed
+  from a container on the docker network and stayed green throughout. **Do not
+  re-report the allow-list, and do not draw a census from a filtered log.**
+- **#260** — the offsite backup disk has no filesystem check of any kind, and
+  the root fsck interval trigger cannot fire on either host (both stamped
+  `Tue Jul 28 17:04:4x 2026` to the second — a frozen pre-timesync clock, not a
+  date). Mount count still works, so it is real but not urgent.
+- **#261** — five validations that pass in the state they were written to
+  catch, including the `wireguard` credential-store exemption that outlived
+  #138.
+- **#262** — the container-unhealthy alarm fires on charts younger than its own
+  lookup window; `start_period` does not protect jellyfin.
+- **#263** — seven documentary statements the machine no longer honours.
+
+### Still open going into that run
+
+**#182 only** — four scheduled observations, and it is a good statement of what
+"unproven" means here. Two weekly resticprofile commands have each carried their
+own message exactly once, from a hand-started run; their first scheduled run is
+**Sun 2026-08-30, 05:00 and 06:00**. Two container-alarm observations remain:
+`homelab_container_down` firing on a stopped container, and the same alarm
+watched through a supervised reboot. The reboot of 2026-08-26 was on-site and
+supervised — **whether that observation was actually made during it is worth
+checking rather than assuming.**
