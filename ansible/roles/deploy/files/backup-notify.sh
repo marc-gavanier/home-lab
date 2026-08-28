@@ -101,13 +101,29 @@ else
     if [ ! -f "$DUMP_TAP" ]; then
         problems+=("dump step did not run")
     else
-        failed=$(sed -n 's/^not ok [0-9]* - Command: \([^:]*\):.*/\1/p' "$DUMP_TAP" |
-                 sort -u | tr '\n' ' ')
-        failed="${failed% }"
-        [ -n "$failed" ] && problems+=("dump checks failed: $failed")
+        # The plan line is goss's own count, and checking it is not optional
+        # here (#261). The hook redirects with `> $DUMP_TAP`, so the shell
+        # CREATES the file before exec'ing goss: a missing spec, an unreadable
+        # spec or a missing binary all leave a file that exists and holds no
+        # `not ok` line. Grepping only for failures reads that as a clean run,
+        # and the beat says "dumps ok" on a night nothing was asserted — the
+        # exact state backup-dumps.sh used to express as "no dump was taken".
+        # Same three-step guard as homelab-posture.sh, homelab-health.sh and
+        # offsite-health.sh, for the same reason (#156, #177).
+        dump_total=$(sed -n 's/^1\.\.\([0-9]*\)$/\1/p' "$DUMP_TAP")
+        if [ -z "$dump_total" ] || [ "$dump_total" -eq 0 ]; then
+            problems+=("goss asserted nothing about the dumps — spec unreadable, empty, or goss missing")
+        else
+            failed=$(sed -n 's/^not ok [0-9]* - Command: \([^:]*\):.*/\1/p' "$DUMP_TAP" |
+                     sort -u | tr '\n' ' ')
+            failed="${failed% }"
+            [ -n "$failed" ] && problems+=("dump checks failed: $failed")
+        fi
     fi
 
-    readings="dumps ok${snapshot:+, snapshot ${snapshot}}"
+    # The count travels with the verdict: "dumps ok" alone cannot distinguish a
+    # clean run from a spec that shrank to nothing.
+    readings="dumps ok${dump_total:+ (${dump_total} checks)}${snapshot:+, snapshot ${snapshot}}"
     [ ${#problems[@]} -eq 0 ] || readings="${snapshot:+snapshot ${snapshot}}"
 fi
 

@@ -301,10 +301,18 @@ command:
   # Comparing two derived lists, so the assertion is the exit status. A jail
   # present in jail.local and absent from the running set is a jail that looks
   # configured and bans nobody.
+  #
+  # Each side is checked non-empty BEFORE they are compared (#261). An absent or
+  # unparseable jail.local empties `want`; a fail2ban-client that cannot reach
+  # the server empties `have`; empty equals empty, so the bare comparison passed
+  # in precisely the two states this exists to detect. Inherited from the bash
+  # version, not introduced by the goss migration.
   fail2ban-jails-all-loaded:
     exec: |
       want=$(grep -oE '^\[[a-z0-9_-]+\]' /etc/fail2ban/jail.local | tr -d '[]' | grep -v '^DEFAULT$' | sort | tr '\n' ' ')
       have=$(fail2ban-client status | sed -n 's/.*Jail list:[[:space:]]*//p' | tr -d ' ' | tr ',' '\n' | grep -v '^$' | sort | tr '\n' ' ')
+      [ -n "$want" ] || { echo "no jail parsed from /etc/fail2ban/jail.local — absent or unreadable"; exit 1; }
+      [ -n "$have" ] || { echo "fail2ban-client returned no jail list — the server is not answering"; exit 1; }
       test "$want" = "$have"
     exit-status: 0
 

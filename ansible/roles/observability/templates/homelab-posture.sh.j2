@@ -52,7 +52,11 @@ if ! mountpoint -q /mnt/data; then
     exit 0
 fi
 
-{% raw %}
+# No blanket raw block here (#261). One stood at this line and was closed by
+# the FIRST inner endraw, 58 lines below, so its own opening marker was emitted
+# literally into the deployed script and prefixed a Go template format string.
+# Nothing between here and there needs escaping; every Go template below carries
+# its own pair, which is the form to keep.
 inspect() { docker inspect -f "$2" "$1" 2>/dev/null; }
 
 
