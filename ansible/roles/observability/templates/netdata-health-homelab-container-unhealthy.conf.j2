@@ -65,11 +65,27 @@
 #   collabora 08:17, spurious   min = 1   samples = 173   -> now suppressed
 #   nextcloud, the JIT outage   min = 1   samples = 660   -> still fires
 #
-# The floor is 540, ninety per cent of the 600 a full window holds at the docker
-# collector's `update_every: 1`. That coupling is the one thing here that could
-# fail silently — a collector running slower would never reach 540 and this
-# alarm would simply stop firing — so `docker-collector-samples-every-second`
-# in the goss spec asserts the resolution the floor assumes.
+# (Those three come from the data API over the recorded windows, where a full
+# window reads 600-660. The alarm's own lookup reads 556 for the same thing —
+# see the floor below. The gap is the aligned-edge difference between the two,
+# and it is why the floor is set from the alarm's value and not the API's.)
+#
+# The floor is 500, and the number it is derived from was MEASURED on the
+# deployed alarm rather than computed. A saturated window reads **556**, not the
+# 600 a ten-minute window at `update_every: 1` suggests: netdata's health lookup
+# aligns to the last completed update and drops the incomplete edges. The first
+# attempt used 540 — arithmetic from 600 — which left sixteen samples of margin
+# against a value that had never been checked. 556 was then sampled across all
+# 28 containers over ninety seconds and did not move once.
+#
+# So 500 is ninety per cent of the real saturated value: it needs about nine
+# minutes of chart history, tolerates roughly a minute of collection gaps, and
+# sits nearly three times above the largest spurious count ever recorded (173).
+#
+# The remaining coupling is the collector's resolution, and it is the one thing
+# here that could fail silently — a slower collector would never reach 500 and
+# this alarm would simply stop firing — so
+# `docker-collector-samples-every-second` in the goss spec asserts it.
 #
 # The summary now says what is enforced. It claimed ten minutes while the alarm
 # could fire on one, and the one episode that DID last past ten minutes was the
@@ -94,7 +110,7 @@ component: Container
    lookup: min -10m unaligned of unhealthy
     units: boolean
     every: 1m
-     warn: $this == 1 AND $homelab_container_health_samples > 540
-  summary: A container has been unhealthy for a full ten-minute window
+     warn: $this == 1 AND $homelab_container_health_samples > 500
+  summary: A container has been unhealthy across a ten-minute window with at least nine minutes of samples
      info: Container healthcheck failing continuously for 10m, on a chart old enough to prove it — the heal timer cannot see this, it only restarts containers that exited
        to: silent

@@ -224,12 +224,12 @@ command:
     exit-status: 0
 
   # --- The resolution the container-unhealthy floor is built on (#262) -------
-  # `homelab_container_unhealthy` only fires once its window holds more than 540
-  # samples, which is ninety per cent of the 600 a ten-minute window holds while
-  # the docker collector runs every second. That is the whole point — a chart
-  # too young to have 540 samples cannot satisfy the alarm — but it also means a
-  # collector running slower would never reach the floor and the alarm would
-  # stop firing without a word. The silent-disablement shape from #220, so it
+  # `homelab_container_unhealthy` only fires once its window holds more than 500
+  # samples, ninety per cent of the 556 a saturated window was measured to hold
+  # while the docker collector runs every second. That is the whole point — a
+  # chart too young to have 500 samples cannot satisfy the alarm — but it also
+  # means a collector running slower would never reach the floor and the alarm
+  # would stop firing without a word. The silent-disablement shape from #220, so it
   # gets an assertion rather than a comment.
   docker-collector-samples-every-second:
     exec: |
@@ -238,7 +238,7 @@ command:
             | jq -r '.update_every')
       case "$n" in
         1) ;;
-        *) echo "docker collector update_every=$n, not 1 — the 540-sample floor in homelab_container_unhealthy is unreachable"; exit 1 ;;
+        *) echo "docker collector update_every=$n, not 1 — the 500-sample floor in homelab_container_unhealthy is unreachable"; exit 1 ;;
       esac
     exit-status: 0
 
