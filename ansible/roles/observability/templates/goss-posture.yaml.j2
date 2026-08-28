@@ -223,6 +223,25 @@ command:
       test "${n:-0}" -ge {{ netdata_min_contexts }}
     exit-status: 0
 
+  # --- The resolution the container-unhealthy floor is built on (#262) -------
+  # `homelab_container_unhealthy` only fires once its window holds more than 540
+  # samples, which is ninety per cent of the 600 a ten-minute window holds while
+  # the docker collector runs every second. That is the whole point — a chart
+  # too young to have 540 samples cannot satisfy the alarm — but it also means a
+  # collector running slower would never reach the floor and the alarm would
+  # stop firing without a word. The silent-disablement shape from #220, so it
+  # gets an assertion rather than a comment.
+  docker-collector-samples-every-second:
+    exec: |
+      n=$(docker exec netdata curl -s --max-time 10 \
+            "http://127.0.0.1:19999/api/v1/chart?chart=docker_local.container_traefik_health_status" \
+            | jq -r '.update_every')
+      case "$n" in
+        1) ;;
+        *) echo "docker collector update_every=$n, not 1 — the 540-sample floor in homelab_container_unhealthy is unreachable"; exit 1 ;;
+      esac
+    exit-status: 0
+
   # --- Pi-hole: the property that actually protects its store ----------------
   # pihole/etc is a credential store — pihole.toml carries `webserver.api.pwhash`
   # with TOTP and app-password empty, so that hash is the only factor, and
