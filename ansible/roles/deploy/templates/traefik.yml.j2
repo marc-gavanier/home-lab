@@ -65,8 +65,12 @@ providers:
 log:
   level: WARN
 
+# No `filters.statusCodes` here, deliberately (#259). It used to keep only
+# 400-599, which made this a log of REFUSALS rather than a log of requests —
+# and #128 then drew a census of "who reaches Traefik" from it and concluded
+# that the offsite Pi never did. It did; it simply never failed. Removing the
+# entry it was granted on the strength of that census took offsite's only
+# reporting channel away for a week. An instrument that cannot observe a
+# success must not be asked who is present.
 accessLog:
   filePath: /dev/stdout
-  filters:
-    statusCodes:
-      - "400-599"

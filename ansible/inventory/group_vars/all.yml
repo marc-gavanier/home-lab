@@ -66,6 +66,13 @@ docker_data_root: /mnt/data/docker  # Docker images/layers on HDD
 
 # --- Network ---
 domain: example.com
+
+# The homelab HOST's own WireGuard client address ("homelab-host" in wg-easy).
+# It lives here rather than in offsite's host_vars because BOTH hosts need it:
+# offsite pins services.{{ domain }} to it in /etc/hosts, and the homelab's own
+# posture check probes Traefik through it to prove the allow-list still admits
+# 10.8.0.0/24 (#259). The homelab play could not see it while it was offsite's.
+homelab_wg_ip: "10.8.0.5"
 traefik_acme_email: ""  # Set via --extra-vars (not in repo)
 
 # --- Security ---

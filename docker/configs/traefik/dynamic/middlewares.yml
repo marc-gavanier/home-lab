@@ -6,35 +6,49 @@ http:
   middlewares:
     # Restrict access to the LAN and the VPN — 403 to anything else.
     #
-    # --- READ THIS BEFORE TIGHTENING (#128) ---------------------------------
-    # There is no WireGuard subnet in this list, and its absence is the fix
-    # rather than an oversight. The line that admits VPN clients is the
-    # DOCKER one. That is counter-intuitive enough to have been dangerous:
-    # the list used to open with `10.8.0.0/24  # WireGuard subnet`, which read
-    # as the load-bearing rule and matched nothing at all, so anyone tidying
-    # this up would have deleted the entry that actually works and locked
-    # themselves out of a host whose only route in is that tunnel.
+    # --- READ THIS BEFORE TIGHTENING (#128, #259) ---------------------------
+    # Two different paths bring trusted traffic here, and neither arrives from
+    # the address you would guess. Both entries below are load-bearing: the
+    # last tidy-up deleted one of them and cost the offsite host its only
+    # channel for reporting anything.
     #
-    # Why no VPN address ever arrives, measured end to end:
+    #   VPN clients arrive as 172.18.0.1, never as 10.8.0.x
+    #     wg-easy   -A POSTROUTING -s 10.8.0.0/24 -o eth0 -j MASQUERADE
+    #               so 10.8.0.x leaves the container as 172.18.0.3
+    #     clients   AllowedIPs 0.0.0.0/0 — full tunnel, so they reach services
+    #               by the Pi's LAN address and the packet goes out to the host
+    #     host      docker hairpin-NATs it back into the bridge as 172.18.0.1
     #
-    #   wg-easy   -A POSTROUTING -s 10.8.0.0/24 -o eth0 -j MASQUERADE
-    #             so 10.8.0.x leaves the container as 172.18.0.3
-    #   clients   AllowedIPs 0.0.0.0/0 — full tunnel, so they reach services by
-    #             the Pi's LAN address and the packet goes out to the host
-    #   host      docker hairpin-NATs it back into the bridge as 172.18.0.1
+    #   The offsite Pi arrives as 10.8.0.4, on the one path with no NAT at all
+    #     It dials services.<domain>, pinned in its own /etc/hosts to this
+    #     host's WireGuard address, so the packet never leaves the tunnel:
+    #     `ip route get 10.8.0.5` answers `dev wg0 src 10.8.0.4`. Nothing
+    #     masquerades it and Traefik logs the peer address verbatim. This is
+    #     the only channel offsite has, in either direction, for reporting.
     #
-    # Two NAT hops, no HTTP proxy anywhere in the path — so there is also no
-    # X-Forwarded-For to trust and read, and `forwardedHeaders` would change
-    # nothing. Recovering the real client address would mean dropping that
-    # MASQUERADE *and* giving Traefik a route back to 10.8.0.0/24, which it
-    # cannot install (`cap_drop: ALL`) and which would otherwise have to be
-    # done on the host, on the only path to the machine. Deliberately not done.
+    # Two NAT hops on the first path, none on the second, and no HTTP proxy
+    # anywhere in either — so there is also no X-Forwarded-For to trust and
+    # read, and `forwardedHeaders` would change nothing. Recovering the real
+    # client address on the first path would mean dropping that MASQUERADE
+    # *and* giving Traefik a route back to 10.8.0.0/24, which it cannot install
+    # (`cap_drop: ALL`) and which would otherwise have to be done on the host,
+    # on the only path to the machine. Deliberately not done.
     #
-    # 14 days of access logs, 77 395 requests, three source addresses ever:
-    #   59 844  192.168.1.100   the Pi itself
-    #   17 527  172.18.0.1      the hairpin — this is every VPN client
-    #        1  172.18.0.8      uptime-kuma
-    #        0  10.8.0.0/24     in fourteen days
+    # --- The census that removed 10.8.0.0/24, and why it could not be right --
+    # #128 dropped the subnet on this evidence:
+    #
+    #   14 days of access logs, 77 395 requests, three source addresses ever:
+    #     59 844  192.168.1.100   the Pi itself
+    #     17 527  172.18.0.1      the hairpin — this is every VPN client
+    #          1  172.18.0.8      uptime-kuma
+    #          0  10.8.0.0/24     in fourteen days
+    #
+    # `accessLog` carried `filters.statusCodes: 400-599`, so that log held ONLY
+    # requests that had already failed. The census enumerated the sources of
+    # refusals. Offsite's successful pushes were invisible to it by
+    # construction, which made "never arrives" and "always succeeded" the same
+    # reading. The filter is gone with #259, so a future census can be drawn
+    # from this log without inverting its meaning.
     #
     # `172.18.0.0/16` rather than the `172.16.0.0/12` it replaces: /12 spans
     # 172.16 through 172.31, admitting all three docker networks — including
@@ -43,16 +57,18 @@ http:
     # in those fourteen days, so this excludes nothing observed and closes a
     # lateral path that was open for no reason.
     #
-    # If wg-easy ever stops masquerading, VPN clients start arriving as
-    # 10.8.0.x and this list has to get that subnet back. The posture assertion
-    # `traefik-allowlist-admits-the-proxy-network` is what turns that, and any
-    # other tightening that breaks VPN access, into a red monitor instead of a
-    # lockout discovered from outside the house.
+    # One assertion per entry, because a single one covered only the survivor:
+    #   traefik-allowlist-admits-the-proxy-network  probes from uptime-kuma
+    #   traefik-allowlist-admits-the-vpn-subnet     probes from the host's wg0
+    # The first stayed green through the entire outage — it tests the line that
+    # was never removed. Any tightening that breaks either path is now a red
+    # monitor rather than a lockout discovered from outside the house.
     vpn-only:
       ipAllowList:
         sourceRange:
           - "192.168.1.0/24"  # LAN
           - "172.18.0.0/16"   # the `proxy` docker network — AND every VPN client
+          - "10.8.0.0/24"     # the offsite Pi's push path — no NAT on that hop
 
     # Security headers applied to every service (attached at the websecure
     # entrypoint). SAMEORIGIN rather than frameDeny: a global frameDeny would

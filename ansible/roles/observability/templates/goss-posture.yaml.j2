@@ -343,18 +343,23 @@ command:
 
   # --- The allow-list entry that does the work is not the one that looks like
   # --- it (#128)
-  # `vpn-only` admits the LAN and `172.18.0.0/16`. There is no WireGuard subnet
-  # in it, because none ever arrives: wg-easy masquerades 10.8.0.0/24 out of its
-  # eth0, the client is full-tunnel so the packet leaves for the Pi's LAN
-  # address, and the host hairpin-NATs it back into the bridge as 172.18.0.1.
-  # Two NAT hops. Fourteen days of access logs, 77 395 requests, ZERO from
-  # 10.8.0.0/24.
+  # `vpn-only` admits the LAN, `172.18.0.0/16` and `10.8.0.0/24`, and the two
+  # subnets serve DIFFERENT callers — see middlewares.yml for the full path of
+  # each. VPN clients arrive on the docker one: wg-easy masquerades 10.8.0.0/24
+  # out of its eth0, the client is full-tunnel so the packet leaves for the Pi's
+  # LAN address, and the host hairpin-NATs it back into the bridge as
+  # 172.18.0.1. Two NAT hops.
   #
   # So the docker entry is the one holding the tunnel open, and it reads like
   # internal plumbing. Anyone tightening this by eye removes it. This assertion
   # is what makes that a red monitor within five minutes instead of a lockout
   # discovered from outside the house — which on this host means physically
   # present or not at all.
+  #
+  # It covers that entry ONLY. The twin below covers 10.8.0.0/24, and the
+  # reason there are two is #259: this check probes from `uptime-kuma`, a
+  # container on the proxy network, so it stayed green for the five days the
+  # offsite host spent locked out by the removal of the other line.
   #
   # It is a REQUEST, not a reading of the config file. A config assertion would
   # pass on a list that is syntactically perfect and semantically closed, and
@@ -382,6 +387,36 @@ command:
       case "$code" in
         403) echo "vpn-only refuses the proxy network — every VPN client is locked out"; exit 1 ;;
         ""|000) echo "no answer from traefik at $ip"; exit 1 ;;
+      esac
+    exit-status: 0
+
+  # --- And the entry the first assertion cannot see (#259) ------------------
+  # The offsite Pi is the only caller that arrives as 10.8.0.x. It dials
+  # services.{{ domain }}, pinned in its /etc/hosts to this host's own
+  # WireGuard address, and that hop is masqueraded by nothing: Traefik logs
+  # `10.8.0.4` verbatim. #128 removed `10.8.0.0/24` on a census drawn from an
+  # access log filtered to 400-599 — a log of refusals, in which offsite's
+  # successful pushes could not appear — and took away the only channel it has
+  # for reporting anything. Silent from 2026-08-24 to 2026-08-28, and it would
+  # have surfaced on 2026-09-01 as heartbeat age, saying nothing about why.
+  #
+  # Probing from the host bound to its own WireGuard address reproduces the one
+  # thing the allow-list decides on: a source inside 10.8.0.0/24. It does not
+  # test the tunnel — `Offsite health` and the wg monitors do that — it tests
+  # that Traefik still admits the subnet. Both outcomes measured on 2026-08-28,
+  # before and after the entry went back:
+  #
+  #   refused    HTTP 403, nine bytes, backend "-", 0 ms, logged as 10.8.0.5
+  #   admitted   HTTP 200 from vaultwarden's root
+  traefik-allowlist-admits-the-vpn-subnet:
+    exec: |
+      code=$(curl -sk -o /dev/null -w '%{http_code}' --max-time 10 \
+               --interface {{ homelab_wg_ip }} \
+               --resolve "vault.{{ domain }}:443:{{ homelab_wg_ip }}" \
+               "https://vault.{{ domain }}/")
+      case "$code" in
+        403) echo "vpn-only refuses 10.8.0.0/24 — the offsite host cannot report"; exit 1 ;;
+        ""|000) echo "no answer from traefik at {{ homelab_wg_ip }}"; exit 1 ;;
       esac
     exit-status: 0
 

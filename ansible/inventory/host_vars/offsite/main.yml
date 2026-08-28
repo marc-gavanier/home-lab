@@ -38,9 +38,10 @@ offsite_ip: "{{ offsite_wg_ip }}"
 
 # --- WireGuard ---
 offsite_wg_ip: "10.8.0.4" # Assigned by wg-easy to the offsite-backup client
-# The homelab HOST's own client IP (client "homelab-host") — wg0 lives in the
-# wg-easy container, so the host pushes backups through its own peer identity.
-homelab_wg_ip: "10.8.0.5"
+# `homelab_wg_ip` (the homelab host's own peer identity — wg0 lives in the
+# wg-easy container, so the host pushes backups through its own client) moved
+# to group_vars/all.yml in #259: the homelab needs it too, to probe its own
+# allow-list from that address.
 
 # --- Backup storage ---
 # The 52Pi enclosure's ASMedia ASM1153 bridge is unstable in UAS mode on the
