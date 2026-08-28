@@ -16,7 +16,7 @@ Internet → ISP Router (IPv4 full stack, port forwarding)
 
 ### Subdomains
 
-All services are **VPN-only**. The `vpn-only` middleware is applied globally on Traefik's `websecure` entrypoint — any request not coming from the LAN (192.168.1.0/24), WireGuard subnet (10.8.0.0/24), or a Docker bridge network (172.16.0.0/12) gets `403 Forbidden`.
+All services are **VPN-only**. The `vpn-only` middleware is applied globally on Traefik's `websecure` entrypoint — any request not coming from the LAN (192.168.1.0/24), WireGuard subnet (10.8.0.0/24), or the `proxy` Docker bridge network (172.18.0.0/16) gets `403 Forbidden`. The docker entry is not decoration: full-tunnel VPN clients are hairpin-NATed back into the bridge and arrive as `172.18.0.1`, never as `10.8.0.x`. The WireGuard entry serves the offsite Pi, whose push to `services.example.com` stays inside the tunnel and reaches Traefik unmasqueraded. See `docker/configs/traefik/dynamic/middlewares.yml` before tightening either.
 
 | Subdomain              | Service      |
 |------------------------|--------------|

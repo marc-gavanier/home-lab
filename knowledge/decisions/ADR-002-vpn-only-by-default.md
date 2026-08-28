@@ -23,6 +23,18 @@ Apply the `vpn-only` middleware globally on Traefik's `websecure` entrypoint. Al
 
 Anything else gets `403 Forbidden`.
 
+> **Amended 2026-08-28.** The third line is now `172.18.0.0/16`, not
+> `172.16.0.0/12`: the /12 spans 172.16-172.31 and admitted every docker
+> network including `homelab_socketproxy`, where the Docker socket proxy lives
+> (#128). The second line took a five-day round trip in between — #128 deleted
+> `10.8.0.0/24` as dead, on a census drawn from an access log that was filtered
+> to 400-599 and so could only ever enumerate refusals, and #259 put it back
+> after the offsite Pi, which is the one caller that reaches Traefik without
+> being masqueraded, spent that week unable to report anything. The decision is
+> untouched; only the addresses that satisfy it moved. Each of the two subnets
+> now has its own posture assertion, because the single one that existed
+> probed from a container on the docker network and stayed green throughout.
+
 ## Consequences
 
 ### Pros
