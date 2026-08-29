@@ -126,9 +126,9 @@ with nothing to look it up in.
 | `/etc/goss/posture.yaml` | homelab | **328** | `homelab-posture.sh` | daily, 11:00 + up to 10 min jitter |
 | `/etc/goss/units.yaml` | homelab | **13** | `homelab-health.sh` | every 5 min |
 | `/etc/goss/backup-dumps.yaml` | homelab | **19** | a resticprofile hook, result read by `backup-notify.sh` | nightly, inside the 03:00 backup |
-| `/etc/goss/offsite-health.yaml` | offsite | **26** | `offsite-health.sh` | Sunday, 08:00 + jitter |
+| `/etc/goss/offsite-health.yaml` | offsite | **27** | `offsite-health.sh` | Sunday, 08:00 + jitter |
 
-**386 checks in total.** The counts are goss's own (`Count:` in the default
+**387 checks in total.** The counts are goss's own (`Count:` in the default
 output, `1..N` in TAP) and were re-measured on 2026-08-29 after #272. One
 assertion emits TWO TAP lines (`exit-status` and `stdout`), so a single new check
 moves the total by two — which is why the earlier figure of 376 was not merely

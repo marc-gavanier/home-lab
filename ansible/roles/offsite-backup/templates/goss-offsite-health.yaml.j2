@@ -205,3 +205,33 @@ command:
       [ -n "$seen" ] || exit 1
       [ $(( $(date +%s) - seen )) -le 600 ]
     exit-status: 0
+
+  # The one property that makes this host a BACKUP rather than a mirror: with
+  # --append-only the rest-server accepts new packs and refuses deletes, so a
+  # homelab that is compromised — or simply wrong — cannot erase what is here.
+  # It is the whole argument for the offsite copy existing.
+  #
+  # Nothing asserted it until now. This spec had 26 checks and not one of them
+  # about security, while the flag lives in exactly two places a routine change
+  # can drop it from: a unit file, and a running process. A rest-server upgrade
+  # that rewrites the unit, or an edit made while debugging a failed push, would
+  # take it away and every check here would stay green.
+  #
+  # The LIVE process, not the unit. The unit is what survives a restart, but the
+  # process is what enforces, and the two disagree exactly in the window that
+  # matters: a unit edited and not yet restarted is still running the old flags,
+  # and a process started before an edit keeps them. What is running is the
+  # question the operator actually has.
+  #
+  # An absent process must FAIL rather than pass — the trap this file already
+  # names twice, at `offsite-undervoltage` and at the ext4 counters. A
+  # rest-server that is not running is not append-only either. Verified under
+  # dash on the host before being written here, with both controls: a flag that
+  # is genuinely absent fails, and a pgrep that matches nothing fails instead of
+  # returning success over an empty loop.
+  offsite-restserver-append-only:
+    exec: |
+      pid=$(pgrep -x rest-server | head -1)
+      [ -n "$pid" ] || exit 1
+      tr '\0' ' ' < "/proc/$pid/cmdline" | grep -qE -- '(^| )--append-only( |$)'
+    exit-status: 0
