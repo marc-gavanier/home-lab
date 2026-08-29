@@ -1,9 +1,11 @@
 # ADR-031 — resticprofile replaces the orchestration half of backup.sh
 
 **Date**: 2026-08-23
-**Status**: accepted — proven in a sandbox that touched nothing; migration
-staged, and nothing is removed from `backup.sh` before a real backup AND a real
-restore have been observed on the machine.
+**Status**: accepted and **complete**. The staged migration described below is
+finished: all four steps are done for the three timers, and `backup.sh`,
+`local-maintenance.sh` and `offsite-check.sh` are gone from the repository and
+from both hosts. This line read as a pending gate on a script that no longer
+exists until 2026-08-29, contradicting the body of its own ADR.
 
 ## Context
 

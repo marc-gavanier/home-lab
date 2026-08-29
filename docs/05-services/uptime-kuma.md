@@ -125,14 +125,32 @@ allows. Monitors are created by hand — Kuma v2 has no editing API — so a new
 starts at `0`, and `kuma-every-active-monitor-resends` in the posture spec fails until
 it is set.
 
-The two **Netdata** push monitors take the same 600s window and zero retries, and were
-the first here to carry `resend_interval` — for a reason that is *not* the rule above.
-Each carries SEVERAL curated alarms (`Netdata — containers` reports both container
-conditions), so without a resend a second alarm firing behind an unresolved first one
-reaches nobody (#200). That is the price of sharing a monitor, and it is what makes the
-sharing safe: conditions may share a signal when they share a LIFETIME, never when one
-of them can wait for a human. The rule above would have given them a resend anyway; this
-is why they cannot be the ones without it.
+**It is the default, not a law: 32 of the 34 active monitors follow it, and two
+carry a deliberately different reminder.** Measured 2026-08-29:
+
+| Monitor                | Interval | `resend_interval` | Formula would give | Actual reminder |
+|------------------------|----------|-------------------|--------------------|-----------------|
+| `Netdata — containers` | 600s     | 6                 | 36                 | **1 hour**      |
+| `Pi pending action`    | 900s     | 96                | 24                 | **24 hours**    |
+
+Both land on a round number because both were chosen: container conditions are
+worth an hourly nudge, and a pending action that needs a human is worth a daily
+one and no more. Check the arithmetic before "correcting" either back to the
+formula.
+
+`Netdata — containers` is the **one** Netdata push monitor, at 600s with zero
+retries, and it was the first here to carry `resend_interval` — for a reason that
+is *not* the rule above. It carries SEVERAL curated alarms (it reports both
+container conditions), so without a resend a second alarm firing behind an
+unresolved first one reaches nobody (#200). That is the price of sharing a
+monitor, and it is what makes the sharing safe: conditions may share a signal
+when they share a LIFETIME, never when one of them can wait for a human.
+
+The similarly named `Netdata` is a different thing — an **HTTP** monitor on the
+dashboard at 60s with 3 retries, following the formula at 360. Earlier revisions
+of this page described "the two Netdata push monitors" sharing "the same 600s
+window and zero retries"; there is one push monitor, and the two differ in type,
+interval and retries alike.
 
 Both were created by hand, like every monitor here, and `Retries` is the field to get
 right. Setting it to 1 was tried on 2026-08-23 and reverted the same evening on the

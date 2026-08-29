@@ -14,8 +14,17 @@ destroys both the data and every backup. The retired Pi 4 (4GB) and a WD Blue
 ## Decision
 
 A second Pi ("backup", inventory host `offsite`) receives a nightly copy from the
-homelab of every snapshot in a rolling **7-day window** that it does not already hold
-(#158 — originally the latest snapshot only, which lost any night whose copy failed):
+homelab of **every snapshot it does not already hold**, with no time bound
+(#158 — originally the latest snapshot only, which lost any night whose copy
+failed).
+
+> **Amended by ADR-031 (2026-08-23).** This decision originally specified a
+> rolling **7-day window**. `restic copy` is idempotent — re-offering a snapshot
+> already present on an append-only repository is a no-op — so the window was an
+> optimisation, not a correctness requirement, and it went with the script that
+> computed it. The guarantee is now *stronger*, not weaker: a missed night is
+> recovered whenever it is next noticed, not only within seven days. This
+> paragraph said otherwise until 2026-08-29.
 
 | Aspect              | Choice                           | Rationale                                                                                                                                 |
 |---------------------|----------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|

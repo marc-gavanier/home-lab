@@ -17,15 +17,36 @@ append-only mode. The repo password is deliberately NOT stored on it.
 - Sunday 06:00 — homelab `homelab-offsite-check.timer`: `restic check` of the
   offsite repo through the tunnel (Kuma push monitor "offsite check").
 - Sunday 08:00 — offsite `offsite-health.timer`: disk/SMART/power self-report
-  (Kuma push monitor "offsite health"). DOWN if disk >85%, any SMART
-  early-warning counter leaves zero (realloc, grown bad blocks, program/erase
-  fail, end-to-end, uncorrectable, CRC), spare blocks <50%, SSD ≥70°C,
-  **CPU ≥70°C**, the last self-test failed or is >35 days old (dead-timer
-  detection, compared in drive power-on hours), the Pi logged undervoltage, the
-  `rpi_volt` sensor is absent (a loop that visited nothing must report, not
-  pass), or **security updates are still unapplied after 48 h**.
-  The three additions are #201; CPU temperature was reported and never compared
-  until then, on a host sampled once a week.
+  (Kuma push monitor "offsite health").
+
+  **Do not maintain the DOWN conditions by hand — read them.** This list drifted
+  8 assertions behind the spec between 2026-08-21 and 2026-08-29, while
+  `backup-monitoring.md` pointed readers here for "the exact DOWN conditions".
+  The authoritative list is the named assertions in the spec itself:
+
+  ```bash
+  ssh offsite 'sudo sh -c "grep -oE \"^  [a-z0-9-]+:\" /etc/goss/offsite-health.yaml"'
+  ```
+
+  Note the `sudo sh -c`: `/etc/goss` is `drwx------`, so a glob or a redirect
+  written outside the privileged shell silently returns nothing.
+
+  As of 2026-08-29 that is **22 assertions**, in five groups — disk capacity;
+  the filesystem (ext4 error counters, an fsck pass number, armed boot triggers,
+  and the distribution's `e2scrub` timer staying masked); SMART (readability, the
+  drive's own verdict, six early-warning counters, spare blocks, temperature, and
+  the last self-test's result and freshness); the Pi's power (undervoltage, with
+  an absent `rpi_volt` sensor reported rather than passed); and the two that make
+  this host a *backup* rather than a mirror — the tunnel handshake, and the
+  rest-server still running `--append-only`.
+
+  **One condition is not in the spec, deliberately**: security updates still
+  unapplied after 48 h. It needs to remember when the count first went nonzero,
+  which goss cannot do, so it lives in `offsite-health.sh`. Its 48 h is measured
+  against a weekly cadence — read the script's own comment before changing it.
+
+  CPU temperature was reported and never compared until #201, on a host sampled
+  once a week.
 - 1st of the month 04:00 — offsite `offsite-smart-test.timer`: SMART long
   self-test (the drive scans its own surface); result read by the Sunday
   health report.

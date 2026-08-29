@@ -40,16 +40,27 @@ which makes the whole directory look alive.
 
 ## Revoking
 
-> **Deleting from the UI does not currently work — issue #138.** wg-easy runs as
-> root with `cap_drop: ALL`, so it holds no `CAP_DAC_OVERRIDE`, and its data
-> directory is owned by uid 1000. It therefore cannot create files there, and the
-> database is in `delete` journal mode, which needs a `-journal` file per
-> transaction. Every write fails with `SQLITE_READONLY` behind an HTTP 500 — the
-> container stays healthy and the UI reports nothing useful. Until #138 is fixed,
-> **step 1 below silently does nothing**; use the stopgap first.
+> **#138 is closed since 2026-08-26 (`ca6d72e`): the UI is the primary path
+> again.** For eight days this runbook said the opposite, because wg-easy ran as
+> root over a data directory owned by uid 1000 with `cap_drop: ALL`, so its SQLite
+> rollback journal could not be created and every write returned `SQLITE_READONLY`
+> behind an HTTP 500. The directory is now `root:root 0700`, and the container
+> writes: a `userconfig` POST returned HTTP 200 with `updated_at` moving, and
+> wg-easy regenerated `wg0.conf` on its own at 02:52:20 on 2026-08-29.
+>
+> **What is proven and what is not.** The write path is proven. A *client
+> deletion* specifically has not been exercised — it takes the same path, but
+> nobody has removed a real peer to watch it happen, and this runbook has just
+> spent eight days being confidently wrong about this exact mechanism. So: delete
+> through the UI, then **verify against `clients_table` and against the running
+> interface** as steps 1 and 2 below require. Treat the listing query as the
+> verdict, not the UI.
 
-**Stopgap while #138 is open.** The kernel side still accepts changes, because
-`CAP_NET_ADMIN` is granted. This closes the door immediately:
+**Immediate measure, when the device is already out of your hands.** The kernel
+side accepts changes directly, because `CAP_NET_ADMIN` is granted, and this shuts
+the peer out in one command without waiting for anything else. It is no longer a
+workaround for a broken UI — it is what you do first when minutes matter, before
+doing the durable deletion below:
 
 ```bash
 # 1. find the public key of the peer to revoke
@@ -68,28 +79,28 @@ the interface from the database, where the client still is. But it only does
 that after toggling a client that passed its expiry date, and nothing here has
 an expiry set — so the rebuild is never reached, and the peer stays out.
 
-It is still a stopgap, because a restart brings the client back from the
-database. Redo the deletion through the UI once #138 lands, and confirm it with
-the listing query: a revocation that has to survive is not done until the client
-is gone from `clients_table`.
+**It is not the revocation.** A restart brings the client back from the database.
+Always follow it with the deletion below: a revocation that has to survive is not
+done until the client is gone from `clients_table`.
 
-**While #138 is open, this is the only thing that shuts a peer out.** Deleting
-and disabling are both database writes, so both fail — the interface is the one
-surface still accepting changes.
-
-**Also broken by #138: peers with an expiry date never expire.** The same job
-disables an expired client with a database write, which cannot succeed, so a
-time-limited peer keeps working past its date and pending one-time links are
-never cleaned up. Nothing has an expiry set today, which is the only reason this
-is invisible. Do not hand out a time-limited peer until #138 is fixed — the
-mechanism that would take it back does not run.
+**Peers with an expiry date.** The job that disables an expired client does it
+with a database write, which failed for as long as #138 was open. Writes work
+again, but **nothing has an expiry set today and the expiry path has never been
+observed running here** — so a time-limited peer is reasonable to hand out now,
+and worth verifying the first time you do rather than assuming.
 
 1. **Delete the client** in the wg-easy UI (`https://vpn.<domain>`, or the
-   `127.0.0.1:51821` tunnel) — *delete*, not the toggle next to it. Disabling
-   drops the peer from the interface but keeps its key in the database, so a
-   disabled client is one click away from working again. Re-run the listing
-   query: a deleted client is gone from the output, a disabled one is still
-   there marked `DISABLED`.
+   loopback tunnel) — *delete*, not the toggle next to it. Disabling drops the
+   peer from the interface but keeps its key in the database, so a disabled
+   client is one click away from working again. Re-run the listing query: a
+   deleted client is gone from the output, a disabled one is still there marked
+   `DISABLED`.
+
+   **The listing query is the verdict, not the UI.** If the client is still in
+   `clients_table` after a delete, the write did not land — capture the wg-easy
+   logs before doing anything else, because that is #138 returning and the
+   posture check's exemption for it was removed in `ca6d72e` precisely so it
+   would be caught.
 
 2. **Verify the kernel actually dropped it** — the UI showing it gone is not
    proof, the running interface is:

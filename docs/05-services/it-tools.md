@@ -78,7 +78,10 @@ nginx listens on port 80. Docker sets `net.ipv4.ip_unprivileged_port_start=0` in
 container, so the bind needs no capability at all. Measured, not assumed: it serves 200
 with `--cap-drop ALL` and nothing added.
 
-Three tmpfs mounts carry `uid=101,gid=101`, which no other tmpfs in `compose.yaml` needs:
+Three tmpfs mounts carry `uid=101,gid=101`, for the same reason `miniflux-db`
+carries `uid=999` and `forgejo` `uid=1000`: a tmpfs mounts root-owned `0755`, so a
+service that drops to a non-root uid *and* writes to tmpfs has to be given the
+ownership explicitly.
 
 ```yaml
 - /var/cache/nginx:size=16m,uid=101,gid=101
