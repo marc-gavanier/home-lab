@@ -35,8 +35,12 @@
 # latency — daily rather than every five minutes — and that difference is the
 # honest cost of the split.
 #
-# PHASE 2 DELETES NOTHING. homelab-health.sh keeps its own check until this one
-# has been observed firing (ADR-030's migration rule).
+# PHASE 2 HAS DELETED. This line read "PHASE 2 DELETES NOTHING" until 2026-08-29
+# and had been false since 2026-08-26. The replacement was observed firing on
+# 2026-08-24 01:45 — a deliberately unhealthy throwaway container, NAMED in the
+# push rather than counted — and c2c2a36 then removed this check from
+# homelab-health.sh. ADR-030's migration rule completing, not being waived; the
+# tombstone at the foot of homelab-health.sh carries the dates.
 # =============================================================================
 
 # --- The gate the lookup could not provide on its own (#262) -----------------
