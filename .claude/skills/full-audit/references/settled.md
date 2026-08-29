@@ -1431,13 +1431,19 @@ every accumulating figure that day was reading an eight-hour-old machine.
 ### ENUMERATED — do not re-sample
 
 `start_period`, from netdata's `health_status` charts across the whole
-02:50-03:25 window. Twelve containers declare one; exactly **two** ever left
-`starting` for `unhealthy`:
+02:50-03:25 window. Of the containers declaring one — the count lives in
+`classes.md` under C06, not here — exactly **two** ever left `starting` for
+`unhealthy`:
 
     collabora       993 s against 600 s   ->  1320 s
     immich-server   773 s against 480 s   ->  1020 s
     calibre-web     511 s against 600 s   held — 89 s, the thinnest margin left
-    the other nine  never sampled `starting` in the window
+    all the others  never sampled `starting` in the window
+
+This paragraph carried "Twelve" from 2026-08-29 until the run of the same
+evening measured thirteen, against `classes.md` (13/13) and the `compose.yaml`
+header (THIRTEEN) — the **third** stale cardinal in this file in one day, and
+this one sat under the heading that forbids re-sampling. Hence no number here.
 
 Caveat that keeps this honest: netdata is itself a container and only began
 collecting at 02:55:13, so the four containers started at ~02:50 were healthy
