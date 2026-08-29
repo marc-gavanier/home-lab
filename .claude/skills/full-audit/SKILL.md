@@ -9,6 +9,13 @@ A read-only sweep in which every domain agent audits its own area against the
 **running** systems, writes a report, and hands back a summary that the main
 session verifies before relaying anything to the operator.
 
+**The unit of progress is the class, not the finding.** `references/classes.md`
+holds the register and the termination criterion; read it before anything else.
+A run's job is to close OPEN classes by enumeration and to mint the classes that
+are missing — not to return a longer list than last time. Counting findings is
+what made nine runs look like an infinite loop; counting classes is what lets
+this work end.
+
 ## Why this exists, and what it is actually for
 
 On 2026-08-15 the operator asked three times whether anything was left to do.
@@ -34,10 +41,13 @@ them. What pays is the gap between what a mechanism claims and what it does.
 
 ## Before launching
 
-1. **Refresh `references/settled.md`.** It holds what has already been decided,
-   declined or measured-and-rejected. It is the single most important input:
-   without it, roughly half of what comes back is a re-proposal of something the
-   operator has already turned down, and the report loses their trust.
+1. **Read `references/classes.md` and refresh `references/settled.md`.** The
+   register is the mandate: its OPEN table is what this run is for, and its
+   GATED and ENUMERATED tables are what no agent should spend budget
+   rediscovering. `settled.md` carries the decisions already taken and the
+   instrument traps already paid for — without it, roughly half of what comes
+   back is a re-proposal of something the operator has already turned down, and
+   the report loses their trust.
 2. **Snapshot the backlog** — open issues and PRs — and list them in the brief
    so agents do not re-report tracked work.
 3. **Take a baseline** of the obvious live state (failed units, container
@@ -58,9 +68,21 @@ Repo, branch and layout. Hardware, OS, orchestration. Both hosts are
 reachable over SSH with passwordless sudo. The real domain is masked as
 example.com in this public repo.
 
-MANDATE — <domain>: <scope>.
-<domain-specific leads worth chasing, and what is already known so the
-agent does not redo it>
+MANDATE — close these classes, or say why their space cannot be bounded.
+<the OPEN classes from references/classes.md that live in this domain,
+each with its defining property and the space it must be swept over>
+
+Closing a class means: state the cardinal N, sweep N/N, record the count.
+A partial sweep does not close anything — it is what kept C01 open for
+ten days while three runs sampled it.
+
+If you find something that fits NO existing class, that is a MINT, and it
+is worth more than an instance. Write the PROPERTY and the SPACE first,
+the instance second.
+
+If your domain has no OPEN class, verify instead that its GATED
+assertions still fail when they should — read them, do not test
+destructively.
 
 RULES — they matter as much as the mandate.
 
@@ -74,8 +96,11 @@ RULES — they matter as much as the mandate.
    measured nothing. A purely static audit reproduces that blind spot.
 3. MEASURE before calling something worth doing. Quantify the impact. A
    lead worth 1.2 GB is not a lead.
-4. DO NOT RE-PROPOSE what has been settled — see references/settled.md,
-   pasted into the brief. Nor anything already tracked in an open issue.
+4. DO NOT RE-PROPOSE what has been settled — see references/settled.md
+   and the DECLINED, GATED and ENUMERATED tables of
+   references/classes.md. Nor anything already tracked in an open issue.
+   A finding inside a GATED class is a BROKEN GATE: report it as such,
+   not as a discovery.
 5. CHANGE NOTHING. No deploys, no writes to the repo, no changes on the
    hosts, no test heartbeats, no operations on the append-only offsite
    repository. Read-only.
@@ -87,11 +112,19 @@ RULES — they matter as much as the mandate.
    lives outside the repo, so it may be precise.
 
 DELIVERABLE
-Write your findings to <scratchpad>/audit/<domain>.md
-For each: what it is, the measured evidence (command + output), the real
-impact, what you propose. Separate CONFIRMED from SUSPECTED. If nothing:
-say so, and list what you checked to establish it.
-Your final answer: 10 lines maximum. The detail goes in the file.
+Write to <scratchpad>/audit/<domain>.md, in this order:
+
+1. PER CLASS you were given: CLOSED (with N/N and the count) or STILL
+   OPEN (with what bounds the space and what stopped you).
+2. MINTS: the property, the space, the cardinal if you can state it.
+3. INSTANCES, grouped under their class: what it is, the measured
+   evidence (command + output), the real impact, what you propose.
+   Separate CONFIRMED from SUSPECTED.
+
+If nothing: say so, and list what you checked to establish it. An
+evidenced "clean" closes a class; a speculative list closes nothing.
+Your final answer: 10 lines maximum, opening with the class verdicts.
+The detail goes in the file.
 ```
 
 ## Fan out
@@ -100,7 +133,12 @@ Launch all eight in a single message so they run concurrently: `system`,
 `security`, `network`, `services`, `backup`, `observability`, `ansible-deploy`,
 `project-manager` (the last one audits documentation against reality).
 
-Per-domain mandates and leads: `references/domains.md`.
+Per-domain scope and angles: `references/domains.md`. **The mandate itself comes
+from the register**: assign each OPEN class to the agent that owns its space, and
+say so in the brief — "close C01 for your domain, or state why its space cannot
+be bounded". An agent with no OPEN class in its area verifies that the GATED
+assertions in its area still fail on purpose, which is worth more than a fresh
+hunt.
 
 Reports go to the **session scratchpad, never into the repo** — an audit
 produces exactly what the public-repo rule forbids publishing. Anything worth
@@ -130,25 +168,55 @@ writing a word to the operator.
 Treat convergence as signal: when independent agents reach the same conclusion
 from different angles, it is usually real.
 
-## Synthesise
+## Synthesise — the report is a register diff
 
-Rank by *what is happening right now without anyone knowing*, then by cost the
-day it matters, then by cost to fix. Group the cross-cutting patterns — the
-first run turned up three inert-but-plausible configuration knobs, which is a
-far more useful thing to report than three unrelated variables.
+Open with the counter: **how many classes were OPEN, how many closed, how many
+minted, how many remain**. That number is the answer to "is this finished yet",
+and it is the only part of the report that is comparable between runs.
 
-State plainly what you rejected from the agents and why. It is what makes the
-rest believable.
+Then, and only then, the instances. Rank them by *what is happening right now
+without anyone knowing*, then by cost the day it matters, then by cost to fix.
+Group them **under their class** rather than by domain — eleven findings under
+one class is a far more useful thing to report than eleven unrelated corrections,
+and it is what tells the operator to fix the class instead of the instances.
+
+Two things must appear explicitly:
+
+- **What you rejected from the agents and why.** It is what makes the rest
+  believable.
+- **Every mint, with its property and its space.** A mint is the run's real
+  output; an instance is a by-product.
+
+State plainly when a finding lands in a GATED class: that is a broken gate, it
+does not belong in the audit's count, and it is reported as a red test.
 
 ## After the run
 
-Move anything newly settled into `references/settled.md` — both what got fixed
-and what the operator declined. The list only works if it is current.
+1. **Update `references/classes.md` first** — state transitions, new cardinals,
+   new classes. A class reaches GATED only once its assertion has been **made to
+   fail on purpose**; anything less is ENUMERATED, and will reopen.
+2. Move newly settled decisions and newly paid instrument traps into
+   `references/settled.md` — both what got fixed and what the operator declined.
+3. **Keep state out of `settled.md`.** Counts, cardinals and "still open" tables
+   belong to the register. Every stale number that file has carried has
+   propagated straight into the next run's eight agent briefs; it has happened
+   three times with the same figure.
 
-## What "nothing left" looks like
+## What "finished" looks like
 
-A pass with no findings is a real, expected outcome, and the point of re-running
-after corrections. It is credible when each report says what was checked to
-establish it, when the checks were made against running systems, and when the
-previously reported defects are verified gone rather than assumed gone. A sweep
-that returns "clean" without that evidence has not been run properly.
+Not "a run that found nothing" — that is unfalsifiable, because what a run finds
+depends on the search key it was given, and the key is written fresh every time.
+The criterion is in `references/classes.md` and it is this:
+
+> **No OPEN class remains, and two consecutive runs, each using a different
+> search key, mint zero new classes.**
+
+The first half says the known perimeter is worked down. The second tests whether
+the perimeter itself is complete, which is the only defence against measuring
+only what someone already thought to look at.
+
+A pass with no *findings* is still a real and expected outcome — it is the point
+of re-running after corrections. It is credible when each report says what was
+checked to establish it, when the checks were made against running systems, and
+when the previously reported defects are verified gone rather than assumed gone.
+A sweep that returns "clean" without that evidence has not been run properly.
