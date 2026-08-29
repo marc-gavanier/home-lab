@@ -30,6 +30,35 @@
     state: link
     force: true
 
+# The environment file is a symlink onto the encrypted volume, which is unlocked
+# BY HAND. Until 2026-08-29 the timer carried `OnBootSec=2min`, so the boot run
+# fired at boot+2min against a path that cannot exist yet — measured on two
+# consecutive boots:
+#
+#   02:48:11  homelab-ddns.service: Failed to load environment files: ...
+#   02:48:11  Failed with result 'resources'
+#   03:00:08  Starting...            <- the next `*:0/15` tick, 11 min 57 s later
+#
+# It never had a chance: two minutes is shorter than the time it takes a human to
+# reach the machine and type a passphrase, so the failure was structural rather
+# than a race that sometimes lost.
+#
+# What that cost is not the failed unit — it is WHICH run failed. The 15-minute
+# ticks exist to catch a slow address change; the BOOT run is the only one aimed
+# at a reconnection, which is precisely the event most likely to have changed the
+# address. The one trigger pointed at the interesting case was the one that could
+# never fire.
+#
+# The fix is the repository's own pattern rather than a new mechanism: the boot
+# run is now pulled by the volume itself, through mnt-data.mount.wants (below),
+# the way vault-mount and wg-quick@wg0 already are. `ConditionPathExists` makes a
+# tick that lands while the volume is down report as SKIPPED rather than failed,
+# which keeps `systemctl --failed` meaningful — it is read by three checks.
+#
+# NOT `RequiresMountsFor=/mnt/data`, and the distinction matters: that would add
+# a `Requires=` on the mount, so a tick during a legitimate lock-down would ask
+# systemd to MOUNT AN ENCRYPTED VOLUME on its own. Waiting is correct here;
+# reaching for the volume is not.
 - name: ddns | Create DDNS systemd service
   ansible.builtin.copy:
     dest: /etc/systemd/system/homelab-ddns.service
@@ -38,7 +67,8 @@
       [Unit]
       Description=Home Lab Cloudflare DDNS (keep vpn A record fresh)
       Wants=network-online.target
-      After=network-online.target
+      After=network-online.target mnt-data.mount
+      ConditionPathExists=/mnt/data/secrets/ddns.env
 
       [Service]
       Type=oneshot
@@ -54,7 +84,6 @@
       Description=Cloudflare DDNS every 15 minutes
 
       [Timer]
-      OnBootSec=2min
       OnCalendar=*:0/15
       Persistent=true
 
@@ -67,3 +96,24 @@
     enabled: true
     state: started
     daemon_reload: true
+
+# This replaces the `OnBootSec=2min` deleted above, and it is the whole point of
+# the change: the boot run now happens when the volume becomes available, which
+# is the EARLIEST moment it can succeed, instead of at a fixed offset chosen
+# before anyone measured how long the unlock takes.
+#
+# Directory rather than a `WantedBy=` in the unit, because mnt-data.mount is not
+# ours to edit — it is generated. vault-mount.service and wg-quick@wg0.service
+# have been wired this way since 2026-07-13; this is the third user of a pattern
+# that already works, not a new one.
+#
+# Do NOT disable the units in this directory to "clean up" a boot: they are the
+# only thing that starts them, and `enabled: false` wipes the link (bitten
+# 2026-07-13, recorded in wireguard.yml).
+#
+# noqa command-instead-of-module: the systemd module cannot manage add-wants
+# links. Same call, same guard and same reason as the sibling in wireguard.yml.
+- name: ddns | Run the DDNS update whenever the encrypted volume mounts  # noqa: command-instead-of-module
+  ansible.builtin.command: systemctl add-wants mnt-data.mount homelab-ddns.service
+  args:
+    creates: /etc/systemd/system/mnt-data.mount.wants/homelab-ddns.service
