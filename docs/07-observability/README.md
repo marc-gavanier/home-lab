@@ -123,14 +123,16 @@ with nothing to look it up in.
 
 | Spec | Host | Checks | Run by | When |
 |------|------|--------|--------|------|
-| `/etc/goss/posture.yaml` | homelab | **325** | `homelab-posture.sh` | daily, 11:00 + up to 10 min jitter |
-| `/etc/goss/units.yaml` | homelab | **12** | `homelab-health.sh` | every 5 min |
+| `/etc/goss/posture.yaml` | homelab | **328** | `homelab-posture.sh` | daily, 11:00 + up to 10 min jitter |
+| `/etc/goss/units.yaml` | homelab | **13** | `homelab-health.sh` | every 5 min |
 | `/etc/goss/backup-dumps.yaml` | homelab | **19** | a resticprofile hook, result read by `backup-notify.sh` | nightly, inside the 03:00 backup |
-| `/etc/goss/offsite-health.yaml` | offsite | **20** | `offsite-health.sh` | Sunday, 08:00 + jitter |
+| `/etc/goss/offsite-health.yaml` | offsite | **26** | `offsite-health.sh` | Sunday, 08:00 + jitter |
 
-**376 checks in total.** The counts are goss's own (`Count:` in the default
-output, `1..N` in TAP) and were measured on 2026-08-29; treat them as an order
-of magnitude, since every spec is templated from `docker/compose.yaml` and
+**386 checks in total.** The counts are goss's own (`Count:` in the default
+output, `1..N` in TAP) and were re-measured on 2026-08-29 after #272. One
+assertion emits TWO TAP lines (`exit-status` and `stdout`), so a single new check
+moves the total by two — which is why the earlier figure of 376 was not merely
+stale but stale in a confusing direction. Treat them as an order of magnitude, since every spec is templated from `docker/compose.yaml` and
 group_vars and grows with the stack. The binary is `/usr/local/bin/goss` on both
 hosts. The specs are not world-readable — every command below needs `sudo`.
 

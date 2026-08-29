@@ -114,9 +114,14 @@ variables. A compromised Dozzle reads mount paths instead.
 `docker diff` on a live container returns an empty write set — the only entries
 are `/data` and the users file, both artefacts of the bind mount itself. Dozzle
 is a single Go binary serving from its own image and keeping no state on disk;
-the auth session is a cookie. So `read_only: true` costs nothing and needs no
-tmpfs, which is rare enough in this stack to be worth naming (ADR-019 lists four
-services that could not get there).
+the auth session is a cookie. So `read_only: true` costs nothing.
+
+It carries `/tmp:size=8m` all the same. This ADR said it "needs no tmpfs" until
+#274, which was true as measured and stopped being the policy with #265: every
+read-only service now gets an insurance tmpfs, because `docker diff` only reveals
+paths a container *has* written and a code path never exercised leaves nothing
+behind. Navidrome is what that blind spot costs. An unwritten tmpfs allocates no
+page. (ADR-019 lists the four services that could not reach `read_only` at all.)
 
 It runs as uid 65534 with every capability dropped. It speaks TCP to the proxy,
 so unlike the usual log-viewer deployment it needs neither the `docker` group nor

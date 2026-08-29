@@ -128,3 +128,25 @@ argument_specs:
         type: path
         required: true
         description: Backup root on the encrypted volume, read by the disk-health report.
+      credential_store_default_mode:
+        type: str
+        required: true
+        description: >-
+          Mode every derived credential store must carry, asserted by goss-posture. Written
+          as 0700; the assertion strips the leading zero before comparing with `stat -c %a`,
+          because otherwise every store fails.
+      credential_store_exemptions:
+        type: dict
+        required: true
+        description: >-
+          Directories the credential-store derivation skips, keyed by path relative to the
+          services data dir, with the reason as the value. Read by goss-posture. An entry
+          that outlives the ticket it names is indistinguishable from a blind spot — #272
+          is what that costs, so the values are prose and are meant to be re-read.
+      credential_store_min_count:
+        type: int
+        required: true
+        description: >-
+          Floor on how many stores the derivation must find. A loop that iterates over
+          nothing returns true, which is the failure mode ADR-032 exists for; this is a
+          measurement (12 on 2026-08-24), not a target.

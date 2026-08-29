@@ -82,7 +82,11 @@ directory bind mount is resolved in the container's namespace, which is how Sear
 weeks on a self-generated stub config (issue #27).
 
 `docker diff` on a live container shows an empty write set, which is what makes
-`read_only: true` free here — no tmpfs, no writable path at all. It runs as uid 65534
+`read_only: true` free here. It still carries `/tmp:size=8m` — insurance rather
+than a measurement, added to every read-only service by #265 because `docker
+diff` only sees paths a container *has* written and Navidrome imported nothing
+for a month behind that blind spot. An unwritten tmpfs allocates no page.
+It runs as uid 65534
 (`nobody`) with every capability dropped: it speaks TCP to the proxy, so it needs no
 membership of the `docker` group and no access to a socket file.
 
