@@ -100,8 +100,10 @@ automation, and a half-automated list is worse than an honestly manual one.
 ## Consequences
 
 Wave 1 of the staged startup gains one member. Forgejo has no peer to wait for and
-nothing gates on it; its 120 s `start_period` covers schema migrations, not a slow
-init the wave has to absorb.
+nothing gates on it. Its `start_period` was 120 s here until 2026-08-29, sized for
+the schema migrations; it is **420 s**, measured from a cold boot that collided
+with the nightly backup, which is the worst case (#274, #294). The migrations were
+never the binding constraint — contention for the USB disk is.
 
 Backups need no new path — `/mnt/data/services` is already taken wholesale — only the
 `.backup` line above.

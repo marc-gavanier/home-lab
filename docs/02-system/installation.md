@@ -312,7 +312,7 @@ ssh homelab "sudo restic -r /mnt/data/backups/restic-repo snapshots"
 # Enter restic password when prompted
 ```
 
-> **Note**: Backups are on the same HDD as the data. This protects against accidental deletion but not disk failure. Offsite backup planned for later.
+> **Note**: The primary backup repository is on the same HDD as the data, so it does not by itself protect against disk failure. A second Pi at another site has held an append-only offsite copy since 2026-07-25 (ADR-021); `restic snapshots` on that host is the authority on what it holds.
 
 ### Services Access Summary
 
@@ -349,4 +349,4 @@ All HTTPS services are **VPN/LAN-only** (Traefik `vpn-only` middleware applied g
 - **Split DNS**: Pi-hole resolves homelab subdomains to LAN IP. Required `FTLCONF_misc_etc_dnsmasq_d: "true"` for Pi-hole v6 to read custom dnsmasq configs.
 - **VPN-only by default**: `vpn-only` middleware applied globally on Traefik's `websecure` entrypoint. ipAllowList includes LAN (192.168.1.0/24), the `proxy` Docker network (172.18.0.0/16 — this is how full-tunnel VPN clients arrive, hairpin-NATed), and WireGuard (10.8.0.0/24 — the offsite Pi's unmasqueraded push path). All services protected automatically; new services inherit the protection. Trade-off: VPN must be active on mobile for sync (Bitwarden, Nextcloud, Immich), but attack surface is minimized. Internet sees only `403 Forbidden`.
 - **wg-easy Web UI**: Bound to localhost:51821 only, accessed via SSH tunnel. Avoids chicken-and-egg problem (can't access VPN admin behind VPN-only middleware without VPN).
-- **Backup**: Restic with AES-256 encryption. Daily at 3 AM via systemd timer. DB dumps before snapshot. Retention: 7d/4w/6m. Local only for now (same HDD), offsite planned with second Pi.
+- **Backup**: Restic with AES-256 encryption. Daily at 3 AM via systemd timer. DB dumps before snapshot. Retention: 7d/4w/6m. Copied nightly to an append-only offsite repository on a second Pi (ADR-021).

@@ -71,8 +71,9 @@ of where the secrets are and how they are protected.
   assertions for this host — the ratio is the point, since those 824 lines are
   generated, reviewed as a diff, and never edited.
 - **Measured on the real host before any of it was committed**: 326 assertions,
-  0 failures, 8.2 s. The spec has changed by one assertion since that run (see
-  below) and will be re-measured on the first deploy.
+  0 failures, 8.2 s. It has grown many times since and there is deliberately no
+  current figure here — read the `1..N` from the machine, per
+  `docs/07-observability/README.md`.
 - The per-container coverage counter is gone and not missed. It existed because
   a shell loop can silently skip a container; goss fails the specific assertion
   for the specific container instead of reporting "checked 26 of 28".
