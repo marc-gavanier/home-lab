@@ -189,7 +189,11 @@ Defense in depth — each layer is secured independently. If one layer falls, th
   temporary files), a bind mount for state that is not. The requirement was
   **measured** with `docker diff` on the running containers — the real write set
   after weeks of production — not guessed from the images: seven services turned
-  out to write nothing at all. Two rules earned the hard way: mount the *leaf*
+  out to write nothing at all. That measurement has one blind spot, and #265 is
+  what it cost: `docker diff` only reports paths a container *has* written, so a
+  code path never exercised leaves no trace, and Navidrome silently imported
+  nothing for a month. Every read-only service therefore carries a small
+  insurance `/tmp` on top of what was measured. Two rules earned the hard way: mount the *leaf*
   (`/run/mysqld`), never the parent, or the image's own runtime directories
   disappear and the server aborts; and Docker mounts `tmpfs` `noexec`, which
   breaks any init system that stages executables there.

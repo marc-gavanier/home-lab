@@ -36,8 +36,14 @@ stack that ran the 132 migrations, created the admin account and served traffic:
 | Image contents | distroless — no shell, no `curl`, no `wget` |
 | Capabilities needed | none |
 
-An empty write set makes `read_only: true` free and means **no tmpfs at all** — the
-only service in the stack with neither. Everything Miniflux owns lives in Postgres.
+An empty write set makes `read_only: true` free. Everything Miniflux owns lives in
+Postgres.
+
+This said "**no tmpfs at all** — the only service in the stack with neither" until
+#274. It was true when written and was reversed by #265: every read-only service
+carries `/tmp:size=8m` now, insurance rather than measurement, because `docker
+diff` cannot see a code path that has not run yet. Zero of the 22 read-only
+containers is without one.
 
 The absence of a shell is what fixes the healthcheck: a `CMD-SHELL` probe cannot run in
 this image. The binary ships its own, which is the better probe anyway because it

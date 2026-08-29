@@ -46,3 +46,30 @@ argument_specs:
         type: int
         required: false
         description: zram device size as a percentage of RAM (inline default 50).
+      root_fsck_max_mounts:
+        type: int
+        required: true
+        description: >-
+          Mount count after which the root filesystem is checked at boot. SET here with
+          tune2fs; the observability role declares it too because goss-units asserts it
+          back. Consumed here since #260 and declared nowhere until #274.
+      root_fsck_interval_days:
+        type: int
+        required: true
+        description: Day interval after which the root filesystem is checked at boot. Set here with tune2fs, asserted by the observability role.
+      extra_fsck_filesystems:
+        type: list
+        elements: dict
+        required: true
+        description: >-
+          Filesystems beyond the root to arm with boot-check triggers — one dict per
+          device, with `device`, `max_mounts` and `interval_days`. The offsite backup disk
+          is the only entry today (#260).
+
+          Declared with its LIMIT stated, because this is the one knob here whose failure
+          is silent: group_vars falls back to `[]`, so a host that arms nothing looks
+          exactly like a host with nothing to arm. An argument spec does NOT close that —
+          validation ignores surplus variables, so a misspelled key in host_vars leaves
+          this at `[]` and the run stays green. What the spec buys is the type and the
+          documentation; the misspelling remains uncaught, and the goss assertion that
+          would catch it cannot, because it derives from this same variable.

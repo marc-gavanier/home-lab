@@ -21,8 +21,12 @@ Two containers: `miniflux` and its own `miniflux-db`.
 
 Miniflux is the lightest well-behaved service in the stack. `docker diff` on a container
 that had run all 132 migrations, created the admin account and served traffic came back
-with an **empty write set** — so `read_only: true` costs nothing and it carries **no
-tmpfs at all**, the only service here with neither. It runs as uid 65534 with **zero
+with an **empty write set** — so `read_only: true` costs nothing. It still carries
+`/tmp:size=8m`, as every read-only service in the stack does since #265: `docker
+diff` only sees paths a container *has* written, and an unexercised code path
+leaves no trace — which is how Navidrome imported nothing for a month while every
+dashboard stayed green. An unwritten tmpfs allocates no page, so the insurance is
+free. It runs as uid 65534 with **zero
 capabilities**; 65534 is already the image's own default, restated in `compose.yaml` so a
 base-image change cannot move it silently.
 

@@ -48,7 +48,7 @@ Uses Pi-hole as DNS (`dns: [${PI_LAN_IP}]` in compose) so that domain lookups fo
 | Offsite backup            | Push     | resticprofile `copy`, daily 03:00                                                             |
 | Offsite check             | Push     | resticprofile `offsite check`, Sun 06:00                                                      |
 | Offsite health            | Push     | `offsite-health.sh`, on the offsite Pi                                                        |
-| Pi disk health            | Push     | `homelab-disk.sh`, daily 07:05                                                                |
+| Pi disk health            | Push     | `homelab-disk.sh`, daily 07:00 + jitter                                                                |
 | Pi health                 | Push     | `homelab-health.sh`, every 5 min                                                              |
 | Pi Lynis audit            | Push     | `homelab-lynis-report.sh`, weekly                                                             |
 | Pi pending action         | Push     | `homelab-health.sh` pending group, every 5 min                                                |

@@ -33,6 +33,35 @@ x-security-opt: &no-new-privs
 # Where that is insurance rather than a measurement, the block says so — an
 # unwritten tmpfs allocates no page, so the standing cost is nothing while the
 # failure it prevents is silent by nature.
+#
+# `start_period` is sized per container from a measured cold boot, and it does
+# more than silence an alarm: while a container is `starting`, Traefik withholds
+# its router. An undersized start_period therefore does not merely mislabel a
+# healthy container — the service answers 404 through the proxy for as long as
+# the probe keeps failing. That is exactly what "five services down" looked like
+# from outside on 2026-08-29, with RestartCount 0 across all 28 containers and
+# the heal timer idle through 217 passes. Neither #258 nor #262 records this;
+# both cost it only in alarm noise.
+#
+# Size on the WORST run, which is a boot colliding with the 03:00 backup, not a
+# quiet one — the two are a factor of two apart, measured.
+#
+# ENUMERATED on 2026-08-29 rather than sampled, from netdata's own health_status
+# charts over the whole 02:50-03:25 window. Of the twelve containers declaring a
+# start_period, exactly TWO ever left `starting` for `unhealthy`:
+#
+#   collabora       overshot   993 s against 600 s   -> 1320 s
+#   immich-server   overshot   773 s against 480 s   -> 1020 s
+#   calibre-web     held       511 s against 600 s   (89 s, the thinnest margin
+#                              left; measured, not changed — it is the next one
+#                              to go if a boot is ever slower than this one)
+#   the other nine  no `starting` sample at all in the window
+#
+# One caveat on that last row, because it is the difference between "fine" and
+# "unobserved": netdata is itself a container and only began collecting at
+# 02:55:13, so the four containers started at ~02:50 were already healthy before
+# anything could watch them. The enumeration is complete for the later waves,
+# which is where every overshoot has ever been.
 x-cap-drop: &cap-drop-all
   - ALL
 
@@ -717,12 +746,20 @@ services:
     # `docker inspect -f '{{.Config.Healthcheck.Test}}' <container>` after any
     # change here: a partial override that silently dropped it would disable
     # the probe with nothing at all to show for it.
-    # Measured 2026-08-27, cold boot: started 00:14:01, first served by
-    # 00:21:55 — 7 min 54 s, against an inherited start_period of 0 s. The
-    # ~80 s quoted in the startup script is the WARM figure; this is what a
-    # saturated disk does to it.
+    # Two cold-boot measurements, and the second is why this is 1320 s and not
+    # the 600 s #258 set (all times CEST). The ~80 s quoted in the startup script
+    # is the WARM figure; these are what a saturated disk does to it:
+    #
+    #   2026-08-27, cold boot       started 00:14:01, served 00:21:55    7 min 54 s
+    #   2026-08-29, boot at 02:46   started 02:55:14, served 03:11:47   16 min 33 s
+    #
+    # 2.1x, and for the same reason as immich-server above: the 03:00 backup on
+    # the tail of the staged startup. 600 s fell 393 s short, so this container
+    # went `starting` -> `unhealthy` at 03:07 — the longest of the two, which is
+    # why it is the last to clear. Sized on the larger run with the same ~30 %
+    # margin the first figure was given.
     healthcheck:
-      start_period: 600s
+      start_period: 1320s
       start_interval: 15s
     container_name: collabora
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
@@ -958,11 +995,27 @@ services:
     # `docker inspect -f '{{.Config.Healthcheck.Test}}' <container>` after any
     # change here: a partial override that silently dropped it would disable
     # the probe with nothing at all to show for it.
-    # Measured 2026-08-27, cold boot with the disk at 98 %: started 00:17:45,
-    # first served by 00:23:19 — 5 min 34 s. It had NO start_period at all, so
-    # it published UNHEALTHY on every cold boot while it was merely booting.
+    # Two cold-boot measurements, and the second is why this is 1020 s and not
+    # the 480 s #258 set (all times CEST):
+    #
+    #   2026-08-27, disk at 98 %    started 00:17:45, served 00:23:19    5 min 34 s
+    #   2026-08-29, boot at 02:46   started 02:56:29, served 03:09:22   12 min 53 s
+    #
+    # The second is 2.3x the first because the 03:00 backup landed on the tail of
+    # the staged startup: iowait peaked at 80 %, and restic's own scan took 928 s
+    # against 122-251 s on an idle night. A boot that COLLIDES with the nightly
+    # backup is the real worst case, and 480 s fell 293 s short of it — this
+    # container went `starting` -> `unhealthy` at 03:06 and took its monitor with
+    # it. Sized on the larger run with the ~30 % margin the first figure was
+    # given, which is jellyfin's rule: size on the worse run, never the more
+    # convenient one.
+    #
+    # Cost, stated rather than discovered later: a genuinely broken
+    # immich-server is now reported after 17 min instead of 8. Accepted —
+    # until then it is `starting`, Traefik withholds its router, and nothing
+    # anywhere pretends the service works.
     healthcheck:
-      start_period: 480s
+      start_period: 1020s
       start_interval: 15s
     container_name: immich-server
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
