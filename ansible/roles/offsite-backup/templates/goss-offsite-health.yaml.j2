@@ -78,6 +78,32 @@ command:
       }
     exit-status: 0
 
+  # --- The backup disk had no filesystem check of any kind (#260) -----------
+  # It holds the entire offsite restic copy and reached 48 days old with
+  # `Maximum mount count: -1`, `Check interval: 0` and `passno 0` — never
+  # checked since mkfs, and nothing that would ever check it. #254 armed the
+  # homelab's data volume and put the task in the `storage` role, which does not
+  # run here.
+  #
+  # Two halves again, and the fstab one carries the weight: only the boot-time
+  # fsck consults the superblock triggers, so `passno 0` made arming them pure
+  # decoration. Asserted separately because each can be lost on its own.
+  offsite-backup-disk-has-fsck-pass:
+    exec: awk '!/^#/ && $2 == "{{ backup_mount_point }}" { print $6 }' /etc/fstab
+    exit-status: 0
+    stdout: ["/^[1-9]$/"]
+
+  # The superblock half. Not a schedule — the frozen boot clock makes every
+  # superblock look future-dated to the initramfs, which then checks in full and
+  # rewrites these values backwards. They are asserted so the configuration is
+  # right the day the clock is; `passno` above is what does the work today.
+  offsite-backup-disk-fsck-triggers-armed:
+    exec: tune2fs -l {{ backup_disk_device }}
+    exit-status: 0
+    stdout:
+      - "/Maximum mount count:\\s+-1\\b/"
+      - "/Check interval:\\s+{{ data_fsck_interval_days | default(30) | int * 86400 }}\\b/"
+
   # smartctl's exit status is a bitmask: bit 3 (value 8) means the disk is
   # failing. Bits 0-2 are command/device errors — USB bridge quirks, not a disk
   # failure — so only bit 3 is asserted here.

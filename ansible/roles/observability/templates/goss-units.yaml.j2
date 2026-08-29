@@ -92,17 +92,45 @@ command:
     exit-status: 0
     stdout: ["/^[1-9]$/"]
 
-  # The superblock half. These two values are what systemd-fsck-root.service
-  # consults once fstab lets it run; with `Maximum mount count: -1` and
-  # `Check interval: 0` — the state both hosts shipped in — it starts, finds
-  # nothing due, and exits 0 forever.
+  # The superblock half — and read #260 before reading it as a schedule.
   #
-  # Asserted against the values the repository sets rather than "not the
-  # default", so a hand-run `tune2fs` that loosens them fails here instead of
-  # passing for not being -1.
+  # This comment used to say these two values are what systemd-fsck-root.service
+  # consults. They are not, and that service does not run: it is skipped at
+  # every boot with `ConditionPathExists=!/run/initramfs/fsck-root`, because the
+  # INITRAMFS has already checked the root device. The initramfs runs before any
+  # time sync, and neither Pi has an RTC, so its clock reads a frozen value —
+  # 2026-07-28 17:04 on both hosts, which is also what four consecutive boots
+  # stamp as their first journal entry. Every superblock therefore looks
+  # future-dated to it:
+  #
+  #   writable: Superblock last write time (Wed Aug 26 20:55:35 2026,
+  #           now = Tue Jul 28 15:04:46 2026) is in the future. FIXED.
+  #
+  # So a FULL check runs at every boot regardless of these triggers, and then
+  # rewrites `Last checked` and the mount count backwards — which is why both
+  # hosts read `Last checked: Tue Jul 28` and `Mount count: 1` after three and
+  # four boots. Neither trigger can fire, and neither needs to.
+  #
+  # The assertion is kept because the configuration should be right the day the
+  # clock is, and because a hand-run `tune2fs` that loosens it should still
+  # fail here. What it must NOT be read as is proof that anything is due.
+  # `root-was-checked-this-boot` below is the one that tests capability.
   root-fsck-triggers-armed:
     exec: tune2fs -l "$(findmnt -no SOURCE /)"
     exit-status: 0
     stdout:
       - "/Maximum mount count:\\s+{{ root_fsck_max_mounts }}\\b/"
       - "/Check interval:\\s+{{ root_fsck_interval_days | int * 86400 }}\\b/"
+
+  # Capability, not configuration (#260). The two assertions above say the
+  # triggers are set; this one says a check actually happened. The log lives in
+  # /run, so it is this boot's and no other — an empty or absent one means
+  # nothing checked the root filesystem when this host came up, which is the
+  # state `fsck.mode=skip` on the kernel command line produces and which the
+  # superblock assertions above would sail straight through.
+  root-was-checked-this-boot:
+    exec: |
+      log=/run/initramfs/fsck.log
+      [ -r "$log" ] || { echo "no $log — nothing recorded a root check for this boot"; exit 1; }
+      grep -q 'fsck\.ext4' "$log" || { echo "$log records no ext4 check"; exit 1; }
+    exit-status: 0

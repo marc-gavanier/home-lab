@@ -69,6 +69,16 @@ offsite_smart_counters:
   - {id: 187, name: uncorrectable}
   - {id: 199, name: crc-err}
 backup_mount_point: /mnt/backup
+
+# Armed by the base role, which runs on both hosts — see #260 and the note in
+# base/tasks/filesystem-checks.yml. Same numbers as the homelab's data volume:
+# no mount count (0 -> the superblock's -1), a 30-day interval. The disk carries
+# `passno 2` and `nofail`, so a check that refuses to preen fails the mount
+# rather than the boot.
+extra_fsck_filesystems:
+  - device: "{{ backup_disk_device }}"
+    max_mounts: "{{ data_fsck_max_mounts | default(0) }}"
+    interval_days: "{{ data_fsck_interval_days | default(30) }}"
 offsite_disk_force_format: false # Set true (once) to format a non-ext4 disk
 
 # --- rest-server ---

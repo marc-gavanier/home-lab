@@ -158,3 +158,55 @@
     current_max_mounts != (root_fsck_max_mounts | string)
     or current_interval != (root_fsck_interval_days | int * 86400) | string
   changed_when: true
+
+# =============================================================================
+# Other filesystems that need the same two halves (#260)
+# =============================================================================
+# Here, and not in `storage`, for the reason this file already argues about
+# itself sixty lines above: the storage role runs on the homelab only. #254
+# armed the encrypted data volume correctly and put the task in `storage`
+# anyway, so the offsite backup disk — which holds the entire offsite restic
+# copy — reached 48 days old having never been checked, with no interval, no
+# mount count, and `passno 0`. `base` runs on both hosts, which is the property
+# that matters.
+#
+# Driven by a list rather than hardcoded because the two hosts have different
+# disks and neither should carry the other's device name. The homelab's list is
+# empty: its data volume stays in `storage`, which owns the LUKS-mapper guard
+# that has no meaning here.
+#
+# Read the note above on the frozen boot clock before reading these triggers as
+# a schedule. e2fsck runs in the initramfs before any time sync, sees every
+# superblock as future-dated, and performs a full check regardless of what `-c`
+# and `-i` say — then rewrites both backwards. The triggers are set so that the
+# configuration is right the day the clock is, not because they are doing the
+# work today. What does the work is `passno`.
+- name: filesystem-checks | Read the check triggers on the extra filesystems
+  ansible.builtin.command: "tune2fs -l {{ item.device }}"
+  register: extra_fs_superblocks
+  changed_when: false
+  check_mode: false
+  loop: "{{ extra_fsck_filesystems }}"
+  loop_control:
+    label: "{{ item.device }}"
+
+- name: filesystem-checks | Arm both boot-time triggers on the extra filesystems
+  ansible.builtin.command:
+    cmd: >-
+      tune2fs -c {{ item.item.max_mounts }}
+              -i {{ item.item.interval_days }}d
+              {{ item.item.device }}
+  vars:
+    current_max_mounts: "{{ item.stdout
+      | regex_search('Maximum mount count:\\s+(-?\\d+)', '\\1') | first }}"
+    current_interval: "{{ item.stdout
+      | regex_search('Check interval:\\s+(\\d+)', '\\1') | first }}"
+    wanted_max_mounts: "{{ '-1' if item.item.max_mounts | int == 0
+                           else item.item.max_mounts | string }}"
+  when:
+    - current_max_mounts != wanted_max_mounts
+      or current_interval != (item.item.interval_days | int * 86400) | string
+  loop: "{{ extra_fs_superblocks.results }}"
+  loop_control:
+    label: "{{ item.item.device }}"
+  changed_when: true
