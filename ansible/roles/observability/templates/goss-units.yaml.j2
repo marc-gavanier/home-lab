@@ -46,6 +46,18 @@ service:
 
 command:
 
+  # ufw is NOT in the list above, and the reason is a trap worth recording: it is
+  # a oneshot and sits in `active (exited)` on a correct machine, so a
+  # `running: true` resource would be asserting the wrong thing about the one
+  # component whose whole job is to keep enforcing after its unit has exited.
+  # The property is that the rules are loaded, so that is what this reads.
+  #
+  # Nothing asserted the firewall on either host until 2026-08-29.
+  ufw-enforcing:
+    exec: ufw status
+    exit-status: 0
+    stdout: ["/^Status: active$/"]
+
   # The catch-all, and it is the one that names nothing — deliberately. The five
   # assertions above name their unit; this one exists for a unit NOBODY listed,
   # which is exactly the case a list cannot cover. When it fires, the operator

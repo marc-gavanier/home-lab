@@ -31,6 +31,28 @@
 # while the run still reported success.
 # =============================================================================
 
+# --- Unit state, absent from this host until 2026-08-29 ----------------------
+# The homelab had three independent layers watching systemd; this file had NONE,
+# across 177 services and 18 timers. The gap was invisible for the usual reason:
+# what is not declared is not checked, so nothing was ever red about it.
+#
+# `running` and not `enabled`, for the same reason as the homelab's units spec:
+# these are RemainAfterExit oneshots or socket-activated, and asserting `enabled`
+# would fail forever on a correct machine.
+service:
+  rest-server.service:
+    # The reason this host exists. It answered on every probe anyway, which is
+    # precisely why nobody noticed nothing was asserting it.
+    running: true
+  wg-quick@wg0.service:
+    # The only route in. If this is down, every other assertion here is
+    # unreachable and the silence reads as health.
+    running: true
+  ssh.service:
+    running: true
+  fail2ban.service:
+    running: true
+
 mount:
   # Native resource rather than a command, and the first thing asserted: every
   # other check on this file is meaningless if the volume is not there.
@@ -40,6 +62,30 @@ mount:
       - rw
 
 command:
+
+  # The catch-all the four named units cannot provide: a unit NOBODY listed.
+  # `systemctl --failed` is one command and the same one the operator would run.
+  offsite-no-failed-units:
+    exec: systemctl --failed --no-legend --plain
+    exit-status: 0
+    stdout: []
+
+  # ufw is a oneshot and sits in `active (exited)` on a correct machine, so a
+  # service resource would assert the wrong thing about the component whose job
+  # is to keep enforcing after its unit exited. On this host UFW is the ONLY rule
+  # that filters — there is no Docker publishing ports around it.
+  offsite-ufw-enforcing:
+    exec: ufw status
+    exit-status: 0
+    stdout: ["/^Status: active$/"]
+
+  # The tunnel-recovery path, and settled.md calls it the only one that works
+  # after a home address change: roaming cannot repair that direction, so this
+  # timer sending first is what reopens the NAT mapping. It was unwatched.
+  offsite-wg-reresolve-timer-active:
+    exec: systemctl is-active offsite-wg-reresolve.timer
+    exit-status: 0
+    stdout: ["/^active$/"]
 
   offsite-disk-capacity:
     exec: '[ "$(df --output=pcent {{ backup_mount_point }} | tail -1 | tr -dc 0-9)" -lt 85 ]'
@@ -145,24 +191,44 @@ command:
     exec: '[ "$(smartctl -A {{ backup_disk_device_base }} 2>/dev/null | awk ''$1 == 194 { print $10; exit }'')" -lt 70 ]'
     exit-status: 0
 
+  # An abort is not bad news, it is the ABSENCE of news. This assertion carried
+  # the exact defect `homelab-disk.sh` documents as deliberately fixed: `grep -qiE
+  # 'fail|aborted'` turns a test interrupted by a reboot into a failure, and on a
+  # host sampled once a week that is a red monitor nobody can act on for up to a
+  # month — #207's lesson, inverted. Unknown statuses still alarm, which was the
+  # half that was right: a status a future smartctl invents must be loud.
+  #
+  # An EMPTY log now fails instead of passing. It used to `exit 0`, so a drive
+  # whose self-test had never run — the state this pair exists to catch — passed
+  # both assertions silently.
   offsite-smart-selftest-result:
     exec: |
       line=$(smartctl -l selftest {{ backup_disk_device_base }} 2>/dev/null | awk '/^# 1/ { $1=""; $2=""; print; exit }')
-      [ -n "$line" ] || exit 0
-      printf '%s\n' "$line" | grep -qiE 'fail|aborted' && exit 1
-      exit 0
+      [ -n "$line" ] || { echo "self-test log is empty: no test has ever been recorded"; exit 1; }
+      case "$(printf '%s\n' "$line" | tr '[:upper:]' '[:lower:]')" in
+        *"completed without error"*)          exit 0 ;;
+        *abort*|*interrupt*|*"in progress"*)  exit 0 ;;
+        *)                                    echo "self-test: $line"; exit 1 ;;
+      esac
     exit-status: 0
 
   # A dead-man's check on the monthly self-test timer itself. The log stamps
   # each test in drive power-on hours, so comparing with attribute 9 surfaces a
   # silently dead timer instead of leaving an eternally green "Completed without
   # error" from months ago. 840h is 35 days.
+  #
+  # Read from the last COMPLETED entry, not from entry `# 1`. Taking the newest
+  # entry meant an aborted test — which the assertion above deliberately does not
+  # treat as a failure — also RESET the staleness clock, so an abort could hide a
+  # dead timer indefinitely. `homelab-disk.sh` keeps the same two readings apart
+  # for exactly this reason and calls the difference "the whole of this block";
+  # this host had only ever had one of them.
   offsite-smart-selftest-fresh:
     exec: |
       out=$(smartctl -A -l selftest {{ backup_disk_device_base }} 2>/dev/null)
       now=$(printf '%s\n' "$out" | awk '$1 == 9 { print $10; exit }')
-      last=$(printf '%s\n' "$out" | awk '/^# 1/ { for (i = 1; i <= NF; i++) if ($i ~ /%$/) { print $(i + 1); exit } }')
-      [ -n "$last" ] || exit 0
+      last=$(printf '%s\n' "$out" | awk '/^#[[:space:]]+[0-9]+/ && /Completed/ { for (i = 1; i <= NF; i++) if ($i ~ /%$/) { print $(i + 1); exit } }')
+      [ -n "$last" ] || { echo "no COMPLETED self-test in the log: the monthly timer has never produced a verdict"; exit 1; }
       [ $((now - last)) -le 840 ]
     exit-status: 0
 

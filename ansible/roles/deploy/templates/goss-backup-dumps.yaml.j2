@@ -131,10 +131,19 @@ command:
   #
   # `-usable` does integrity and completeness in ONE pass, deliberately. zcat
   # decompresses the whole stream to reach the tail and verifies the CRC as it
-  # finishes, so its exit status covers integrity while the tail carries the
-  # marker. Measured on the real 89 MB dump: `gzip -t` 3.60s, `zcat | tail -c
-  # 4096` 4.03s — the tail read is the MORE expensive of the two, so splitting
-  # this into two assertions would pay 4s twice for one answer.
+  # finishes, so its status covers integrity while the tail carries the marker.
+  # Measured on the real 89 MB dump: `gzip -t` 3.60s, `zcat | tail -c 4096`
+  # 4.03s — the tail read is the MORE expensive of the two, so splitting this
+  # into two assertions would pay 4s twice for one answer.
+  #
+  # THE STATUS HAS TO BE CARRIED OUT OF THE PIPE, and for a year it was not.
+  # A pipeline's exit status is its LAST command's, so `zcat … | tail` reports
+  # tail's success and zcat's CRC verdict is discarded — the assertion returned
+  # PASS on a CRC-corrupt fixture under both dash and bash, while the comment
+  # above claimed integrity was covered. There is no `pipefail` in dash, so the
+  # status is carried in-band instead: zcat's failure appends a sentinel, which
+  # lands at the END of the stream and is therefore inside tail's window. Proven
+  # both ways on a byte-flipped 89 MB fixture before being believed.
   dump-immich-present:
     exec: |
       docker inspect immich-server >/dev/null 2>&1 || exit 0
@@ -153,7 +162,8 @@ command:
       docker inspect immich-server >/dev/null 2>&1 || exit 0
       newest=$(find {{ immich_backup_dir }} -name 'immich-db-backup-*.sql.gz' -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1)
       [ -n "$newest" ] || exit 1
-      t=$(zcat -- "${newest#* }" 2>/dev/null | tail -c 4096) || exit 1
+      t=$( { zcat -- "${newest#* }" 2>/dev/null || echo '__ZCAT_FAILED__'; } | tail -c 4096 )
+      case "$t" in *__ZCAT_FAILED__*) exit 1 ;; esac
       case "$t" in *'-- PostgreSQL database dump complete'*) exit 0 ;; *) exit 1 ;; esac
     exit-status: 0
     timeout: 120000

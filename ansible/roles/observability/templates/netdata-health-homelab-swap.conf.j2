@@ -59,8 +59,10 @@
 # threshold is overridden for a deliberate fire test, so the untyped form worked
 # for months of normal deploys and failed the first time it mattered.
 #
-# PHASE 1 DELETES NOTHING. `homelab-health.sh` still carries its own swap
-# check; the two overlap on purpose until this one has been observed firing.
+# Phase 1 deleted nothing, deliberately — but that phase is OVER. The swap check
+# has since left `homelab-health.sh`, and this alarm is the only one. The
+# sentence that stood here ("the two overlap on purpose") outlived its phase and
+# was still being read as current on 2026-08-29.
 # =============================================================================
 
     alarm: homelab_used_swap

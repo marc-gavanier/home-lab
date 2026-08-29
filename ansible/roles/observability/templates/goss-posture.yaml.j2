@@ -213,6 +213,26 @@ command:
     exit-status: 0
     stdout: ["/^{{ usr }}$/"]
 {% endif %}
+{%- set pinned = [] %}
+{%- for p in svc.ports | default([]) %}
+{%-   if (p | string).split(':') | length >= 3 %}{%- set _ = pinned.append((p | string).split(':')) %}{%- endif %}
+{%- endfor %}
+{% if pinned %}
+  # A port compose pins to a host address must not be reachable on any other.
+  # Derived from `ports:` rather than listed here, so a pin removed in compose is
+  # a change to this assertion and not a silent widening. Checked per host port
+  # instead of by comparing whole sets, because Docker also binds the IPv6 form
+  # of an unpinned port and a set comparison would fail on that alone.
+  {{ cname }}-pinned-port-bindings:
+    exec: |
+{% for pp in pinned %}
+      ips=$(docker inspect {{ cname }} \
+              | jq -r '.[0].NetworkSettings.Ports // {} | to_entries[] | select(.value != null) | .value[] | select(.HostPort=="{{ pp[1] }}") | .HostIp' \
+              | sort -u | tr '\n' ' ')
+      [ "$ips" = "{{ pp[0] }} " ] || { echo "host port {{ pp[1] }} bound to [$ips], compose pins it to {{ pp[0] }}"; exit 1; }
+{% endfor %}
+    exit-status: 0
+{% endif %}
 {% if aa %}
   {{ cname }}-apparmor-enforced:
     # The profile the KERNEL applied, read from inside the container — not the
@@ -224,6 +244,49 @@ command:
     stdout: ["/^{{ aa }} \\(enforce\\)/"]
 {% endif %}
 {% endfor %}
+{%- set declared = [] %}
+{%- for name, svc in compose.services.items() %}
+{%-   for p in svc.ports | default([]) %}
+{%-     set parts = (p | string).split(':') %}
+{%-     set _ = declared.append(parts[0] if parts | length < 3 else parts[1]) %}
+{%-   endfor %}
+{%- endfor %}
+
+  # --- The two things the posture check never asserted about the ENGINE -------
+  # Both are absences rather than misconfigurations, which is why nothing here
+  # had ever gone red on them: what is not declared is not checked, so the gap
+  # is invisible until someone enumerates the assertions against the posture the
+  # docs claim.
+
+  # The socket is the whole engine. socket-proxy exists so that no other
+  # container ever holds it, and the risk is not a rewrite here — it is the next
+  # service copied from upstream YAML, which brings that mount along and stays
+  # green forever.
+  only-socket-proxy-mounts-the-docker-socket:
+    exec: |
+      n=$(docker inspect $(docker ps -aq) \
+            | jq -r '.[] | select([.Mounts[]?.Source] | index("/var/run/docker.sock")) | .Name' \
+            | tr -d '/' | sort | tr '\n' ' ')
+      [ "$n" = "socket-proxy " ] || { echo "docker.sock is mounted by: $n"; exit 1; }
+    exit-status: 0
+
+  # And nothing publishes a host port compose does not declare. Same shape as
+  # the credential-store derivation: a service added tomorrow starts INSIDE the
+  # assertion and has to be argued out of it by editing compose.yaml, which is
+  # the file that gets reviewed.
+  no-undeclared-published-ports:
+    exec: |
+      declared="{{ declared | unique | join(' ') }}"
+      live=$(docker inspect $(docker ps -q) \
+               | jq -r '.[] | .NetworkSettings.Ports // {} | to_entries[] | select(.value != null) | .value[] | .HostPort' \
+               | sort -u)
+      for p in $live; do
+        case " $declared " in
+          *" $p "*) ;;
+          *) echo "a container publishes host port $p, which compose.yaml does not declare"; exit 1 ;;
+        esac
+      done
+    exit-status: 0
 
   # --- netdata: the three axes its failures actually show up on --------------
   # Its plugins are setuid root and it drops to uid 201 only if it managed to
@@ -256,15 +319,39 @@ command:
   # means a collector running slower would never reach the floor and the alarm
   # would stop firing without a word. The silent-disablement shape from #220, so it
   # gets an assertion rather than a comment.
-  docker-collector-samples-every-second:
+  # The resolution the alarm's floor is divided by. Asserted against the
+  # CONFIGURED value, not against a hard-coded 1: this used to read `== 1`, which
+  # was a proxy for the floor and the wrong one — it would have gone red on a
+  # legitimate resolution change while staying green on every other way of making
+  # the floor unreachable.
+  docker-collector-resolution:
     exec: |
       n=$(docker exec netdata curl -s --max-time 10 \
             "http://127.0.0.1:19999/api/v1/chart?chart=docker_local.container_traefik_health_status" \
             | jq -r '.update_every')
-      case "$n" in
-        1) ;;
-        *) echo "docker collector update_every=$n, not 1 — the 500-sample floor in homelab_container_unhealthy is unreachable"; exit 1 ;;
-      esac
+      [ "$n" = "{{ netdata_docker_update_every }}" ] || {
+        echo "docker collector update_every=$n, expected {{ netdata_docker_update_every }} — the sample floor in homelab_container_unhealthy is derived from it"
+        exit 1
+      }
+    exit-status: 0
+
+  # And the property the proxy was standing in for: the floor is REACHABLE. Read
+  # from the live carrier alarm rather than inferred from the resolution, so any
+  # cause — a slower collector, a collection gap, a shorter retention — is caught
+  # by the same assertion. MAX across instances on purpose: a container recreated
+  # seconds ago legitimately carries a short chart, and one mature chart is all
+  # this needs to prove.
+  container-health-sample-floor-reachable:
+    exec: |
+      max=$(docker exec netdata curl -s --max-time 10 \
+              "http://127.0.0.1:19999/api/v1/alarms?all=true" \
+              | jq '[.alarms[] | select(.name=="homelab_container_health_samples") | .value] | max // 0')
+      max=${max%%.*}
+      floor={{ ((600 / netdata_docker_update_every) * 0.833) | round | int }}
+      [ -n "$max" ] && [ "$max" -gt "$floor" ] || {
+        echo "highest container_health_samples=$max, floor=$floor — homelab_container_unhealthy cannot fire"
+        exit 1
+      }
     exit-status: 0
 
   # --- Pi-hole: the property that actually protects its store ----------------
@@ -310,6 +397,26 @@ command:
   # Empty output fails on purpose (`${open:-nothing}`): FTL not appearing at all
   # means the query log is off or the process is gone, and neither is a state
   # this should report as fine.
+  # Gravity is the blocklist itself. Its refresh is the one Pi-hole mechanism
+  # whose failure is completely silent: DNS keeps answering, the dashboard stays
+  # green, and the lists simply stop ageing. `gravity.info.updated` records the
+  # last successful rebuild and NOTHING read it — zero hits in the health script
+  # and in every goss spec, found by enumeration on 2026-08-29.
+  #
+  # Read host-side rather than through the container: there is no sqlite3 in the
+  # pihole image (measured), and `pihole-FTL sqlite3` is not a subcommand either.
+  #
+  # 14 days is two missed weekly rebuilds, not one: the cadence is weekly, so a
+  # single skipped run is not yet evidence of a stopped mechanism.
+  pihole-gravity-not-stale:
+    exec: |
+      v=$(sqlite3 -readonly "file:{{ services_data_dir }}/pihole/etc/gravity.db?mode=ro" \
+            'select value from info where property="updated";' 2>/dev/null)
+      case "$v" in ''|*[!0-9]*) echo "gravity.info.updated unreadable: [$v]"; exit 1 ;; esac
+      age=$(( ( $(date +%s) - v ) / 86400 ))
+      [ "$age" -le 14 ] || { echo "gravity last rebuilt $age days ago"; exit 1; }
+    exit-status: 0
+
   pihole-ftl-writes-the-current-log:
     exec: |
       open=$(for p in $(pgrep -x pihole-FTL); do readlink /proc/$p/fd/* 2>/dev/null; done \

@@ -2,8 +2,10 @@
 # =============================================================================
 # Curated alarm — CPU temperature (ADR-030, phase 2)
 # =============================================================================
-# Replaces the thermal check in homelab-health.sh, once it has been seen to fire
-# and recover. Until then both run.
+# Replaced the thermal check in homelab-health.sh, and the migration is DONE:
+# the script's check was removed once this one had been observed firing and
+# recovering. This header said "until then both run" for weeks after that
+# stopped being true — see the script's own tombstone for what left it.
 #
 # 80 C is carried over unchanged: it is where the Pi's firmware starts throttling,
 # so it is a hardware fact rather than a tuned threshold. The script reports

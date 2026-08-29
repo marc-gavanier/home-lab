@@ -2,9 +2,10 @@
 # =============================================================================
 # Curated alarm — available memory (ADR-030, phase 2)
 # =============================================================================
-# Replaces the MemAvailable check in homelab-health.sh — but only once this one
-# has been seen to fire and recover, as the migration rule requires. Until then
-# the two run side by side on purpose.
+# Replaced the MemAvailable check in homelab-health.sh, under ADR-030's rule
+# that nothing is deleted until its replacement has been observed firing. That
+# has happened and the script's check is gone; this header claimed the two still
+# ran side by side long after they did not.
 #
 # --- Why MemAvailable and not "free", moved here with the check --------------
 # The page cache is reclaimable and /mnt/data churns hundreds of MB a night, so
