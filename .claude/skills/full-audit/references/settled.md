@@ -1389,3 +1389,131 @@ the main session independently rediscovered and re-reported work that had
 shipped on 2026-08-26. **A tracker that still says pending after the code is
 gone buys the same rediscovery every run.** Check `git log` for the commit that
 references an issue before trusting the issue's own table.
+
+---
+
+## The run of 2026-08-29 — four lots, and the file you are reading cost the run its first hour
+
+Baseline was clean on both hosts and stayed clean: 0 failed units, 28 containers
+up, 34 monitors UP, 13 timer services at exit 0. Both hosts had rebooted that
+morning (offsite 02:41:01, homelab 02:45:59, a deliberate `systemd-reboot`), so
+every accumulating figure that day was reading an eight-hour-old machine.
+
+### Shipped, deployed and verified — do not re-report
+
+| # | What it was | Proven how |
+|---|---|---|
+| #272 | The nightly Immich dumps were world-readable at the path #218 never closed — seven files of ~89 MB at 0644, rewritten at 02:01, under a chain traversable end to end | `access(2)` from the unprivileged `claude` account, with the Vaultwarden database refused in the same call. Fixed with 0700 plus a NAMED assertion, because the derivation cannot be widened to reach it |
+| #273 | Three migration markers outlived their phase, one of them a decision rule for an observation already made | Text corrected against `c2c2a36`; #182's table and this file corrected with it |
+| #274 | Three sweeps stopped one instance short: two `start_period`s, six argument specs, a tmpfs the docs called absent | `start_period` ENUMERATED (below); specs declared in the roles that consume them; docs swept to their siblings |
+| #278 | Nothing asserted `--append-only` on the offsite rest-server — 26 assertions on that host and none about security | Assertion added on the LIVE process, and **made to fail on purpose** in both modes before being believed |
+
+### Two decisions, so nothing re-opens them
+
+- **The Immich photo library stays world-readable, deliberately.** The operator
+  browses it with other tools — Nextcloud, an agent on the host — and wants that
+  to keep working. The exemption in `group_vars` previously left this open as
+  "a real question this issue deliberately does not answer"; it is answered.
+  **Do not propose closing it.** It is also precisely why the *dump* had to move
+  out from under the same exemption: the same account reads both, and only one
+  of them is meant to be read.
+- **The `--append-only` assertion was arbitrated IN**, though it sits next to the
+  inter-host drift detection that was declined. The line is drawn at the one
+  property that makes the offsite host a backup rather than a mirror.
+
+### ENUMERATED — do not re-sample
+
+`start_period`, from netdata's `health_status` charts across the whole
+02:50-03:25 window. Twelve containers declare one; exactly **two** ever left
+`starting` for `unhealthy`:
+
+    collabora       993 s against 600 s   ->  1320 s
+    immich-server   773 s against 480 s   ->  1020 s
+    calibre-web     511 s against 600 s   held — 89 s, the thinnest margin left
+    the other nine  never sampled `starting` in the window
+
+Caveat that keeps this honest: netdata is itself a container and only began
+collecting at 02:55:13, so the four containers started at ~02:50 were healthy
+before anything could watch them. Complete for the later waves, which is where
+every overshoot has ever been.
+
+Both figures are ~2x the 2026-08-27 measurements #258 sized from, because the
+03:00 backup landed on the tail of the startup. **A boot that COLLIDES with the
+nightly backup is the worst case**; a quiet cold boot is not.
+
+### The new fact worth more than the fix
+
+**`start_period` does not only govern the alarm — Traefik withholds a
+container's router while it is `starting`.** An undersized one makes the service
+answer 404 through the proxy. Neither #258 nor #262 records this; both cost it
+only in alarm noise. It is now in the `compose.yaml` header, and it is the whole
+explanation of "five services down" on a morning when `RestartCount` was 0
+across all 28 and the heal timer had taken no action in 217 passes.
+
+### Claims that did not survive verification — one agent's, one the session's own
+
+- **"Five services down from disk saturation caused by the restic backup."**
+  Refuted by three agents independently, from three instruments. The first 404s
+  fall at 02:56, **four minutes before the backup service starts** and six
+  before restic's first read. It was the staged startup after the 02:46 reboot.
+  What survives: the iowait saturation IS recurrent (55-80 % peaks over four
+  nights) and the backup lengthened the recovery — scan 928 s against 122-251 s
+  — but no night without a reboot has ever dropped a service.
+- **"The reboot observation has just been made and it inverts the alarm's own
+  rule."** A rediscovery. The observation was made on 2026-08-26, and `c2c2a36`
+  reached the identical structural conclusion three days earlier. What survived
+  was only the stale text. **The cause was this file**, which still said the
+  observation was pending — see the correction above. Two agents and the main
+  session spent budget on shipped work because of one stale line here.
+
+### New instrument traps — six, and three were the main session's
+
+1. **A glob under `sudo` expands in the UNPRIVILEGED shell.** `sudo grep
+   /etc/goss/*.yaml` returns nothing at all, silently, because `/etc/goss` is
+   `drwx------` and the glob never expands. Use `sudo sh -c '…'`. The same bug
+   makes the restore runbook's `sudo ls /path/*.sql.gz` useless now that #272
+   closed that directory — it reports "no matches", which reads like an empty
+   backup directory rather than a permission error.
+2. **A negative result from a path that does not exist is not a negative
+   result.** `/etc/netdata/health.d` exists only INSIDE the container; the host
+   side is `/mnt/data/services/netdata/health.d`. A `grep -rl` against the
+   container path reported "no occurrences" of a marker that was still there.
+3. **`docker exec … ls` prints container-local time.** A file read `10:02`
+   against a deploy at `12:05` and looked unwritten. UTC inside, CEST outside —
+   the same offset already recorded for `docker logs -t`, arriving by a
+   different command.
+4. **Kuma's first UP beat is bounded by KUMA's own startup, not the
+   container's.** Kuma came up at 00:50:53 and its earliest beats land at
+   00:56:49, so anything "first UP" before ~00:58 measures Kuma. Three
+   containers looked like start_period overshoots and were not.
+5. **Grepping for the marker you just replaced matches the corrected file**,
+   when the new text quotes the old one. Anchor on `^#`.
+6. **An epoch computed for the wrong year** returns a well-formed empty answer
+   from the netdata API, which reads as "no chart" for every container at once.
+   A uniform null across a heterogeneous set is a bug in the query, not a fact
+   about the system.
+
+### The meta-lesson, and it is about this file
+
+`settled.md` is pasted into all eight agent briefs. Two lines in it were stale
+that morning — the #182 container observations, and the goss total of 376 — and
+both propagated straight into the run. The count is now **387** and carries its
+own arithmetic beside it: **one assertion emits TWO TAP lines**, so a single new
+check moves the total by two, which is what made 376 confusing rather than
+merely stale.
+
+Count them with `1..N` in TAP; never carry the figure forward.
+
+### Still open going into the next run
+
+- **#182**, and less of it than before: the two container observations are done
+  (2026-08-26). What remains is the two weekly resticprofile commands on their
+  real schedule — **Sun 2026-08-30, 05:00 and 06:00** — and item 3, the
+  absent-`acme.json` branch, recorded and deliberately not scheduled.
+- **#8**, the Renovate dashboard. Not a finding.
+- Unproven and unprovable on the day: that the 02:01 Immich dump lands normally
+  under the new 0700. The write probe (`docker exec … touch`) succeeded as root
+  inside the container, which is the closest substitute. Note the net is **48 h
+  wide, not 24**: `dump-immich-fresh` accepts a dump under 48 hours old, so a
+  single missing night passes and only the second fails. A corrupt dump is
+  caught the next morning by `dump-immich-usable`.
