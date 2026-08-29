@@ -1,10 +1,13 @@
 ---
-# resticprofile — ADR-031, phase 1 of the migration.
+# resticprofile — ADR-031, migration complete.
 #
-# Installs the binary and the profile. Changes NOTHING else: backup.sh keeps
-# running on its timer, and this exists only so the profile can be exercised by
-# hand against the real repository — including a restore — before anything is
-# switched over.
+# Installs the binary and the profile. This header claimed "phase 1 … backup.sh
+# keeps running on its timer" until 2026-08-29, which stopped being true the day
+# the timers moved: resticprofile owns the nightly backup and the two weekly
+# jobs, and backup.sh, local-maintenance.sh and offsite-check.sh no longer
+# exist. It was staged that way on purpose — install, exercise by hand against
+# the real repository including a restore, then switch — and that sequence is
+# recorded here because it is the part worth reusing.
 #
 # The `no_self_update` build on purpose. A binary that updates itself on a host
 # whose image and package versions are pinned and reviewed through Renovate

@@ -14,26 +14,37 @@
 # door: `delay` postpones a notification netdata never sends, and the adapter
 # reads the status directly.
 #
-# --- The boot window, stated rather than discovered later --------------------
-# This alarm is NOT equivalent to the check it will replace, and the difference
-# is worth naming before it surprises someone.
+# --- The boot window: predicted here, then measured --------------------------
+# This alarm is NOT equivalent to the check it replaced, and the difference was
+# named here before it could surprise anyone. It has since been measured, and
+# the prediction was wrong in the instructive direction.
 #
-# homelab-health.sh gates its version on `mountpoint -q /mnt/data`, so it stays
-# silent between a reboot and the manual LUKS unlock, and only then starts its
-# ten-minute clock. A netdata alarm cannot test a host mountpoint. Worse, the
-# ten-minute window is only as long as the chart's own history: a few minutes
-# after netdata starts, `max -10m` is computed over the few minutes that exist,
-# so a container still waiting for its startup wave can trip this early.
+# PREDICTED: homelab-health.sh gated its version on `mountpoint -q /mnt/data`,
+# so it stayed silent between a reboot and the manual LUKS unlock and only then
+# started its ten-minute clock. A netdata alarm cannot test a host mountpoint,
+# and `max -10m` is only as long as the chart's own history — so a container
+# still waiting for its startup wave looked likely to trip this early, leaving
+# the monitor red for the length of the staged startup.
 #
-# Consequence, accepted deliberately: after a supervised reboot this monitor may
-# go red for the length of the staged startup, and clear itself. Every other
-# path — a container stopped for maintenance, one that failed to come back — is
-# the same behaviour the script had.
+# MEASURED, over the reboots of 2026-08-26 10:04-10:28 and 2026-08-29 02:46: it
+# never fired, and structurally cannot. Netdata is itself a container in the
+# LAST startup wave, so by the time its docker collector has any chart at all,
+# every container is already up. The boot-window noise this header predicted is
+# unreachable.
 #
-# That is exactly why phase 2 deletes nothing. The script's check stays until
-# this one has been watched through a real reboot; if the boot window turns out
-# to be noisy, the answer is to keep the gated check for this one condition, not
-# to widen the window here.
+# So the boot window is not noisy, it is BLIND — the opposite failure, and worth
+# stating in those words because the two call for opposite answers. It is
+# accepted. The case this alarm exists for (#34: socket-proxy stopped while
+# Traefik kept answering 200 from its in-memory routes) is caught at full
+# latency once netdata holds ten minutes of chart, and a container that fails to
+# come back after a reboot stays down long enough to qualify. The one genuinely
+# uncovered case — a container ABSENT from the engine — moved to the goss spec
+# at daily rather than five-minute latency; that trade is recorded in the
+# tombstone at the foot of homelab-health.sh.
+#
+# Phase 2 therefore DID delete, on 2026-08-26 (c2c2a36): both container blocks
+# left homelab-health.sh once these observations were in. That is ADR-030's rule
+# completing, not being waived. Nothing here is pending.
 # =============================================================================
 
  template: homelab_container_down

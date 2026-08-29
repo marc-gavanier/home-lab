@@ -52,10 +52,15 @@
 - name: Set up the local restic backup and nightly timer
   ansible.builtin.import_tasks: backup.yml
 
-# ADR-031, phase 1: installs resticprofile and its profile and changes nothing
-# else. backup.sh keeps running on its timer; this exists so the profile can be
-# exercised by hand — a backup, then a RESTORE from it — before anything moves.
-- name: "Install resticprofile and its profile (ADR-031, phase 1)"
+# ADR-031, and the migration is over. This announced "phase 1 … backup.sh keeps
+# running on its timer" on every single run until 2026-08-29, long after the
+# switch: resticprofile owns the nightly job and the two weekly ones, all three
+# ExecStart lines go through it, and backup.sh, local-maintenance.sh and
+# offsite-check.sh are deleted — by this same role, a few tasks further down.
+# The staging is kept in this sentence because it is the reusable part: install,
+# exercise by hand against the real repository including a RESTORE, then move
+# the timers.
+- name: "Install resticprofile and its profile (ADR-031)"
   ansible.builtin.import_tasks: resticprofile.yml
 
 - name: Set up the host tunnel to the offsite Pi (ADR-010)

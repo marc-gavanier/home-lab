@@ -1253,9 +1253,15 @@ tonight.** Say so before quoting one, and do not project from it.
   (deleted), `offsite-check.sh` (deleted). The nightly job is `resticprofile`
   with hooks; the single notify site left is `backup-notify.sh`.
 - **ADR-032, goss.** `backup-dumps.sh` (373 lines) and the posture assertions
-  became declared specs. **Four specs across the two hosts, 376 checks**,
-  measured 2026-08-29: posture 325, backup-dumps 19, units 12 on the homelab,
-  offsite-health 20 on the offsite Pi. `posture.sh` keeps only what goss cannot
+  became declared specs. **Four specs across the two hosts, 384 checks**,
+  re-measured 2026-08-29 after the fsck work landed: posture 326, backup-dumps
+  19, units 13 on the homelab, offsite-health 26 on the offsite Pi. An earlier
+  version of this line said 376 (325/19/12/20) and was already stale when the
+  2026-08-29 run pasted it into eight agent briefs — `06ad23a` had added the
+  offsite assertions hours before. Count them with `1..N` in TAP rather than
+  carrying the figure forward, and note that ONE assertion emits TWO TAP lines
+  (`exit-status` and `stdout`), which is why adding a single check moves the
+  total by two. `posture.sh` keeps only what goss cannot
   express. They are documented in `docs/07-observability/README.md` since #263 —
   including the one trap: `backup-dumps.yaml` run by hand outside the backup
   window reports 13 of 19 failed, because the dump directory only exists during
@@ -1362,8 +1368,24 @@ than as new findings, and check their state before spending budget on them.
 **#182 only** — four scheduled observations, and it is a good statement of what
 "unproven" means here. Two weekly resticprofile commands have each carried their
 own message exactly once, from a hand-started run; their first scheduled run is
-**Sun 2026-08-30, 05:00 and 06:00**. Two container-alarm observations remain:
-`homelab_container_down` firing on a stopped container, and the same alarm
-watched through a supervised reboot. The reboot of 2026-08-26 was on-site and
-supervised — **whether that observation was actually made during it is worth
-checking rather than assuming.**
+**Sun 2026-08-30, 05:00 and 06:00**.
+
+**The two container-alarm observations are DONE, and this file said otherwise
+for three days.** Both were made on 2026-08-26 — `homelab_container_down` on a
+container stopped and left stopped at 22:14 (alarm at 10 min 44 s, adapter
+pushed to Kuma 51 s later), and the supervised reboot at 10:04-10:28. `c2c2a36`
+recorded them, deleted both blocks from `homelab-health.sh`, and referenced
+#182 — whose body was never updated and still read *Pending*.
+
+The reboot observation came out **blind, not noisy**: netdata is itself a
+container in the last startup wave, so by the time its docker collector has any
+chart every container is already up. That is the opposite of what the alarm's
+own header predicted, and the templates kept announcing the pre-deletion state
+until #273.
+
+Cost of the staleness, and the reason it is written up rather than quietly
+fixed: the 2026-08-29 run sent this claim to eight agents, and two of them plus
+the main session independently rediscovered and re-reported work that had
+shipped on 2026-08-26. **A tracker that still says pending after the code is
+gone buys the same rediscovery every run.** Check `git log` for the commit that
+references an issue before trusting the issue's own table.
