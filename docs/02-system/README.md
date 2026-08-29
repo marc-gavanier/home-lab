@@ -71,19 +71,54 @@ See `docs/06-backup/` for backup strategy.
 
 ### Filesystem integrity — what checks what
 
-| Volume            | Checked by                                                                    | When                                                                                         |
-|-------------------|-------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------|
-| `/mnt/data` (HDD) | `e2fsck -p` inside `homelab-unlock`, on the still-unmounted mapper            | every unlock — about a second on a clean filesystem, a real scan after an unclean shutdown   |
-| `/` (SD)          | `e2fsck -p` by `systemd-fsck-root.service`, which fstab's `passno=1` pulls in | when a superblock trigger is due — 30 days or 30 mounts, whichever comes first               |
-| both              | the daily disk report reads the superblock error counters (`ext4 clean`)      | daily — this catches errors the kernel **already noticed**, which is not a consistency check |
+| Volume                  | Checked by                                                               | When                                                                                         |
+|-------------------------|--------------------------------------------------------------------------|----------------------------------------------------------------------------------------------|
+| `/mnt/data` (HDD)       | `e2fsck -p` inside `homelab-unlock`, on the still-unmounted mapper       | every unlock — about a second on a clean filesystem, a real scan after an unclean shutdown   |
+| `/` (SD)                | `e2fsck -p` in the **initramfs**, before systemd starts                  | **every boot**, in full — not when a trigger is due. See below                               |
+| `/mnt/backup` (offsite) | `e2fsck -p` at boot, which fstab's `passno=2` pulls in                   | every boot, for the same reason — ~1 min against the root filesystem's ~6 s                  |
+| both                    | the daily disk report reads the superblock error counters (`ext4 clean`) | daily — this catches errors the kernel **already noticed**, which is not a consistency check |
 
 Neither root filesystem had ever been checked before 2026-08-25. `Last checked`
 read `Tue Feb 10 04:01:10 2026` on **both** hosts — the mkfs timestamp baked
-into the Ubuntu image, not a date anyone verified anything on. The fix needs two
-halves and either alone is inert: `passno=1` in fstab makes systemd run the
-check, and the `-c`/`-i` triggers in the superblock decide whether one is due.
-Both are asserted by goss, separately, because the fstab half is the one
-cloud-init can quietly revert.
+into the Ubuntu image, not a date anyone verified anything on.
+
+**What actually runs the check, corrected 2026-08-29 (#260).** This section said
+`systemd-fsck-root.service` consulted the `-c`/`-i` triggers and checked when one
+was due. That service never runs. It is skipped at every boot:
+
+```
+systemd-fsck-root.service - File System Check on Root Device was skipped
+because of an unmet condition check (ConditionPathExists=!/run/initramfs/fsck-root)
+```
+
+The initramfs has already done it — and the initramfs runs before any time sync
+on a host with no RTC, so its clock reads a frozen value. On both Pis that value
+is `2026-07-28 17:04`, which is also what four consecutive boots stamp as their
+first journal entry. Every superblock therefore looks future-dated to it, and
+`/run/initramfs/fsck.log` says so on every boot:
+
+```
+writable: Superblock last write time (Wed Aug 26 20:55:35 2026,
+        now = Tue Jul 28 15:04:46 2026) is in the future. FIXED.
+```
+
+Three consequences, and the first is the one that matters:
+
+1. **The root filesystem is checked in full at every boot** — more often than
+   either trigger would ever have asked for. The gap this section was written to
+   close is closed, by an accident rather than by the triggers.
+2. **Neither trigger can fire.** A full check resets the mount count and rewrites
+   `Last checked` backwards to the frozen value, which is why both hosts read
+   `Last checked: Tue Jul 28` and `Mount count: 1` after three and four boots.
+   Lowering `root_fsck_max_mounts` would change nothing.
+3. **`Last checked` is not a freshness indicator here.** Do not read it as one.
+
+The `-c`/`-i` values are still set and still asserted, so the configuration is
+right the day the clock is; `passno` is what does the work today. What tests
+capability rather than configuration is `root-was-checked-this-boot`, which
+reads `/run/initramfs/fsck.log` — that file lives in `/run`, so it is this
+boot's and no other, and its absence means nothing checked the root filesystem
+when the host came up.
 
 It changes a failure mode, which is the part worth knowing before a reboot:
 `e2fsck -p` fixes only what is unambiguously safe and systemd turns anything

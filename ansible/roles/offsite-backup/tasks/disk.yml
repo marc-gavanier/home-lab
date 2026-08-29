@@ -71,10 +71,33 @@
   changed_when: false
   check_mode: false
 
+# `passno: 2` is what makes anything ever check this disk (#260). It held the
+# entire offsite restic copy for 48 days with `Maximum mount count: -1`,
+# `Check interval: 0` and `passno 0` — never checked since mkfs, and nothing
+# that would ever check it. The superblock triggers armed in `base` are the
+# other half and are useless without this one: only the boot-time fsck consults
+# them.
+#
+# Two consequences, both accepted deliberately rather than discovered later:
+#
+#   COST. The frozen boot clock (see base/tasks/filesystem-checks.yml) makes
+#   every superblock look future-dated, so this will be a FULL check at every
+#   boot rather than only when a trigger is due. 122 M inodes against the root
+#   filesystem's 15.5 M, which takes ~6 s — so of the order of a minute. This
+#   host boots a handful of times a year.
+#
+#   FAILURE MODE. `nofail` is what makes that safe to do on a host with no
+#   physical access: it puts the mount unit in local-fs.target's `Wants=` and
+#   not its `Requires=`, so an e2fsck that refuses to preen fails the mount and
+#   the boot continues, rather than dropping to an emergency shell nobody can
+#   reach. That is the opposite of the root filesystem's trade-off, and it is
+#   the reason this could be turned on here at all.
 - name: disk | Mount backup disk
   ansible.posix.mount:
     path: "{{ backup_mount_point }}"
     src: "UUID={{ backup_disk_uuid.stdout }}"
     fstype: ext4
     opts: defaults,noatime,nofail
+    passno: "2"
+    dump: "0"
     state: mounted

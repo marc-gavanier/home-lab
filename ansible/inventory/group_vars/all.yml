@@ -45,6 +45,13 @@ luks_mapper_name: data_crypt
 root_fsck_max_mounts: 30
 root_fsck_interval_days: 30
 
+# Filesystems beyond `/` that the base role arms, one entry per device (#260).
+# Empty here: the homelab's encrypted volume is armed by the storage role, which
+# owns the LUKS-mapper guard. The offsite Pi sets its backup disk in host_vars.
+# Arming alone checks nothing — the entry's `passno` in fstab is what makes the
+# boot-time fsck consult these triggers at all.
+extra_fsck_filesystems: []
+
 # The same triggers on the DATA volume (#254), and deliberately not the same
 # values. /mnt/data is mounted once per unlock, so the mount count is nearly
 # dead weight here — a host that reboots twice a year would reach 30 unlocks in
