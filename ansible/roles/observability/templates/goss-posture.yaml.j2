@@ -149,6 +149,31 @@ command:
     exit-status: 0
     stdout: ["!/./"]
 
+  # The same one-level-short family, from the other side. The assertion above
+  # watches {{ backup_dir }}, where #218's stray dump sat. Neither has ever
+  # watched the directory Immich's own scheduled backup WRITES to, under
+  # {{ services_data_dir }} — and that is where the live copy is: seven dumps of
+  # ~89 MB, rewritten nightly at 02:01, world-readable until #272 found them.
+  #
+  # It has to be asserted by name. `credential-stores-all-closed` derives from
+  # bind mount SOURCES and stats only the source itself; `immich/upload` is the
+  # mount, is exempt as media, and this is its child. The derivation is
+  # structurally unable to see it — the same argument that made
+  # `pihole-etc-no-world-readable-file` a named assertion rather than a derived
+  # one, for the opposite reason.
+  #
+  # The directory mode, not the file modes: Immich writes the dumps with its own
+  # umask, which no task here can reach, while the directory it owns is
+  # enforceable and is what actually denies the traversal.
+  #
+  # No `absent` escape, unlike backup-dumps-mode above. That directory is
+  # ephemeral by design; this one is permanent, so a `stat` that cannot read is
+  # not a `stat` that found nothing.
+  immich-dump-dir-closed:
+    exec: stat -c %a {{ immich_backup_dir }}
+    exit-status: 0
+    stdout: ["/^700$/"]
+
 {% set compose = lookup('file', playbook_dir + '/../../docker/compose.yaml') | from_yaml %}
 {% for name, svc in compose.services.items() %}
 {%- set cname = svc.container_name | default(name) %}
