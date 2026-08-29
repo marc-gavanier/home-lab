@@ -104,11 +104,39 @@ else
     done
 
     # Temperature (attribute 194). 60C rather than the offsite SSD's 70: this is
-    # a spinning drive in an enclosure, rated to 65, and it already idles near 53.
+    # a spinning drive in an enclosure and it already idles near 53.
+    #
+    # --- The threshold is on the PEAK, not on the reading of the moment -------
+    # This job runs at 07:00 and the disk's busiest hour is 03:00, so the
+    # instantaneous attribute is a sample of the coolest part of the cycle by
+    # construction. Measured 2026-08-29: 49C at 07:03 while the drive's own
+    # `Power Cycle Min/Max` recorded 53C during the nightly backup, and 67% of
+    # 274 smartd samples over 22 days sat at 50C or above.
+    #
+    # `Power Cycle Min/Max` and not the attribute line's own Min/Max: this
+    # counter RESETS at every power cycle, so a peak that has been dealt with
+    # stops being reported. A lifetime maximum can never come back down, which
+    # would make the threshold latch permanently on a single past event — the
+    # "red monitor nobody can act on" shape that #207 is about.
+    #
+    # It needs its own smartctl call: `-x` changes the attribute table to the
+    # brief format, where the raw value moves out of field 10 and would silently
+    # break raw() for every other attribute here.
     hdd_temp=$(raw 194)
+    hdd_tmax=$(smartctl -x "$DRIVE" 2>/dev/null |
+               awk -F: '/Power Cycle Min\/Max Temperature/ {
+                            gsub(/[^0-9\/]/, "", $2); split($2, a, "/"); print a[2]; exit }')
     if [ -n "$hdd_temp" ]; then
-        report+=("hdd ${hdd_temp}C")
-        [ "$hdd_temp" -ge 60 ] && problems+=("hdd ${hdd_temp}C")
+        if [ -n "$hdd_tmax" ]; then
+            report+=("hdd ${hdd_temp}C (peak ${hdd_tmax}C)")
+            [ "$hdd_tmax" -ge 60 ] && problems+=("hdd peak ${hdd_tmax}C this power cycle")
+        else
+            # No peak counter is a gap in the instrument, not a clean bill of
+            # health: fall back to the instantaneous reading and SAY so, rather
+            # than silently checking the cooler value as though nothing changed.
+            report+=("hdd ${hdd_temp}C (no peak counter)")
+            [ "$hdd_temp" -ge 60 ] && problems+=("hdd ${hdd_temp}C")
+        fi
     fi
 
     # --- Two readings of the self-test log, because it answers two questions --

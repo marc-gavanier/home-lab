@@ -187,6 +187,14 @@ command:
     exec: '[ "$(smartctl -A {{ backup_disk_device_base }} 2>/dev/null | awk ''$1 == 232 { print $4 + 0; exit }'')" -ge 50 ]'
     exit-status: 0
 
+  # Deliberately the CURRENT value and not the drive's Min/Max. This assertion
+  # runs weekly, so it samples a cool moment by construction — but the only
+  # maximum this drive exposes is the attribute line's own `(Min/Max 16/61)`,
+  # whose window is undocumented and most likely lifetime. A threshold on a
+  # figure that can never come back down latches red forever on one past event.
+  # The peak is REPORTED by offsite-health.sh instead, for a human to read. The
+  # homelab uses a `Power Cycle Min/Max` that resets at every boot, which is why
+  # it could take the other route.
   offsite-ssd-temperature:
     exec: '[ "$(smartctl -A {{ backup_disk_device_base }} 2>/dev/null | awk ''$1 == 194 { print $10; exit }'')" -lt 70 ]'
     exit-status: 0

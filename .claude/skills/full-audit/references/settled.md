@@ -1265,7 +1265,8 @@ tonight.** Say so before quoting one, and do not project from it.
   deliberately not written here: this line has carried a stale figure three
   times (376, then 384 against its own 387 later in the same file), and each
   time it reached eight agent briefs before anyone measured. Count with `1..N`
-  in TAP, and note that ONE assertion emits TWO TAP lines
+  in TAP. And do NOT carry forward the old rule that one assertion emits two
+  TAP lines — see the correction at the end of this file
   (`exit-status` and `stdout`), which is why adding a single check moves the
   total by two. `posture.sh` keeps only what goss cannot
   express. They are documented in `docs/07-observability/README.md` since #263 —
@@ -1511,8 +1512,14 @@ in this file**, which sent one agent to a wrong arithmetic and cost the main
 session a correction in front of the operator. The numbers are now gone from
 this file entirely — see `classes.md` — and only the rule remains:
 
-**one assertion emits TWO TAP lines**, so a single new check moves the total by
-two. Count with `1..N` in TAP; never carry the figure forward.
+~~one assertion emits TWO TAP lines~~ — **that rule is wrong**, and it was
+itself a source of the confusion it was written to prevent. Measured on
+2026-08-29 while deploying #285: six assertions declaring only `exit-status`
+added SIX lines, while one declaring `exit-status` and `stdout` added two. The
+line count follows the number of ATTRIBUTES declared, not the number of
+assertions.
+
+Count with `1..N` in TAP; never carry the figure forward, and never derive it.
 
 ### Still open going into the next run
 

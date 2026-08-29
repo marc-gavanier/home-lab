@@ -102,11 +102,24 @@ fi
 # --- Readings, because nothing else here reports a number --------------------
 disk=$(df --output=pcent "$MOUNT" 2>/dev/null | tail -1 | tr -dc '0-9')
 cpu=$(( $(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null || echo 0) / 1000 ))
-ssd=$(smartctl -A "$DRIVE" 2>/dev/null | awk '$1 == 194 { print $10; exit }')
+# The instantaneous reading AND the drive's own maximum, because this job runs
+# once a week at 08:00 and the disk's busy hour is the nightly copy: the sample
+# is taken at the coolest part of the cycle by construction.
+#
+# The maximum is REPORTED, never thresholded — unlike the homelab's, which uses
+# a `Power Cycle Min/Max` that resets at every boot, this drive exposes only the
+# attribute line's own `(Min/Max 16/61)`, whose window is not documented and is
+# most likely lifetime. A threshold on a value that can never come back down
+# latches red forever on a single past event, which is the exact shape #207 is
+# about. So the peak goes in the message for a human to read, and the assertion
+# in the goss spec keeps checking the current value.
+ssd_line=$(smartctl -A "$DRIVE" 2>/dev/null | awk '$1 == 194 { print; exit }')
+ssd=$(printf '%s\n' "$ssd_line" | awk '{ print $10 }')
+ssd_max=$(printf '%s\n' "$ssd_line" | sed -n 's/.*Min\/Max *[0-9]*\/\([0-9]*\).*/\1/p')
 hs=$(wg show wg0 latest-handshakes 2>/dev/null | awk 'NR == 1 { print $2 }')
 tunnel=$([ -n "${hs:-}" ] && echo "$(( $(date +%s) - hs ))s" || echo "down")
 
-msg="disk ${disk:-?}%, cpu ${cpu}C, ssd ${ssd:-?}C, tunnel ${tunnel}${total:+, ${total} checks}"
+msg="disk ${disk:-?}%, cpu ${cpu}C, ssd ${ssd:-?}C${ssd_max:+ (max ${ssd_max}C)}, tunnel ${tunnel}${total:+, ${total} checks}"
 
 {# bash ${#array[@]} reads as a Jinja comment opener — shield it #}
 if [ {% raw %}${#problems[@]}{% endraw %} -gt 0 ]; then
