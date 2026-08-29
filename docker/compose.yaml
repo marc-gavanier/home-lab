@@ -587,6 +587,17 @@ services:
     image: mariadb:12.3.3
     container_name: nextcloud-db
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    # Measured 2026-08-29: a clean shutdown of this database takes 9.96 s, against
+    # Docker's default per-container stop timeout of 10 s. Forty milliseconds of
+    # margin is a coin flip, and under any load at all it loses — which is why
+    # this container came back running InnoDB crash recovery (853 pages, 47 s)
+    # after a DELIBERATE reboot (#288).
+    #
+    # 30 s is 3x the measured drain rather than a round number. The two PostgreSQL
+    # databases need 1.6 s and 2.5 s and are left on the default deliberately: the
+    # budget that killed THEM is the daemon-wide one, not this one, and giving a
+    # container a grace period it never uses hides which knob is doing the work.
+    stop_grace_period: 30s
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     read_only: true

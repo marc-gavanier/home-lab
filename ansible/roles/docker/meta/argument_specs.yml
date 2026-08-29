@@ -12,3 +12,10 @@ argument_specs:
         type: path
         required: true
         description: Encrypted volume mount point — Docker is gated behind it (RequiresMountsFor).
+      docker_shutdown_timeout:
+        type: int
+        required: true
+        description: >-
+          Seconds the daemon gives all containers together to drain on shutdown
+          (daemon.json shutdown-timeout). Must be less than docker.service's
+          TimeoutStopSec, or systemd kills the daemon mid-drain.
