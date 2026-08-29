@@ -650,6 +650,8 @@ command:
         printf '%s\n' "$live" "$enrolled" | sort | uniq -u | cut -c1-12 | sed 's/^/  /'
         exit 1
       }
+    # `docker exec` into wg-easy plus a sqlite3 read, same reason.
+    timeout: 30000
     exit-status: 0
 
   # --- A feed reader that stops reading some feeds and keeps showing them ------
@@ -710,6 +712,9 @@ command:
           -c "select id, checked_at, left(title,48) $q;" 2>/dev/null | sed 's/^/  /'
         exit 1
       }
+    # Two `docker exec` plus a psql round trip, for the same reason as
+    # no-container-came-back-recovering below.
+    timeout: 30000
     exit-status: 0
 
   # --- The shutdown budget, and the recovery that proves it was too small -----
@@ -768,4 +773,12 @@ command:
         echo "the shutdown budget did not cover them — see #288"
         exit 1
       }
+    # goss allows a command 10 s by default and this one exceeded it on
+    # 2026-08-30 01:02, reporting `Error Command execution timed out` — which
+    # reads as a failed assertion but is the instrument failing, not the system.
+    # Measured cost on an idle host: 1 061 ms for all four containers. The
+    # timeout is not about that figure, it is about the load THIS SPEC creates:
+    # 337 checks, many shelling out to docker, and the run that timed out came
+    # minutes after a daemon restart. 30 s is ~28x the idle cost.
+    timeout: 30000
     exit-status: 0
