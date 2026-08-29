@@ -284,12 +284,17 @@ services:
 
   # --- Pi-hole (DNS + Ad blocking) ---
   pihole:
-    # FTL keeps its query database in SQLite with a write-ahead log, and it has
-    # come back with "recovered N frames from WAL" - at ERROR level - after every
-    # unclean stop this repo has looked at (937 frames on 2026-08-29). Recovery
-    # is not data loss here, the WAL exists precisely for this, but it is the
-    # same root cause as the three databases and it is fixed by the same knob.
-    # 30 s to match them rather than a separately guessed number.
+    # FTL keeps its query database in SQLite with a write-ahead log, and it came
+    # back with "recovered N frames from WAL" - at ERROR level - after every
+    # unclean stop this repo has looked at.
+    #
+    # This grace period is NOT what fixes it, and the first version of this
+    # comment said it was. pihole was given 30 s and still came back recovering
+    # on the very next restart, while the three databases went clean. The cause
+    # is the missing CAP_KILL below: FTL is never asked to stop at all, so no
+    # amount of waiting helps. The 30 s is kept because it is the budget FTL
+    # will need once it CAN be signalled - a checkpoint on the query database is
+    # not instant - but the capability is the fix.
     stop_grace_period: 30s
     image: pihole/pihole:2026.07.2
     container_name: pihole
@@ -328,6 +333,27 @@ services:
       # ownership settles it and `user:` would break the setcap step.
       - DAC_OVERRIDE
       - FOWNER
+      # And the consequence of those same two identities, found on 2026-08-30
+      # (#288): root's stop script cannot signal FTL, which runs as uid 1000.
+      # The container's own shutdown path says so out loud and nobody had read
+      # it, because it is only ever printed while the container is going away:
+      #
+      #     [i] Container stop requested...
+      #     [i] pihole-FTL is running - Attempting to shut it down cleanly
+      #     pihole-FTL(62): Operation not permitted
+      #     pihole-FTL: no process found
+      #
+      # Confirmed directly: `kill -0 <ftl-pid>` as root inside the container
+      # returns "Operation not permitted". For uid 0, signalling a process owned
+      # by another uid needs CAP_KILL, and cap_drop: ALL took it.
+      #
+      # So FTL was never asked to stop - it was killed by Docker at the end of
+      # the grace period, every time, and came back recovering its WAL. No
+      # stop_grace_period can fix that: the time was never the problem.
+      #
+      # The blast radius is one PID namespace - CAP_KILL lets this container's
+      # root signal this container's own processes and nothing else.
+      - KILL
     ports:
       - "53:53/tcp"
       - "53:53/udp"
