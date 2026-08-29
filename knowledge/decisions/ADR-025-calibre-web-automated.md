@@ -124,8 +124,11 @@ unauthenticated HTTP probe, because the login page is served by a process that i
 fine while the library handling is not.
 
 The compose healthcheck therefore probes `/login` explicitly rather than
-inheriting the image's, with a 120 s `start_period` (first boot creates `app.db`
-and takes ~90 s). The Kuma monitor is understood to cover reachability and TLS
+inheriting the image's, with a **600 s** `start_period`. The 120 s this ADR carried
+until 2026-08-29 came from a *warm* measurement of the s6 init (~90 s), which is not
+what a cold boot costs; the service page was corrected first and this ADR was missed,
+which is #203's pattern running in the opposite direction. Treat (ADR, service page)
+as one object. The Kuma monitor is understood to cover reachability and TLS
 expiry only — proving the library is readable needs an authenticated request,
 which a Kuma HTTP check cannot make without storing credentials. Calibre-Web
 joins Collabora (ADR-021) as the second documented place where "probe a function,

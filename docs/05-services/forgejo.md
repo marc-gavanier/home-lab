@@ -283,8 +283,11 @@ Add an Uptime Kuma monitor by hand (Kuma is v2; the automation tooling is v1-onl
 ## Startup
 
 Forgejo is in **wave 1** of the staged startup, with the other light services. It has
-no peer to wait for and nothing gates on it. Its 120s `start_period` covers the schema
-migrations on first boot, not a slow init the wave has to absorb.
+no peer to wait for and nothing gates on it. Its `start_period` is **420 s**, raised
+from 120 s on 2026-08-29: the figure it replaces was sized for the first-boot schema
+migrations, while the real worst case is a cold boot landing on the 03:00 backup.
+An undersized one does not merely mislabel the container — Traefik withholds its
+router while it is `starting`, so the service answers 404 through the proxy.
 
 For maintenance use `docker compose down forgejo`, never `docker stop` — a stopped
 container usually reports a non-zero exit code and the heal timer will resurrect it

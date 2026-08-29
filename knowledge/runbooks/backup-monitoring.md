@@ -68,9 +68,9 @@ The local maintenance job (`homelab-local-maintenance.timer`,
 Sunday 05:00: weekly prune + metadata check, monthly deep read-data on the 1st Sunday)
 reports to its own push monitor, same pattern as the offsite check:
 
-| Monitor           | Pinged by                                            | Interval       | Vault variable                                    |
-|-------------------|------------------------------------------------------|----------------|---------------------------------------------------|
-| Local prune+check | `resticprofile -n homelab prune`+`check` (Sun 05:00) | 700000 s (8 d) | `local_maintenance_kuma_push_url` (homelab local) |
+| Monitor               | Pinged by                                            | Interval       | Vault variable                                    |
+|-----------------------|------------------------------------------------------|----------------|---------------------------------------------------|
+| Pi restic prune+check | `resticprofile -n homelab prune`+`check` (Sun 05:00) | 691200 s (8 d) | `local_maintenance_kuma_push_url` (homelab local) |
 
 Create the Push monitor first (8 d interval covers a weekly run plus grace), then set
 `local_maintenance_kuma_push_url` in `local.yml` and redeploy with the same
@@ -83,7 +83,7 @@ Three more push monitors follow the same pattern:
 
 | Monitor        | Pinged by                                      | Interval       | Vault variable                                     |
 |----------------|------------------------------------------------|----------------|----------------------------------------------------|
-| Offsite copy   | resticprofile `copy` (homelab, nightly)        | 90000 s (25 h) | `offsite_copy_kuma_push_url` (homelab local.yml)   |
+| Offsite backup | resticprofile `copy` (homelab, nightly)        | 90000 s (25 h) | `offsite_copy_kuma_push_url` (homelab local.yml)   |
 | Offsite check  | `resticprofile -n offsite check` (Sun 06:00)   | 700000 s (8 d) | `offsite_check_kuma_push_url` (homelab local.yml)  |
 | Offsite health | `offsite-health.sh` (offsite Pi, Sunday 08:00) | 700000 s (8 d) | `offsite_health_kuma_push_url` (offsite local.yml) |
 

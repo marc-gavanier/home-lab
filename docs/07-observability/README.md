@@ -121,20 +121,38 @@ run across the two hosts, and until #263 they appeared in no runbook and nowhere
 on this page — while Kuma is able to display `goss spec … missing` to someone
 with nothing to look it up in.
 
-| Spec | Host | Checks | Run by | When |
-|------|------|--------|--------|------|
-| `/etc/goss/posture.yaml` | homelab | **328** | `homelab-posture.sh` | daily, 11:00 + up to 10 min jitter |
-| `/etc/goss/units.yaml` | homelab | **13** | `homelab-health.sh` | every 5 min |
-| `/etc/goss/backup-dumps.yaml` | homelab | **19** | a resticprofile hook, result read by `backup-notify.sh` | nightly, inside the 03:00 backup |
-| `/etc/goss/offsite-health.yaml` | offsite | **27** | `offsite-health.sh` | Sunday, 08:00 + jitter |
+| Spec | Host | Run by | When |
+|------|------|--------|------|
+| `/etc/goss/posture.yaml` | homelab | `homelab-posture.sh` | daily, 11:00 + up to 10 min jitter |
+| `/etc/goss/units.yaml` | homelab | `homelab-health.sh` | every 5 min |
+| `/etc/goss/backup-dumps.yaml` | homelab | a resticprofile hook, result read by `backup-notify.sh` | nightly, inside the 03:00 backup |
+| `/etc/goss/offsite-health.yaml` | offsite | `offsite-health.sh` | Sunday, 08:00 + jitter |
 
-**387 checks in total.** The counts are goss's own (`Count:` in the default
-output, `1..N` in TAP) and were re-measured on 2026-08-29 after #272. One
-assertion emits TWO TAP lines (`exit-status` and `stdout`), so a single new check
-moves the total by two — which is why the earlier figure of 376 was not merely
-stale but stale in a confusing direction. Treat them as an order of magnitude, since every spec is templated from `docker/compose.yaml` and
-group_vars and grows with the stack. The binary is `/usr/local/bin/goss` on both
-hosts. The specs are not world-readable — every command below needs `sudo`.
+**There is deliberately no check count in that table, and there must not be
+one.** It has been written down three times — 376, then 387 — and been wrong
+three times, twice reaching eight agent briefs before anyone measured. Every
+spec is templated from `docker/compose.yaml` and group_vars and grows with the
+stack, so any number here is stale on the next deploy that adds an assertion.
+The machine owns the figure; ask the machine:
+
+```bash
+for h in homelab offsite; do
+  ssh $h 'sudo sh -c "for f in /etc/goss/*.yaml; do
+    printf \"%s %s\\n\" \"$f\" \"$(goss -g $f validate --format tap | grep -m1 \"^1\\.\\.\")\"
+  done"'
+done
+```
+
+Read the `1..N` and never derive it. The old rule that *"one assertion emits two
+TAP lines"* was **measured false** on 2026-08-29: six assertions declaring only
+`exit-status` added six lines, while one declaring `exit-status` and `stdout`
+added two. The line count follows the number of **attributes** declared, not the
+number of assertions — which is precisely why deriving it has never worked.
+
+The binary is `/usr/local/bin/goss` on both hosts. The specs are not
+world-readable — every command above and below needs `sudo`, and note that
+`sudo goss -g /etc/goss/*.yaml` expands the glob in the *unprivileged* shell and
+silently matches nothing, which is why the loop above uses `sudo sh -c`.
 
 **Running one by hand:**
 
@@ -412,8 +430,9 @@ rather than pretending the rule is universal.
 on it stays green while no document can open — the failure mode described in
 ADR-021. The real probe is a document conversion, which is a multipart POST and
 does not fit a Kuma HTTP check. Two other things cover the gap instead: the
-image's own healthcheck flips the container `unhealthy`, which the host health
-report picks up within 10 minutes, and every deploy runs the conversion itself
+image's own healthcheck flips the container `unhealthy`, which the netdata alarm
+`homelab_container_unhealthy` raises after 10 min and the adapter pushes to Kuma
+on its next 5-minute tick — 15 min worst case, and every deploy runs the conversion itself
 and fails if it does not produce a PDF. A Kuma monitor on `/hosting/capabilities`
 was added on 2026-08-05 — it had been described here for months without existing,
 which the `ops/kuma-dump.sh` inventory exposed. It covers reachability and TLS
@@ -506,17 +525,17 @@ table reads as coverage, which is how a deleted check sat in it unnoticed:
 | Pending reboot       | `/var/run/reboot-required` exists — auto-reboot is disabled by policy, so it waits on the operator                                                   | `homelab-health.sh`                   |
 | Security updates     | still pending after **48 h** (age-gated: unattended-upgrades runs daily)                                                                             | `homelab-health.sh`                   |
 | Disk capacity        | `/` or `/mnt/data` ≥ **85 %** full                                                                                                                   | `homelab-health.sh`                   |
-| Available memory     | `MemAvailable` < **800 MiB** on two consecutive runs (> 5 min)                                                                                       | netdata `homelab-memory`              |
+| Available memory     | `MemAvailable` < **800 MiB** sustained over a **5 min** window (`lookup: max -5m`)                                                                                       | netdata `homelab-memory`              |
 | Swap occupancy       | ≥ **85 %** of the 4 GiB swap file — provisional threshold, see below                                                                                 | netdata `homelab-swap`                |
-| DNS upstream         | a cache-busting query gets no answer, or a non-answer rcode, on two consecutive runs (> 5 min)                                                       | `homelab-health.sh`                   |
+| DNS upstream         | a cache-busting query gets no answer, or a non-answer rcode, for **240 s** (shared gate)                                                       | `homelab-health.sh`                   |
 | Unhealthy container  | a container fails its healthcheck for > **10 min**                                                                                                   | netdata `homelab-container-unhealthy` |
 | Container stopped    | a container present in the engine is not running for > **10 min**                                                                                    | netdata `homelab-container-down`      |
 | Container absent     | an expected container is **gone from the engine entirely** — up to **24 h**, this is a daily check                                                   | goss `posture.yaml` ²                 |
 | systemd unit failed  | anything in `systemctl --failed`                                                                                                                     | goss `units.yaml` ²                   |
-| systemd restart loop | a unit stuck in `auto-restart` across two consecutive runs                                                                                           | `homelab-health.sh`                   |
+| systemd restart loop | a unit stuck in `auto-restart` for **240 s** (shared gate)                                                                                           | `homelab-health.sh`                   |
 | Expected unit down   | docker, containerd, fail2ban, claude-remote-control or wg-quick@wg0 not `active`                                                                     | goss `units.yaml` ²                   |
 | Timer last run       | a `homelab-*` timer whose triggered service did not end in `success`                                                                                 | `homelab-health.sh`                   |
-| Git mirror stale     | the mirror's `next_update_unix` is more than **1 h** in the past — so > 9 h since the last completed sync — or its state is unreadable twice running | `homelab-health.sh`                   |
+| Git mirror stale     | the mirror's `next_update_unix` is more than **1 h** in the past — so > 9 h since the last completed sync — or its state is unreadable for **240 s** | `homelab-health.sh`                   |
 | Certificate expiry   | the soonest of the 18 certificates is under **21 days**, unreadable, or `acme.json` is absent                                                        | `homelab-health.sh`                   |
 
 ¹ Both, deliberately. ADR-030's migration rule is that no bash line is deleted
@@ -558,8 +577,8 @@ does the watching.
 reclaimable and `/mnt/data` churns hundreds of MB a night, so free memory reads
 alarmingly low on a perfectly healthy Pi. The threshold was measured against 19
 days of Netdata retention — the hourly minimum never went below 800 MiB, and the
-lowest instantaneous dip (756 MiB) is absorbed by requiring two consecutive
-runs, so it would have been silent throughout.
+lowest instantaneous dip (756 MiB) is absorbed by the alarm's own 5-minute
+window (`lookup: max -5m`), so it would have been silent throughout.
 
 **Why the swap file was doubled before it could be alarmed on.** At 2 GiB it did
 not sit at a high percentage — it ran *saturated*, mostly on cold pages
@@ -622,9 +641,11 @@ answer returns in ~0 ms with no forward at all.
 
 **`NXDOMAIN` counts as success.** The question is whether the upstream *answered*,
 not whether the name exists. `SERVFAIL`, `REFUSED` and silence are the failures —
-they are what a dead `dnsproxy` produces. The alarm needs two consecutive
-failures, the same gate as the memory check, because this probe deliberately
-removes the cache from the path and so has no cushion of its own.
+they are what a dead `dnsproxy` produces. The alarm needs the failure to hold
+for **240 s** — `gate dns-upstream 240` — because this probe deliberately removes
+the cache from the path and so has no cushion of its own. (Not "the same gate as
+the memory check": that check left this script for netdata, where the equivalent
+is `lookup: max -5m`.)
 
 The last two close the gaps the rest of the stack cannot see: Netdata graphs
 disk fill but delivers no notification, and the heal timer only resurrects
@@ -642,8 +663,8 @@ a human happening to look.
 `Restart=on-failure` and `StartLimitIntervalSec=0` restarts forever and never
 reaches the failed state: it sits in `activating/auto-restart` while `--failed`
 stays empty. That is why the loop check looks at the sub-state instead, and
-reports on the second consecutive sighting so a single legitimate restart does
-not page.
+reports once the sub-state has held for **240 s** so a single legitimate restart
+does not page.
 
 Timer-driven services rest at `inactive/dead`, so their state says nothing — for
 those the signal is the **result of the last run**, and the timer list is
@@ -802,9 +823,12 @@ Discord webhook, wired to every monitor.
 - **Single channel.** A broken or muted Discord webhook means no alerts at all.
 - **Notification storm.** Monitor dependencies are not chained (`parent` is
   null everywhere — Kuma v2's chaining is limited), so a single Pi or Traefik
-  outage trips nearly every monitor at once. `resend_interval: 0` makes it a
-  one-off burst rather than ongoing spam, so this is tolerated rather than
-  worked around.
+  outage trips nearly every monitor at once. Each monitor then re-notifies on its
+  own `resend_interval` — `max(1, round(21600 / interval))` beats, so roughly
+  every 6 h per monitor for the length of the incident (see
+  `docs/05-services/uptime-kuma.md`). This is tolerated rather than worked
+  around; it is **not** the single burst this paragraph claimed until
+  2026-08-29, and alert-fatigue reasoning should start from the 6 h figure.
 
 ## Log retention
 

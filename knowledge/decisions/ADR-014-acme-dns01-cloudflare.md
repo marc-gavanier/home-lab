@@ -1,7 +1,7 @@
 # ADR-014 — ACME certificates via Cloudflare DNS-01 (per-host, no wildcard)
 
 **Date**: 2026-07-20
-**Status**: accepted (deployment pending on-Pi validation)
+**Status**: accepted, deployed and verified — 18 certificates in `acme.json`, expiry watched at 21 days by `homelab-health.sh` since #157
 
 ## Context
 

@@ -436,7 +436,7 @@ Verified by *loading*, never by listing:
    **Re-run the storage role after any restore** (see "Ownership after a
    restore" above). This was written that morning as a precaution; the drill
    turned it into a measured fact.
-2. **Retention starts 2026-07-11** (20 snapshots offsite). Anything older is
+2. **Retention starts 2026-07-11.** Anything older is
    gone, including the pre-Immich-v3 state — which retroactively justified
    deleting the v2.7.5 images the same day: the rollback path they existed for
    had already expired.
