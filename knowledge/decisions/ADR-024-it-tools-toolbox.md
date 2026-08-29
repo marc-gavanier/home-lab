@@ -125,9 +125,10 @@ One thing does not come free. The three tmpfs mounts need explicit ownership:
 A tmpfs mounts root-owned `0755` by default, so uid 101 cannot create
 `/var/cache/nginx/client_temp`, and nginx exits 1 at startup with
 `mkdir() ... failed (13: Permission denied)`. That message points at the read-only
-rootfs, which is not the cause — the cause is ownership, and no other tmpfs in
-`compose.yaml` has needed this because no other service drops to a non-root uid
-*and* writes to tmpfs.
+rootfs, which is not the cause — the cause is ownership. The same requirement
+applies wherever a service drops to a non-root uid *and* writes to tmpfs:
+`miniflux-db` carries `uid=999` and `forgejo` `uid=1000` for exactly this. An
+earlier revision said no other tmpfs had needed it, which was never true.
 
 ### One lock, not two
 

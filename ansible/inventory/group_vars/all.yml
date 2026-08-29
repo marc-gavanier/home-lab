@@ -253,20 +253,22 @@ netdata_curated_alarms:
     alarm: homelab_container_down
     group: services
 
-# Available-memory threshold, in MiB. Same reasoning as the swap one: kept in a
-# single place because homelab-health.sh still carries the same number until its
-# check is removed. Unlike the swap threshold this one IS measured — 19 days of
-# retention, hourly minimum never below 800 MiB.
+# Available-memory threshold, in MiB. Netdata is now the only consumer —
+# homelab-health.sh's memory check left the script, alongside swap and CPU
+# temperature, so this is no longer a number kept in step with a second copy.
+# Unlike the swap threshold this one IS measured — 19 days of retention, hourly
+# minimum never below 800 MiB.
 netdata_mem_threshold_mib: 800
 
 # CPU temperature, in Celsius. Not a tuned threshold: 80 is where the Pi's
-# firmware starts throttling, so it is a hardware fact. Same number as
-# homelab-health.sh until that check is removed.
+# firmware starts throttling, so it is a hardware fact. Netdata is now the only
+# consumer — this check left homelab-health.sh with the other two.
 netdata_cpu_temp_threshold_c: 80
 
-# Swap utilisation threshold. Kept in ONE place because homelab-health.sh
-# carries the same number, and two copies of a threshold are a drift waiting to
-# happen. 85 is a STARTING POINT, not a measured value — occupancy accumulates
+# Swap utilisation threshold. Netdata is now the only consumer — the swap check
+# left homelab-health.sh, so the "two copies would drift" reasoning that used to
+# stand here is spent. 85 is a STARTING POINT, not a measured value — occupancy
+# accumulates
 # cold pages until something restarts the containers, so it is not a steady
 # state to project from.
 netdata_swap_threshold_pct: 85
@@ -280,18 +282,14 @@ netdata_swap_threshold_pct: 85
 resticprofile_version: "0.33.1"
 resticprofile_sha256: "58e4fd6fbe2bd460ee6823c3693f39a10f0f24c90635f0215c19b0ab20bbf5df"
 
-# --- Credential store modes (ADR-032) ---
-# Moved out of homelab-posture.sh unchanged, so the migration to goss is
-# behaviour-neutral: the same seven paths, the same expected mode.
-#
-# These are SUBPATHS on purpose. Three of them sit under a data directory that
-# is legitimately 0755 at its top level — the credential lives one level down,
-# and asserting 0700 on the parent would fail on a correct configuration.
-#
-# The eighth store (#217, jellyfin) is deliberately NOT here yet: it is at 0644
-# today, so adding it would turn the monitor red on a known, tracked defect
-# rather than on a regression. It joins the list with the fix.
 # --- Credential stores: derived, not enumerated (#217) -----------------------
+# The block that stood here described the hand-maintained map of seven paths and
+# said Jellyfin was "at 0644 today, a known, tracked defect" that would "join the
+# list with the fix". Both halves were stale: the map was replaced by the
+# derivation below, and `9a3e1e8` fixed Jellyfin — measured 0700 root:root on
+# 2026-08-29, with nothing tracking it any more. Removed rather than corrected,
+# because what follows already tells the whole story.
+#
 # What replaced the list of seven. A store is not something anyone remembers to
 # add here any more; it is a PROPERTY, evaluated against the running containers
 # by goss-posture.yaml: a directory under services_data_dir that is bind-mounted

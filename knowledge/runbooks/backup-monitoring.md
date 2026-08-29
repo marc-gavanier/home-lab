@@ -43,9 +43,24 @@ Trigger a run and watch the monitor turn green:
 ssh homelab 'sudo systemctl start homelab-backup.service'
 ```
 
-The monitor should go up within seconds of the `=== Backup completed ===` log line. To
-exercise the down path, point `RESTIC_REPOSITORY` at a bad path temporarily and run — the
-monitor goes red and the notification fires.
+**Two monitors go up, not one**, and each has its own line in the journal — the
+run does the backup and the offsite copy as two commands from the same unit:
+
+```
+[…] notify: pushed up (backup): dumps ok (N checks), snapshot <id>
+[…] profile 'homelab': finished 'copy'
+[…] notify: pushed up (copy): offsite copy completed
+```
+
+Earlier revisions of this runbook told you to watch for `=== Backup completed ===`.
+That line was written by `backup.sh`, which ADR-031 deleted; it was last emitted on
+2026-08-23 and will never appear again. Watch the `notify: pushed up` lines instead,
+or the monitors themselves.
+
+To exercise the down path, point `RESTIC_REPOSITORY` at a bad path temporarily and
+run — the monitor goes red and the notification fires. Note that
+`backup-notify.sh` refers you to `/var/log/homelab-backup.log` on failure, and that
+file holds only the notify lines: **the cause is in the journal**, not there.
 
 ## Local maintenance monitor
 
