@@ -75,7 +75,7 @@ See `docs/06-backup/` for backup strategy.
 |-------------------------|--------------------------------------------------------------------------|----------------------------------------------------------------------------------------------|
 | `/mnt/data` (HDD)       | `e2fsck -p` inside `homelab-unlock`, on the still-unmounted mapper       | every unlock — about a second on a clean filesystem, a real scan after an unclean shutdown   |
 | `/` (SD)                | `e2fsck -p` in the **initramfs**, before systemd starts                  | **every boot**, in full — not when a trigger is due. See below                               |
-| `/mnt/backup` (offsite) | `e2fsck -p` at boot, which fstab's `passno=2` pulls in                   | every boot, for the same reason — ~1 min against the root filesystem's ~6 s                  |
+| `/mnt/backup` (offsite) | `e2fsck -p` at boot, which fstab's `passno=2` pulls in                   | every boot, same reason — measured 10.5 s, +1.6 s on total boot (2026-08-29)                 |
 | both                    | the daily disk report reads the superblock error counters (`ext4 clean`) | daily — this catches errors the kernel **already noticed**, which is not a consistency check |
 
 Neither root filesystem had ever been checked before 2026-08-25. `Last checked`
