@@ -36,3 +36,16 @@ repos:
         language: system
         files: ^ansible/
         pass_filenames: false
+
+      # Neither linter above can see a Jinja syntax error: yamllint reads the
+      # file as YAML, where a broken expression inside a comment is just a
+      # comment, and ansible-lint checks task structure rather than template
+      # bodies. So the error was reachable only by deploying against the live
+      # host — measured 2026-08-29, on a comment warning about the very braces
+      # that broke it. This parses every .j2 instead.
+      - id: jinja-templates-parse
+        name: jinja templates parse
+        entry: ops/check-jinja-templates.py
+        language: system
+        files: \.j2$
+        pass_filenames: false

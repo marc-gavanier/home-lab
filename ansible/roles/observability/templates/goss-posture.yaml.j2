@@ -680,12 +680,22 @@ command:
   # confusing authentication error. And a credential this spec does not carry is
   # a credential this spec cannot get wrong when it moves.
   #
-  # `docker exec ... env` and NOT `docker inspect -f '{{...}}'`, which is the
-  # obvious way to write this and is a trap here: goss renders its spec as a Go
-  # template before running anything, so those braces would be consumed by goss
-  # instead of reaching docker. Checked before writing it — no deployed spec on
-  # this host contains a single `{{`, and this assertion is not going to be the
-  # one that finds out why the hard way.
+  # `docker exec ... env` and NOT `docker inspect -f` with a Go template, which
+  # is the obvious way to write this and is a trap twice over.
+  #
+  # First, goss renders its own spec as a Go template before running anything,
+  # so a doubled-brace expression would be consumed by goss instead of reaching
+  # docker. Checked before writing it: no deployed spec on this host contains a
+  # doubled brace anywhere, and this assertion was not going to be the one to
+  # find out why the hard way.
+  #
+  # Second — and this one was paid, not avoided — THIS FILE is a Jinja template
+  # too. Jinja has no idea what a YAML comment is: a doubled brace written in a
+  # comment here is still parsed as an expression, and the deploy dies with
+  # `Syntax error in template: unexpected '.'` pointing at the comment. That is
+  # why the paragraph above describes the braces in words instead of showing
+  # them. yamllint and ansible-lint both pass over the broken form; only a real
+  # render catches it.
   miniflux-no-feed-silently-unscheduled:
     exec: |
       u=$(docker exec miniflux-db env 2>/dev/null | sed -n 's/^POSTGRES_USER=//p')
