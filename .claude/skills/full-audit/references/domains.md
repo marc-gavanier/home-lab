@@ -5,6 +5,24 @@ state already established so the agent does not spend its budget rediscovering
 it. Update the "already established" lines after each run — they are what keeps
 successive audits from repeating themselves.
 
+**This file gives the scope; `classes.md` gives the mandate.** An agent is sent
+to close the OPEN classes that live in its space, not to hunt freely in it. The
+current ownership:
+
+| Domain          | OPEN classes it owns                                                                                 |
+|-----------------|------------------------------------------------------------------------------------------------------|
+| system          | C08 (sampling instant)                                                                               |
+| security        | C05 (posture-check gaps)                                                                             |
+| network         | C04 (delivery path — shares with observability)                                                      |
+| services        | C06 (`start_period`), C07 (collector cost), C09 (in-container scheduled work)                        |
+| backup          | C03 (instrument answers another question)                                                            |
+| observability   | C03, C04                                                                                             |
+| ansible-deploy  | C02 (the offsite host as a whole)                                                                    |
+| project-manager | C01 (content of documentary claims) — the largest, and the one that needs a gate rather than a sweep |
+
+A class with two owners is deliberate: C03 and C04 cross domains, and the
+2026-08-29 run showed that neither half is visible from one side alone.
+
 The angles below share one idea: **Uptime Kuma already covers whether a service
 answers.** Sending an agent to confirm that wastes it. Send it after what no
 instrument watches.
@@ -164,12 +182,15 @@ stale messages. Never write a test heartbeat during an audit. Its timestamps are
 UTC while the hosts are local time.
 
 **Already established** — the notification path was followed end to end on
-2026-08-16 evening and is sound: 31/31 monitors bound to a valid webhook, egress
-verified from inside the Kuma container. Do not re-derive it. The gap that run
-found was one layer earlier, and it is the shape to look for again: a monitor at
-`maxretries=1` turns a single bad beat into PENDING, and **PENDING notifies
-nobody**. Any check that is true for exactly one beat by construction therefore
-detects without alerting. Three push monitors still sit at `maxretries=1`.
+2026-08-16 evening and is sound: every monitor bound to a valid webhook, egress
+verified from inside the Kuma container. Do not re-derive it.
+
+**Two corrections, both measured on 2026-08-29, both to text that used to live
+here.** "PENDING notifies nobody" is **false** — PENDING escalates, with the
+wrong text (established 2026-08-19). And **no push monitor sits at
+`maxretries=1`** any more; two agents measured all of them at 0 independently.
+Do not carry either claim forward. The counts they came with belong in
+`classes.md`, not in this file.
 
 ---
 

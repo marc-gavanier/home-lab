@@ -5,6 +5,14 @@ Living document. Paste it into every agent brief, and update it after every run
 an agent that re-proposes something already turned down burns the report's
 credibility along with its own budget.
 
+**State does not live here. It lives in `classes.md`.** Counts, cardinals and
+"still open" tables belong to the register; this file holds decisions, history
+and instrument traps. That split exists because every stale number this file has
+carried has propagated straight into the next run's eight agent briefs — three
+times with the same figure, the goss total, which by 2026-08-29 contradicted
+itself twice within the same document. When you are tempted to write a number
+here, write the rule that regenerates it instead.
+
 Two kinds of entry, and the distinction matters:
 
 - **Declined** — the operator considered it and said no. Not an oversight, not
@@ -1253,13 +1261,11 @@ tonight.** Say so before quoting one, and do not project from it.
   (deleted), `offsite-check.sh` (deleted). The nightly job is `resticprofile`
   with hooks; the single notify site left is `backup-notify.sh`.
 - **ADR-032, goss.** `backup-dumps.sh` (373 lines) and the posture assertions
-  became declared specs. **Four specs across the two hosts, 384 checks**,
-  re-measured 2026-08-29 after the fsck work landed: posture 326, backup-dumps
-  19, units 13 on the homelab, offsite-health 26 on the offsite Pi. An earlier
-  version of this line said 376 (325/19/12/20) and was already stale when the
-  2026-08-29 run pasted it into eight agent briefs — `06ad23a` had added the
-  offsite assertions hours before. Count them with `1..N` in TAP rather than
-  carrying the figure forward, and note that ONE assertion emits TWO TAP lines
+  became declared specs. **Four specs across the two hosts.** The totals are
+  deliberately not written here: this line has carried a stale figure three
+  times (376, then 384 against its own 387 later in the same file), and each
+  time it reached eight agent briefs before anyone measured. Count with `1..N`
+  in TAP, and note that ONE assertion emits TWO TAP lines
   (`exit-status` and `stdout`), which is why adding a single check moves the
   total by two. `posture.sh` keeps only what goss cannot
   express. They are documented in `docs/07-observability/README.md` since #263 —
@@ -1497,12 +1503,16 @@ across all 28 and the heal timer had taken no action in 217 passes.
 
 `settled.md` is pasted into all eight agent briefs. Two lines in it were stale
 that morning — the #182 container observations, and the goss total of 376 — and
-both propagated straight into the run. The count is now **387** and carries its
-own arithmetic beside it: **one assertion emits TWO TAP lines**, so a single new
-check moves the total by two, which is what made 376 confusing rather than
-merely stale.
+both propagated straight into the run.
 
-Count them with `1..N` in TAP; never carry the figure forward.
+The afternoon run of the same day proved the lesson had not been learned: the
+replacement figure was itself stale and **contradicted a second figure elsewhere
+in this file**, which sent one agent to a wrong arithmetic and cost the main
+session a correction in front of the operator. The numbers are now gone from
+this file entirely — see `classes.md` — and only the rule remains:
+
+**one assertion emits TWO TAP lines**, so a single new check moves the total by
+two. Count with `1..N` in TAP; never carry the figure forward.
 
 ### Still open going into the next run
 
