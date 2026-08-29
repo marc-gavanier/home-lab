@@ -46,22 +46,39 @@ x-security-opt: &no-new-privs
 # Size on the WORST run, which is a boot colliding with the 03:00 backup, not a
 # quiet one — the two are a factor of two apart, measured.
 #
-# ENUMERATED on 2026-08-29 rather than sampled, from netdata's own health_status
-# charts over the whole 02:50-03:25 window. Of the twelve containers declaring a
-# start_period, exactly TWO ever left `starting` for `unhealthy`:
+# ENUMERATED on 2026-08-29 from netdata's own health_status charts over the
+# 02:50-03:25 window. Of the THIRTEEN containers declaring a start_period,
+# exactly two ever left `starting` for `unhealthy` in that window:
 #
 #   collabora       overshot   993 s against 600 s   -> 1320 s
 #   immich-server   overshot   773 s against 480 s   -> 1020 s
 #   calibre-web     held       511 s against 600 s   (89 s, the thinnest margin
 #                              left; measured, not changed — it is the next one
 #                              to go if a boot is ever slower than this one)
-#   the other nine  no `starting` sample at all in the window
 #
-# One caveat on that last row, because it is the difference between "fine" and
-# "unobserved": netdata is itself a container and only began collecting at
-# 02:55:13, so the four containers started at ~02:50 were already healthy before
-# anything could watch them. The enumeration is complete for the later waves,
-# which is where every overshoot has ever been.
+# --- That enumeration was INCOMPLETE, and its own caveat said why ------------
+# It read netdata, and netdata is a container: it only began collecting at
+# 02:55:13. The first wave was therefore unobservable, and the caveat drew the
+# wrong conclusion from that — it said those containers "were already healthy
+# before anything could watch them", which is not something an instrument that
+# was not running can establish. uptime-kuma was still `starting` 95 seconds
+# AFTER the netdata container existed.
+#
+# Re-measured the same afternoon with an instrument that does not depend on
+# netdata — `State.StartedAt` to the first listen line in each container's own
+# log — and two of the four unobserved containers had overshot:
+#
+#   uptime-kuma     355 s against 180 s   -> 960 s
+#   forgejo         145 s against 120 s   -> 420 s
+#   miniflux-db     held
+#   pihole          held
+#
+# Both new figures were measured on a boot that did NOT collide with the 03:00
+# backup, so they are doubled for the worst case before the usual margin:
+# 355 -> 710 -> 960, and 145 -> 290 -> 420.
+#
+# The lesson is the one worth keeping: an enumeration is bounded by its
+# instrument, and "no sample" is not "no problem".
 x-cap-drop: &cap-drop-all
   - ALL
 
@@ -639,7 +656,14 @@ services:
     networks:
       - internal
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      # `grep -q PONG` and not the bare exit status: redis-cli returns 0 on an
+      # ERROR REPLY, so `redis-cli ping` alone reports healthy for any server
+      # that answers at all. Proven in this container on 2026-08-29 —
+      # `redis-cli ping a b c` prints "ERR wrong number of arguments" and exits
+      # 0, while the guarded form exits 1 and still exits 0 on a real PONG.
+      # Latent today because neither Redis sets `requirepass`; a NOAUTH reply is
+      # exactly the shape that would slip through.
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -1108,7 +1132,14 @@ services:
     networks:
       - internal
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      # `grep -q PONG` and not the bare exit status: redis-cli returns 0 on an
+      # ERROR REPLY, so `redis-cli ping` alone reports healthy for any server
+      # that answers at all. Proven in this container on 2026-08-29 —
+      # `redis-cli ping a b c` prints "ERR wrong number of arguments" and exits
+      # 0, while the guarded form exits 1 and still exits 0 on a real PONG.
+      # Latent today because neither Redis sets `requirepass`; a NOAUTH reply is
+      # exactly the shape that would slip through.
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -1295,7 +1326,13 @@ services:
       test: ["CMD-SHELL", "curl -fsS --max-time 10 http://127.0.0.1:3001/api/entry-page | grep -q entryPage"]
       interval: 60s
       timeout: 30s
-      start_period: 180s
+      # 960s: measured at 355 s on a boot with no backup collision, doubled for
+      # the worst case and rounded up. It was 180 s, copied from the image's own
+      # declaration and never measured against this host — 58% of the retry
+      # budget was already spent on a QUIET boot. This is also the one container
+      # with no external monitor watching it, so a withheld Traefik router here
+      # is invisible from outside.
+      start_period: 960s
       retries: 5
     networks:
       - proxy
@@ -1922,7 +1959,11 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 120s       # first boot runs the schema migrations
+      # 420s: measured at 145 s on a boot with no backup collision, doubled for
+      # the worst case and rounded up. The 120 s it replaced was a bare guess
+      # ("first boot runs the schema migrations") with no measurement beside it,
+      # and an ordinary boot already overran it by 25 s.
+      start_period: 420s
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.forgejo.rule=Host(`git.${DOMAIN}`)"

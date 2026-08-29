@@ -105,23 +105,28 @@ invisible.
 # The register
 
 Reconstructed from `settled.md`, runs of 2026-08-15 through 2026-08-29.
-**38 classes: 9 OPEN, 12 GATED, 17 ENUMERATED, plus the DECLINED list.**
+**38 classes: 2 OPEN, 7 closed on 2026-08-29, 12 GATED, 17 ENUMERATED, plus the DECLINED list.**
 
-## OPEN — 9
+## OPEN — 2
 
 These are the audit's entire remaining perimeter.
 
 | ID | Property | Space, and its cardinal | Why it is still open |
 |-----|--------------------------------------------|--------------------------------------------|----------------------------------------|
-| C01 | A documentary statement whose **content** contradicts the deployed artefact — a named script, threshold, delay, path or count | Every falsifiable claim in `docs/`, `knowledge/` and template headers. `N` not yet established; the 2026-08-19 sweep checked 238 runbook commands for **existence** only | Named un-enumerated 2026-08-19. Sampled three times since; 11 instances on 2026-08-29. The largest class in the register, and the one that most needs a gate rather than a sweep |
-| C02 | A control that exists on the homelab and has no counterpart on the offsite host | Every assertion in the homelab's goss specs and health scripts, against the offsite's. Homelab ~328 posture assertions; offsite 27 | Named un-enumerated 2026-08-22, after being the trailing edge of four sweeps (#155, #156, #201). 3 instances on 2026-08-29 |
-| C03 | A validation whose instrument answers a different question from the one its own comment claims | Every assertion in the four goss specs and the health scripts | Minted 2026-08-29: the `zcat \| tail` pipeline status, `redis-cli ping` on an error reply, `update_every == 1` as a proxy for a sample floor |
-| C04 | A working detector whose delivery path cannot reach a human | Every alerting producer on both hosts, not only those wired to Kuma | Minted 2026-08-29: `postfix` with an empty `relayhost` on both hosts; Pi-hole's `gravity.info.updated` read by nothing |
-| C05 | Something a reader would reasonably assume the posture check asserts, and which it does not | The gap between the posture spec and the security posture documented in `docs/03-security/` | Minted 2026-08-29: `docker.sock` exclusivity, host port bindings, `ufw`/`ssh` unit state |
-| C06 | A `start_period` whose real startup cost has never been measured | 13 declarations in `compose.yaml` | Declared ENUMERATED 2026-08-29 morning, **reopened the same afternoon**: the enumeration used netdata, which starts too late to see the first wave. Two overshoots found with a different instrument |
-| C07 | A collector whose polling cost is disproportionate to the granularity of what it feeds | Every metrics collector on both hosts | Minted 2026-08-29: netdata polls the Docker API at ~6 req/s for alarms thresholded at 10 minutes, truncating socket-proxy's audit log to a few hours |
-| C08 | A threshold probe that samples at an instant which cannot contain the peak it guards | Every periodic probe carrying a threshold | Raised 2026-08-21 as "reported, not yet decided"; still undecided. Both disk-temperature guards read the coolest part of the cycle |
-| C09 | Work a container schedules for itself, on a period no sweep window catches | The in-container jobs of 28 containers | Named un-enumerated 2026-08-22. Two checked by hand (Immich's dump, the Nextcloud cron); the set has never been enumerated |
+| C05 | Something a reader would reasonably assume the posture check asserts, and which it does not | The gap between the posture spec and the security posture documented in `docs/03-security/` | Three instances closed by #285 (`docker.sock` exclusivity, host port bindings, `ufw`/`ssh`). The class itself is **not exhaustible by sweeping** — "what a reader would assume" has no cardinal. It stays open as a standing question for each new service, not as a backlog item |
+| C09 | Work a container schedules for itself, on a period no sweep window catches | The in-container jobs of 28 containers | Named un-enumerated 2026-08-22. Two checked by hand (Immich's dump, the Nextcloud cron); the set has never been enumerated. **The only class nobody has yet looked at**, and therefore where the next run's yield is |
+
+## Closed by the run of 2026-08-29 — seven classes
+
+| ID | Property | Outcome |
+|-----|----------------------------------------------|--------------------------------------------|
+| C01 | A documentary statement whose content contradicts the deployed artefact | **ENUMERATED**, not GATED, and the distinction is the honest part. Bounded at last: **472 machine-checkable claim occurrences across 81 files, 218 distinct referents** (121 absolute paths, 29 containers, 26 quoted thresholds, 23 units, 19 goss/alarm names). Twelve instances corrected in #284. Free prose cannot be gated; what replaces a gate is **duplication removal** — where a document lists something the machine owns, print the command that regenerates it instead. Applied three times in #284 |
+| C02 | A control on the homelab with no counterpart on the offsite host | **GATED** by #285: the offsite gained `rest-server`, `wg-quick@wg0`, `ssh`, `fail2ban`, a `--failed` catch-all, ufw by its rules, and `offsite-wg-reresolve.timer`. Its two SMART assertions carried both defects `homelab-disk.sh` had already fixed; both corrected |
+| C03 | A validation whose instrument answers a different question from the one its comment claims | **ENUMERATED** across all four goss specs on both hosts; one instance (`zcat \| tail` swallowing the CRC verdict) and one latent sibling (`redis-cli ping` exiting 0 on an error reply). Both fixed, both proven to fail on purpose first |
+| C04 | A working detector whose delivery path cannot reach a human | **Closed by decision.** smartd's mail channel was dead — and redundant: every alert it carried was already covered, more carefully, by the daily disk report. Silenced deliberately, with the measurement written into `smartd.conf`. Pi-hole's `gravity.info.updated` gained an assertion |
+| C06 | A `start_period` whose real startup cost has never been measured | **ENUMERATED**, 13/13, after the first attempt closed at its instrument's edge. netdata cannot observe the wave that starts before netdata; re-measured from `State.StartedAt` to the first listen line, two more had overshot |
+| C07 | A collector whose polling cost is disproportionate to the granularity of what it feeds | **GATED** by #285, and the gate is two assertions because one was a proxy. The floor is now derived from the resolution rather than written twice |
+| C08 | A threshold probe that samples at an instant which cannot contain the peak it guards | **Closed by decision.** The homelab reads `Power Cycle Min/Max`, which resets each boot. The offsite keeps the instantaneous reading and reports its peak instead — its only maximum is lifetime, and a threshold on a figure that cannot come back down latches red forever |
 
 ## GATED — 12
 

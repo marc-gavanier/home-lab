@@ -74,6 +74,19 @@
       - python3-pip
     state: present
 
+# smartd's own alerting is deliberately silent — the template carries the
+# measurement that decided it. It ships on BOTH hosts: the dead mailbox was
+# found on the homelab, and the offsite Pi had the identical configuration with
+# an empty spool only because nothing had gone wrong there yet.
+- name: system | Silence smartd's unreachable mail channel
+  ansible.builtin.template:
+    src: smartd.conf.j2
+    dest: /etc/smartd.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart smartd
+
 - name: system | Configure kernel parameters for Docker and performance
   ansible.posix.sysctl:
     name: "{{ item.key }}"

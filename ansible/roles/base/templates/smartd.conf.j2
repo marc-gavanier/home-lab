@@ -1,0 +1,41 @@
+# {{ ansible_managed }}
+# =============================================================================
+# smartd — monitor the drives, notify through nothing
+# =============================================================================
+# THE ABSENCE OF `-m` IS THE DECISION, not an oversight. Do not add it back
+# without reading this.
+#
+# The stock line was `-m root -M exec /usr/share/smartmontools/smartd-runner`,
+# and it had been mailing root since installation. Measured on 2026-08-29:
+# postfix runs on both hosts with `inet_interfaces = loopback-only` and an EMPTY
+# `relayhost`, so the mail could never leave the machine — 10 deliveries in seven
+# days, 9 of them smartd's, all of them into /var/mail/root where nobody reads.
+#
+# --- Why the answer is silence and not a better channel ----------------------
+# The first instinct was to push these alerts into Uptime Kuma. Then the mails
+# were read, and every one of them was REDUNDANT:
+#
+#   8x  "Currently unreadable (pending) sectors"  -> attribute 197, which
+#       homelab-disk.sh already reads with a more careful rule than smartd's:
+#       it alarms when the count RISES, when there is no completed self-test to
+#       weigh it against, or when the last completed self-test was not clean.
+#       That rule worked. The monitor went DOWN from 2026-08-23 to 08-26 on a
+#       real read failure at LBA 730424728 and cleared when a new extended test
+#       completed without error.
+#
+#   2x  "Self-Test Log error count increased"     -> the self-test log, which
+#       homelab-disk.sh parses on two axes (the newest entry, and the newest
+#       COMPLETED entry) precisely so an abort is not read as a failure.
+#
+# So the daily report covers this ground, and covers it better. A second channel
+# would have added a notification path, a monitor to create by hand and a
+# false-positive budget, to say the same things a day sooner about a class of
+# event — slow surface degradation — that does not turn on a day.
+#
+# smartd still runs and still logs to the journal. What it no longer does is
+# write to a mailbox that cannot forward.
+#
+# `-n standby` keeps it from spinning an idle drive up just to ask its
+# temperature; `-d removable` keeps a disconnected USB enclosure from being
+# treated as a vanished device.
+DEVICESCAN -d removable -n standby
