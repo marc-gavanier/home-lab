@@ -70,6 +70,10 @@ data_fsck_interval_days: 30
 
 # --- Docker ---
 docker_data_root: /mnt/data/docker  # Docker images/layers on HDD
+# Seconds the daemon gives ALL containers, together, to drain on shutdown. The
+# default is 15 and it killed four databases mid-shutdown on 2026-08-29 (#288).
+# Must stay below docker.service's TimeoutStopSec (90 s) — asserted in goss.
+docker_shutdown_timeout: 60
 
 # --- Network ---
 domain: example.com

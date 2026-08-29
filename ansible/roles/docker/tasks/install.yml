@@ -31,6 +31,30 @@
     state: present
     update_cache: true
 
+# `shutdown-timeout` is the whole of #288, and it is a DAEMON-WIDE budget rather
+# than a per-container one — which is what the audit's first diagnosis got wrong.
+#
+# Measured from the deliberate reboot of 2026-08-29:
+#
+#     02:45:17.239  dockerd: Processing signal 'terminated'
+#     02:45:32.551  dockerd: level=error msg="Force shutdown daemon"
+#
+# 15.31 s, which is the undocumented default, for TWENTY-EIGHT containers. What
+# had not finished draining by then was killed, and four came back needing
+# recovery: both PostgreSQL databases ("database system was not properly shut
+# down"), MariaDB (InnoDB crash recovery, 853 pages, 47 s) and Pi-hole's FTL
+# store ("recovered 937 frames from WAL").
+#
+# The measurement that settles it: a clean shutdown takes 1.6 s for miniflux-db
+# and 2.5 s for immich-db. Neither is anywhere near the 10 s per-container
+# default, and both were killed anyway — so a `stop_grace_period` on each would
+# NOT have saved them. They simply never got their 1.6 s, because the shared
+# 15 s was gone.
+#
+# 60 s, not more: systemd allows docker.service 90 s to stop (TimeoutStopSec,
+# left at the distribution default), and a daemon budget that outlived its own
+# supervisor's would just move the kill one level up. 60 leaves 30 s of headroom.
+# The relationship is asserted, not assumed — see the goss posture spec.
 - name: install | Configure Docker daemon
   ansible.builtin.copy:
     dest: /etc/docker/daemon.json
@@ -42,6 +66,7 @@
           "max-size": "10m",
           "max-file": "3"
         },
+        "shutdown-timeout": {{ docker_shutdown_timeout }},
         "storage-driver": "overlay2"
       }
     mode: "0644"

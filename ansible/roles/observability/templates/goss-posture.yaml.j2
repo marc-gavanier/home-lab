@@ -711,3 +711,61 @@ command:
         exit 1
       }
     exit-status: 0
+
+  # --- The shutdown budget, and the recovery that proves it was too small -----
+  #
+  # Two assertions for #288, answering different questions: this one is the
+  # configuration, the next one is the outcome. Both are written WITHOUT a single
+  # doubled brace, and that is deliberate — goss renders this spec as a Go
+  # template before running it, so `docker inspect -f` with a Go format string
+  # would be eaten by goss instead of reaching docker. Hence `grep`/`sed` over
+  # plain `docker inspect` output rather than the obvious `--format`.
+  #
+  # The daemon-wide budget must be big enough to drain the slowest container and
+  # still fit inside the time systemd allows the daemon itself. Backwards, and
+  # systemd kills dockerd mid-drain — the same data loss by another route.
+  docker-shutdown-budget-fits-inside-systemd:
+    exec: |
+      d=$(sed -n 's/.*"shutdown-timeout": *\([0-9]*\).*/\1/p' /etc/docker/daemon.json)
+      case "$d" in ''|*[!0-9]*) echo "no shutdown-timeout in daemon.json — the 15 s default is back"; exit 1 ;; esac
+      su=$(systemctl show docker.service -p TimeoutStopUSec --value | awk '
+        /min/ { split($0, a, "min"); rest = a[2]; sub(/s$/, "", rest); print (a[1] + 0) * 60 + (rest + 0); next }
+        { v = $0; sub(/s$/, "", v); print v + 0 }')
+      case "$su" in ''|0) echo "cannot read docker.service TimeoutStopSec"; exit 1 ;; esac
+      [ "$d" -lt "$su" ] || {
+        echo "daemon shutdown-timeout ${d}s is not inside docker.service TimeoutStopSec ${su}s"
+        echo "systemd would kill the daemon while containers are still draining"
+        exit 1
+      }
+    exit-status: 0
+
+  # The property that makes #288 hard to see: a container killed mid-shutdown
+  # says nothing about it. The evidence is in the log of the NEXT start, and by
+  # then everything is green — 28 containers up, no failed unit, no red monitor.
+  #
+  # Scoped to the CURRENT start, and that is not optional: a json-file log
+  # survives restarts, so grepping all of it would report every recovery this
+  # container has ever done, forever, and the assertion could never go green.
+  #
+  # Three markers for three engines, taken from the real logs of 2026-08-29.
+  # Redis is absent on purpose: both instances run with persistence off, so they
+  # have nothing to recover and never will.
+  no-container-came-back-recovering:
+    exec: |
+      bad=""
+      for c in immich-db miniflux-db nextcloud-db pihole; do
+        [ -n "$(docker ps --filter "name=^${c}$" --filter status=running -q)" ] || continue
+        started=$(docker inspect "$c" 2>/dev/null |
+                  sed -n 's/.*"StartedAt": *"\([^"]*\)".*/\1/p' | head -1)
+        [ -n "$started" ] || continue
+        if docker logs --since "$started" "$c" 2>&1 |
+             grep -qE 'was not properly shut down|Starting crash recovery|recovered [0-9]+ frames from WAL'; then
+          bad="$bad $c"
+        fi
+      done
+      [ -z "$bad" ] || {
+        echo "came back recovering rather than starting:$bad"
+        echo "the shutdown budget did not cover them — see #288"
+        exit 1
+      }
+    exit-status: 0
