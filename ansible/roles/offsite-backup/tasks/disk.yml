@@ -80,11 +80,19 @@
 #
 # Two consequences, both accepted deliberately rather than discovered later:
 #
-#   COST. The frozen boot clock (see base/tasks/filesystem-checks.yml) makes
-#   every superblock look future-dated, so this will be a FULL check at every
-#   boot rather than only when a trigger is due. 122 M inodes against the root
-#   filesystem's 15.5 M, which takes ~6 s — so of the order of a minute. This
-#   host boots a handful of times a year.
+#   COST, measured on the supervised reboot of 2026-08-29 02:41 rather than
+#   estimated. The frozen boot clock (see base/tasks/filesystem-checks.yml)
+#   makes every superblock look future-dated, so this IS a full check at every
+#   boot rather than only when a trigger is due — confirmed in the journal:
+#   `/dev/sda1: Superblock last write time (Sat Aug 29 02:40:41 2026,` … then
+#   `21986/122093568 files (4.8% non-contiguous), 99978784/488366820 blocks`.
+#
+#   It cost **10.5 s** for the check and **+1.6 s** on the total boot, which
+#   went 29.8 s -> 31.4 s: the fsck runs alongside other units rather than in
+#   front of them. This paragraph first said "of the order of a minute",
+#   extrapolated from the filesystem's 122 M inodes against the root's 15.5 M.
+#   That was wrong by a factor of thirty-five, because the scan follows the
+#   inodes actually IN USE — 21 986 of them — not the inode count.
 #
 #   FAILURE MODE. `nofail` is what makes that safe to do on a host with no
 #   physical access: it puts the mount unit in local-fs.target's `Wants=` and
