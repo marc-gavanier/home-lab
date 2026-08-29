@@ -45,11 +45,30 @@
 # down"), MariaDB (InnoDB crash recovery, 853 pages, 47 s) and Pi-hole's FTL
 # store ("recovered 937 frames from WAL").
 #
-# The measurement that settles it: a clean shutdown takes 1.6 s for miniflux-db
-# and 2.5 s for immich-db. Neither is anywhere near the 10 s per-container
-# default, and both were killed anyway — so a `stop_grace_period` on each would
-# NOT have saved them. They simply never got their 1.6 s, because the shared
-# 15 s was gone.
+# This budget is NECESSARY BUT NOT SUFFICIENT, and the correction is worth
+# recording because the first version of this comment said the opposite.
+#
+# A solo `docker stop` on an idle database reads 1.6 s (miniflux-db) and 2.5 s
+# (immich-db), from which it was concluded that a per-container grace period
+# would not have helped and that this daemon-wide budget was the whole fix. The
+# supervised restart of 2026-08-30 00:22 disproved it in one shot: with 60 s here
+# and no per-container change, both still came back recovering, while
+# nextcloud-db — the only one that had been given `stop_grace_period: 30s` —
+# came back clean.
+#
+# What the logs showed, and why the solo measurement lied:
+#
+#     22:22:52.537  received fast shutdown request
+#     22:22:54.767  shutting down
+#     22:23:00.051  FATAL: the database system is shutting down
+#                   ... killed at the 10 s per-container default, mid-checkpoint
+#
+# An idle database has almost nothing to flush. A real one, twenty minutes into
+# its writes, checkpointing while twenty-eight containers drain onto the same USB
+# disk, needs far more than 10 s. MEASURE THE CONDITION THAT ACTUALLY OCCURS.
+#
+# So both knobs are set: 30 s per database in compose.yaml, and this budget to
+# make room for them — four containers that may each take 30 s cannot fit in 15.
 #
 # 60 s, not more: systemd allows docker.service 90 s to stop (TimeoutStopSec,
 # left at the distribution default), and a daemon budget that outlived its own

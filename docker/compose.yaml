@@ -284,6 +284,13 @@ services:
 
   # --- Pi-hole (DNS + Ad blocking) ---
   pihole:
+    # FTL keeps its query database in SQLite with a write-ahead log, and it has
+    # come back with "recovered N frames from WAL" - at ERROR level - after every
+    # unclean stop this repo has looked at (937 frames on 2026-08-29). Recovery
+    # is not data loss here, the WAL exists precisely for this, but it is the
+    # same root cause as the three databases and it is fixed by the same knob.
+    # 30 s to match them rather than a separately guessed number.
+    stop_grace_period: 30s
     image: pihole/pihole:2026.07.2
     container_name: pihole
     restart: unless-stopped   # Tier 0: auto-start at boot (see stack-startup role)
@@ -1156,6 +1163,25 @@ services:
       retries: 3
 
   immich-db:
+    # Killed mid-checkpoint by the 10 s per-container default, PROVEN on the
+    # supervised restart of 2026-08-30 00:22 (#288):
+    #
+    #     22:22:52.537  received fast shutdown request
+    #     22:22:54.767  shutting down
+    #     22:23:00.051  FATAL. the database system is shutting down
+    #                   ... and no "database system is shut down" ever follows
+    #
+    # The image already sets STOPSIGNAL SIGINT, which is Postgres's *fast*
+    # shutdown and the correct signal - the signal was never the problem. The
+    # budget was that the final checkpoint did not fit in 10 s.
+    #
+    # 30 s because that is what nextcloud-db, the largest of the three, was
+    # measured completing in on the same restart. Do NOT size this from a solo
+    # `docker stop` on an idle database, which reads 1.6-2.5 s - that is how this
+    # container came to be left on the default in the first place. The real cost
+    # is a full checkpoint with twenty-eight containers draining onto the same
+    # USB disk at once.
+    stop_grace_period: 30s
     # Official Immich postgres (VectorChord + legacy pgvecto.rs): required by
     # Immich v3, which dropped pgvecto.rs. Same PG major (16) as the previous
     # tensorchord/pgvecto-rs image, so the data files load as-is; the extension
@@ -1811,6 +1837,25 @@ services:
       - "traefik.http.services.miniflux.loadbalancer.server.port=8080"
 
   miniflux-db:
+    # Killed mid-checkpoint by the 10 s per-container default, PROVEN on the
+    # supervised restart of 2026-08-30 00:22 (#288):
+    #
+    #     22:22:52.537  received fast shutdown request
+    #     22:22:54.767  shutting down
+    #     22:23:00.051  FATAL. the database system is shutting down
+    #                   ... and no "database system is shut down" ever follows
+    #
+    # The image already sets STOPSIGNAL SIGINT, which is Postgres's *fast*
+    # shutdown and the correct signal - the signal was never the problem. The
+    # budget was that the final checkpoint did not fit in 10 s.
+    #
+    # 30 s because that is what nextcloud-db, the largest of the three, was
+    # measured completing in on the same restart. Do NOT size this from a solo
+    # `docker stop` on an idle database, which reads 1.6-2.5 s - that is how this
+    # container came to be left on the default in the first place. The real cost
+    # is a full checkpoint with twenty-eight containers draining onto the same
+    # USB disk at once.
+    stop_grace_period: 30s
     # Postgres 18, not the 16 immich-db is pinned to. This database is Miniflux's
     # alone — nothing reads it across services — so there is no schema to match,
     # and 18 is what upstream's own compose ships.
