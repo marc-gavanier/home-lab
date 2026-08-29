@@ -65,7 +65,10 @@ dump for the VectorChord / pgvecto.rs extensions (a hand-rolled `pg_dump` needs 
 `search_path` transform on restore and is easy to get wrong).
 
 Confirm the built-in backup is enabled (Admin → Settings → Backup) and that
-`upload/backups/` holds a recent `*.sql.gz`.
+`upload/backups/` holds a recent `*.sql.gz`. That directory is `0700 root` since
+#272 — the dumps are a credential store, not media — so listing it needs
+`sudo sh -c 'ls -l /mnt/data/services/immich/upload/backups'`, and a bare
+`sudo ls` with a glob would be expanded by your own shell and report no matches.
 
 ## Restore
 

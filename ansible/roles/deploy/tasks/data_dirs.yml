@@ -182,8 +182,9 @@
     - navidrome
     - calibre-web
     - transmission/config
-    # The eighth store (#217), and the last one that will ever have to be added
-    # here by hand: jellyfin.db was 0644 under two 0755 directories, holding six
+    # The eighth store (#217), and expected at the time to be the last one ever
+    # added here by hand — the ninth below proves that wrong, and names the
+    # reason: jellyfin.db was 0644 under two 0755 directories, holding six
     # non-expiring device access tokens — bearer credentials with no expiry,
     # full API as that user — and the admin password hash. Proven readable as an
     # unprivileged account with /etc/shadow refused in the same call.
@@ -198,6 +199,29 @@
     # while a new store is waiting to be closed, which is exactly when they
     # should.
     - jellyfin/config
+    # The ninth (#272), and the one that shows why "derived from now on" was too
+    # strong. #218 closed the COPY of Immich's nightly dump under the
+    # backup root and never the directory the job WRITES it to: seven ~89 MB dumps at 0644,
+    # rewritten every night at 02:01, under a chain traversable end to end —
+    # password hashes, API keys, session tokens, share keys, and the EXIF/GPS of
+    # the whole library. Proven readable from the unprivileged `claude` account
+    # (uid 1001, member of neither docker nor sudo) with the Vaultwarden database
+    # refused in the same call.
+    #
+    # No derivation could have caught it, and none can catch the next one of this
+    # shape: `credential-stores-all-closed` walks bind mount SOURCES, and it only
+    # ever stats the source itself, never a child. `immich/upload` is the mount —
+    # and is additionally exempt, on the stated premise that it holds media.
+    #
+    # Safe for jellyfin/config's reason: immich-server runs as root (Config.User
+    # empty) with `cap_drop: ALL`, and OWNS this tree root:root, so it reaches the
+    # directory as its owner and cannot be locked out by the bits. This cannot
+    # replay #138. Restic and the backup hooks read it as root too.
+    #
+    # Mode only, and the DIRECTORY's: Immich writes the dumps under its own umask
+    # and this task cannot reach into that. The directory is what denies the
+    # traversal, and unlike pihole/etc the application does not reset it.
+    - immich/upload/backups
 
 # Belt as well as braces, on the files an application does NOT recreate: if a
 # directory mode ever regresses, these do not hand the contents over with it.

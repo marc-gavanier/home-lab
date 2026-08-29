@@ -352,10 +352,25 @@ credential_store_exemptions:
   jellyfin/cache: transcoding scratch, rewritten continuously
   immich/ml-cache: downloaded ML model weights, public artefacts
   immich/upload: >-
-    the photo library itself. Media rather than a credential, so it is out of
-    scope for this assertion — but it is household photographs at 0755, and
-    whether it should be closed too is a real question this issue deliberately
-    does not answer.
+    the photo library itself — and the level this derivation stops at, which is
+    the part that cost something. The loop stats the bind mount SOURCE and never
+    descends, so exempting the mount exempts everything under it: `upload/backups`
+    holds Immich's nightly database dump, and it stayed world-readable behind
+    this line until #272.
+
+    What protects it now is a 0700 directory, set in data_dirs.yml and asserted
+    by name as `immich-dump-dir-closed`. Same shape as `pihole/etc` above for
+    the opposite reason: there the mode cannot hold and the property is asserted
+    instead; here the derivation cannot see the mode, so the property is
+    asserted instead. Exempting a mount is never exempting one directory.
+
+    The photographs themselves stay 0755, and that is now a DECISION rather than
+    an open question (2026-08-29): the operator browses the library with other
+    tools — Nextcloud, an agent on the host — and wants that to keep working.
+    Media, deliberately readable. Do not propose closing it.
+
+    Which is exactly why the dump had to move out from under this line. The same
+    unprivileged account reads both, and only one of them is meant to be read.
 
 # --- goss (ADR-032) ---
 # Checksum taken from the project's own goss_<version>_SHA256SUMS, not computed

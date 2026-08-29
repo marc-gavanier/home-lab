@@ -160,8 +160,13 @@ extensions, and the dump must be loaded into a **freshly-initialised** database.
 # 1. Get the newest dump (from disk, or restore the folder from a snapshot first):
 restic restore latest --target /tmp/restore \
   --include /mnt/data/services/immich/upload/backups
-DUMP=$(ls -t /mnt/data/services/immich/upload/backups/*.sql.gz | head -1)
-# (or: DUMP=$(ls -t /tmp/restore/mnt/data/services/immich/upload/backups/*.sql.gz | head -1))
+# `sudo sh -c`, NOT `sudo ls`: the directory is 0700 root since #272, and a glob
+# in `sudo ls /path/*.sql.gz` is expanded by YOUR shell, which cannot read it —
+# you get "no matches" rather than a permission error, which reads like an empty
+# backup directory. The restored copy under /tmp is root-owned 0700 for the same
+# reason, so it needs the same form.
+DUMP=$(sudo sh -c 'ls -t /mnt/data/services/immich/upload/backups/*.sql.gz' | head -1)
+# (or: DUMP=$(sudo sh -c 'ls -t /tmp/restore/mnt/data/services/immich/upload/backups/*.sql.gz' | head -1))
 
 cd /opt/homelab
 
