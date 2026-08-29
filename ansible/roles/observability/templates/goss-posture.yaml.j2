@@ -608,3 +608,96 @@ command:
         esac
       done
     exit-status: 0
+
+  # --- The perimeter is the peer set, and nothing said so until 2026-08-29 ----
+  #
+  # A VPN peer key IS the perimeter: anyone holding one is inside. The docs have
+  # said so since the VPN was built, and the only WireGuard assertion this
+  # appliance carried was a grep for an IPv6 literal in a config file (#236) —
+  # which says nothing about who can connect.
+  #
+  # THE TRAP, and it is the reason this assertion is written the way it is:
+  # there are TWO interfaces called `wg0`, in two network namespaces.
+  #
+  #   host  wg0   1 peer    the management tunnel — the operator's own SSH path
+  #                         and the offsite link
+  #   wg-easy wg0  4 peers  the enrolled VPN clients
+  #
+  # `sudo wg show wg0` on the host answers about the FIRST one. An assertion
+  # written that way passes forever while saying nothing about the client
+  # perimeter. Measured on 2026-08-29; the audit that found it very nearly wrote
+  # the wrong check.
+  #
+  # SECOND TRAP: the client store moved. `wg0.json` is still on disk and still
+  # readable, frozen at 2026-07-28 — the pre-migration file. The live store is
+  # the SQLite database (#236). Reading the JSON gives a plausible, well-formed,
+  # month-old answer, which is worse than an error.
+  #
+  # The property: the peers the interface will accept are exactly the clients
+  # the operator has enrolled and left enabled. A revoked client that is still
+  # live fails this; so does a peer with no client behind it at all.
+  wireguard-peers-are-the-enrolled-clients:
+    exec: |
+      live=$(docker exec wg-easy wg show wg0 peers 2>/dev/null | sort)
+      [ -n "$live" ] || { echo "wg-easy's wg0 reports no peers at all"; exit 1; }
+      enrolled=$(sqlite3 -readonly \
+        "file:{{ services_data_dir }}/wireguard/wg-easy.db?mode=ro" \
+        'select public_key from clients_table where enabled=1;' 2>/dev/null | sort)
+      [ -n "$enrolled" ] || { echo "no enabled client in wg-easy.db — wrong store?"; exit 1; }
+      [ "$live" = "$enrolled" ] || {
+        echo "live peers and enabled clients differ ($(echo "$live" | wc -l) live," \
+             "$(echo "$enrolled" | wc -l) enabled) — key fingerprints only:"
+        printf '%s\n' "$live" "$enrolled" | sort | uniq -u | cut -c1-12 | sed 's/^/  /'
+        exit 1
+      }
+    exit-status: 0
+
+  # --- A feed reader that stops reading some feeds and keeps showing them ------
+  #
+  # The one instance found while enumerating C09 — work a container schedules
+  # for itself, on a period no sweep window catches (28/28 swept, 2026-08-29).
+  #
+  # Miniflux gives a feed three consecutive parse failures, then drops it from
+  # the scheduling query. It does NOT set `disabled`, so the interface keeps
+  # listing the feed as active while `next_check_at` sits frozen in the past.
+  # Two of 119 were in that state when this was written, one of them unpolled
+  # since 2026-08-20 — nine days, and nothing anywhere was going to say so.
+  #
+  # `disabled = false` is the load-bearing half of the condition: a feed the
+  # operator switched off deliberately is not a defect and must not fail this.
+  # What fails it is a feed that the machine stopped polling while still
+  # presenting it as live.
+  #
+  # Daily cadence is right and five-minutely would be wrong: a feed poller that
+  # is behind for an hour is not news. This sits beside pihole-gravity-not-stale
+  # for the same reason — both are freshness of data this host is responsible
+  # for producing, which is what this spec has come to hold besides posture.
+  # The credentials are read from the container's own environment rather than
+  # restated from a role variable. Two reasons, and the second is the real one:
+  # this spec is rendered by the observability role while the miniflux database
+  # variables are declared by deploy, so naming them here would either fail to
+  # render or quietly resolve to an empty string that psql turns into a
+  # confusing authentication error. And a credential this spec does not carry is
+  # a credential this spec cannot get wrong when it moves.
+  #
+  # `docker exec ... env` and NOT `docker inspect -f '{{...}}'`, which is the
+  # obvious way to write this and is a trap here: goss renders its spec as a Go
+  # template before running anything, so those braces would be consumed by goss
+  # instead of reaching docker. Checked before writing it — no deployed spec on
+  # this host contains a single `{{`, and this assertion is not going to be the
+  # one that finds out why the hard way.
+  miniflux-no-feed-silently-unscheduled:
+    exec: |
+      u=$(docker exec miniflux-db env 2>/dev/null | sed -n 's/^POSTGRES_USER=//p')
+      d=$(docker exec miniflux-db env 2>/dev/null | sed -n 's/^POSTGRES_DB=//p')
+      [ -n "$u" ] && [ -n "$d" ] || { echo "miniflux-db exposes no POSTGRES_USER/DB"; exit 1; }
+      q="from feeds where parsing_error_count >= 3 and disabled = false"
+      n=$(docker exec miniflux-db psql -U "$u" -d "$d" -t -A -c "select count(*) $q;" 2>/dev/null)
+      case "$n" in ''|*[!0-9]*) echo "feed error counts unreadable: [$n]"; exit 1 ;; esac
+      [ "$n" -eq 0 ] || {
+        echo "$n feed(s) dropped from scheduling while still shown as active:"
+        docker exec miniflux-db psql -U "$u" -d "$d" -t -A -F' | ' \
+          -c "select id, checked_at, left(title,48) $q;" 2>/dev/null | sed 's/^/  /'
+        exit 1
+      }
+    exit-status: 0

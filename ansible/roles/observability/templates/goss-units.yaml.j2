@@ -146,3 +146,27 @@ command:
       [ -r "$log" ] || { echo "no $log — nothing recorded a root check for this boot"; exit 1; }
       grep -q 'fsck\.ext4' "$log" || { echo "$log records no ext4 check"; exit 1; }
     exit-status: 0
+
+  # The DDNS boot run is pulled by the volume, not by a fixed offset (#294).
+  #
+  # What this guards is a regression that already happened once and was invisible
+  # for months: the timer used to carry `OnBootSec=2min`, which fired against an
+  # environment file on the encrypted volume — unlocked BY HAND, so never present
+  # two minutes in. The unit failed on every single boot, then recovered at the
+  # next `*:0/15` tick, so nothing was left failed for `systemctl --failed` to
+  # report and no monitor ever went red.
+  #
+  # Two conditions, because either one alone can be satisfied by a broken setup:
+  # the boot trigger must be GONE from the timer, and the service must be wanted
+  # by the mount. A timer that regains OnBootSec fails here even though the
+  # mount link is still present, which is exactly the drift being guarded.
+  #
+  # `systemctl show` rather than reading the unit file: the file on disk is what
+  # ansible wrote, and the question is what systemd LOADED.
+  ddns-boot-run-waits-for-the-volume:
+    exec: |
+      b=$(systemctl show homelab-ddns.timer -p TimersMonotonic --value)
+      [ -z "$b" ] || { echo "homelab-ddns.timer has a monotonic trigger again: $b"; exit 1; }
+      [ -L /etc/systemd/system/mnt-data.mount.wants/homelab-ddns.service ] ||
+        { echo "nothing pulls the DDNS boot run when /mnt/data mounts"; exit 1; }
+    exit-status: 0

@@ -104,6 +104,51 @@ the assertion capable of failing for its stated reason. A warning that flaps is
 not automatically a false positive; sometimes it is a detector that was never
 able to measure what it names.
 
+## What the hardening index is, and what it is not
+
+**It is a drift detector against a fixed rule set. It is not a statement of
+compliance, and it cannot become one.** Written down 2026-08-29, because the
+freshness of the *report* is asserted (#145) while the freshness of the *rules
+that produced it* is not, and a reader is entitled to assume otherwise.
+
+The distribution profile carries `skip-upgrade-test=yes`
+(`/etc/lynis/default.prf:93`). The consequence is not that a check is missing —
+it is that one of the report's fields becomes a constant:
+
+```
+lynis_version=3.0.9
+lynis_update_available=0     <- always 0; the test that would set it is skipped
+hardening_index=73
+```
+
+`lynis_update_available=0` therefore does not mean "up to date". It means "not
+asked". Anything reading it as currency is reading an echo of the installed
+version.
+
+The one signal that does carry the age survives, and is thrown away one step
+later:
+
+```
+suggestion[]=LYNIS|This release is more than 4 months old. Check the website
+             or GitHub to see if there is an update available.|-|-|
+```
+
+`homelab-lynis-report.sh` reads `^warning[]=` and nothing else — three times, for
+the count, the IDs and the new-since-last-run diff. A `suggestion[]` line is
+invisible to it by construction. So the tool is telling us its rules are stale,
+every week, into a channel nobody reads.
+
+**Deliberately not fixed by promoting the suggestion to a warning.** The rules
+going stale is a real fact but a slow one, the package follows the distribution,
+and turning it into a weekly warning would put a line the operator cannot act on
+into the count that decides whether they look at all — which is the one number
+this section exists to keep readable. The correct answer is that the index is
+read as *"did this host drift against the same ruler as last week"*, which is
+what it can answer, and never as *"is this host current against what is known
+today"*, which it cannot.
+
+Identical on both hosts.
+
 ## Consequences
 
 - Reproducible security posture measurement: re-run any time, diff against the
