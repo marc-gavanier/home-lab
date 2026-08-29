@@ -48,11 +48,16 @@ log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] notify: $*" | tee -a "$BACKUP_LOG";
 # One monitor per command, as backup.sh already did for the copy: each fails for
 # its own reasons (the tunnel, the remote host, a corrupt pack) and on its own
 # schedule, so a shared signal would hide one behind the other.
+# `unit` is here for the DOWN message only. Where a failure is DIAGNOSED is not
+# where it is announced: $BACKUP_LOG receives the log() lines above and nothing
+# else, so the message used to send the operator to a file that holds one line
+# and no cause — measured on the real copy failure of 2026-08-23 14:37. The
+# journal has the restic output; that is where the message now points.
 case "$WHAT" in
-    copy)          url="${KUMA_OFFSITE_PUSH_URL:-}" ;;
-    maintenance)   url="${KUMA_LOCAL_MAINT_PUSH_URL:-}" ;;
-    offsite-check) url="${KUMA_OFFSITE_CHECK_PUSH_URL:-}" ;;
-    *)             url="${KUMA_PUSH_URL:-}" ;;
+    copy)          url="${KUMA_OFFSITE_PUSH_URL:-}";       unit="homelab-backup" ;;
+    maintenance)   url="${KUMA_LOCAL_MAINT_PUSH_URL:-}";   unit="homelab-local-maintenance" ;;
+    offsite-check) url="${KUMA_OFFSITE_CHECK_PUSH_URL:-}"; unit="homelab-offsite-check" ;;
+    *)             url="${KUMA_PUSH_URL:-}";               unit="homelab-backup" ;;
 esac
 # Strip a pasted example query. Kuma's UI shows the push URL decorated with
 # ?status=up&msg=OK&ping=, and appending ours would send each parameter twice —
@@ -130,7 +135,7 @@ fi
 if [ ${#problems[@]} -gt 0 ]; then
     OUTCOME="down"
     msg="$(printf '%s; ' "${problems[@]}")"
-    msg="${msg%; }${readings:+ | ${readings}} — see ${BACKUP_LOG}"
+    msg="${msg%; }${readings:+ | ${readings}} — journalctl -u ${unit} -n 50"
 else
     OUTCOME="up"
     msg="${readings}"

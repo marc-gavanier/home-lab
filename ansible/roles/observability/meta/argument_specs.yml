@@ -74,8 +74,16 @@ argument_specs:
         type: int
         required: true
         description: >-
-          Swap utilisation percentage. Kept in ONE place because homelab-health.sh carries
-          the same number, and two copies of a threshold are a drift waiting to happen.
+          Swap utilisation percentage. Netdata is the only consumer since the swap check
+          left homelab-health.sh.
+      netdata_docker_update_every:
+        type: int
+        required: true
+        description: >-
+          Docker collector resolution in seconds. NOT a free knob: it divides the sample
+          floor in homelab_container_unhealthy, which is derived from it rather than
+          written twice. Raising it without the derivation would leave the alarm unable
+          to fire while the assertion protecting it stayed green.
       netdata_min_contexts:
         type: int
         required: true

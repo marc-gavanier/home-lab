@@ -2,10 +2,10 @@
 # Netdata curated alarms -> Uptime Kuma — ADR-030, phase 1.
 #
 # Builds the path and proves it. Deletes nothing, and changes no existing
-# behaviour: the 57 stock alarms keep reaching nobody, homelab-health.sh keeps
-# its own checks, and Netdata's notification configuration is not touched at
-# all. The two layers overlap on purpose until each curated alarm has been
-# observed firing (ADR-030's migration rule).
+# behaviour: the 57 stock alarms keep reaching nobody and Netdata's notification
+# configuration is not touched at all. The overlap this described is over —
+# swap, available memory and CPU temperature have all left homelab-health.sh,
+# each after its curated alarm was observed firing (ADR-030's migration rule).
 #
 # Netdata notifies nobody. A host-side adapter reads its alarm API and pushes
 # each curated alarm into its own Kuma monitor, so Kuma stays the one place the

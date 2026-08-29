@@ -253,6 +253,27 @@ netdata_curated_alarms:
     alarm: homelab_container_down
     group: services
 
+# Docker collector resolution, in seconds. NOT a free knob: it is the divisor of
+# the sample floor in homelab_container_unhealthy, and the two must move
+# together or the alarm stops firing while its assertion stays green. That is
+# exactly how it was found — the goss spec asserted `update_every == 1` as a
+# PROXY for the floor, so anyone setting this would have broken the alarm and
+# the check meant to protect it in the same edit.
+#
+# Why 5 and not 1: the collector polled the Docker API at 6.2 req/s (measured
+# 2026-08-29: 371 socket-proxy log lines in 60 s) to feed alarms thresholded at
+# TEN MINUTES. That traffic is ~150 MB/day of container log, which truncated
+# socket-proxy's audit log — the record of every Docker API call — to a sawtooth
+# window of roughly 3 h 15 to 4 h 45. Nothing from the previous day could ever
+# be investigated.
+#
+# Why not coarser: the floor has to stay clear of the largest spurious sample
+# count ever recorded (173 s of chart on a freshly recreated container). At 1 s
+# the margin is 500/173 = 2.9x; at 5 s it is 100/34.6 = 2.9x — identical, because
+# both sides divide. Past that the absolute numbers get small enough that a
+# single collection gap matters.
+netdata_docker_update_every: 5
+
 # Available-memory threshold, in MiB. Netdata is now the only consumer —
 # homelab-health.sh's memory check left the script, alongside swap and CPU
 # temperature, so this is no longer a number kept in step with a second copy.
@@ -389,6 +410,11 @@ health_watched_units:
     why: looped 1112 times over 5h47 on 2026-07-27 without ever reaching failed
   - unit: wg-quick@wg0.service
     why: the only route to this host, and to the offsite one
+  - unit: ssh.service
+    why: >-
+      the only way in, and nothing asserted it — the 2026-08-29 audit found it
+      absent from every spec on both hosts. Not covered by the catch-all either:
+      a socket-activated sshd that fails to start leaves no failed unit
 
 goss_version: "0.4.10"
 goss_sha256: "90a59612b4d67d9f1a9038634c000790136bb82526a69de1e81ac075c2f6d2c6"

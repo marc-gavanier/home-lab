@@ -60,8 +60,14 @@
 # `collect_container_size: no` is kept from the stock config: computing per
 # container disk usage walks the whole layer store, which on this host lives on
 # the HDD and would be paid every collection interval.
+#
+# `update_every` is NOT a local tuning decision. It divides the sample floor in
+# homelab_container_unhealthy, which is derived from it rather than written
+# twice — see netdata_docker_update_every in group_vars for why the two cannot
+# be separated, and what it cost that they were.
 jobs:
   - name: local
     address: 'tcp://socket-proxy:2375'
     timeout: 5
+    update_every: {{ netdata_docker_update_every }}
     collect_container_size: no

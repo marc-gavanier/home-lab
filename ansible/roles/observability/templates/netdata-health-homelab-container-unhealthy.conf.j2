@@ -87,15 +87,27 @@
 # to derive a floor from and not stable enough to sit close to — which is
 # exactly the mistake 540 was.
 #
-# So 500 is about ninety per cent of the low end of that range: it needs roughly
-# nine minutes of chart history, absorbs both the reload-to-reload drift and
-# about a minute of collection gaps, and sits nearly three times above the
-# largest spurious count ever recorded (173).
+# So the floor is about ninety per cent of the low end of that range: it needs
+# roughly nine minutes of chart history, absorbs both the reload-to-reload drift
+# and about a minute of collection gaps, and sits nearly three times above the
+# largest spurious count ever recorded (173 s of chart).
 #
 # The remaining coupling is the collector's resolution, and it is the one thing
-# here that could fail silently — a slower collector would never reach 500 and
-# this alarm would simply stop firing — so
-# `docker-collector-samples-every-second` in the goss spec asserts it.
+# here that could fail silently — a slower collector would never reach the floor
+# and this alarm would simply stop firing.
+#
+# That coupling is no longer written twice. The floor is DERIVED from
+# `netdata_docker_update_every`: a ten-minute window nominally holds
+# 600 / update_every samples, and the floor is 83% of that, which reproduces the
+# measured 500 exactly at 1 s and gives 100 at 5 s. Both sides of the ratio
+# divide, so the margin against the largest spurious count ever recorded (173 s
+# of chart) stays 2.9x whatever the resolution.
+#
+# The goss spec used to assert `update_every == 1` — a PROXY for the floor, and
+# the wrong one: it would have gone red on a legitimate resolution change and
+# stayed green on any other way of making the floor unreachable. It now asserts
+# the resolution against the configured value AND that the floor is actually
+# reachable on a mature chart.
 #
 # The summary now says what is enforced. It claimed ten minutes while the alarm
 # could fire on one, and the one episode that DID last past ten minutes was the
@@ -120,7 +132,7 @@ component: Container
    lookup: min -10m unaligned of unhealthy
     units: boolean
     every: 1m
-     warn: $this == 1 AND $homelab_container_health_samples > 500
+     warn: $this == 1 AND $homelab_container_health_samples > {{ ((600 / netdata_docker_update_every) * 0.833) | round | int }}
   summary: A container has been unhealthy across a ten-minute window with at least nine minutes of samples
      info: Container healthcheck failing continuously for 10m, on a chart old enough to prove it — the heal timer cannot see this, it only restarts containers that exited
        to: silent
