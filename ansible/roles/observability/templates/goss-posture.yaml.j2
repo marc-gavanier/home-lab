@@ -585,6 +585,56 @@ command:
     timeout: 20000
     exit-status: 0
 
+  # --- Offsite parity, and the gate that makes it one (#291, class C02) ------
+  # C02's property is "a control on the homelab with no counterpart on the
+  # offsite host". #285 closed it with seven assertions on the offsite, one per
+  # divergence found. They are real and they are green — and they are a LIST. A
+  # list closes the instances it names and cannot fail on the eighth, which was
+  # found the same day: lynis installed on the offsite, its timer masked, its
+  # last report 2026-08-17, nothing scheduled in its place.
+  #
+  # This is the gate the seven were not. It derives the set of controls from the
+  # MACHINE — every homelab-*.timer that has a unit file — and requires each one
+  # to be classified in `homelab_control_timers`, either with the offsite unit
+  # that carries the same property or with a reason it does not exist there.
+  # A new control creates a timer; the timer shows up here; the assertion fails
+  # until somebody decides. That is the difference between a sweep and a gate,
+  # and it is C10's shape one domain over: derive the set, subtract documented
+  # exemptions.
+  #
+  # It fails in BOTH directions on purpose. A timer with no entry is the
+  # divergence this exists to catch. An entry with no timer is a stale
+  # exemption, which is worse than useless: it is a written reason to not look
+  # at something that no longer exists, and the next reader would trust it.
+  #
+  # `list-unit-files` rather than `list-units`: a control timer that exists but
+  # is not loaded must still be classified. Whether it is ARMED is C19's
+  # question and goss-units.yaml already asks it.
+  #
+  # The floor is a measurement (13 on 2026-08-30), not a target. It fails if the
+  # enumeration stops matching — a renamed prefix, a systemctl output change —
+  # rather than reporting parity over nothing, which is the failure mode ADR-032
+  # exists to prevent.
+  offsite-parity-register-covers-every-control-timer:
+    exec: |
+      declared="{{ homelab_control_timers | map(attribute='timer') | sort | join(' ') }}"
+      deployed=$(systemctl list-unit-files --type=timer --no-legend 'homelab-*.timer' 2>/dev/null |
+                 awk '{print $1}' | sed 's/\.timer$//' | sort | tr '\n' ' ')
+      n=$(printf '%s' "$deployed" | wc -w)
+      [ "$n" -ge 10 ] || { echo "only $n homelab control timer(s) enumerated — the sweep stopped matching"; exit 1; }
+      unclassified=""; stale=""
+      for t in $deployed; do
+        case " $declared " in *" $t "*) ;; *) unclassified="$unclassified $t" ;; esac
+      done
+      for t in $declared; do
+        case " $deployed " in *" $t "*) ;; *) stale="$stale $t" ;; esac
+      done
+      rc=0
+      [ -z "$unclassified" ] || { echo "control timer(s) with no offsite decision:$unclassified"; rc=1; }
+      [ -z "$stale" ] || { echo "register names timer(s) that are not deployed:$stale"; rc=1; }
+      exit $rc
+    exit-status: 0
+
   # --- fail2ban: every configured jail is actually loaded --------------------
   # Comparing two derived lists, so the assertion is the exit status. A jail
   # present in jail.local and absent from the running set is a jail that looks

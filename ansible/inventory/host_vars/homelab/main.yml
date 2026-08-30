@@ -11,3 +11,10 @@ ufw_service_rules:
   - { port: "51413", proto: tcp, comment: "BitTorrent peer (Transmission)" }
   - { port: "51413", proto: udp, comment: "BitTorrent peer (Transmission, µTP/DHT)" }
   - { port: "53", from_ip: "192.168.1.0/24", comment: "DNS (Pi-hole, LAN only)" }
+
+# --- Security audit ---
+# lynis is scheduled, reported and ratcheted here by the observability role
+# (weekly run, hardening index pushed to a monitor, DOWN on any regression).
+# That is what makes it a control rather than a package — see the variable's
+# comment in group_vars/all.yml.
+lynis_scheduled: true

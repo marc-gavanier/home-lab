@@ -87,6 +87,41 @@ command:
     exit-status: 0
     stdout: ["/^active$/"]
 
+  # --- Parity with the homelab, DERIVED rather than listed (#291, class C02) -
+  # The assertions below are generated from `homelab_control_timers`, one per
+  # distinct counterpart named there. They are not the gate on their own — a
+  # variable is still something a human writes. The gate is on the homelab side
+  # (`offsite-parity-register-covers-every-control-timer`), which fails when a
+  # deployed control timer is absent from that register, so the register cannot
+  # be shorter than reality and these cannot be shorter than the register.
+  #
+  # #285 closed C02 with seven hand-written assertions. They were correct and
+  # they were green; the eighth divergence appeared the same day anyway, which
+  # is what a list does and what this pair is meant to stop.
+{% for c in homelab_control_timers | selectattr('offsite', 'defined') | map(attribute='offsite') | unique | sort %}
+  offsite-carries-{{ c }}:
+    exec: systemctl is-active {{ c }}.timer
+    exit-status: 0
+    stdout: ["/^active$/"]
+{% endfor %}
+
+  # The decision of #291 made continuous. Both tools are ones THIS REPO installs
+  # or removes, so the list is closed by the roles rather than by memory: lynis
+  # is installed only where `lynis_scheduled` is set, and rkhunter was purged
+  # everywhere in #155. An audit tool that reappears here without a schedule is
+  # the exact shape that made C02 reopen — installed, masked, last report months
+  # old, and reading as coverage on any inventory.
+  offsite-no-audit-tool-without-a-schedule:
+    exec: |
+      bad=""
+      for p in lynis rkhunter; do
+        if dpkg-query -W -f='${Status}' "$p" 2>/dev/null | grep -q "ok installed"; then
+          bad="$bad $p"
+        fi
+      done
+      [ -z "$bad" ] || { echo "installed with nothing scheduling it:$bad"; exit 1; }
+    exit-status: 0
+
   offsite-disk-capacity:
     exec: '[ "$(df --output=pcent {{ backup_mount_point }} | tail -1 | tr -dc 0-9)" -lt 85 ]'
     exit-status: 0
