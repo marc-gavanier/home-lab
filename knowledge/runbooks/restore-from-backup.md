@@ -324,8 +324,29 @@ tokens diverge and every push monitor stays silently DOWN.
 ## Full disaster recovery
 
 1. **Re-provision the OS** with Ansible (the OS isn't backed up — it's reproducible): flash
-   Ubuntu, then `ansible-playbook playbooks/site.yml`. The LUKS disk is passphrase-based and
-   hardware-independent.
+   Ubuntu, then run **phase 1 only**, from `ansible/`:
+   ```bash
+   ansible-playbook playbooks/site.yml --tags phase1 --ask-vault-pass
+   ```
+   The LUKS disk is passphrase-based and hardware-independent.
+
+   > **Why the tag, and not the whole playbook.** `--tags phase1` runs `base`,
+   > `storage`, `security`, `docker` and `observability` — everything the
+   > restore needs, and nothing that starts a container. A bare
+   > `ansible-playbook playbooks/site.yml` also runs the `deploy` role, whose
+   > `Run Docker Compose (file, networks, pull, up)` task brings the **entire
+   > stack up against empty data directories**: fresh `initdb` on three
+   > databases, a fresh Nextcloud install. Step 2 would then restore
+   > `/mnt/data/services` — three live database datadirs among them — underneath
+   > running services, which is the failure mode the rest of this runbook spends
+   > three hundred lines avoiding, and `homelab-stack-heal.timer` would restart
+   > whatever crashed mid-restore. There is a second-order hazard on the same
+   > step: `deploy` writes the secrets from `local.yml`, the databases
+   > initialise against those, and step 2 then restores `/mnt/data/secrets` over
+   > them — leaving every service holding credentials its restored database has
+   > never seen. Found by the audit of 2026-08-30; step 3 had said "handled by
+   > the deploy role" while describing a role that had already run two steps
+   > earlier.
 2. **Point Restic at the repo** (local on `/mnt/data`, or the offsite repo — see
    `offsite-backup.md` when the homelab itself is lost) and restore data.
    Secrets first, and on their own: `/opt/homelab` holds symlinks *into*
@@ -350,8 +371,12 @@ tokens diverge and every push monitor stays silently DOWN.
    > backed-up path. Restoring `/mnt/data/secrets` is the branch that still
    > works when it does not. Without it there is also no `wg0.conf`, therefore
    > no tunnel, on a Pi whose only remote access is that tunnel.
-3. **Import the DB dumps** (see above), then bring services up (`docker compose up -d`,
-   handled by the deploy role).
+3. **Import the DB dumps** (see above), then bring services up by running the
+   rest of the playbook — this is the step that starts containers, and it is
+   the first time in this procedure that anything should:
+   ```bash
+   ansible-playbook playbooks/site.yml --ask-vault-pass
+   ```
 4. Sanity-check services; re-run `occ files:scan` if media browsing looks stale.
 
 ## Drill record

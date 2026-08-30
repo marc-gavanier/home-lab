@@ -58,7 +58,15 @@ anycast plus `restart: unless-stopped` is deemed reliable enough.
   ```
   /etc/resolv.conf          -> nameserver 1.1.1.1 / 8.8.8.8
   /etc/docker/daemon.json   -> no dns key
-  container resolv.conf     -> 127.0.0.11  (28 of 28 — Docker's embedded resolver)
+  container resolv.conf     -> 127.0.0.11  (28 of 29 — Docker's embedded resolver)
+                               the 29th is traefik-log-redactor, on
+                               network_mode: none — Docker gives it no embedded
+                               resolver and writes the upstreams into the file.
+                               It has no socket to resolve THROUGH, so nothing
+                               leaves it, in cleartext or otherwise; the
+                               conclusion below is untouched. Do not "correct"
+                               this to 29 of 29 and assert an embedded resolver
+                               for a container that has none.
   ```
 
   Docker's embedded resolver forwards whatever it cannot answer to the **host's**

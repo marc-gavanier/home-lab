@@ -236,12 +236,30 @@ That outage came from adding one hostname to the split-DNS template, which fired
 the `Restart pihole` handler for the first time since dnsproxy replaced
 cloudflared. The deploy itself reported only one unrelated failed task.
 
-**Always restart the pair, in order** — the handler now does this, but a manual
-`docker restart pihole` or `docker compose up -d pihole` needs it too:
+**Always bring the pair back together, in order** — the handler now does this,
+but doing it by hand needs it too. **The remedy is not the same for the two
+triggers, and using the wrong one leaves DNS dead:**
 
-```bash
-docker restart pihole && docker restart dnsproxy
-```
+- After `docker restart pihole` — the container ID is unchanged, so re-attaching
+  works:
+  ```bash
+  docker restart pihole && docker restart dnsproxy
+  ```
+- After `docker compose up -d pihole`, or anything else that **recreates** the
+  container — `docker restart dnsproxy` is measured to fail here:
+  ```bash
+  docker compose up -d --force-recreate dnsproxy
+  ```
+
+`HostConfig.NetworkMode` holds a hard container ID resolved once at creation. A
+recreated pihole gets a new ID, so restarting dnsproxy re-runs it against the
+*dead* one: it exits 1 and leaves dnsproxy stopped, which is worse than the
+detached state the restart was meant to repair. Only recreating re-resolves
+`service:pihole`. Measured on a throwaway pair before it was written down
+(#215), and the measurement has been in
+`ansible/roles/deploy/tasks/compose.yml:103-109` ever since — this page gave the
+restart form for both triggers until the audit of 2026-08-30 read the two side
+by side.
 
 Before restarting anything, check whether something rides on its namespace:
 

@@ -38,8 +38,9 @@ encrypted disk, and stage the containers behind it — all automated by the
    `RequiresMountsFor=/mnt/data` on `docker.service` now actually blocks a
    pre-mount start. `docker.service` **and** `docker.socket` are disabled at
    boot; the target pulls them in at unlock time.
-2. **Restart-policy tiering.** Tier 0 (`traefik`, `pihole`, `wg-easy`, `dnsproxy`,
-   `socket-proxy`) keeps
+2. **Restart-policy tiering.** Tier 0 (`traefik`, `traefik-log-redactor`, `pihole`,
+   `wg-easy`, `dnsproxy`, `socket-proxy` — six, and the authority is the
+   `restart: unless-stopped` set in `docker/compose.yaml`, not this list) keeps
    `restart: unless-stopped` and starts with the daemon, so LAN DNS is back in
    ~1–3 minutes. Everything else is `restart: "no"` — *not* `on-failure`,
    because at daemon start Docker resurrects any container whose last exit code

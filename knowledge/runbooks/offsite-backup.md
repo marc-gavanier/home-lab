@@ -31,14 +31,16 @@ append-only mode. The repo password is deliberately NOT stored on it.
   Note the `sudo sh -c`: `/etc/goss` is `drwx------`, so a glob or a redirect
   written outside the privileged shell silently returns nothing.
 
-  As of 2026-08-29 that is **22 assertions**, in five groups — disk capacity;
-  the filesystem (ext4 error counters, an fsck pass number, armed boot triggers,
-  and the distribution's `e2scrub` timer staying masked); SMART (readability, the
-  drive's own verdict, six early-warning counters, spare blocks, temperature, and
-  the last self-test's result and freshness); the Pi's power (undervoltage, with
-  an absent `rpi_volt` sensor reported rather than passed); and the two that make
-  this host a *backup* rather than a mirror — the tunnel handshake, and the
-  rest-server still running `--append-only`.
+  **The count and the taxonomy that used to sit here have been deleted, and the
+  deletion is the fix.** This paragraph said "22 assertions, in five groups" and
+  listed them, four lines under its own instruction not to maintain the DOWN
+  conditions by hand. It had already been corrected once for drifting eight
+  assertions behind the spec between 2026-08-21 and 2026-08-29; it then drifted
+  **seven in a single day**, because #291 and #292 added conditions — the clock,
+  the control parity, the unit state — that fit none of the five groups. An
+  operator diagnosing a DOWN would have read a taxonomy that could not contain
+  the assertion which fired, and gone looking for a fault in disk or SMART.
+  Run the command above; it is the answer.
 
   **One condition is not in the spec, deliberately**: security updates still
   unapplied after 48 h. It needs to remember when the count first went nonzero,
