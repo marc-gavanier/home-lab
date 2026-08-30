@@ -130,6 +130,54 @@ once, by hand, since nothing deletes a network that no longer gets created:
 docker network rm internal   # verify `docker network inspect internal` shows 0 containers first
 ```
 
+## Addresses a third party assigns
+
+Six addresses in this lab are decided by somebody else — the ISP, the router's
+DHCP server, or the Docker daemon — and written into configuration that assumes
+they hold. None of them is wrong today. All six are one third-party decision
+away from breaking, and before #292 five of them would have broken silently.
+
+The rule applied, one line per address: **pinned, derived at run time from the
+authority that assigns it, or watched.**
+
+| Address | Assigned by | Today | Treatment |
+|---------|-------------|-------|-----------|
+| Public IPv4 | the ISP | — | **derived** — the DDNS job re-reads it every 15 min and pushes the record |
+| The offsite's endpoint | DHCP at the remote site | — | **derived** — `offsite-wg-reresolve` re-resolves the peer name, which is the recovery path a home address change needs |
+| homelab LAN address | the router, **one-day lease** | `192.168.1.100`, hardcoded in 19 places including the resolver handed to every VPN client | **watched** — `lan-address-is-the-one-the-configuration-hardcodes` |
+| `proxy` network | Docker's default pool | `172.18.0.0/16` | **watched against both authorities** — `traefik-allowlist-covers-the-live-proxy-subnet` |
+| `homelab_internal` | Docker's default pool | `172.19.0.0/16` | **watched** — `docker-networks-are-where-the-configuration-expects-them` |
+| `homelab_socketproxy` | Docker's default pool | `172.20.0.0/16` | same assertion |
+
+### Why the proxy subnet is the one that matters
+
+Traefik's `vpn-only` middleware admits `172.18.0.0/16` because that is where the
+`proxy` network happens to live, and **every VPN client reaches Traefik through
+it**. The range was deliberately narrowed from `172.16.0.0/12`, which had also
+admitted the Docker socket proxy's network — a good change that makes a
+re-allocation fatal rather than harmless. Docker assigns these from a pool with
+no `ipam_config`, so a network recreated after the others comes back somewhere
+else, and the day `proxy` moves off 172.18 that line refuses every VPN client:
+discovered from outside the house, in the worst case.
+
+That one assertion therefore compares the **live network** against the
+**allowlist file**, not against a remembered value — those two are the
+authorities, and a check that agrees with a third copy of the answer proves
+nothing about them.
+
+Pinning with `ipam_config` was the other option and was not taken: it requires
+recreating the networks, `proxy` is `external: true`, and recreating it means
+stopping every container attached to it. Watching costs three assertions and no
+downtime.
+
+### The comment that had gone stale
+
+Two places in the repository named a subnet the machine no longer used — one
+placing `homelab_socketproxy` at 172.21 when it sits at 172.20, the other
+describing 172.20 as the range a phantom network had taken, which is now a live
+one. Both corrected. Where these networks are is a measurement, kept in
+`docker_expected_subnets` and asserted; it is no longer prose.
+
 ## ISP Configuration
 
 ### Requirements

@@ -683,6 +683,66 @@ command:
       exit $rc
     exit-status: 0
 
+  # --- Addresses this host does not control (#292, class C43) ----------------
+  # The board holds no fixed address on the LAN side: the router hands it a
+  # one-day DHCP lease, and 192.168.1.100 is written into the repository
+  # nineteen times — including as the resolver every VPN client is handed. The
+  # day the router gives it a different one, nothing anywhere says so; the
+  # symptom is VPN clients with no DNS and an operator reading a configuration
+  # that has been describing a different machine since the morning.
+  #
+  # Pinning it belongs to the router, which is not in this repository. Watching
+  # it is one line and belongs here. Asserted against `homelab_ip`, the same
+  # variable the inventory connects with, so the check cannot drift from the
+  # value the rest of the deploy assumes.
+  lan-address-is-the-one-the-configuration-hardcodes:
+    exec: |
+      live=$(ip -4 -o addr show dev eth0 scope global 2>/dev/null |
+             awk '{print $4}' | cut -d/ -f1 | head -1)
+      [ -n "$live" ] || { echo "eth0 holds no global IPv4 — the check cannot run"; exit 1; }
+      [ "$live" = "{{ homelab_ip }}" ] || {
+        echo "the host holds $live while the configuration hardcodes {{ homelab_ip }} in 19 places"
+        exit 1
+      }
+    exit-status: 0
+
+  # Docker allocates these, not us — no `ipam_config` anywhere in compose.yaml.
+  # Generated from `docker_expected_subnets` so a network added to the stack
+  # without an entry is a change to this spec rather than a silent fourth
+  # allocation nobody watches.
+  docker-networks-are-where-the-configuration-expects-them:
+    exec: |
+      bad=""
+{% for name, cidr in docker_expected_subnets.items() %}
+      live=$(docker network inspect {{ name }} 2>/dev/null | jq -r '.[0].IPAM.Config[0].Subnet // empty')
+      [ "$live" = "{{ cidr }}" ] || bad="$bad {{ name }}=${live:-absent}(expected {{ cidr }})"
+{% endfor %}
+      [ -z "$bad" ] || { echo "docker moved a network under the configuration:$bad"; exit 1; }
+    exit-status: 0
+
+  # The one that is load-bearing rather than merely tidy, and the only one of the
+  # three asserted against the two AUTHORITIES instead of against a remembered
+  # value: the live network on one side, the allowlist file on the other.
+  #
+  # `vpn-only` admits the proxy network because every VPN client reaches Traefik
+  # through it. The range was narrowed from 172.16.0.0/12 to 172.18.0.0/16 for
+  # good reason — the /12 also admitted the Docker socket proxy's network — and
+  # that narrowing is exactly what makes a re-allocation fatal: if Docker brings
+  # `proxy` back on a different /16 after a network is recreated, the allowlist
+  # stops covering it and every VPN client is refused. Discovered from outside
+  # the house, in the worst case.
+  traefik-allowlist-covers-the-live-proxy-subnet:
+    exec: |
+      live=$(docker network inspect proxy 2>/dev/null | jq -r '.[0].IPAM.Config[0].Subnet // empty')
+      [ -n "$live" ] || { echo "the proxy network declares no subnet"; exit 1; }
+      f=/opt/homelab/configs/traefik/dynamic/middlewares.yml
+      [ -r "$f" ] || { echo "$f unreadable — the allowlist cannot be compared"; exit 1; }
+      grep -qF "\"$live\"" "$f" || {
+        echo "vpn-only does not admit the live proxy subnet $live — every VPN client loses access"
+        exit 1
+      }
+    exit-status: 0
+
   # --- fail2ban: every configured jail is actually loaded --------------------
   # Comparing two derived lists, so the assertion is the exit status. A jail
   # present in jail.local and absent from the running set is a jail that looks

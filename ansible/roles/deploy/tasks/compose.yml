@@ -40,9 +40,16 @@
 # compose.yaml and therefore has to exist beforehand. Compose creates the
 # internal network itself, prefixed — homelab_internal, 172.19.0.0/16, 12
 # containers. Creating a bare `internal` here built a SECOND, empty network on
-# 172.20.0.0/16 on every single deploy, and `docker network inspect internal`
-# returned that one rather than the live one. It was removed by hand on
-# 2026-08-16 at 14:12 and this task had rebuilt it by 14:51.
+# a subnet of its own on every single deploy, and `docker network inspect
+# internal` returned that one rather than the live one. It was removed by hand
+# on 2026-08-16 at 14:12 and this task had rebuilt it by 14:51.
+#
+# The subnet the phantom took is deliberately NOT named here any more. It was
+# 172.20.0.0/16 on the day, and 172.20.0.0/16 is where `homelab_socketproxy`
+# lives today — so the sentence had become a live range described as a mistake,
+# which is exactly how a stale comment does damage (#292, and a C01 instance).
+# Docker assigns these from a pool with no pinning; where they are is a
+# measurement, kept in `docker_expected_subnets` and asserted, not prose.
 - name: compose | Ensure the external Docker network exists
   community.docker.docker_network:
     name: proxy
