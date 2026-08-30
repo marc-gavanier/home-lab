@@ -82,7 +82,9 @@ before `fake-hwclock-load` — so `load` does **not** win the race the ordering
 comment worried about. The result is right regardless, and why that is has not
 been measured, so it is not asserted here.
 
-Two checks report on it, and they fire at different moments:
+Three checks report on it, and they fire at different moments — the third is
+also the only one that covers the offsite host, which the section above calls
+the control rather than a second patient:
 
 | Check | Fires |
 |-------|-------|

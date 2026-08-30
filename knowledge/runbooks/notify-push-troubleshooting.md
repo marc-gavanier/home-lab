@@ -5,7 +5,7 @@ Each failure points at a specific misconfiguration. This runbook lists the ones
 hit on this homelab and their fixes. All fixes live in `docker/compose.yaml` and
 `ansible/roles/deploy/tasks/nextcloud.yml` — re-deploy with `--tags deploy`. (The
 role's `main.yml` has been a thin orchestrator since the July 2026 split; it imports
-seventeen files and contains none of this.)
+nineteen files and contains none of this.)
 
 ## Quick diagnosis
 

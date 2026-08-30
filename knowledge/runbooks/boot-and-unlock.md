@@ -79,15 +79,33 @@ What to expect and do when the Pi comes back up. Design rationale in
    journalctl -t homelab-startup -b -f
    ```
 
-4. **DNS is back ~1–3 min in** (Tier 0: traefik/pihole/wg-easy/dnsproxy/socket-proxy
-   start with the daemon — five containers, enumerated on the host by restart policy,
-   not three as this line said until #178). The waves then bring up light services → Nextcloud stack → heavy
-   tier, ending with `staged startup complete — all waves dispatched`.
+4. **DNS is back ~1–3 min in.** Tier 0 starts with the daemon rather than with a
+   wave; the members are the services carrying `restart: unless-stopped`, and
+   the list is not repeated here on purpose — read it from the source of truth:
+
+   ```bash
+   docker compose config --format json | jq -r \
+     '.services | to_entries[] | select(.value.restart=="unless-stopped") | .key'
+   ```
+
+   This line used to name five containers and claim they had been "enumerated on
+   the host by restart policy", which made prose read as a derived fact. It was
+   six: `traefik-log-redactor` joined Tier 0 and neither this runbook nor
+   ADR-007 followed. That omission is expensive precisely here — §"If the
+   orchestrator aborts" below tells you to recreate a missing Tier 0 container
+   by hand, and an operator rebuilding the tier from a list of five brings
+   Traefik back **without its redactor**. `tail -F` opens the file where it is,
+   so every access line written in the meantime is gone from the durable log,
+   silently, during the part of boot that #252, #253, #260 and #292 were all
+   opened about.
+
+   The waves then bring up light services → Nextcloud stack → heavy tier, ending
+   with `staged startup complete — all waves dispatched`.
 
 5. **Verify** (optional):
 
    ```bash
-   docker ps --format '{{.Names}}\t{{.Status}}' | sort   # 28 containers, healthy
+   docker ps --format '{{.Names}}\t{{.Status}}' | sort   # all healthy, none missing
    swapon --show                                         # /mnt/data/swapfile (HDD)
    ```
 

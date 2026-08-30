@@ -69,8 +69,8 @@ Defense in depth — each layer is secured independently. If one layer falls, th
   auto-reboot on the homelab; `needrestart` activates patched libraries
   reboot-free; kernel residue on a bounded manual cadence) — strategy in
   [ADR-013](../../knowledge/decisions/ADR-013-update-patching-strategy.md)
-- **Non-root where the image allows it**: 11 of the 28 containers declare a
-  service uid and run as it. The other 17 start as root, and section 3 below
+- **Non-root where the image allows it**: 11 of the 29 containers declare a
+  service uid and run as it. The other 18 start as root, and section 3 below
   explains why — for five of them it is structural and cannot be removed
   without breaking the service. This line used to read "no service runs as
   root", which the same document then contradicted
@@ -186,7 +186,7 @@ Defense in depth — each layer is secured independently. If one layer falls, th
 - Isolated Docker networks (`proxy` / `internal` / `socketproxy`); the DB tier
   lives on `internal` only — never proxied, never published
 - No directly exposed service ports — everything routes through Traefik (vpn-only)
-- **Read-only rootfs on 22 of the 28 services** (ADR-019, issue #32) — a
+- **Read-only rootfs on 23 of the 29 services** (ADR-019, issue #32) — a
   compromised process cannot rewrite the code it runs, drop a binary, or persist
   anything outside the paths we declared. Every writable path is explicit: a
   sized `tmpfs` for state meant to be lost (PID files, sockets, caches,
