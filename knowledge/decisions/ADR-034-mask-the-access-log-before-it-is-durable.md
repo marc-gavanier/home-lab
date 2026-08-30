@@ -93,6 +93,12 @@ Four things keep the glue small enough to be worth it:
 - A credential class that reaches a query string is now masked for **every**
   service behind the proxy, including ones not yet deployed.
 - Over-redaction is possible and costs nothing: a value nobody needed.
+- The redactor is Tier 0, which it does not look like from its job. `tail -F`
+  opens the file where it is, so anything written while it is down never reaches
+  the durable log — and left to the staged startup it would come up in wave 1,
+  after the 300 s DNS gate, blinding the access log for exactly the part of boot
+  that has already produced #252, #253, #260 and #292. It costs the boot storm
+  nothing: one alpine reading one file, no image layers off the USB disk.
 - PID 1 in the redactor is a shell, so `docker stop` waits out the grace period
   and kills. Harmless here — no state to flush, every line already shipped —
   and the grace period is shortened to 5 s so a stack stop is not held up. It is

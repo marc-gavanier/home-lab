@@ -4,7 +4,8 @@
 # =============================================================================
 # At a cold boot the Docker daemon would restart all containers at once, spiking
 # load on the 4 GB Pi and leaving LAN DNS (Pi-hole) down for ~15 min. To avoid
-# that, only Tier 0 (pihole/traefik/wg-easy) keeps `restart: unless-stopped` and
+# that, only Tier 0 (dnsproxy/pihole/socket-proxy/traefik/traefik-log-redactor/
+# wg-easy) keeps `restart: unless-stopped` and
 # auto-starts with the daemon; every other service is `restart: "no"` — Docker
 # never starts them on its own (`on-failure` resurrected containers killed
 # non-gracefully by a reboot/power cut; crashes are covered by the heal timer).
@@ -117,7 +118,7 @@ log "staged startup begin"
 # silently, so the stack-startup role asserts the two agree at deploy time — the
 # comparison runs on the workstation, keeping jq and python3 off the boot path
 # of the one script that has to work when nothing else does.
-for svc in dnsproxy pihole socket-proxy traefik wg-easy; do
+for svc in dnsproxy pihole socket-proxy traefik traefik-log-redactor wg-easy; do
     docker inspect "$svc" >/dev/null 2>&1 || missing_tier0="${missing_tier0:-} $svc"
 done
 if [ -n "${missing_tier0:-}" ]; then
