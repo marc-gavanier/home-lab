@@ -70,6 +70,18 @@ this machine was running* instead of *the day systemd was built*. It cannot make
 those timestamps correct — nothing without an RTC can — but it makes them close
 enough that the ordering stops lying, which is all the vacuum needs.
 
+Verified on the reboot of 2026-08-30 17:29: the journal puts the boot at
+`17:28:54` against a real boot at `17:29:29` — **35 seconds, where it had been
+32 days** — the kernel banner is the first line again, and the new segment is
+named for today instead of becoming the oldest file on the host.
+
+One detail is worth keeping because it contradicts what the code expected:
+`systemd-journald.service` still starts with the wrong clock — its
+`ExecMainStartTimestamp` reads 2026-07-28 17:05:14, about two monotonic seconds
+before `fake-hwclock-load` — so `load` does **not** win the race the ordering
+comment worried about. The result is right regardless, and why that is has not
+been measured, so it is not asserted here.
+
 Two checks report on it, and they fire at different moments:
 
 | Check | Fires |
