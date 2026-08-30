@@ -1,13 +1,36 @@
 ---
-# A restart, and not `netdatacli reload-health`, which would be the obvious
-# choice and does not work here: this image runs netdata as PID 1 with no
-# control pipe — `/run/netdata/` is empty, and netdatacli answers "Cannot
-# connect to '/run/netdata/netdata.pipe'". Measured, not assumed, because a
-# handler that silently does nothing is the exact defect class this repository
-# keeps finding.
+# Two handlers, because the two things this role writes need different actions
+# and one of them used to get the wrong one.
 #
-# The cost is a few seconds of collection, not history: the metrics database
-# lives on the volume since ADR-019.
+# The comment that stood here justified restarting for BOTH, on the grounds that
+# `netdatacli` could not work: "this image runs netdata as PID 1 with no control
+# pipe — /run/netdata/ is empty, and netdatacli answers Cannot connect to
+# /run/netdata/netdata.pipe. Measured, not assumed."
+#
+# Re-measured on 2026-08-31, inside the container, which is the namespace that
+# matters — /run/netdata/ does not exist on the HOST at all, and checking it
+# there is how the premise looked true:
+#
+#   $ docker exec netdata ls /run/netdata/
+#   srwxrwx--- netdata netdata netdata.pipe          <- present
+#   $ docker exec netdata netdatacli ping
+#   pong                                             <- positive control
+#
+# The measurement was probably right when it was taken and it expired without
+# anything noticing, which is the whole reason this file is being read tonight.
+#
+# What did NOT change: `netdatacli help` offers reload-health, reload-labels and
+# reload-claiming-state, and nothing that reloads a go.d collector. So the
+# collector configs still need the restart, and only the alarms get the reload.
+
+- name: Reload netdata health
+  ansible.builtin.command:
+    cmd: docker exec netdata netdatacli reload-health
+  changed_when: true
+
+# Still a restart, and deliberately: no netdatacli verb reloads a go.d
+# collector. The cost is a few seconds of collection, not history — the metrics
+# database lives on the volume since ADR-019.
 - name: Restart netdata
   ansible.builtin.command:
     cmd: docker restart netdata

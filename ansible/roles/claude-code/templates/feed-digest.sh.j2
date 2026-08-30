@@ -130,7 +130,14 @@ notify() { # $1=up|down  $2=message
     printf 'url = "%s"\n' "$url" |
         curl -fsS -m 10 -o /dev/null -K - -G \
             --data-urlencode "status=$1" --data-urlencode "msg=$2" \
-            2>>"$LOG" || log "WARNING: Kuma push failed"
+            2>>"$LOG" || {
+                log "WARNING: Kuma push failed"
+                # Unprefixed and on stderr, for the same reason as the eight
+                # siblings: `log` stamps a timestamp, and the assertion that
+                # reads this anchors at ^. Keep the string in step with
+                # `no-kuma-report-was-lost-in-silence` in the posture spec.
+                echo "kuma-push-failed: this report reached nobody — $2" >&2
+            }
 }
 
 fail() { log "ERROR: $*"; notify down "$*"; exit 1; }
