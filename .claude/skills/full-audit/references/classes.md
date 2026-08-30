@@ -188,12 +188,28 @@ them. Five are in the OPEN table above.
 
 | ID | Property | Swept | State |
 |-----|--------------------------------------------------|-----------------|------------|
-| C44 | A verification whose cadence cannot observe the event it guards | 13/13 timers, **12 instances** | ENUMERATED |
+| C44 | A verification whose cadence cannot observe the event it guards | 13/13 timers swept; **1 instance**, not 12 — see below | ENUMERATED, remedy shipped, **not gated** |
 | C45 | A reporting path that cannot report its own failure | 10/10 push sites, **8 instances** | ENUMERATED |
 | C47 | A PID 1 that cannot act on the signal it is sent | 29/29, **2 instances** | ENUMERATED |
 | C48 | A real dependency that nothing declares | 29 services + 18 configs, **1 instance** | ENUMERATED |
 | C49 | A hardening applied to an artefact its producer regenerates | 28/28, **1 new instance** (3 prior: #189, #299, the UFW sysctl) | ENUMERATED |
-| C53 | A handler whose effect is expected earlier in the play than it occurs | 34 handlers, 1 flush point, **2 instances** | ENUMERATED |
+| C53 | A handler whose effect is expected earlier in the play than it occurs | 34 handlers, 1 flush point, **2 instances, 1 fixed** | ENUMERATED, **not gated** |
+
+### C44's cardinal was wrong, and the error is the one this file warns about
+
+It was recorded as **12 instances of 13**. That was a count of `homelab-*`
+timers lacking `OnBootSec`, which is a *proxy* for the property, not the
+property — the scope trap this register already documents from 2026-08-22:
+**define the class by its property, not by the enumeration that was convenient
+to run.**
+
+Re-read against the property — *a verification whose cadence cannot observe the
+event it guards* — the answer is **1**. `homelab-health` runs every five
+minutes, so it observes any post-boot state on its own. `homelab-disk`,
+`homelab-lynis` and the weeklies guard facts a reboot does not change. Only the
+posture check both guards state that a reboot and a deploy alter, and ran on a
+cadence that could see neither. **Do not carry the 12 forward as if it were
+instances.**
 
 **C44 is the one to act on, and it is not the one with the most instances.**
 `homelab-posture.timer` has no boot hook: the spec was written at 17:23:28, the
@@ -206,11 +222,29 @@ monotonic, so its absence is correct — 12 of 13.
 C53 sharpens it rather than duplicating it: the deploy role's LAST task is
 "Re-assert the container posture", and Ansible runs its 14 handlers at the end
 of the PLAY, so the posture check grades the stack **before** the restarts the
-deploy just queued. The repo holds exactly one `meta: flush_handlers`, in
+deploy just queued. The repo held exactly one `meta: flush_handlers`, in
 `security`. Together the two mean: **the only two occasions on which the posture
 could have covered a day's changes both fell at the wrong moment — one before
 the handlers, one before the reboot.** The state was in fact good; nothing in
 the system established that.
+
+**Both were fixed the same evening, in two lines** (PR #307): a
+`meta: flush_handlers` before the re-assertion, and `OnBootSec=30min` on the
+timer — 30 rather than 0 because `/mnt/data` is unlocked by hand and the staged
+startup then takes ~9 minutes, and the script already exits 0 with
+`/mnt/data locked — posture not checked` if the volume is not up. Verified on
+the machine: `OnBootUSec=30min` live, and the post-flush re-assertion ran at
+21:45:28 with `Result=success`, its monitor carrying a real reading rather than
+a constant.
+
+**Corrected is not gated, and the distinction is the whole point of this file.**
+Nothing stops a future timer from shipping without a boot hook, or a future role
+from putting a verification ahead of its own handlers. C53's SECOND instance is
+untouched: `Restart Docker` still lands after the deploy role has configured the
+entire stack against the old daemon, and the flush moves when it fires without
+changing that ordering. The founding defect of this skill survived fifteen days
+on nine scripts *after* being fixed on the tenth — which is exactly what
+"corrected, not gated" costs when nobody writes it down.
 
 ## Reopened by the run of 2026-08-30 (evening) — C03 (fourth time) and C29
 
@@ -338,12 +372,12 @@ them; do not re-derive without a new symptom.
 | C38 | A container log growing without rotation | 28/28, rotation proven applied rather than declared | 08-21, 08-29 |
 | C40 | A container killed before finishing an ordered shutdown | 29/29, 8 instances, on the daemon's own log rather than on crash markers | 08-30 |
 | C42 | A mechanism ranking by a timestamp written before the clock was right | 6/6, 1 instance | 08-30 |
-| C44 | A verification whose cadence cannot observe the event it guards | 13/13 timers, 12 instances | 08-30 |
+| C44 | A verification whose cadence cannot observe the event it guards | 13/13 timers, 1 instance (12 was the proxy count) | 08-30 |
 | C45 | A reporting path that cannot report its own failure | 10/10 push sites, 8 instances | 08-30 |
 | C47 | A PID 1 that cannot act on the signal it is sent | 29/29, 2 instances (`SigCgt` masks, not documentation) | 08-30 |
 | C48 | A real dependency that nothing declares | 29 services + 18 configs, 1 instance | 08-30 |
 | C49 | A hardening applied to an artefact its producer regenerates | 28/28, 1 new instance | 08-30 |
-| C53 | A handler whose effect is expected earlier in the play than it occurs | 34 handlers, 1 flush point, 2 instances | 08-30 |
+| C53 | A handler whose effect is expected earlier in the play than it occurs | 34 handlers, 1 flush point, 2 instances, 1 fixed | 08-30 |
 
 ## DECLINED
 

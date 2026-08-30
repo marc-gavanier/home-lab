@@ -1639,6 +1639,20 @@ own header warns about.
 - **C03 has now reopened four times.** It needs a gate, not a fifth sweep.
 - **C26 is GATED on one of its four axes** and the table said GATED. The argv
   axis still has no assertion; the instance was fixed by hand.
-- **C44's remedy is not written.** No `homelab-*` timer has a boot hook and the
-  deploy role has no `meta: flush_handlers` before its posture re-assertion —
-  both one-liners, neither shipped.
+- ~~**C44's remedy is not written.**~~ **Shipped the same evening** (PR #307),
+  two lines: `meta: flush_handlers` before the deploy role's posture
+  re-assertion, and `OnBootSec=30min` on the timer. Verified live —
+  `OnBootUSec=30min`, and the post-flush re-assertion ran `Result=success` with
+  its monitor carrying a real reading. **Corrected, NOT gated**: nothing stops a
+  future timer shipping without a boot hook, and C53's second instance is
+  untouched (`Restart Docker` still lands after the deploy has configured the
+  stack against the old daemon).
+- **C44's cardinal was wrong and is corrected in `classes.md`: 1 instance, not
+  12.** The 12 counted `homelab-*` timers lacking `OnBootSec`, which is a proxy
+  for the property rather than the property. Re-read against *a verification
+  whose cadence cannot observe the event it guards*: `homelab-health` runs every
+  five minutes and sees any post-boot state on its own, the dailies and weeklies
+  guard facts a reboot does not change, and only the posture check both guards
+  state that a reboot and a deploy alter and ran on a cadence blind to both.
+  **A convenient enumeration is not a cardinal** — the same trap this file
+  records from 2026-08-22.
