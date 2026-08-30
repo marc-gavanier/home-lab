@@ -176,11 +176,34 @@
 # that has no meaning here.
 #
 # Read the note above on the frozen boot clock before reading these triggers as
-# a schedule. e2fsck runs in the initramfs before any time sync, sees every
-# superblock as future-dated, and performs a full check regardless of what `-c`
-# and `-i` say — then rewrites both backwards. The triggers are set so that the
-# configuration is right the day the clock is, not because they are doing the
-# work today. What does the work is `passno`.
+# a schedule. But the sentence that stood here — "e2fsck runs in the initramfs
+# before any time sync" — is only true of the ROOT filesystem, and it was doing
+# real damage as a premise, because these extra filesystems are exactly the ones
+# it is NOT true of.
+#
+# Measured on the offsite, 2026-08-31, from the current boot's own journal:
+#
+#   [   17.83] Starting systemd-fsck@dev-disk-by\x2duuid-466c...service
+#   [   17.81] systemd-fsck[569]: /dev/sda1: Superblock last write time
+#              (Sat Aug 29 02:40:41 2026, now = Tue Jul 28 17:05:11 2026)
+#              is in the future.  FIXED.
+#   [   27.79] Finished  (a FULL check, ten seconds on 100 M blocks)
+#
+# That is a systemd unit in the main system, not the initramfs: root is checked
+# by systemd-fsck-root.service, these are `systemd-fsck@` instances, and the two
+# are orderable independently. The clock reads 2026-07-28 17:05 because that is
+# the mtime of the systemd binary, exactly as clock.yml measured.
+#
+# The consequence is a loop that sustains itself. e2fsck judges correct
+# timestamps to be in the future, rewrites them from the wrong clock, and
+# anchors `Last checked` in the past — so `Next check after` is already overdue
+# at the next boot, which forces another full check, from the same wrong clock.
+# Read live on 2026-08-31: Last checked Jul 28, Next check after Aug 27, both
+# in the past.
+#
+# So the triggers below are NOT merely "right the day the clock is". They are
+# overridden every boot by a check nothing asked for. The ordering task that
+# follows is what makes them mean something.
 - name: filesystem-checks | Read the check triggers on the extra filesystems
   ansible.builtin.command: "tune2fs -l {{ item.device }}"
   register: extra_fs_superblocks
@@ -210,3 +233,59 @@
   loop_control:
     label: "{{ item.item.device }}"
   changed_when: true
+
+# =============================================================================
+# The check must not run before the clock is restored (class C42)
+# =============================================================================
+# `systemd-fsck@` and `fake-hwclock-load` both run with DefaultDependencies=no
+# in the sysinit tier, so they are unordered with respect to each other BY
+# DESIGN — the package's, not ours. Which one wins is luck: on the homelab the
+# clock happens to be restored first; on the offsite, fsck ran at 17.8 s into a
+# boot where `fake-hwclock-load` had not yet been enabled at all, and rewrote
+# the backup disk's superblock from the systemd build date.
+#
+# clock.yml records that an early-boot ordering drop-in was CONSIDERED AND
+# REJECTED, and that decision is not being overturned lightly. It concerned a
+# different edge — fake-hwclock BEFORE systemd-journald — and journald is the
+# cycle risk, because nearly every unit wants it. This edge is the other way
+# round and much narrower: fsck waits for the clock. `fake-hwclock-load` reads
+# only /etc/fake-hwclock.data on the root filesystem, and root is checked by
+# systemd-fsck-root.service, a DIFFERENT unit that this drop-in does not touch.
+# There is therefore no path back from fake-hwclock-load to a `systemd-fsck@`
+# instance, which is what a cycle would need.
+#
+# Verified with `systemd-analyze verify` on both hosts before shipping. The
+# honest limit: the real test is the next boot, and neither host is rebooted to
+# find out — the homelab has no out-of-band path and the offsite is in another
+# building. If a cycle did appear, systemd breaks it by dropping an edge and
+# says so in the journal; the disk report is where that would surface.
+- name: filesystem-checks | Ensure the fsck drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/system/systemd-fsck@.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: filesystem-checks | Order the boot check after the clock is restored
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/systemd-fsck@.service.d/after-fake-hwclock.conf
+    owner: root
+    group: root
+    mode: "0444"
+    content: |
+      # {{ ansible_managed }}
+      # e2fsck judges the superblock against the system clock. Without this
+      # edge it can run before fake-hwclock-load, read the systemd build date,
+      # call correct timestamps "in the future" and rewrite them — which
+      # anchors the next check in the past and repeats every boot.
+      [Unit]
+      After=fake-hwclock-load.service
+  notify: Reload systemd units
+
+# A plain daemon-reload: the drop-in changes an ordering that only takes effect
+# at boot, so there is nothing to restart and nothing that would apply sooner.
+- name: filesystem-checks | Verify the drop-in introduces no ordering cycle
+  ansible.builtin.command: systemd-analyze verify systemd-fsck@.service
+  changed_when: false
+  check_mode: false

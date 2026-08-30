@@ -167,8 +167,35 @@ services:
   # Traefik must NOT mount the raw docker.sock: `:ro` only makes the socket file
   # read-only, not the API — a container holding it has full Docker control =
   # host root (a real proxy-RCE -> host-root chain given Traefik's 2025 CVE
-  # history). This read-only proxy exposes ONLY the container-list endpoint
-  # Traefik needs (CONTAINERS=1; POST stays 0), on an internal-only network.
+  # history). This read-only proxy stands in front of it, on an internal-only
+  # network, with every write verb off (POST, EXEC, ALLOW_START/STOP/RESTARTS,
+  # SECRETS, VOLUMES, NETWORKS ... all 0).
+  #
+  # It does NOT expose "only the container-list endpoint Traefik needs", which
+  # is what this comment claimed until 2026-08-31. There are six grants and two
+  # consumers, and the set is the UNION of what they ask for. Mapped from the
+  # proxy's own access log rather than from intention:
+  #
+  #   CONTAINERS  /containers/json   both        (Traefik routers, netdata state)
+  #   VERSION     /version           Traefik     (provider handshake)
+  #   EVENTS      /events            Traefik     (long-lived stream)
+  #   INFO        /info              netdata
+  #   IMAGES      /images/json       netdata     (403 without it — ADR note in
+  #                                               netdata-go.d-docker.conf.j2)
+  #   PING        /_ping             healthcheck
+  #
+  # Nothing here is unused — that was measured, not assumed, before deciding not
+  # to trim it. What is worth knowing is the shape rather than the size: **the
+  # authorization is attached to the channel, not to the caller.** There is one
+  # grant set and both clients get all of it, so Traefik holds INFO and IMAGES
+  # it never calls, and netdata holds EVENTS and VERSION it never calls. Nothing
+  # in the decision path knows who is asking.
+  #
+  # Fixing that properly means two proxy instances with one grant set each. It
+  # was considered and not done here: `proxy` is on Traefik's critical path for
+  # all HTTPS, and the cost of a mis-wire is the whole reverse proxy. Recorded
+  # so the next reader does not have to re-derive that the set is minimal but
+  # the mechanism is not selective.
   socket-proxy:
     image: tecnativa/docker-socket-proxy:v0.5.0
     container_name: socket-proxy
@@ -289,6 +316,18 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+      # Traefik declared none, and it is the slowest thing in the stack to
+      # become useful: measured 98 s from StartedAt to a loaded configuration.
+      # It is also the upstream cause of the redactor's start_period below —
+      # /run/traefik/access.log does not exist until Traefik writes it.
+      #
+      # Sized per this file's header rule: on the WORST run, a boot colliding
+      # with the 03:00 backup, which is a factor of two — 98 s x 2, rounded up
+      # to 240 s. Under-sizing this one is not cosmetic: while a container is
+      # `starting`, Traefik withholds its router, and for Traefik itself the
+      # 30 s x 3 default meant it could be declared unhealthy at 90 s while
+      # still perfectly on track.
+      start_period: 240s
 
   # --- Traefik access-log redactor (#287, ADR-034) --------------------------
   # Traefik has no way to mask part of a logged field. Measured on 3.7.11, in
@@ -381,7 +420,13 @@ services:
       interval: 60s
       timeout: 5s
       retries: 3
-      start_period: 30s
+      # 30 s was never measured. The file this check requires appears 99 s
+      # after the container starts, because it is Traefik that creates it and
+      # Traefik takes 98 s. The container survived only by accident: 30 s plus
+      # retries 3 x interval 60 s gives 210 s of tolerance, so the failure was
+      # absorbed rather than avoided. 180 s is the measured cost plus the same
+      # worst-run margin as its producer above.
+      start_period: 180s
 
   # --- Pi-hole (DNS + Ad blocking) ---
   pihole:
@@ -1341,7 +1386,17 @@ services:
     networks:
       - internal
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -d ${IMMICH_DB_NAME} -U ${IMMICH_DB_USER}"]
+      # Not `pg_isready`, which ignores both arguments it is handed. Measured
+      # 2026-08-31 with controls: `pg_isready -d <absent> -U <absent>` returns
+      # `accepting connections` and exit 0, byte-identical to the real call, so
+      # the -d and -U here were decorative and the probe only ever proved the
+      # postmaster was listening. A round-trip discriminates: exit 0 for the
+      # real pair, exit 2 for an absent database and 2 for an absent role.
+      #
+      # The start_period reasoning below is unaffected: psql cannot connect
+      # while Postgres replays its WAL either, so a replaying database still
+      # reads as `starting` rather than dead, which is the property #241 needs.
+      test: ["CMD-SHELL", "psql -U ${IMMICH_DB_USER} -d ${IMMICH_DB_NAME} -tAc 'select 1' >/dev/null"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -2022,7 +2077,10 @@ services:
     networks:
       - internal
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -d ${MINIFLUX_DB_NAME} -U ${MINIFLUX_DB_USER}"]
+      # A round-trip rather than `pg_isready` — see immich-db for the
+      # measurement. The WAL-replay reasoning below still holds: psql fails
+      # while the database replays, which is the answer this wants.
+      test: ["CMD-SHELL", "psql -U ${MINIFLUX_DB_USER} -d ${MINIFLUX_DB_NAME} -tAc 'select 1' >/dev/null"]
       interval: 10s
       timeout: 5s
       retries: 3
