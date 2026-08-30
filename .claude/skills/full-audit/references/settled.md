@@ -1744,3 +1744,53 @@ of them OPEN. Counts live in `classes.md` and **only** there.
 `/usr/local/bin/`**, which is why every enumeration of "the push sites" that
 started from a directory has missed them — including the one that wrote C45's
 gate, and including ours on the first pass.
+
+### Shipped and verified on 2026-08-31 (PR #308) — do not re-report
+
+Deployed service by service from the branch before merge, each verified on the
+running hosts rather than on the play recap.
+
+1. **C45 is closed on the emitters, 10/10 measured on the machines.** The two
+   sites the gate could not see now emit the anchored marker. The enumeration
+   that finally got to ten was by PROPERTY — every file that curls a Kuma push —
+   and it took three tries: a `KUMA_PUSH_URL|api/push` grep missed
+   `homelab-netdata-kuma.sh.j2`, which names its variable differently. Counting
+   by the words you happened to choose is the same defect as counting by the
+   directory you happened to read. `killswitch.sh` is correctly NOT a push site:
+   it subscribes to ntfy.
+2. **The database probes discriminate**, proven live after deploy on both:
+   real pair 0, absent database 2, absent role 2. Immich came back with
+   `vchord`/`vector`/`vectors` loaded and 9489 assets — which a `select 1` would
+   not have proven either.
+3. **Traefik 240 s / redactor 180 s live**, `healthy`, 0 restarts, and HTTPS
+   verified end to end through the proxy with a valid certificate.
+4. **The fsck ordering holds on both hosts**, and the check that matters is that
+   a drop-in on the `systemd-fsck@.service` TEMPLATE propagates to instances:
+   `systemctl show <the backup disk instance> -p After` lists
+   `fake-hwclock-load.service` on the offsite. `systemd-analyze verify` exits 0
+   on both. The offsite's superblock was re-anchored with the clock correct —
+   `Last checked Aug 31 01:38`, `Next check after Sep 30`, in the future for the
+   first time.
+5. **netdata was NOT restarted** by the handler split (`StartedAt` unchanged,
+   `RestartCount` 0), which is the point of splitting it.
+
+### Corrections to what this run reported
+
+- **The redactor's PID 1 is `sh`, not the pipeline.** Measured after the
+  redeploy: `sh -c exec tail -F ... | awk ...` keeps the shell as PID 1 with
+  `tail` (7) and `awk` (8) as children, because `exec` inside a pipeline cannot
+  replace the shell. So the C29 calibration relayed earlier — "either death
+  exits the container, and the restart policy plus the container-down alarm
+  already cover it" — is **wrong**. If `tail` dies the container stays `Up` with
+  a `pgrep` healthcheck that passes vacuously. Out of scope for #308 and not
+  fixed there; it makes C29's instance an exposure rather than a tidy-up.
+
+### New instrument traps — one, and it was ours three times in one night
+
+8. **`[ -f ]` and `[ -d ]` answer "can I see this", not "does this exist".**
+   Without `sudo`, `test -d /proc/<pid>/root` fails on a root-owned process and
+   `test -f` fails under a 0750 home — so a guard written that way reports
+   ABSENT for everything it cannot read, and the sweep behind it reports clean.
+   Paid three times in one session: it made the new capability sweep report 29
+   of 29 NOT INSPECTED, and it twice made a push-site count come back short. The
+   fix is `sudo test`, and the tell is a sweep that finds nothing at all.
