@@ -197,11 +197,27 @@ push() {   # $1 url, $2 up|down, $3 message
     # string "up". Measured on the first real run, not imagined.
     local url="${1%%\?*}"
 
-    if curl --silent --show-error --max-time "$TIMEOUT" --retry 2 --get "$url" \
-        --data-urlencode "status=$2" --data-urlencode "msg=$3" >/dev/null; then
+    # Two properties this call had neither of, and every one of its twelve
+    # siblings has both.
+    #
+    # The URL carries the monitor's own token, so it goes in on stdin instead of
+    # argv: /proc is mounted without hidepid, any local account can read another
+    # process's command line, and this runs unattended on a timer (#177). The
+    # sweep that converted eleven scripts to this shape, and #188 that converted
+    # the twelfth, never reached this role.
+    #
+    # --fail matters as much and is less obvious. Kuma answers an unknown or
+    # inactive push token with 404 "Monitor not found or not active", and
+    # WITHOUT --fail curl treats that as a successful transfer and exits 0 — so
+    # the branch below is unreachable, `log "ERROR: push failed"` can never be
+    # written, and a beat that was never recorded reports as sent. Measured on
+    # the Pi with an invalid token, no write reaching the database.
+    if printf 'url = "%s"\n' "$url" |
+        curl -fsS --max-time "$TIMEOUT" --retry 2 -K - -G \
+            --data-urlencode "status=$2" --data-urlencode "msg=$3" >/dev/null; then
         return 0
     fi
-    log "ERROR: push failed for '$3'"
+    log "kuma-push-failed: this report reached nobody — $3"
     return 1
 }
 

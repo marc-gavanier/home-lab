@@ -371,3 +371,33 @@ command:
       [ -n "$pid" ] || exit 1
       tr '\0' ' ' < "/proc/$pid/cmdline" | grep -qE -- '(^| )--append-only( |$)'
     exit-status: 0
+
+  # --- A report that reached nobody: this host's half ------------------------
+  # `offsite-health.sh` used to end its push in `2>&1 || true`, so a beat that
+  # never arrived was indistinguishable from one that did — the run exited 0 and
+  # the monitor kept its previous reading. It now writes the same
+  # `kuma-push-failed:` marker as its seven homelab siblings, and this is what
+  # reads it here. See `no-kuma-report-was-lost-in-silence` in the posture spec.
+  #
+  # The floor is derived, but from a different fact: there is no Kuma container
+  # on this host to ask. Its beat travels to the homelab's Kuma over the tunnel,
+  # so the tunnel becoming active is the moment a push can start succeeding.
+  # Residual, stated rather than hidden: a push issued in the seconds between
+  # the tunnel coming up and traffic actually flowing would be counted as lost.
+  # This host's health job runs WEEKLY, so landing in that window would take a
+  # coincidence; the homelab's floor is tighter because it can be.
+  offsite-no-report-was-lost-in-silence:
+    exec: |
+      ts=$(systemctl show wg-quick@wg0 -p ActiveEnterTimestamp --value 2>/dev/null)
+      [ -n "$ts" ] || { echo "wg-quick@wg0 has no ActiveEnterTimestamp — no floor, refusing to judge"; exit 1; }
+      floor=$(date -d "$ts" +%s 2>/dev/null)
+      case "$floor" in ''|*[!0-9]*) echo "unparseable tunnel timestamp: [$ts]"; exit 1 ;; esac
+      lost=$(journalctl --since "@$floor" --no-pager 2>/dev/null | grep -c 'kuma-push-failed:')
+      case "$lost" in ''|*[!0-9]*) echo "journal unreadable: [$lost]"; exit 1 ;; esac
+      [ "$lost" -eq 0 ] || {
+        echo "$lost report(s) never reached the dashboard since the tunnel came up at $ts:"
+        journalctl --since "@$floor" --no-pager 2>/dev/null |
+          grep 'kuma-push-failed:' | tail -5 | sed 's/^/  /'
+        exit 1
+      }
+    exit-status: 0
