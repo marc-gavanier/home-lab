@@ -29,9 +29,33 @@ Set Pi-hole as the DNS server distributed by DHCP:
 The SFR TV decoder breaks when filtered by Pi-hole. Exclude it:
 
 1. Pi-hole admin > **Groups** > create group `bypass` (description: "Unfiltered devices — e.g. TV decoder")
-2. Pi-hole admin > **Clients** > add decoder IP (`192.168.1.46`, MAC `B4:E2:65:E3:BF:DF`)
+2. Pi-hole admin > **Clients** > add the decoder **by MAC** (`B4:E2:65:E3:BF:DF`),
+   not by IP
 3. Assign the decoder to group **bypass** only (remove from **Default**)
 4. Ensure adlists are NOT assigned to the bypass group
+
+**Why the MAC and not the IP.** This is the only per-client rule Pi-hole holds,
+and as deployed it is stored as `192.168.1.46` — an address the router hands out
+on a lease. Read from the live database on 2026-08-31:
+
+```bash
+sudo sqlite3 "file:/mnt/data/services/pihole/etc/gravity.db?mode=ro" \
+  "select c.ip, g.name from client_by_group cg
+     join client c on c.id = cg.client_id
+     join 'group' g on g.id = cg.group_id;"
+# 192.168.1.46|Bypass
+```
+
+The day that lease moves, the rule keeps matching an address the decoder no
+longer has: nothing errors, nothing turns red, and the decoder is silently
+filtered again — which is the failure this section exists to prevent. Pi-hole v6
+accepts a MAC in the same field and resolves it per query, so the rule follows
+the device instead of the lease.
+
+**Changing it is a UI action, not a deploy.** The client table lives in
+`gravity.db`, which is runtime state and not managed by Ansible: edit the client
+in Pi-hole admin, replacing the IP with the MAC, then re-run the query above to
+confirm it now reads the MAC.
 
 ## Pi-hole v6 Gotchas
 
