@@ -39,17 +39,38 @@ ssh -i "${SSH_KEY}" "${SSH_USER}@${PI_IP}" \
 
 # --- Step 4: Verify Ansible connectivity ---
 echo "[4/4] Verifying Ansible connectivity..."
+
+# --ask-vault-pass is printed only when there is actually something encrypted
+# to decrypt. Operator overrides live in a vaulted local.yml that is not in the
+# repository, so a fresh clone has nothing to unlock and should not be asked
+# for a passphrase it does not have; this host does, and omitting the flag
+# there fails with "Attempting to decrypt but no vault secrets found".
+VAULT_HINT=""
+if grep -rlq '^\$ANSIBLE_VAULT' "$(dirname "$0")/../ansible/inventory" 2>/dev/null; then
+    VAULT_HINT=" --ask-vault-pass"
+fi
+
 if command -v ansible &>/dev/null; then
     cd "$(dirname "$0")/../ansible"
+    # -e homelab_ssh_port=22 is not optional here, and its absence used to
+    # make this step fail on exactly the machine it exists to check. The
+    # inventory resolves ansible_port to `homelab_ssh_port | default(
+    # ssh_port_hardened)`, so without the override this ping is sent to the
+    # hardened port — on a host that has not been hardened yet, because that
+    # is what bootstrap is for.
     ansible homelab -m ping \
-        --extra-vars "homelab_ip=${PI_IP} ansible_user=${SSH_USER}" \
+        --extra-vars "homelab_ip=${PI_IP} ansible_user=${SSH_USER} homelab_ssh_port=22" \
         --private-key "${SSH_KEY}"
     echo ""
     echo "=== Bootstrap complete! ==="
     echo ""
     echo "Next steps:"
     echo "  1. Edit ansible/inventory/group_vars/all.yml (set your Pi's IP)"
-    echo "  2. Run: cd ansible && ansible-playbook playbooks/site.yml"
+    echo "  2. Run: cd ansible && ansible-playbook playbooks/site.yml \\"
+    echo "            -e homelab_ssh_port=22${VAULT_HINT}"
+    echo ""
+    echo "     The port override is needed until the hardening run has moved"
+    echo "     SSH; after that, drop it and the inventory resolves it itself."
 else
     echo "Ansible not found locally. Install it with: pip install ansible"
     echo ""
@@ -58,5 +79,6 @@ else
     echo "Next steps:"
     echo "  1. Install Ansible: pip install ansible"
     echo "  2. Edit ansible/inventory/group_vars/all.yml"
-    echo "  3. Run: cd ansible && ansible-playbook playbooks/site.yml"
+    echo "  3. Run: cd ansible && ansible-playbook playbooks/site.yml \\"
+    echo "            -e homelab_ssh_port=22${VAULT_HINT}"
 fi

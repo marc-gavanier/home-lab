@@ -47,7 +47,7 @@ x-security-opt: &no-new-privs
 # quiet one — the two are a factor of two apart, measured.
 #
 # ENUMERATED on 2026-08-29 from netdata's own health_status charts over the
-# 02:50-03:25 window. Of the THIRTEEN containers declaring a start_period,
+# 02:50-03:25 window. Of the FOURTEEN containers declaring a start_period,
 # exactly two ever left `starting` for `unhealthy` in that window:
 #
 #   collabora       overshot   993 s against 600 s   -> 1320 s
