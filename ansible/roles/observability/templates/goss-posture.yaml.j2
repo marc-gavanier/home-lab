@@ -311,6 +311,40 @@ command:
       test "${n:-0}" -ge {{ netdata_min_contexts }}
     exit-status: 0
 
+  # --- The hole the adapter's startup grace leaves, closed here (#289) --------
+  # homelab-netdata-kuma.sh reports UP rather than DOWN while netdata has been
+  # running for less than its measured startup window, because a netdata that
+  # came back forty seconds ago is not a fault and paging for it is how an
+  # operator learns to ignore a monitor.
+  #
+  # That grace is keyed on netdata's own start time, which leaves exactly one
+  # way to hide behind it: a netdata restarting faster than the grace, whose
+  # uptime is therefore never long enough for the adapter to call the empty
+  # answer a fault. The adapter cannot close that without remembering something
+  # between runs, and a watchdog that grants itself a grace from its own memory
+  # is the #289 defect a second time.
+  #
+  # So it is closed from outside, on a daily cadence, against the property
+  # itself: netdata's health engine has evaluated something. One re-ask thirty
+  # seconds later, because this spec must not fail merely for having run during
+  # the same window the adapter tolerates — a deploy that restarts netdata is a
+  # normal thing to do at eleven in the morning.
+  netdata-health-engine-has-verdicts:
+    exec: |
+      count() {
+        docker exec netdata curl -s --max-time 10 \
+          http://127.0.0.1:19999/api/v1/alarms?all=true 2>/dev/null |
+          jq -r '.alarms | length' 2>/dev/null
+      }
+      n=$(count)
+      case "${n:-0}" in ''|*[!0-9]*|0) sleep 30; n=$(count) ;; esac
+      case "${n:-0}" in ''|*[!0-9]*|0)
+        echo "netdata evaluates no alarm — the two adapter monitors report on nothing"
+        exit 1 ;;
+      esac
+    timeout: 60000
+    exit-status: 0
+
   # --- The resolution the container-unhealthy floor is built on (#262) -------
   # `homelab_container_unhealthy` only fires once its window holds more than 500
   # samples, ninety per cent of the 556 a saturated window was measured to hold
@@ -495,6 +529,60 @@ command:
       n=$(docker exec uptime-kuma sqlite3 "file:/app/data/kuma.db?mode=ro" \
             "select count(*) from monitor where active = 1 and resend_interval = 0")
       [ "${n:-1}" -eq 0 ] || { echo "$n active monitors never resend"; exit 1; }
+    exit-status: 0
+
+  # --- The dead-man's fuse that a restart of its own watchdog re-arms (#289) --
+  # Kuma schedules a push monitor's first check one full interval after ITS OWN
+  # PROCESS STARTS, not one interval after that monitor's last heartbeat. Every
+  # restart of the container therefore re-arms the fuse of all 15 push monitors
+  # from zero. Proven on recorded data rather than read off the source: monitor
+  # 30 was silent for 93 474 s against a 90 000 s window and emitted NO DOWN,
+  # while a 90 001 s silence with no restart in between — one second over the
+  # same window — emitted one.
+  #
+  # Kuma cannot be corrected from here, so the fuse is checked against a clock
+  # that a restart does not touch: `heartbeat.time`, the moment a beat was
+  # RECEIVED. It is written once and never rescheduled, which is exactly the
+  # property the scheduler lacks.
+  #
+  # What this asserts is the INCONSISTENCY, not the outage. `h.status = 1` is
+  # the load-bearing half: a monitor that is genuinely late carries a last beat
+  # saying DOWN, Kuma is already saying so, and this assertion must stay quiet.
+  # It fires only when the last beat says UP while being older than the window
+  # the monitor itself declares — which is the defect and nothing else.
+  #
+  # That distinction is not fussiness, it is #216's lesson applied one level up.
+  # This spec feeds "Pi security posture", and a condition that stays red for
+  # days sitting in the same signal as the acute checks mutes them. A backup
+  # that is three days late must not silence this monitor for three days.
+  #
+  # The count guard is the ADR-032 half. It counts push monitors that HAVE a
+  # heartbeat, so it exercises both tables and the relation between them: a
+  # schema change that made the join match nothing would otherwise read exactly
+  # like a healthy fleet. The floor is 10 against 15 today — low enough that
+  # retiring a monitor is not a failure, high enough that a query matching
+  # nothing is.
+  kuma-no-push-monitor-silent-past-its-own-window:
+    exec: |
+      db="file:/app/data/kuma.db?mode=ro"
+      n=$(docker exec uptime-kuma sqlite3 "$db" \
+            "select count(*) from monitor m
+             where m.active = 1 and m.type = 'push'
+               and exists (select 1 from heartbeat h where h.monitor_id = m.id)")
+      case "$n" in ''|*[!0-9]*) echo "kuma monitor/heartbeat tables unreadable: [$n]"; exit 1 ;; esac
+      [ "$n" -ge 10 ] || { echo "only $n active push monitor(s) with a beat — the query stopped matching"; exit 1; }
+      bad=$(docker exec uptime-kuma sqlite3 "$db" \
+            "select m.name || ' — silent ' || (strftime('%s','now') - strftime('%s', h.time))
+                    || 's against its ' || m.interval || 's window, last beat still says UP'
+             from monitor m
+             join heartbeat h on h.id = (select id from heartbeat
+                                         where monitor_id = m.id order by time desc limit 1)
+             where m.active = 1 and m.type = 'push' and h.status = 1
+               and strftime('%s','now') - strftime('%s', h.time) > m.interval")
+      [ -z "$bad" ] || { echo "$bad" | sed 's/^/  /'; exit 1; }
+    # Two round trips into the container, against a default of 10 s. The pihole
+    # and miniflux assertions above pay the same cost for the same reason.
+    timeout: 20000
     exit-status: 0
 
   # --- fail2ban: every configured jail is actually loaded --------------------

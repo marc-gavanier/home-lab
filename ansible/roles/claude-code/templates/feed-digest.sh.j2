@@ -191,6 +191,18 @@ mf() { # $1=method  $2=path  [$3=body]
 
 log "fetching unread entries"
 ENTRIES="$(mf GET "/v1/entries?status=unread&direction=asc&limit=${MAX_ENTRIES}")"
+
+# Assert the SHAPE before deriving anything from it (#289, class C03). `-fsS`
+# only establishes that the call returned 2xx, and everything below then treats
+# the body as an entries page. On any well-formed JSON that is not one — an
+# error object served 200, a shape the API changes under us — `.entries` is
+# null, `null | length` is 0 in jq, and the run takes the "nothing unread"
+# branch: it pushes the monitor UP, says "nothing new", writes no note and
+# exits 0. A failure that reports success is worse than one that reports
+# nothing, and it is invisible on exactly the days the digest is empty anyway.
+jq -e 'type == "object" and (.entries | type == "array")' >/dev/null 2>&1 <<<"$ENTRIES" ||
+    fail "miniflux answered without an entries array"
+
 TOTAL="$(jq -r '.total' <<<"$ENTRIES")"
 FETCHED="$(jq -r '.entries | length' <<<"$ENTRIES")"
 log "unread=${TOTAL} fetched=${FETCHED}"

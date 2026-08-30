@@ -53,6 +53,20 @@ transition-driven wiring could not:
   absent host turns the monitor red on its own. Notification on transition would
   have left it green forever.
 
+There is exactly one deliberate exception to "whatever the state", added by #289
+and worth stating because the sentence above would otherwise be false. A netdata
+that has just restarted answers HTTP 200 with an empty `alarms` object for
+somewhere between 25 s and roughly 4 minutes depending on load — measured, by
+restarting it and polling. The adapter used to read that as "unreachable" and
+push every group DOWN, which is how 14 non-actionable notifications were sent in
+14 days. It now discriminates on netdata's own start time: unreachable is still
+DOWN, an empty answer from a netdata up **longer** than 300 s is DOWN and says
+so in words anyone can act on, and an empty answer from one that came back
+seconds ago is UP with a message naming the window. The switch is deferred by at
+most that grace, never disarmed — and the one way to hide behind it, a netdata
+restarting faster than the grace, is closed from outside by
+`netdata-health-engine-has-verdicts` in the posture spec.
+
 The side effect is worth as much as the design: a curated alarm that fires turns
 one monitor red on the dashboard, with history and an uptime figure, instead of
 leaving a line in a chat log. That is what makes the rule below cheap to
