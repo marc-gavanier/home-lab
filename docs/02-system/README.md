@@ -40,6 +40,64 @@ working against the "unexplained poweroff → reflash" diagnosis policy.
 - `cgroup_memory=1 cgroup_enable=memory` in boot parameters (required for Docker)
 - `gpu_mem=16` in config.txt (minimum GPU, no display needed)
 
+## The clock this board has before it has a clock
+
+The Pi has no real-time clock. With no RTC and no `/usr/lib/clock-epoch`,
+systemd advances the clock at boot to **the mtime of its own binary** — measured
+2026-07-28 17:04:45, and identical on both hosts because they carry the same
+package. Everything logged from power-on until the first NTP reply carries that
+date, roughly **90 seconds** of it.
+
+That is not a cosmetic problem, because the journal *orders by it*. On the
+reboot of 2026-08-30 17:00 the journal recorded the boot as beginning
+`Tue 2026-07-28 17:05:07`, and the segment opened during that window became the
+**oldest file on the host** — ahead of data from 2026-08-15 — ten minutes after
+being written:
+
+```
+2026-07-28_17:05:07  system@91c67a35…   ← written ten minutes ago
+2026-08-15_22:01:15  system@27cb80cc…
+```
+
+journald's vacuum deletes the oldest segment first. So the first thing it
+removes is the beginning of the **current** boot: kernel, initramfs, the
+filesystem check, sysctl, udev, the encrypted-volume wait — the part of boot
+that has already produced #252, #253 and #260.
+
+`fake-hwclock` is what closes it: it saves the time hourly and at shutdown, and
+restores it in early boot, so the pre-NTP clock becomes *roughly the last time
+this machine was running* instead of *the day systemd was built*. It cannot make
+those timestamps correct — nothing without an RTC can — but it makes them close
+enough that the ordering stops lying, which is all the vacuum needs.
+
+Two checks report on it, and they fire at different moments:
+
+| Check | Fires |
+|-------|-------|
+| journal-vs-boot skew, in the `pending` monitor | from the first second of a bad boot, whether or not the vacuum has run |
+| `Booting Linux on physical CPU` missing from this boot | only once the records are already gone |
+| `fake-hwclock-data-is-fresh`, on both hosts | when nothing has saved the time in two hours |
+
+**Both hosts carry the skew; only the homelab has paid for it**, because the
+offsite has never reached its journal cap and so has never vacuumed. That is
+what makes the offsite the control here rather than a second patient.
+
+### One recorded mistake, because it generalises
+
+An audit pass declared this mechanism refuted: no journal segment carried a
+pre-synchronisation timestamp, and deleting the oldest first cannot remove the
+newest boot's beginning while keeping older data. Both observations were real.
+The conclusion was wrong twice over — the segments were absent *because they had
+already been vacuumed*, and the newest boot's beginning is exactly what a
+delete-oldest-first vacuum takes when that beginning is stamped older than
+everything else.
+
+The refutation trusted a timestamp written before synchronisation. It was an
+instance of the class it was refuting. The general form is worth keeping:
+**absence of evidence, in a store whose job is to delete things, is not evidence
+of absence** — and a class about untrustworthy values cannot be closed by
+measuring those values.
+
 ## Storage Layout
 
 See `docs/06-backup/` for backup strategy.

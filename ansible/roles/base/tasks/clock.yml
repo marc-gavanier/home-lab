@@ -1,0 +1,52 @@
+---
+# =============================================================================
+# The clock this board has before it has a clock (#292, class C42)
+# =============================================================================
+# The Pi has no real-time clock. With no RTC and no /usr/lib/clock-epoch,
+# systemd advances the clock at boot to the mtime of its own binary — measured
+# on 2026-08-30: /usr/lib/systemd/systemd is stamped 2026-07-28 17:04:45, and
+# that is exactly where the boot began according to the journal. Both hosts fall
+# on the same instant, because they carry the same systemd package.
+#
+# Everything logged between that moment and the first NTP reply carries a
+# timestamp a month in the past. Measured on the reboot of 2026-08-30 17:00:
+# timesyncd starts 90 seconds into that window, and the journal segment opened
+# during it is named for the bogus instant — which makes a file written ten
+# minutes ago the OLDEST on the host, ahead of data from 2026-08-15.
+#
+# The consequence is not cosmetic. journald's vacuum deletes the oldest segment
+# first, so the first thing it removes is the beginning of the CURRENT boot:
+# kernel, initramfs, the filesystem check, sysctl, udev, the encrypted-volume
+# wait — the part of boot that has already produced #252, #253 and #260. It had
+# happened on every boot retained before this one.
+#
+# --- Why fake-hwclock, and not something written here -----------------------
+# ADR-030: no new glue where a packaged tool does the job. fake-hwclock is the
+# standard answer on an RTC-less board — it saves the time hourly and at
+# shutdown, and restores it in early boot — and it turns the pre-synchronisation
+# clock from "the day systemd was built" into "roughly the last time this
+# machine was running". A segment stamped an hour ago sorts where it belongs,
+# and the vacuum goes back to deleting genuinely old data.
+#
+# It does NOT make the timestamps correct; nothing without an RTC can. It makes
+# them close enough that ordering stops lying, which is the whole of what the
+# vacuum needs.
+#
+# --- What is NOT done here, deliberately ------------------------------------
+# Ordering fake-hwclock.service before systemd-journald.service with a drop-in
+# was considered and rejected. Both run with DefaultDependencies=no this early,
+# and adding an edge between them risks an ordering cycle on a board that must
+# not fail to boot: there is no console, and wg0.conf lives inside the encrypted
+# volume, so a boot failure is not recoverable from anywhere but the room the Pi
+# is in. The package's own ordering is what it was designed with; whether it
+# lands before the first journal write is a question for the next boot, and the
+# health script's pending check is what will answer it.
+- name: clock | Install fake-hwclock (no RTC on this board)
+  ansible.builtin.apt:
+    name: fake-hwclock
+    state: present
+
+- name: clock | Enable fake-hwclock so the saved time is restored at boot
+  ansible.builtin.systemd:
+    name: fake-hwclock.service
+    enabled: true
