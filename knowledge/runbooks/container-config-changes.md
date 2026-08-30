@@ -21,7 +21,84 @@ the service *does* beyond answering.
 
 ## Order of operations
 
-1. **Sandbox first, for anything on the critical path** — Pi-hole (LAN DNS),
+1. **Sweep for file-capability binaries FIRST**, before anything else on this
+   page. Step 2 prints a `--cap-add` it cannot fill in on its own: this sweep is
+   its only source, and running them the other way round means sandboxing a
+   capability set that was guessed.
+
+   **Run it from the host, not with `docker exec`.** The obvious form —
+
+   ```bash
+   docker exec "$c" sh -c 'getcap -r /usr/bin /usr/sbin /bin /sbin'
+   ```
+
+   — is blind on 25 of this stack's 29 containers: 24 ship no `getcap`, and 2
+   (Collabora among them) have no shell at all, so the command fails and the
+   loop moves on. Combined with the rule below — *an image whose sweep comes
+   back empty can take the flag safely* — a container that could not be
+   inspected reads as a container with nothing to find. That is backwards, and
+   it is how a capability gets dropped on the one image that needed it.
+
+   Read the container's own root from the host instead, through
+   `/proc/<pid>/root` — the same handle this repository already uses to compare
+   bind-mount inodes. `getcap` then runs from the host, so nothing the image
+   ships or omits matters:
+
+   ```bash
+   for c in $(docker ps --format '{{.Names}}' | sort); do
+     p=$(docker inspect -f '{{.State.Pid}}' "$c" 2>/dev/null)
+     if [ -z "$p" ] || [ "$p" = 0 ] || ! sudo test -d "/proc/$p/root"; then
+       echo "$c: NOT INSPECTED — no live root"; continue
+     fi
+     out=$(sudo getcap -r /proc/$p/root/usr/bin /proc/$p/root/usr/sbin \
+                         /proc/$p/root/bin /proc/$p/root/sbin 2>/dev/null)
+     if [ -z "$out" ]; then echo "$c: none"
+     else echo "$out" | sed "s|/proc/$p/root||; s|^|$c: |"; fi
+   done
+   ```
+
+   **`sudo test -d`, not `test -d`.** Writing the guard without `sudo` answers
+   "can *I* see this", not "does this exist": `/proc/<pid>/root` of a root-owned
+   process is unreadable to the operator account, so every container reports
+   `NOT INSPECTED` and the sweep is blind again — 29 of 29 when it was written
+   that way here, which is worse than the `docker exec` form it replaces. The
+   first draft of this very step had that bug. A guard that fails closed on a
+   permission error is the same defect class as the tool it is replacing.
+
+   **The point of the `NOT INSPECTED` line is that it is not the same answer as
+   `none`.** Only `none` licenses the drop. Anything else means look again, by
+   hand, before touching that container.
+
+   Measured on 2026-08-31, 29 of 29 containers answered — 25 `none` and 4
+   carriers:
+
+   ```
+   collabora:    /usr/bin/coolmount       cap_sys_admin=ep
+   collabora:    /usr/bin/coolforkit-caps cap_chown,cap_fowner,cap_sys_chroot=ep
+   netdata:      /usr/bin/fping           cap_net_raw=ep
+   pihole:       /usr/bin/pihole-FTL      cap_chown,cap_net_bind_service,cap_sys_nice=ep
+   uptime-kuma:  /usr/bin/ping            cap_net_raw=ep
+   ```
+
+   Collabora's two are the reason this step moved: the `docker exec` form could
+   never see them, because that container has no shell. Note also that
+   `cap_sys_admin` on `coolmount` is a file bit the container cannot use —
+   `CapBnd` decodes to `cap_chown,cap_fowner,cap_sys_chroot` — so the sweep
+   tells you what to *investigate*, not what is live.
+
+   **The same sweep decides `no-new-privileges`, not just `cap_drop`.** A file
+   capability is a privilege *gain at exec*, which is exactly what the flag
+   blocks — so a binary that shows up here may need the flag left off, and the
+   two questions have one answer. This bit Collabora (#16): `coolwsd` spawns
+   documents through `coolforkit-caps`, and with the flag on the container
+   **stays `running` forever**, serving its discovery endpoint while looping on
+   `Waiting for a new child`. Nothing exits, nothing fails, no document opens.
+   Netdata is the same story with setuid plugins instead (ADR-017). An image
+   whose sweep answers `none` can take the flag safely; one that answers
+   anything else — including `NOT INSPECTED` — needs the functional probe
+   before you believe either setting.
+
+2. **Sandbox second, for anything on the critical path** — Pi-hole (LAN DNS),
    Traefik (all HTTPS), wg-easy (VPN *and* the offsite link that rides it).
    A throwaway container with the same image, a copy of the config with the same
    ownership, and non-conflicting ports reproduces startup faithfully:
@@ -36,7 +113,7 @@ the service *does* beyond answering.
    the real one may hold root-owned files. Reproduce both, or the sandbox
    answers a different question than the one asked.
 
-2. **Never apply to a critical service without an automatic rollback.** Not a
+3. **Never apply to a critical service without an automatic rollback.** Not a
    plan to roll back — a script that does it unattended, because the tool
    output may be the last thing anyone reads for hours:
 
@@ -64,7 +141,7 @@ the service *does* beyond answering.
    grep -q '<the new setting>' "$BAK" && { echo "not a rollback point"; exit 2; }
    ```
 
-3. **Verify functions, one per service.** What proved useful:
+4. **Verify functions, one per service.** What proved useful:
 
    | Service | Probe that actually proves something |
    |---------|--------------------------------------|
@@ -103,29 +180,6 @@ the service *does* beyond answering.
    host" while the service is perfectly healthy. Use `--resolve
    <name>:443:192.168.1.100`, or probe from inside the container. Only
    `drive` and `services` are pinned in `/etc/hosts`.
-
-4. **Sweep for file-capability binaries** before dropping capabilities anywhere,
-   since that failure is invisible from outside:
-
-   ```bash
-   for c in $(docker ps --format '{{.Names}}'); do
-     docker exec "$c" sh -c 'getcap -r /usr/bin /usr/sbin /bin /sbin 2>/dev/null'
-   done
-   ```
-
-   Currently: `pihole-FTL` (chown, net_bind_service, sys_nice), `ping` in
-   uptime-kuma and `fping` in netdata (net_raw).
-
-   **The same sweep decides `no-new-privileges`, not just `cap_drop`.** A file
-   capability is a privilege *gain at exec*, which is exactly what the flag
-   blocks — so a binary that shows up here may need the flag left off, and the
-   two questions have one answer. This bit Collabora (#16): `coolwsd` spawns
-   documents through `coolforkit-caps`, and with the flag on the container
-   **stays `running` forever**, serving its discovery endpoint while looping on
-   `Waiting for a new child`. Nothing exits, nothing fails, no document opens.
-   Netdata is the same story with setuid plugins instead (ADR-017). An image
-   whose sweep comes back empty can take the flag safely; one that does not
-   needs the functional probe before you believe either setting.
 
 5. **If the image declares `VOLUME` at the path you are changing, `up -d` is not
    enough.** Compose carries mounts for image-declared volume paths over from

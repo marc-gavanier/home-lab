@@ -924,7 +924,7 @@ Both write sources are bounded so they can never fill the SD card:
 
 - Docker: `json-file` driver, `max-size 10m` × `max-file 3`
   (`ansible/roles/docker/tasks/install.yml`).
-- journald: persistent but capped at `SystemMaxUse=500M`, via a drop-in
+- journald: persistent but capped at `SystemMaxUse=1500M`, via a drop-in
   (`ansible/roles/base/tasks/logging.yml`). Persistence is deliberate — the
   boot logs are what the "unexplained poweroff" runbook reads.
 
