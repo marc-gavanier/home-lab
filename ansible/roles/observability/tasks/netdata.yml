@@ -79,7 +79,7 @@
   loop: "{{ netdata_active_alarms }}"
   loop_control:
     label: "{{ item.file }} -> {{ item.group }}"
-  notify: Restart netdata
+  notify: Reload netdata health
 
 # Collectors are installed WITHOUT alarms on them. A deploy therefore only makes
 # new charts appear — nothing can turn a monitor red on the strength of a

@@ -176,6 +176,17 @@ fi
 printf 'url = "%s"\n' "$url" |
     curl -fsS -m 10 --retry 2 -K - -G \
         --data-urlencode "status=${OUTCOME}" \
-        --data-urlencode "msg=${msg}" >/dev/null 2>&1 || log "push failed"
+        --data-urlencode "msg=${msg}" >/dev/null 2>&1 || {
+            log "push failed"
+            # The marker, on stderr, unprefixed. `log` cannot carry it: it
+            # stamps a timestamp in front, and the assertion that reads this
+            # (`no-kuma-report-was-lost-in-silence`) anchors at ^ precisely so
+            # that a line merely MENTIONING the marker does not count. This
+            # script and the digest were the two push sites of ten that
+            # detected the failure and named it something else, so the
+            # assertion read eight — the whole backup chain's lost beats were
+            # invisible to the check written to catch exactly that.
+            echo "kuma-push-failed: this report reached nobody — ${WHAT}: ${msg}" >&2
+        }
 
 log "pushed ${OUTCOME} (${WHAT}): ${msg}"
