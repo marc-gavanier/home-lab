@@ -8,6 +8,12 @@ Wants=docker.service
 [Service]
 Type=oneshot
 ExecStart=/usr/local/bin/homelab-netdata-kuma.sh
+# Type=oneshot defaults TimeoutStartSec to infinity, so nothing bounded this
+# adapter before #289 added a retry that waits. Four attempts ten seconds apart
+# plus fifteen pushes is well inside four minutes; the timer fires every five.
+# The bound is the point: a run that has not finished when the next one is due
+# has failed, and two of them overlapping is not a state worth having.
+TimeoutStartSec=240
 # No SuccessExitStatus here, deliberately: unlike the health scripts, a non-zero
 # exit from this adapter never means "problems found and pushed" — it means the
 # adapter itself failed, which is exactly what should mark the unit failed.

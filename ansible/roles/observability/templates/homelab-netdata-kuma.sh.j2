@@ -79,30 +79,113 @@ log() { echo "$*"; }   # stdout -> journal
 # megabyte, so it is flattened ONCE into "name<TAB>status<TAB>value" and the
 # lookups below only grep it — the adapter's cost must not grow with the number
 # of conditions it reports on.
-# Read it up to three times before believing it (#262). A single failed read
-# marked EVERY group down, and with `maxretries: 0` on both push monitors that
-# reached the operator immediately: the two adapter monitors produced 33 of 94
+#
+# --- What the retry is allowed to conclude (#289, class C03) -----------------
+# Read it several times before believing it (#262). A single failed read marked
+# EVERY group down, and with `maxretries: 0` on both push monitors that reached
+# the operator immediately: the two adapter monitors produced 33 of 94
 # notifications over the audited period, two of them intentional and none
 # leading to an action. The retry belongs here rather than in Kuma's retry
 # count — Kuma cannot re-ask a push monitor for its state, it can only wait for
-# the next push, so a monitor-side retry would just delay the same wrong verdict.
+# the next push, so a monitor-side retry would just delay the same wrong
+# verdict.
+#
+# The first version guarded on "the request succeeded and the body is not
+# empty", and everything downstream then behaved as if it had established "the
+# alarms parsed". Those are different questions, which is the whole of C03.
+# Measured rather than argued — ONE run, on 2026-08-30 at 00:45:32, logged both
+# of these lines:
+#
+#     netdata alarm API answered on attempt 3
+#     netdata alarm API unreachable or unparseable — reporting every group down
+#
+# The retry reached its own goal and missed its purpose. So the guard below is
+# written against what the caller actually needs, which is a non-empty alarm
+# TABLE, and the parse moved inside the loop to make that possible.
+#
+# --- The window no retry budget can cover ------------------------------------
+# A netdata that has just started answers HTTP 200 with a 129-byte body whose
+# `alarms` object is EMPTY, and it keeps doing so long after it is reachable.
+# Measured on this host by restarting the container and polling it:
+#
+#     since start   body      alarms
+#        15 s         0 B     docker exec refused, container not up yet
+#        30 s       129 B     0
+#        51 s       129 B     0
+#        64 s       378 kB    243
+#
+# Roughly 25 s to 60 s on an idle Pi — and 269 s once, at 01:10:09 the same
+# night, under the backup. A retry cannot cover the loaded case inside a 300 s
+# timer without becoming the load it is waiting on. So the empty answer is not
+# retried away: it is DISCRIMINATED, against netdata's own start time.
 alarms_json=""
-for attempt in 1 2 3; do
-    if alarms_json="$(docker exec "$CONTAINER" \
-            curl --silent --max-time "$TIMEOUT" "$API" 2>/dev/null)" \
-       && [ -n "$alarms_json" ]; then
-        [ "$attempt" -gt 1 ] && log "netdata alarm API answered on attempt $attempt"
-        break
-    fi
-    alarms_json=""
-    [ "$attempt" -lt 3 ] && sleep 5
-done
 ALARM_TABLE=""
-if [ -n "$alarms_json" ]; then
-    ALARM_TABLE="$(printf '%s' "$alarms_json" |
-        jq -r '.alarms[]? | [.name, .status, (.value_string // ""), (.chart // "")] | @tsv' 2>/dev/null)"
+API_STATE="unreachable"
+for attempt in 1 2 3 4; do
+    alarms_json="$(docker exec "$CONTAINER" \
+        curl --silent --max-time "$TIMEOUT" "$API" 2>/dev/null)" || alarms_json=""
+    if [ -n "$alarms_json" ]; then
+        API_STATE="no-verdict"
+        ALARM_TABLE="$(printf '%s' "$alarms_json" |
+            jq -r '.alarms[]? | [.name, .status, (.value_string // ""), (.chart // "")] | @tsv' 2>/dev/null)"
+        if [ -n "$ALARM_TABLE" ]; then
+            API_STATE="ok"
+            [ "$attempt" -gt 1 ] && log "netdata alarm API answered with alarms on attempt $attempt"
+            break
+        fi
+    fi
+    [ "$attempt" -lt 4 ] && sleep 10
+done
+
+# Four attempts ten seconds apart span the idle window measured above end to
+# end. The unit carries a matching TimeoutStartSec so this cannot outlive the
+# timer that starts it.
+#
+# The uptime comes from docker, never from anything this script remembers
+# between runs. A grace period a watchdog grants itself from its own memory is
+# the #289 defect written a second time, and this adapter is not going to be
+# the place it gets written again.
+STARTUP_GRACE=300
+netdata_uptime=-1
+netdata_started="$(docker inspect "$CONTAINER" 2>/dev/null | jq -r '.[0].State.StartedAt // empty' 2>/dev/null)"
+if [ -n "$netdata_started" ]; then
+    epoch="$(date -d "$netdata_started" +%s 2>/dev/null || true)"
+    [ -n "$epoch" ] && netdata_uptime=$(( $(date +%s) - epoch ))
 fi
-[ -z "$ALARM_TABLE" ] && log "netdata alarm API unreachable or unparseable — reporting every group down"
+
+# Three outcomes where there used to be one, because they call for three
+# different actions and the old single message named none of them:
+#
+#   unreachable   netdata is not answering at all. Already correct before this
+#                 change and kept verbatim — on 2026-08-30 at 01:05 the three
+#                 attempts were three `docker exec` refusals against a stopped
+#                 container, and the DOWN they produced was the dead-man's
+#                 switch working, not a false alarm.
+#   no-verdict,   the startup window above. Reported UP, because "netdata came
+#   young        back 40 seconds ago" is not a fault and waking someone for it
+#                 is how a monitor teaches its operator to ignore it. The beat
+#                 still goes out, so the switch is only ever deferred by
+#                 STARTUP_GRACE, never disarmed.
+#   no-verdict,   netdata has been up longer than the whole measured window and
+#   old           still evaluates nothing. That IS a fault, it is the first
+#                 message here anyone can act on, and it says so.
+UNAVAILABLE_STATUS=""
+UNAVAILABLE_MSG=""
+case "$API_STATE" in
+    ok) ;;
+    unreachable)
+        UNAVAILABLE_STATUS=down
+        UNAVAILABLE_MSG="netdata unreachable" ;;
+    *)
+        if [ "$netdata_uptime" -ge 0 ] && [ "$netdata_uptime" -lt "$STARTUP_GRACE" ]; then
+            UNAVAILABLE_STATUS=up
+            UNAVAILABLE_MSG="netdata restarted ${netdata_uptime}s ago, health engine has no verdict yet"
+        else
+            UNAVAILABLE_STATUS=down
+            UNAVAILABLE_MSG="netdata up ${netdata_uptime}s and its health engine has evaluated no alarm"
+        fi ;;
+esac
+[ -n "$UNAVAILABLE_MSG" ] && log "$UNAVAILABLE_MSG — reporting every group $UNAVAILABLE_STATUS"
 
 push() {   # $1 url, $2 up|down, $3 message
     # Strip any query string the URL already carries. Kuma's UI displays the
@@ -128,8 +211,8 @@ group() {   # $1 push url, $2.. alarm names
     local url="$1"; shift
     local problems=() reports=() name rows settled bad odd status value chart count n
 
-    if [ -z "$ALARM_TABLE" ]; then
-        push "$url" down "netdata unreachable — state of $# alarm(s) unknown"
+    if [ -n "$UNAVAILABLE_STATUS" ]; then
+        push "$url" "$UNAVAILABLE_STATUS" "$UNAVAILABLE_MSG — state of $# alarm(s) unknown"
         return
     fi
 

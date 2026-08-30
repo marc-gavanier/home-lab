@@ -125,6 +125,40 @@ allows. Monitors are created by hand — Kuma v2 has no editing API — so a new
 starts at `0`, and `kuma-every-active-monitor-resends` in the posture spec fails until
 it is set.
 
+## The fuse a restart re-arms, and where it is checked instead
+
+**Kuma schedules a push monitor's first check one full interval after its own
+process starts, not one interval after that monitor's last heartbeat.** Every
+restart of the container therefore re-arms the fuse of all 15 push monitors from
+zero. Proven on recorded data rather than read off the source (#289):
+
+| Silence   | Window   | Kuma restarted in between | Result                |
+|-----------|----------|---------------------------|-----------------------|
+| 93 474 s  | 90 000 s | yes                       | **no DOWN beat**      |
+| 90 001 s  | 90 000 s | no                        | `status = 0`, as designed |
+
+The second row is the positive control: one second over the window, no restart,
+and the mechanism fires correctly. What is degraded is the **silence** half — a
+job that runs and fails is still reported, because that beat carries its own
+verdict. Only "the job stopped running and nobody said so" is affected, and only
+until the next long enough quiet stretch burns the fuse for real.
+
+Kuma cannot be corrected from here, so the fuse is checked host-side against a
+clock a restart does not touch: `heartbeat.time`, the moment a beat was
+*received*, written once and never rescheduled.
+
+| Assertion | What it establishes |
+|-----------|---------------------|
+| `kuma-no-push-monitor-silent-past-its-own-window` | No active push monitor is silent past the window it declares **while its last beat still says UP**. It asserts the inconsistency, not the outage |
+| `netdata-health-engine-has-verdicts` | netdata has actually evaluated an alarm, closing the one way to hide behind the adapter's startup grace |
+
+The `status = 1` half of the first one is load-bearing rather than fussy. A
+monitor that is genuinely late carries a last beat saying DOWN and Kuma is
+already saying so; re-reporting it here would make "Pi security posture" red for
+as long as the outage lasts, and #216 cost a day when a condition that stays red
+for days sat in the same signal as the acute checks and muted them. A backup
+three days late must not silence this monitor for three days.
+
 **It is the default, not a law: 32 of the 34 active monitors follow it, and two
 carry a deliberately different reminder.** Measured 2026-08-29:
 

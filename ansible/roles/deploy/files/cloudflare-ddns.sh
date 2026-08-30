@@ -77,8 +77,18 @@ ZID="$(cf_api "$API/zones?name=$CF_ZONE" | jq -r '.result[0].id // empty')" || Z
 # branch below — so a transient API failure would try to CREATE a record that
 # is already there. `jq` on empty input would also abort the script one line
 # later, which is how this stayed hidden.
+#
+# And the guard is on the ANSWER, not on the string (#289, class C03). ZID above
+# is guarded on the value actually consumed, so a `success: false` body makes it
+# empty and the check fires; REC is the one place where a raw body is guarded
+# for emptiness while a DERIVATION of it is what the code goes on to use. A
+# well-formed JSON that is not a record listing is non-empty, passes `-n`, and
+# yields an empty RID — which this script reads as "the record does not exist"
+# and answers by creating a duplicate of a record that is already there. That is
+# the very failure the paragraph above says this line prevents.
 REC="$(cf_api "$API/zones/$ZID/dns_records?type=A&name=$CF_RECORD")" || REC=""
-[ -n "$REC" ] || { log "ERROR: record lookup failed for $CF_RECORD"; notify down "record lookup failed"; exit 1; }
+jq -e '.success == true and (.result | type == "array")' >/dev/null 2>&1 <<<"$REC" ||
+    { log "ERROR: record lookup failed for $CF_RECORD"; notify down "record lookup failed"; exit 1; }
 RID="$(echo "$REC" | jq -r '.result[0].id // empty')"
 CUR="$(echo "$REC" | jq -r '.result[0].content // empty')"
 
