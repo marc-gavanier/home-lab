@@ -247,11 +247,34 @@ homelab:
     # Deep only in the first week of the month; the other weekly runs check
     # metadata alone. The timer fires four times a month, so making every run
     # read data would quadruple the I/O on that drive rather than verify more.
+    #
+    # The mode travels WITH the run, in the same branch that decides it (#290).
+    # Nothing downstream can derive it: resticprofile's hooks receive
+    # PROFILE_NAME and PROFILE_COMMAND and nothing else, so a notification that
+    # wants to say which check ran has to be told here or not at all.
+    #
+    # It is not a nicety. This is the only operation in the whole chain that
+    # re-reads the repository's actual bytes, and after ADR-031 its Kuma message
+    # was byte-identical to a metadata run's — while the journal that carried the
+    # difference holds 16.8 days against a 30-day period. Kuma keeps 180 days of
+    # heartbeat messages, so moving the distinction into the message moves the
+    # evidence into a store that outlives the event.
+    #
+    # It also closes the silent-degradation path. If the host is off for the
+    # first week of a month the catch-up fires on a day this branch no longer
+    # matches, the run quietly becomes metadata-only, and a twelfth of the
+    # repository goes unverified for another year. It still does — resticprofile
+    # cannot know what ran last month — but the beat now SAYS metadata, and
+    # `restic-deep-check-not-stale` in the posture spec fails when no deep beat
+    # has landed in 40 days.
 {% raw %}{{ if le .Now.Day 7 }}
     read-data-subset: '{{ printf "%d" .Now.Month }}/12'
-{{ end }}{% endraw %}
     run-after:
-      - /opt/homelab/scripts/backup-notify.sh up maintenance
+      - /opt/homelab/scripts/backup-notify.sh up maintenance deep {{ printf "%d" .Now.Month }}
+{{ else }}
+    run-after:
+      - /opt/homelab/scripts/backup-notify.sh up maintenance metadata
+{{ end }}{% endraw %}
     run-after-fail:
       - /opt/homelab/scripts/backup-notify.sh down maintenance
 

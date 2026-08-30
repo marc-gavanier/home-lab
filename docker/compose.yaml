@@ -315,6 +315,25 @@ services:
   traefik-log-redactor:
     image: alpine:3.20
     container_name: traefik-log-redactor
+    # This container's stdout IS the durable access log (ADR-034), so its
+    # retention is a property of the log and not of the host's default (#290,
+    # class C39: evidence whose retention is shorter than the period it must
+    # span). The daemon default is 3 x 10 MB; measured on 2026-08-30 this log
+    # grows 6.17 MB/day, so the default spans 4.86 days — while the only trace
+    # that the second host is alive is a request it makes ONCE A WEEK. A census
+    # taken mid-week concludes it is absent, which is a wrong answer this lab has
+    # already reached once, by a different mechanism, in the very log that was
+    # widened to prevent it.
+    #
+    # 10 x 20 MB = 200 MB, about 32 days at the measured rate: longer than any
+    # weekly writer's gap with room for the rate to double. The cost is 200 MB on
+    # a 5 TB disk, because the docker store lives on /mnt/data and not on the
+    # card.
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "10"
     # Tier 0, and not because anything depends on it: `tail -F` opens the file
     # where it is, so every line written while the redactor is down is lost from
     # the durable log. Left to the staged startup it would come up in wave 1,

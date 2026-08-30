@@ -23,7 +23,9 @@
 #
 #   backup-notify.sh up|down backup        -> backup monitor, with the dump verdict
 #   backup-notify.sh up|down copy          -> offsite replication monitor
-#   backup-notify.sh up|down maintenance   -> weekly prune + check monitor
+#   backup-notify.sh up|down maintenance <mode> [subset]
+#                                          -> weekly prune + check monitor, where
+#                                             <mode> is `deep` or `metadata`
 #   backup-notify.sh up|down offsite-check -> weekly offsite integrity monitor
 #
 # Four monitors and not one, deliberately: they fail for different reasons and on
@@ -40,6 +42,21 @@ set -uo pipefail
 
 OUTCOME="${1:-up}"                     # up | down
 WHAT="${2:-backup}"                    # backup | copy | maintenance | offsite-check
+# The weekly maintenance runs in two modes that do NOT establish the same thing:
+# one re-reads a twelfth of the repository's actual bytes, the other lists
+# metadata. resticprofile decides which by the day of the month, and only
+# resticprofile knows — a hook receives PROFILE_NAME and PROFILE_COMMAND and
+# nothing else. So the mode is passed in, from the same template branch that
+# sets `read-data-subset` (#290, class C39).
+#
+# It used to reach the monitor and stopped. The shell job this replaced pushed
+# `local prune + deep check (8/12) passed` against `local prune + metadata check
+# passed`, and Kuma still holds both — 2026-08-02 and 2026-08-09. The move to
+# resticprofile (ADR-031) collapsed them into `prune and check completed`, and
+# the only durable trace of which one ran became the journal, which holds 16.8
+# days against a period of 30. The evidence expired before the event repeated.
+MODE="${3:-}"                          # deep | metadata (maintenance only)
+SUBSET="${4:-}"                        # e.g. 8/12, when MODE=deep
 DUMP_TAP="/run/homelab-backup-dumps.tap"
 BACKUP_LOG="/var/log/homelab-backup.log"
 
@@ -80,7 +97,19 @@ if [ "$WHAT" != "backup" ]; then
     # nothing, since the monitor going green already means the command ran clean.
     case "$WHAT" in
         copy)          readings="offsite copy completed" ;;
-        maintenance)   readings="prune and check completed" ;;
+        # Named so a metadata run CANNOT produce the deep run's message, which is
+        # the whole acceptance of #290: the distinction has to survive in the
+        # monitor's own history, and Kuma keeps 180 days of it against a 30-day
+        # period. An unset mode is reported as unknown rather than guessed —
+        # a message that quietly claims a mode it was not told is the defect
+        # again, one level down.
+        maintenance)
+            case "$MODE" in
+                deep)     readings="prune ok, deep check re-read data subset ${SUBSET:-?}/12" ;;
+                metadata) readings="prune ok, metadata check only (no data re-read)" ;;
+                *)        readings="prune and check completed, mode not reported" ;;
+            esac
+            ;;
         offsite-check) readings="offsite repository intact" ;;
         *)             readings="${WHAT} completed" ;;
     esac
