@@ -130,11 +130,18 @@ parts that need a thought experiment.
 
 # The register
 
-Runs of 2026-08-15 through 2026-08-30 (evening).
-**54 classes: 6 OPEN, 14 GATED, 32 ENUMERATED, 2 closed by decision, plus the
-DECLINED list.** (GATED = C02, C07, C10-C12, C14-C21 and C41;
-ENUMERATED = C01, C03, C06, C09, C13, C22-C40, C42-C45, C47-C49 and C53;
-closed by decision = C04, C08.)
+Runs of 2026-08-15 through 2026-08-30 (night).
+**66 classes: 8 OPEN, 13 GATED, 43 ENUMERATED, 2 closed by decision, plus the
+DECLINED list.** (OPEN = C05, C46, C56-C58, C60, C62, C66;
+GATED = C02, C07, C10-C12, C14-C17, C19-C21 and C41;
+closed by decision = C04, C08; everything else ENUMERATED.)
+
+**The counter moved the wrong way, and that is the honest headline.** Six OPEN
+became two — C50, C51, C52 and C54 all closed by enumeration — and then the
+`identity` key minted twelve, six of them OPEN. A run that closes four classes
+and opens six has not gone backwards; it has bought vocabulary. But it means
+the termination clock resets for the third consecutive run, and the one
+dimension still named and unused is now **scale** alone.
 
 ## What the run of 2026-08-30 (evening) cost and paid
 
@@ -161,16 +168,141 @@ the 17:29 reboot three runs of `homelab-health` finished green having done their
 work, and none reached the dashboard. **A fixed instance is not a closed class,
 and this file existed for fifteen days before that sentence had a number.**
 
-## OPEN — 6
+## OPEN — 8
 
 | ID | Property | Space, and its cardinal | Why it is still open |
 |-----|--------------------------------------------|--------------------------------------------|----------------------------------------|
-| C05 | Something a reader would reasonably assume the posture check asserts, and which it does not | The gap between the posture spec and `docs/03-security/` | **Not exhaustible by sweeping** — "what a reader would assume" has no cardinal. A standing question for each new service. The two instances of #294 were verified live on 2026-08-30: the WireGuard gate is deployed, correct (4 live peers == 4 enrolled clients) and fails closed on both degenerate branches |
-| C46 | A supervisor's log that declares an act it did not perform | Unbounded as stated; the instance is `dockerd`'s stop path | **1 instance, arbitrated rather than believed.** `journalctl -u docker.service` wrote 17 `failed to exit within Ns — using the force` lines for the 17:29 shutdown; pairing each by container id against `received task-delete event from containerd` gives **8 genuinely killed** (task-delete +103 to +338 ms AFTER the message), **8 already gone** (2.07 to 9.09 s BEFORE it) and **1 undecidable** (`traefik`, 0.074 s). The controls are what make it a finding rather than a hunch: `uptime-kuma`, `navidrome` and `searxng` each wrote their own completion line — `Graceful shutdown successful!`, `Navidrome stopped, bye.`, `Granian shutdown completed, see ya!` — seconds before dockerd claimed to have forced them, and netdata's `killed hard on exit` holds the other end. Open because the space is not bounded: no sweep has asked which OTHER supervisors on these hosts log acts they did not perform |
-| C50 | A liveness probe whose subject answers without the component the probe claims to prove | 64 probes (25 healthchecks + 36 monitors + 3 `wait_healthy`) | **2 instances, both on the resolver's back half.** Kuma monitor 8 queries a name whose answer comes from cache: measured 91 of 94 queries in two hours never reached upstream (`forward IS NULL`), against a control showing the denominator artefact this register already documents. Up to ~65 min of green during a real outage. The boot gate is `dig +norecurse @127.0.0.1`, which cannot see `dnsproxy` — a container with no healthcheck at all. Cheapest close: give `dnsproxy` one. Not swept 64/64 |
-| C51 | A procedure whose written order differs from the order the machine imposes | 80 sequences (78 runbook sections + 2 instruction-bearing operator scripts) | **79/80 swept, 4 confirmed instances, ALL FOUR FIXED on 2026-08-30** — see the settled section. Still OPEN on two counts: one sequence unswept, and one SUSPECTED instance not established (`container-config-changes.md` step 4 says a capability sweep must precede step 1, which already drops capabilities; proving the cost would mean dropping one on a live container, which the pass would not do) |
-| C52 | A safety argument whose premise is a defect that has just been corrected | Unbounded as stated | **1 instance.** `filesystem-checks.yml:176-183` reasoned that the ext4 boot triggers were harmless, and `fake-hwclock` made that premise false the same evening — the kernel logged `checktime reached` for the first time since 1 August. The general shape is worse than the instance: every fix invalidates the safety arguments that rested on the broken behaviour, and nothing enumerates them |
-| C54 | A startup list that is neither derived from the machine nor asserted against it | 4 startup lists | **1 SUSPECTED instance, measured with no discrepancy today (29/29).** Only one of the four lists is derived and asserted. Recorded rather than dropped because "no discrepancy today" is exactly what C27 said before it reopened |
+| C05 | Something a reader would reasonably assume the posture check asserts, and which it does not | **Bounded at last: the 53 machine-checkable statements of `docs/03-security/README.md`** | Was recorded "not exhaustible by sweeping" because *what a reader would assume* has no cardinal. That framing was the obstacle, not the property: the document itself is the reader's expectation, written down. **12 of 53 instructed, 12/12 true on both hosts, 4 unasserted** — SSH key-only (non-negotiable rule 1, the only access path, no assertion on either host), unattended-upgrades, AppArmor asserted for 1 of 29, and "no secret in `Env`" (29/29 compliant, unasserted). The load-bearing one is "80/443 not forwarded", which has no continuous assertion and **was proven measurable from the offsite uplink with two positive controls**, so the assertion is buildable there. 41 statements unswept |
+| C46 | A supervisor's log that declares an act it did not perform | **Bounded at last: 99 host actors (journald index, both hosts) + 29 in-container supervisors = 128**; 34 retained as genuine supervisors | 14 of 34 swept with a control, **1 confirmed** (the arbitrated `dockerd` instance), 1 suspected. The space was the blocker on the previous run and it no longer is; what remains is 20 unswept supervisors |
+| C56 | An authorization or an attribution decided after the caller's identity has already been lost | Unbounded as stated; 3 surfaces swept | **The best catch of the `identity` key, and it arrived three times from three agents who did not coordinate.** Pi-hole attributes 48.3 % of its queries to a bridge gateway, so its only per-client rule is indexed on an identity the transport erased; the socket proxy holds ONE grant set (`CONTAINERS=1 INFO=1 IMAGES=1 EVENTS=1 PING=1`, all writes 0) shared by every client, with no caller identity in the decision. **The third instance was rejected** — see the verification note below. Open because nothing enumerates the points at which an authorization is taken |
+| C57 | An authentication failure recorded without an identity | Unbounded as stated; 1 instance | 5 Vaultwarden 2FA failures carrying neither a source address nor an account. Small, but it is the exact shape that makes a real attempt indistinguishable from a fat finger |
+| C58 | A control all of whose assertions test the direction that permits | Unbounded as stated; 3 assertions swept | The three `traefik-allowlist-*` assertions fail when a legitimate client is refused, and none fires when an illegitimate one is admitted. Worse, the refusing direction was measured **unobservable from any address on this machine**. A control that can only fail in the safe direction is a control that cannot report the failure it exists for |
+| C60 | A copy whose scope is a list of fields facing a third party's schema | Unbounded as stated; 1 instance | `ops/kuma-dump.sh` exports 22 columns of 118 and omits the only two non-default identity values. A restore from it would hand back a "Pi-hole DNS" monitor silently querying 1.1.1.1 — green, and measuring the wrong resolver |
+| C62 | An announced exclusion that the mechanism does not enforce | Unbounded as stated; 1 SUSPECTED | `homelab-fsck` writes "nothing can mount /mnt/data while this runs"; the guard it sets is read only by `homelab-unlock` and by itself. Correction is one sentence — but the property is worth a sweep |
+| C66 | A correction applied to the instance that revealed it, whose siblings were never enumerated | **Enumerable: the fixes of the last N days, each confronted with an enumeration of its own property** | **This is the register's own thesis — "corrected is not gated" — turned into a sweepable class instead of a repeated warning.** Three instances are already on file from tonight alone: C45's fix reached one script of ten on 2026-08-15 and the other nine waited fifteen days; the LUKS header procedure was deliberately moved off tmpfs on 2026-08-30 while the seven `--target /tmp/restore` steps of `restore-from-backup.md` did not move; C53's `meta: flush_handlers` landed on one instance and its sibling is untouched. Minted by the main session, not by an agent |
+
+## The run of 2026-08-30 (night) — the key was `identity`
+
+Four of the six OPEN classes closed, twelve minted. The key asked **who is
+acting**, as opposed to what is running, and it paid the way `time` and `order`
+did before it — which is now three consecutive confirmations that the mint rate
+tracks unused dimensions rather than a rotting system.
+
+### Closed by enumeration — 4
+
+| ID | Property | Outcome |
+|-----|----------------------------------------------|--------------------------------------------|
+| C50 | A liveness probe whose subject answers without the component the probe claims to prove | **ENUMERATED 62/62, ~19 instances.** The cardinal was wrong: recorded as 64, it is **62** — 25 Docker healthchecks (taken from the machine, not the repo: three services inherit their `test:` from their image), **34** Kuma monitors (not 36) and 3 `wait_healthy`. Three agents swept disjoint thirds. The instances that matter are not the resolver ones this row was opened on: `pg_isready -d <db> -U <user>` returns the same output and exit 0 for a database and a role that **do not exist** (verified with a control against the real call), so the arguments are decorative on two databases; Kuma's own healthcheck greps `entryPage`, which is the FIELD NAME in `{"type":"entryPage","entryPage":null}` — and Kuma is the only container no external monitor watches; `miniflux -healthcheck auto` performs **zero** transactions over 30 probes. The suspicion worth more than its instances: if `/mnt/data` disappears while the containers run, calibre-web serves `/login`, jellyfin `Healthy`, navidrome `.`, immich `pong` — four dead services, four green probes, four routers kept |
+| C51 | A procedure whose written order differs from the order the machine imposes | **ENUMERATED 80/80, 6 instances** (the 4 fixed on 08-30 plus 2). The 80th sequence was found by dropping the title index and taking the two candidates invisible to it: `sd-theft-response.md` is clean on 6 machine-verified claims, and `ops/bootstrap.sh` carries one instance — its connectivity check and its final command omit `-e homelab_ssh_port=22`, which `hosts.yml` states in writing, and `--ask-vault-pass`; proven, `ansible-inventory --host homelab` answers `Attempting to decrypt but no vault secrets found`. **The suspected instance is CONFIRMED without dropping anything**, and it is worse than an inversion: step 1 prints an unfilled `--cap-add`, whose only source is step 4, and step 4's instrument is **blind on 25 containers of 29** (24 without `getcap`, 2 without a shell). The blind set contains Collabora, and the rule "empty sweep ⇒ the flag is safe" therefore authorises the drop |
+| C52 | A safety argument whose premise is a defect that has just been corrected | **ENUMERATED, bucket swept 9/9 of 151 candidate arguments, 1 confirmed instance.** `observability/handlers/main.yml` refuses `netdatacli reload-health` on the grounds — stamped **"Measured, not assumed"** — that `/run/netdata/` is empty. Measured tonight inside the container (the right namespace): `netdata.pipe` is present and `netdatacli ping` answers `pong`. The direct cost is one netdata restart per deploy instead of a reload; the value is that **a measurement stamped "measured" expired and nothing noticed**, which is the property itself. A second material: `homelab.env` is argued about as "group-readable and mounted into the containers" when it is 0600 and mounted nowhere — right decision, false reasons |
+| C54 | A startup list that is neither derived from the machine nor asserted against it | **ENUMERATED 4/4.** Tier 0, wave 1, wave 2, wave 3; only the Tier 0 list is both derived (from `compose.yaml`) and asserted. Coverage 6+9+6+8 = 29 = the 29 services, no discrepancy. **The suspected instance is DISCARDED with proof**: a service no wave starts fails the goss assertions generated for it (`docker inspect <absent> | jq` -> `null`, positive control `traefik` -> `false`) — real detection, but at 24 h and under a misleading name. **1 confirmed latent instance**: the Tier 0 assertion covers one of the three `restart:` values, so an `always`/`on-failure` would pass it in both directions and short-circuit the staged startup. Measured 0 today (6 `unless-stopped`, 23 `no`, 29/29 compliant). ~10 lines turn the equality into a partition assertion and **C54 would reach GATED** |
+
+### Minted — 12
+
+| ID | Property | Swept | State |
+|-----|--------------------------------------------------|-----------------|------------|
+| C55 | A container uid that is a real login account on the host | 5/29, 4 inert, 1 assumed | ENUMERATED |
+| C56 | An authorization or attribution decided after the caller's identity is lost | 3 surfaces | **OPEN** |
+| C57 | An authentication failure recorded without an identity | 1 instance | **OPEN** |
+| C58 | A control all of whose assertions test the permitting direction | 3 assertions | **OPEN** |
+| C59 | A verification whose subject supplies its own instrument | 12/12, 1 instance | ENUMERATED |
+| C60 | A copy whose scope is a field list facing a third party's schema | 1 instance | **OPEN** |
+| C61 | A numeric identifier used where a name was meant | 17/17, **4 wrong** | ENUMERATED |
+| C62 | An announced exclusion the mechanism does not enforce | 1 SUSPECTED | **OPEN** |
+| C63 | A recovery destination that cannot hold what it restores | 13 destinations, 9 instances | ENUMERATED |
+| C64 | Data whose owner is no process's identity | 27/29 clean, 2 instances | ENUMERATED |
+| C65 | A mounted file whose identity no task declares | 3, cost measured zero | ENUMERATED, DECLINED candidate |
+| C66 | A correction applied to the instance that revealed it, whose siblings were never enumerated | 3 instances on file | **OPEN** |
+
+**C55's cardinal deserves its footnote, because the loose predicate is useless.**
+Fourteen of the 29 containers run PID 1 as host uid 0 and one as 65534; counting
+those as "a real host account" would give 15 and mean nothing. The property is a
+collision with a *non-system* account, and on that reading it is 5. The sharp
+instance is **Collabora**: `Config.User` 1001 with no userns remapping, so its
+PID 1 runs as host uid 1001 = `claude`, the login account that carries
+`claude-remote-control.service` and an rclone mount of the Nextcloud vault — and
+host gid 1001 = `spi`, an unrelated group. Nothing allocated that uid; it is the
+image's default. Mitigation measured: Collabora declares **no bind mount**, so
+no shared write path exists today. The day someone adds one, they add it with
+`claude`'s rights.
+
+**C61 is the cheapest class on this table and the one most likely to bite.**
+`gid 1000` is `gpio`, not the operator's group, which is 1003; `gid 999` is
+`systemd-journal` on the homelab while `uid 999` is `rest-server` on the offsite.
+`docker/.env.example` ships `PGID=1000` where the deployed value is 1003 — it
+only bites on a rebuild from the example, and then it hands the containers the
+`gpio` group. The offsite-restore step of `offsite-backup.md:189` ("on any
+machine") would hand the Postgres datadirs to the network daemon's account.
+
+### Broken gates — red tests, not audit results
+
+- **C06** (`start_period` never measured). Confirmed broken on **four** points, one
+  of them new: 14 declared against a header reading `THIRTEEN`; the redactor's
+  30 s measured at **99 s**; it survives only by accident (30 + 3x60 = 210 s of
+  tolerance); and the upstream cause — **`traefik` declares no `start_period` at
+  all** and takes 98 s to load its configuration.
+- **C29** (a construct that disables a feature silently). Still broken, uncorrected
+  in repo and on the machine. Calibrated: the test is
+  `pgrep -f ... && [ -f .../access.log ]`, so the FILE half works; only the
+  liveness half can never fail. Do not present the probe as wholly vacuous.
+- **C26** (a credential reaching argv, a child, a job or a trace). **Downgraded
+  GATED -> ENUMERATED.** The instance is genuinely gone (`-K -` deployed, 0
+  credentials in argv across the 4 re-swept axes), but `grep -ciE
+  "argv|cmdline|hidepid"` over the deployed spec returns **0**: one assertion of
+  193 covers this class and it is the *trace* axis. `/proc` carries no `hidepid`.
+  Same disguise that cost C02 and C13.
+- **C18** (a database dump absent, stale or empty). **Downgraded GATED ->
+  ENUMERATED.** Derived on one axis — a database on the list cannot escape its
+  check, 19/19 verified — and **listed on the other**: nothing derives the list
+  from the machine. 11 SQLite stores exist; `wireguard/wg-easy.db` is classified
+  nowhere.
+- **C17** (a filesystem never checked). **Red test NEGATIVE — the gate is not
+  broken.** `/run/initramfs/fsck.log` is a tmpfs file written at tonight's 17:29
+  boot and dated `Tue Jul 28 15:05:07 2026`: the initramfs clock is frozen,
+  e2fsck runs a full check every boot and antedates the superblock. Not
+  asserting `Last checked` is therefore correct. **What is real**: the offsite
+  has no assertion on its root at all — three lines to copy into
+  `goss-offsite-health.yaml.j2`, and C02, being derived from timers, cannot see
+  it.
+- **C41** re-read at the code: **genuinely derived.** Nothing to do.
+- **C21**: the register's own description is **stale** — ADR-031 removed the time
+  window filter and the replacement is better. 77 snapshots, one per day from
+  01-08 to 30-08, no gap, `locks/` empty.
+
+### C45 must NOT be promoted to GATED — and this is the run's headline
+
+`no-kuma-report-was-lost-in-silence` is a careful assertion: its floor is
+**derived** (the first beat Kuma itself recorded since its own start, rather than
+the 434 s observed), its controls were run in both directions, and it refuses to
+judge rather than pass vacuously. Its defect is **coverage**. It reads a marker
+that **8 of the 10 push sites emit**. The two that do not are the two that do not
+live in `/usr/local/bin/`:
+
+    /opt/homelab/scripts/backup-notify.sh:179       || log "push failed"
+    /home/claude/.local/share/feed-digest/digest.sh:133  || log "WARNING: Kuma push failed"
+
+Both **detect** the failure — the C45 fix reached them — and neither emits the
+marker. So a lost push from the **entire backup chain** is invisible to the gate
+written to catch exactly that. Three independent sources reached it
+(`observability`, `backup`, and the main session's own re-measurement), and the
+main session's first enumeration fell into the same hole and saw only 7 sites.
+
+**The mechanism is the scope trap**, the one this register has recorded since
+2026-08-22: an enumeration scoped to a DIRECTORY (`/usr/local/bin/`,
+`roles/*/templates/`) instead of to the PROPERTY. It bit the gate itself, the day
+after the gate was written. One line fixes the two scripts; the class stays
+ENUMERATED until the marker's emitters are derived rather than listed.
+
+### C03 — designed, not deployed
+
+The gate is designed and **derived**: 104 units — the 20 shell artefacts **plus 84
+goss `exec:` blocks**, two of the seven instances living outside the 20 — with its
+five deliberate-failure controls. Measured before being proposed: pipefail 0
+defects of 20, curl 0 defects of 22 (4 derived exemptions), and the "proxy guard"
+family **established not gateable** (44 flags over 63 correct sites, 70 % noise).
+C03 stays OPEN until the assertion is deployed and made to fail on purpose.
+
+---
 
 ## Settled by the run of 2026-08-30 (evening) — three of the four OPEN, and C27
 
