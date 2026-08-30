@@ -1170,3 +1170,54 @@ command:
     # minutes after a daemon restart. 30 s is ~28x the idle cost.
     timeout: 30000
     exit-status: 0
+
+  # --- A report that reached nobody (audit of 2026-08-30) --------------------
+  # Eight scripts push a beat to Uptime Kuma. Until this shipped, seven ended
+  # their curl in `2>&1 || true` and the eighth carried no --fail at all, so a
+  # push that failed was indistinguishable from one that landed: the run exited
+  # 0, the unit was green, and the monitor kept showing the PREVIOUS reading.
+  # Measured that evening after the 17:29 reboot — three runs of homelab-health
+  # at 17:30:40, 17:35:40 and 17:40:36, each burning 5.6-8.0 s of CPU on real
+  # work, none of them reaching the dashboard, the monitor sitting 16 min 55 s
+  # stale. This is the shape the whole audit exists to catch, and it is the same
+  # one that opened it on 2026-08-15.
+  #
+  # Each site now writes `kuma-push-failed:` to stderr, which systemd files in
+  # the journal. That half only moves the defect one layer down unless something
+  # READS it — this assertion is that something.
+  #
+  # The floor is DERIVED, not a constant. A push that failed before Kuma was
+  # able to record anything is a boot artifact, not a lost report: measured on
+  # this same reboot, the container reached `StartedAt` at 17:34:03 and did not
+  # record its first beat until 17:41:17, 434 s later. Hard-coding 434 s would
+  # be a number that rots; the first beat Kuma itself recorded since its own
+  # start is the same fact, owned by the machine. Without this floor the check
+  # fires after every single reboot, which is how an assertion teaches its
+  # reader to ignore it.
+  no-kuma-report-was-lost-in-silence:
+    exec: |
+      started=$(docker inspect uptime-kuma 2>/dev/null |
+                sed -n 's/.*"StartedAt": *"\([^"]*\)".*/\1/p' | head -1)
+      [ -n "$started" ] || { echo "cannot read uptime-kuma StartedAt — no floor, refusing to judge"; exit 1; }
+      # Both sides are UTC: Docker stamps Z, and the Kuma container runs UTC, so
+      # its `heartbeat.time` needs no conversion. `datetime(x,'localtime')` in
+      # that container is a NO-OP for the same reason — it cost this audit a
+      # wrong reading before it was noticed.
+      utc=$(printf '%s' "$started" | sed 's/T/ /; s/\..*//')
+      first=$(docker exec uptime-kuma sqlite3 "file:/app/data/kuma.db?mode=ro" \
+              "select strftime('%s', min(time)) from heartbeat where time >= '$utc'" 2>/dev/null)
+      case "$first" in
+        ''|*[!0-9]*) echo "uptime-kuma has recorded no beat since it started at $started — nothing can be judged, and that is itself wrong"; exit 1 ;;
+      esac
+      lost=$(journalctl --since "@$first" --no-pager 2>/dev/null | grep -c 'kuma-push-failed:')
+      case "$lost" in ''|*[!0-9]*) echo "journal unreadable: [$lost]"; exit 1 ;; esac
+      [ "$lost" -eq 0 ] || {
+        echo "$lost report(s) never reached the dashboard since Kuma began recording:"
+        journalctl --since "@$first" --no-pager 2>/dev/null |
+          grep 'kuma-push-failed:' | tail -5 | sed 's/^/  /'
+        exit 1
+      }
+    # Two round trips into a container, like the pihole and miniflux assertions
+    # above, against a default of 10 s.
+    timeout: 20000
+    exit-status: 0

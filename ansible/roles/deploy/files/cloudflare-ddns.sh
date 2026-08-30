@@ -32,9 +32,20 @@ notify() {
     # read another process's command line, and this runs unattended on a timer
     # (#177). printf is a shell builtin, so the value never reaches an argv there
     # either.
+    #
+    # The failure is KEPT, not discarded. This call used to end in `2>&1 || true`,
+    # which threw away curl's diagnosis AND its verdict, so a report that reached
+    # nobody was indistinguishable from one that landed. Measured on 2026-08-30:
+    # three runs of homelab-health finished green, having done their work, while
+    # their beats never reached Kuma and the monitor sat on a reading 16 min 55 s
+    # old. `|| echo` rather than a real failure because the caller must not abort
+    # on it — what failed is the report, not the check it carries. The marker
+    # string is what `no-kuma-report-was-lost-in-silence` reads in the posture
+    # spec; keep the two in step.
     printf 'url = "%s"\n' "$url" |
         curl -fsS -m 10 --retry 2 -K - -G \
-            --data-urlencode "status=$1" --data-urlencode "msg=$2" >/dev/null 2>&1 || true
+            --data-urlencode "status=$1" --data-urlencode "msg=$2" >/dev/null ||
+            echo "kuma-push-failed: this report reached nobody — $2" >&2
 }
 
 : "${CF_DNS_API_TOKEN:?missing CF_DNS_API_TOKEN}" "${CF_ZONE:?missing CF_ZONE}" "${CF_RECORD:?missing CF_RECORD}"
