@@ -28,6 +28,9 @@
 - name: Own the data directories hardened containers must be able to write (#144)
   ansible.builtin.import_tasks: data_dirs.yml
 
+- name: Prepare the tmpfs the Traefik access log is written to (#287, ADR-034)
+  ansible.builtin.import_tasks: traefik_accesslog.yml
+
 - name: Run Docker Compose (file, networks, pull, up)
   ansible.builtin.import_tasks: compose.yml
 

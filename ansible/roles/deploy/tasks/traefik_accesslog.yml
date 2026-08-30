@@ -1,0 +1,61 @@
+---
+# The Traefik access log does not go to stdout (#287, ADR-034): the raw line
+# carries credentials that some clients can only present in the query string,
+# and stdout is what `docker logs` keeps durably and Dozzle serves. Traefik
+# writes it here instead, traefik-log-redactor masks it, and only the masked
+# stream becomes a container log. Three host-side pieces make the raw copy
+# acceptable, and each closes a different way it could stop being so.
+
+# /run is a tmpfs, so the raw log never reaches the SD card, the encrypted
+# volume or any backup source — it is RAM, and a reboot is the shortest
+# retention there is. 0750 root:root is what keeps it unreadable to every other
+# account on the host; it is also why the redactor runs as root rather than as
+# an unprivileged uid, which would have forced this directory world-traversable.
+- name: traefik_accesslog | Create the tmpfs directory for the raw access log
+  ansible.builtin.file:
+    path: /run/traefik
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+# /run is emptied at every boot, and docker starts long before anyone would
+# recreate this by hand. Without it the first boot after a reboot has Docker
+# create the bind-mount source itself, as 0755 root:root — which silently
+# widens the raw log to every account on the host, exactly the property this
+# change exists to remove. systemd-tmpfiles-setup runs before docker.service.
+- name: traefik_accesslog | Recreate the directory at boot with its own mode
+  ansible.builtin.copy:
+    dest: /etc/tmpfiles.d/traefik-accesslog.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Managed by Ansible — do not edit on the host.
+      d /run/traefik 0750 root root -
+
+# Nothing else bounds this file. It is only a relay buffer — the durable copy of
+# every line is the redactor's container log, which json-file already rotates —
+# so `rotate 0` deliberately keeps nothing, and the measured 2.2 MB/day never
+# accumulates against /run's 785 MB.
+#
+# copytruncate rather than create, for the reason the Vaultwarden rotation next
+# door gives: Traefik holds the file open and reopens it only on SIGUSR1. The
+# other half of that choice is the reader, and it was measured rather than
+# assumed — busybox `tail -F` was run across a copytruncate on this host with a
+# line written either side: none lost, none duplicated.
+- name: traefik_accesslog | Bound the relay buffer
+  ansible.builtin.copy:
+    dest: /etc/logrotate.d/traefik
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Managed by Ansible — do not edit on the host.
+      /run/traefik/access.log {
+          daily
+          rotate 0
+          missingok
+          notifempty
+          copytruncate
+      }

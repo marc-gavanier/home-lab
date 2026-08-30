@@ -51,6 +51,14 @@
     cmd: docker restart searxng
   changed_when: true
 
+# Same inode story, and the same failure shape as the secrets below: awk holds
+# the script open from container start, so an edited redaction pattern would sit
+# on disk, report changed, and never mask anything new (#287).
+- name: Restart traefik-log-redactor
+  ansible.builtin.command:
+    cmd: docker restart traefik-log-redactor
+  changed_when: true
+
 - name: Restart dozzle
   ansible.builtin.command:
     cmd: docker restart dozzle

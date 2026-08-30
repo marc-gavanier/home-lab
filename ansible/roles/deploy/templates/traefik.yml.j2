@@ -72,5 +72,20 @@ log:
 # entry it was granted on the strength of that census took offsite's only
 # reporting channel away for a week. An instrument that cannot observe a
 # success must not be asked who is present.
+#
+# And not /dev/stdout either, deliberately (#287, ADR-034). Removing the filter
+# above is what made this visible: with 400-599 gone the log keeps successful
+# requests too, and some clients can only present their credential in the query
+# string — SignalR cannot set an Authorization header, a media player following
+# a stream URL has nowhere else to put it. stdout is what `docker logs` keeps
+# and what Dozzle serves to every account authorised for it, so the raw line
+# must not go there.
+#
+# Traefik cannot mask part of a field. Measured on 3.7.11, both formats:
+# `fields.names.RequestPath: redact` is a NO-OP — the value passes through
+# verbatim — and `drop` blanks the whole path for every line, which would leave
+# vaultwarden, whose own log carries no request line at all, with no HTTP
+# visibility anywhere. So the line is written to a tmpfs here and
+# traefik-log-redactor is what turns it into the durable, masked container log.
 accessLog:
-  filePath: /dev/stdout
+  filePath: /var/log/traefik/access.log

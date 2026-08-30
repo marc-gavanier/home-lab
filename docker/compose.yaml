@@ -265,6 +265,14 @@ services:
       - ${SERVICES_DATA_DIR}/traefik/acme:/acme
       - ./configs/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
       - ./configs/traefik/dynamic:/etc/traefik/dynamic:ro
+      # The access log is written here rather than to stdout, so the raw line —
+      # which carries credentials that some clients can only pass in the query
+      # string — never reaches a durable store (#287, ADR-034). /run is a tmpfs:
+      # RAM, emptied at boot, on no backup source and not on the SD card. The
+      # directory is 0750 root:root, so the raw log is unreadable to every other
+      # account on the host. traefik-log-redactor tails this file, and it is ITS
+      # masked stdout that becomes the container log Dozzle serves.
+      - /run/traefik:/var/log/traefik
     depends_on:
       - socket-proxy
     networks:
@@ -281,6 +289,70 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+
+  # --- Traefik access-log redactor (#287, ADR-034) --------------------------
+  # Traefik has no way to mask part of a logged field. Measured on 3.7.11, in
+  # both `common` and `json`: `fields.names.RequestPath: redact` is a NO-OP, the
+  # value passes through verbatim, and `drop` blanks the whole path for every
+  # line. Dropping was the cheap fix and it was rejected on a measurement —
+  # vaultwarden logs no request line of its own and jellyfin logged four in a
+  # day, so Traefik is the only HTTP visibility either service has.
+  #
+  # So the masking happens between Traefik and the durable store: Traefik writes
+  # the raw line to /run/traefik (tmpfs), this tails it, and its stdout is what
+  # json-file keeps and Dozzle serves.
+  #
+  # Root with no capabilities rather than an unprivileged uid, deliberately: the
+  # raw log has to stay root-only on the host, and a non-root reader would force
+  # /run/traefik world-traversable — trading the readership this issue exists to
+  # narrow. Everything else is shut: no network at all, read-only rootfs, both
+  # mounts ro, every capability dropped.
+  #
+  # alpine because it is already on this host and its busybox awk has fflush().
+  # busybox sed has no -u, so a sed pipeline shows nothing until 4 KB have
+  # accumulated — minutes at noon, hours at 04:00, and the tail lost outright if
+  # the container is killed. Measured, which is why this is awk.
+  traefik-log-redactor:
+    image: alpine:3.20
+    container_name: traefik-log-redactor
+    restart: unless-stopped
+    security_opt: *no-new-privs
+    cap_drop: *cap-drop-all
+    read_only: true
+    # Nothing here talks to anything. `none` rather than an unused network
+    # attachment, so a compromise has no socket to reach for.
+    network_mode: none
+    tmpfs:
+      # Insurance, per the read_only convention at the top of this file: awk was
+      # not observed writing anywhere, but an unwritten tmpfs allocates no page.
+      - /tmp:size=1m
+    # PID 1 is the shell, which does not forward SIGTERM into the pipeline — so
+    # `docker stop` waits out the grace period and then kills. That is the
+    # failure #288 spent a night removing from the databases, and it is harmless
+    # HERE: there is no state to flush, and the durable copy of every line
+    # already left through stdout. Shortened so a stack stop is not held up.
+    stop_grace_period: 5s
+    command:
+      - sh
+      - -c
+      - exec tail -F /var/log/traefik/access.log 2>/dev/null | awk -f /etc/redact-access-log.awk
+    volumes:
+      - /run/traefik:/var/log/traefik:ro
+      - ./configs/traefik/redact-access-log.awk:/etc/redact-access-log.awk:ro
+    depends_on:
+      - traefik
+    # If tail dies — the file replaced by something other than a truncation, awk
+    # exiting on a malformed script — the redactor keeps running and silently
+    # ships nothing, and the access log simply stops existing with no alarm
+    # anywhere. That is the shape this repo keeps paying for, so it is probed.
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pgrep -f "tail -F /var/log/traefik/access.log" >/dev/null && [ -f /var/log/traefik/access.log ]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   # --- Pi-hole (DNS + Ad blocking) ---
   pihole:
