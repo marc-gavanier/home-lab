@@ -1209,15 +1209,44 @@ command:
       case "$first" in
         ''|*[!0-9]*) echo "uptime-kuma has recorded no beat since it started at $started — nothing can be judged, and that is itself wrong"; exit 1 ;;
       esac
-      lost=$(journalctl --since "@$first" --no-pager 2>/dev/null | grep -c 'kuma-push-failed:')
-      case "$lost" in ''|*[!0-9]*) echo "journal unreadable: [$lost]"; exit 1 ;; esac
+      # --grep, and ANCHORED, for two separate reasons.
+      #
+      # --grep applies to the MESSAGE field alone, where a pipe into grep sees
+      # the whole formatted line. The anchor then rejects a message that merely
+      # MENTIONS the marker. Both matter, and the second was not theoretical: on
+      # the evening this shipped, the first form counted 7 losses on a host that
+      # had lost nothing — sudo had journalled the audit's own
+      # `grep -c kuma-push-failed: /usr/local/bin/...` verification commands.
+      # A marker whose namespace is the entire journal is trippable by anyone
+      # looking for it.
+      #
+      # Controls run before this was trusted: anchored -> 0, the same --grep
+      # WITHOUT the anchor -> 7, so the zero comes from the anchor rather than
+      # from a filter that matches nothing; and `--grep "push failed"` over the
+      # same window -> 1, the old-format line the netdata adapter wrote at
+      # 17:42, proving the filter reaches real script output.
+      #
+      # One call, not two: the listing reuses what the count read, so the
+      # failing path costs no more than the passing one.
+      hits=$(journalctl --since "@$first" --no-pager -o cat \
+             --grep '^kuma-push-failed:' 2>/dev/null)
+      lost=$(printf '%s' "$hits" | grep -c . )
       [ "$lost" -eq 0 ] || {
         echo "$lost report(s) never reached the dashboard since Kuma began recording:"
-        journalctl --since "@$first" --no-pager 2>/dev/null |
-          grep 'kuma-push-failed:' | tail -5 | sed 's/^/  /'
+        printf '%s\n' "$hits" | tail -5 | sed 's/^/  /'
         exit 1
       }
-    # Two round trips into a container, like the pihole and miniflux assertions
-    # above, against a default of 10 s.
-    timeout: 20000
+    # Measured idle on 2026-08-30: 0.06 s for the inspect, 0.25 s for the
+    # sqlite3 round trip, and 3.87 s for the journal scan — 4.2 s total. The
+    # timeout is not sized against that figure but against the load THIS SPEC
+    # creates: at 20 s the check timed out on its first real run, inside a spec
+    # of 359 checks many of which shell out to docker. That is a >4.5x factor,
+    # and goss reports a timeout as `not ok`, which reads as a failed assertion
+    # when it is the instrument failing — the trap this file already paid for at
+    # `no-container-came-back-recovering`. 45 s is ~11x the idle cost.
+    #
+    # The scan grows with the window, which is bounded by Kuma's uptime rather
+    # than by anything here. If this ever times out again, that is the reason,
+    # and the fix is to bound the window — not to raise the number.
+    timeout: 45000
     exit-status: 0
