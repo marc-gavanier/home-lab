@@ -1656,3 +1656,91 @@ own header warns about.
   state that a reboot and a deploy alter and ran on a cadence blind to both.
   **A convenient enumeration is not a cardinal** — the same trap this file
   records from 2026-08-22.
+
+## The run of 2026-08-30 (night) — the key was `identity`, and the gate written the night before was already leaking
+
+### State, in one line
+
+Four OPEN classes closed by enumeration (C50, C51, C52, C54), twelve minted, six
+of them OPEN. Counts live in `classes.md` and **only** there.
+
+### Two decisions, so nothing reopens them
+
+- **C05 is bounded from now on by `docs/03-security/README.md`, not by
+  imagination.** The class was recorded for days as "not exhaustible by sweeping"
+  because *what a reader would assume* has no cardinal. That was the wrong
+  reading: the document IS the reader's expectation, written down and countable
+  at 53 statements. Do not restore the "unbounded" framing.
+- **C45 stays ENUMERATED and is not promoted.** Its assertion is well built; its
+  emitter list is not derived. Promotion waits for the marker's emitters to come
+  from the machine rather than from a list.
+
+### New instrument traps — six, and three were ours
+
+1. **A perimeter probe fired from the LAN traverses the hairpin NAT and reads
+   443 OPEN.** False. The same probe from the offsite uplink, with two positive
+   controls, settles it. Never conclude anything about the router's forwarding
+   from inside the house.
+2. **`pg_isready -d <db> -U <user>` ignores both arguments.** It returns
+   `accepting connections` and exit 0 for a database and a role that do not
+   exist — byte-identical to the real call. Any probe built on it proves the
+   postmaster listens, nothing else. **The control is what proves it**: run it
+   with deliberate nonsense and compare.
+3. **`grep -q <field>` on a JSON body matches the FIELD NAME.** Kuma's own
+   healthcheck greps `entryPage` against `{"type":"entryPage","entryPage":null}`
+   and passes on a null value. Grep the value, or parse.
+4. **`/run/netdata/` does not exist on the HOST.** Checking it there and
+   concluding the control pipe is absent is a namespace error — ours, for one
+   turn. The pipe lives inside the container, and `docker exec netdata
+   netdatacli ping` answering `pong` is the positive control.
+5. **`ps -u <name>` on the host attributes container processes to a host
+   account** whenever a container's uid collides with one. It is how Collabora
+   surfaced, and it will mislead anyone reading it as "this service spawned
+   that".
+6. **Ansible's invocation log records the CALL, not the change.** The task that
+   writes `/etc/docker/daemon.json` was invoked **10 times** since 2026-08-14 (4
+   on the 16th, 5 on the 27th, 1 on the 29th), while the file's `mtime` is
+   `2026-08-29 23:53:32` — so **at most one** of those ten actually changed it.
+   Counting the ten log lines would answer "ten Docker restarts" where the
+   machine took **one** of Ansible origin; the other restarts that night carry
+   the `sudo ... systemctl restart docker` signature of a human hand.
+   `mtime` is the instrument that answers the question asked. Textbook C03, found
+   by the agent against its own earlier reasoning.
+7. **A uid-collision sweep with a loose predicate is worthless.** Counting every
+   container whose PID-1 uid resolves to a host account gives 15 of 29 — 14 of
+   them root. The property is a collision with a *non-system* account, and that
+   is 5. Ours, and it is the same "convenient enumeration is not a cardinal"
+   trap the register records from 2026-08-22.
+
+### Claims that did not survive verification — two agents' and one of ours
+
+- **"The `claude` account is root de facto via the `docker` group."** No.
+  `id claude` -> `uid=1001 gid=1004 groups=1004`; `getent group docker` ->
+  `marc-gavanier` alone; no sudoers entry; no `authorized_keys`. The account is
+  real and undocumented — the class stands — but its privilege is that of an
+  ordinary user. Independently confirmed by a second agent.
+- **"fail2ban's Nextcloud/Vaultwarden jails cannot ban VPN clients."** No. The
+  measured 77.5 % of Traefik lines arriving as `172.18.0.1` is real (recounted
+  independently, 4458 of 5752), and `172.16.0.0/12` is indeed in `ignoreip` —
+  but the masked traffic is **Uptime Kuma's own probes** (`/healthcheck`,
+  `/ping`, `/health`, `/alive`, empty user-agent on 4459 of 4459). VPN clients
+  appear in the clear as `10.8.0.x` and are in no ignored range. The headline
+  survived; the causal claim did not.
+- **"Collabora carries `coolmount cap_sys_admin`, so the capability sweep's
+  blindness is an exposure."** Half. The blindness is real and confirmed — the
+  container has no shell, so `getcap` cannot run there — but `CapBnd` decodes to
+  `cap_chown,cap_fowner,cap_sys_chroot` and `CapPrm`/`CapAmb` are zero.
+  CAP_SYS_ADMIN is outside the bounding set: the file bit exists and cannot be
+  acquired.
+- **Ours: "uptime-kuma's `start_period` has drifted from the repo."** No. Repo
+  and host both carry `start_period: 960s` at `compose.yaml:1499`. C27 holds.
+  Raised aloud before being checked, which is the error worth recording.
+
+### One operational note
+
+`ansible/roles/deploy/files/backup-notify.sh` lives under `files/`, not
+`templates/`, and deploys to `/opt/homelab/scripts/`. The digest deploys to
+`/home/claude/.local/share/feed-digest/digest.sh`. **Neither is in
+`/usr/local/bin/`**, which is why every enumeration of "the push sites" that
+started from a directory has missed them — including the one that wrote C45's
+gate, and including ours on the first pass.

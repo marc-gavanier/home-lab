@@ -15,18 +15,19 @@ earlier — which would have sent eight agents to re-derive settled work. Rebuil
 it from `classes.md`'s OPEN table at the start of every run; if the two
 disagree, `classes.md` wins.
 
-As of the run of 2026-08-30 (evening):
+As of the run of 2026-08-30 (night). **Rebuilt from `classes.md`'s OPEN table —
+do not trust this copy if the two disagree.**
 
 | Domain          | OPEN classes it owns                                                                                  |
 |-----------------|-------------------------------------------------------------------------------------------------------|
-| system          | C46 (a supervisor log declaring an act it did not perform), C52 (a safety premise since corrected)     |
-| security        | C05 (posture-check gaps) — not exhaustible, a standing question rather than a backlog item             |
-| network         | C50 (a liveness probe proving something other than what it claims) — shares with observability         |
-| services        | —                                                                                                     |
-| backup          | —                                                                                                     |
-| observability   | C50                                                                                                   |
-| ansible-deploy  | C54 (a startup list neither derived nor asserted)                                                      |
-| project-manager | C51 (a procedure whose written order the machine refuses) — 79/80 swept, 1 suspected instance left     |
+| system          | C46 (a supervisor log declaring an act it did not perform), C62 (an announced exclusion not enforced)  |
+| security        | C05 (posture-check gaps — **now bounded at 53 statements**, 12 swept), C57 (a failure with no identity) |
+| network         | C56 (authorization after the identity is lost), C58 (a control testing only the permitting direction)  |
+| services        | C56 — shares with network (the socket proxy's single grant set)                                        |
+| backup          | —                                                                                                      |
+| observability   | C03 (gate designed, not deployed), C60 (a copy scoped as a field list)                                 |
+| ansible-deploy  | C66 (a correction whose siblings were never enumerated) — it owns the fix history                      |
+| project-manager | C66 — shares with ansible-deploy (it owns the documentary half)                                        |
 
 A class with two owners is deliberate: C50's two instances sit on the resolver's
 back half, and the 2026-08-30 run showed that neither the probe side nor the
@@ -62,7 +63,8 @@ until something restarts the containers, at which point it collapses (52 % → 3
 on 2026-08-16). Always say when the last restart was before quoting a figure.
 
 **Already established** — the journal cap and the ext4 error counters were both
-handled on 2026-08-16 evening: the cap is 500M and the daily disk report now
+handled on 2026-08-16 evening; the cap was raised to **1500M on 2026-08-30**
+(#290, class C39) and the daily disk report now
 carries an `ext4 clean` field. Sysctl, mount options, unit health and the
 hot-versus-boot path were all verified matching with zero drift; do not
 re-derive them without a new symptom.
