@@ -392,12 +392,17 @@ command:
       [ -n "$ts" ] || { echo "wg-quick@wg0 has no ActiveEnterTimestamp — no floor, refusing to judge"; exit 1; }
       floor=$(date -d "$ts" +%s 2>/dev/null)
       case "$floor" in ''|*[!0-9]*) echo "unparseable tunnel timestamp: [$ts]"; exit 1 ;; esac
-      lost=$(journalctl --since "@$floor" --no-pager 2>/dev/null | grep -c 'kuma-push-failed:')
-      case "$lost" in ''|*[!0-9]*) echo "journal unreadable: [$lost]"; exit 1 ;; esac
+      # Anchored --grep, for the reason spelled out in the homelab's twin: --grep
+      # tests MESSAGE alone, and the anchor rejects a line that merely mentions
+      # the marker. Without it, an operator grepping for the string trips the
+      # check — measured on the homelab, 7 phantom losses on a host that had
+      # lost nothing.
+      hits=$(journalctl --since "@$floor" --no-pager -o cat \
+             --grep '^kuma-push-failed:' 2>/dev/null)
+      lost=$(printf '%s' "$hits" | grep -c . )
       [ "$lost" -eq 0 ] || {
         echo "$lost report(s) never reached the dashboard since the tunnel came up at $ts:"
-        journalctl --since "@$floor" --no-pager 2>/dev/null |
-          grep 'kuma-push-failed:' | tail -5 | sed 's/^/  /'
+        printf '%s\n' "$hits" | tail -5 | sed 's/^/  /'
         exit 1
       }
     exit-status: 0
