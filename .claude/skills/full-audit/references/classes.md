@@ -119,25 +119,32 @@ when the order inverts), **scale** (what breaks at ten times the data), and
 # The register
 
 Reconstructed from `settled.md`, runs of 2026-08-15 through 2026-08-29 (evening).
-**43 classes: 6 OPEN, 13 GATED, 22 ENUMERATED, 2 closed by decision, plus the
+**43 classes: 5 OPEN, 13 GATED, 23 ENUMERATED, 2 closed by decision, plus the
 DECLINED list.** (GATED = C02, C07, C10-C12 and C14-C21;
-ENUMERATED = C01, C03, C06, C09, C13 and C22-C38; closed by decision = C04, C08.)
+ENUMERATED = C01, C03, C06, C09, C13, C22-C38 and C39; closed by decision = C04, C08.)
 C02 was re-gated and C13 downgraded on 2026-08-30 by #291: the totals are
 unchanged and the membership is not, which is the half that matters.
 
-## OPEN — 6
+## OPEN — 5
 
 These are the audit's entire remaining perimeter. One survives from the morning;
-five were minted by the evening run of 2026-08-29 under the search key **time**.
+four of the five minted by the evening run of 2026-08-29 under the search key
+**time** are still here; C39 was enumerated and closed on 2026-08-30 (#290) and
+has moved to its own section below.
 
 | ID | Property | Space, and its cardinal | Why it is still open |
 |-----|--------------------------------------------|--------------------------------------------|----------------------------------------|
 | C05 | Something a reader would reasonably assume the posture check asserts, and which it does not | The gap between the posture spec and the security posture documented in `docs/03-security/` | Three instances closed by #285. The class is **not exhaustible by sweeping** — "what a reader would assume" has no cardinal. A standing question for each new service, not a backlog item. Two instances instructed under the time key on 2026-08-29 evening and tracked in **#294**: the lynis *rule set* has no freshness assertion (only the report has one), and no assertion binds the live WireGuard peers to the enrolled clients |
-| C39 | An event whose only durable evidence has a retention shorter than the event's own period | Every periodic job × the most durable store that records a *distinguishable* result for it | **Minted by three agents independently, from three domains** — that convergence is why it is first. Instances: the monthly `--read-data-subset` deep check (~30 d period, journal 16.8 d, and its Kuma message is byte-identical to a metadata-only run); the Traefik access log at 3.85 d against an offsite host that writes to it weekly. Cardinal not yet stated. Tracked as **#290** |
 | C40 | A container that begins an ordered shutdown and is killed before finishing it | 28 containers × (signal, grace, real drain time) | Swept 28/28 on the 02:45 reboot, **4 instances**: `immich-db`, `miniflux-db`, `nextcloud-db`, `pihole` all needed crash recovery after a *deliberate* reboot. Structurally invisible: the evidence of a failed shutdown is never in its own log, only in the **next** startup's. Cause is configurational — `StopTimeout=<nil>` on all 28, no `stop_grace_period` anywhere, no `ExecStop` on `homelab-stack-startup`. Tracked as **#288** |
 | C41 | A dead-man's fuse that the restart of its own watchdog re-arms from zero | The 15 Kuma push monitors | Kuma schedules a push monitor's first check one full interval after **process start**, not after the last heartbeat. Proven on data, not on code: monitor 30 was silent 93 474 s against a 90 000 s window and emitted **no DOWN**, while a 90 001 s silence on 2026-08-13 — one second over, no restart in between — did emit one. Degrades the *silence* half only; the failure half still works. Tracked as **#289**, together with a C03 instance whose space had been under-scoped to the goss specs. **Kuma is not repairable from here**, so the fuse is checked host-side against `heartbeat.time` — the moment a beat was received, which no restart reschedules — and the assertion fires on the INCONSISTENCY (silent past its window while the last beat still says UP), never on a genuine outage, so a late backup cannot mute the posture monitor for days |
 | C42 | A time-ordering mechanism that ranks by a timestamp the machine wrote before its clock was correct | 6 time-ordered mechanisms on the two hosts | 1 instance: the journal's vacuum deletes **the current boot's first 90 s** — kernel, initramfs fsck, sysctl, udev, the LUKS wait — while keeping 27 days of genuinely older logs, because the pre-timesync segment's filename timestamp sorts before everything. Same root cause as #260, a different consumer. Tracked as **#292** |
 | C43 | An address that a deployed configuration hard-codes and a third party assigns | Enumerated: **6**, of which **1** is monitored | Only the public IP is watched (by the DDNS). The Pi has no fixed address on the machine side — a 1-day DHCP lease — while `192.168.1.100` is hard-coded 21 times, including as the DNS server of every VPN client. The container network on which every VPN client's access depends is assigned by Docker with no `ipam_config`. Tracked as **#292** |
+
+## Settled on 2026-08-30 — C39
+
+| ID | Property | Cardinal, and outcome |
+|-----|--------------------------------------------|--------------------------------------------|
+| C39 | An event whose only durable evidence has a retention shorter than the event's own period | **ENUMERATED, cardinal 16** — every periodic job on the two hosts, against the most durable store that records a *distinguishable* result for it. 14 of 16 already correct and not by accident: their Kuma messages carry readings, so a run that did nothing cannot produce the message of a run that did something. **1 instance**, and it was the one that mattered: the weekly `prune + check` has two modes — re-read a twelfth of the repository's bytes, or list metadata — and after ADR-031 both pushed `prune and check completed`. The distinction had EXISTED and was lost in the migration; Kuma still holds the shell job's `local prune + deep check (8/12) passed` from 2026-08-02 beside `local prune + metadata check passed` from 08-09. Restored, richer, and gated from outside by `restic-deep-check-not-stale` (45 days, against a 24-37 day healthy gap) because resticprofile cannot know what ran last month. **A second instance on the cardinal's other axis**: the redacted access log at 6.17 MB/day spanned 4.86 days on the daemon default, against a host whose only trace there is one request a week — given its own 10 x 20 MB block, ~32 days. The 2 jobs whose only evidence is the journal took the retention branch instead: 500M held 16 days against monthly events, raised to 1500M (~48 days), which adds no writes because a cap governs deletion |
 
 ## Reopened by the run of 2026-08-29 (evening) — 2, plus one downgrade
 

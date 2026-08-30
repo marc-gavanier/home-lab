@@ -445,6 +445,25 @@ netdata_expected_plugins:
   - "spawn-plugins"
 netdata_min_contexts: 270
 
+# --- Journal retention: long enough to outlive what it is evidence of (#290) -
+# The journal is the fallback durable store for every job that does not push a
+# reading to a monitor, and #290 (class C39) is about evidence whose retention
+# is shorter than the period of the event it records. Measured on 2026-08-30:
+# 496 MB used at a 500M cap, spanning 2026-08-14 to 2026-08-30 — 16 days, about
+# 31 MB/day, against a monthly job. The only deep repository verification ever
+# executed had already fallen out of it.
+#
+# 1500M is roughly 48 days at that rate: past the 45-day threshold
+# `restic-deep-check-not-stale` uses, so a missed month is still readable in the
+# journal when the assertion names it.
+#
+# Raising a cap adds NO writes — it governs deletion, not writing — which is the
+# same argument that took it from 200M to 500M and the one that matters on a
+# host whose journal is on the SD card. 1.5 GB on a filesystem with tens of
+# gigabytes free. The offsite host retains 42 days at 500M because its log rate
+# is a fraction of this one's; the same cap there is simply slack.
+journald_system_max_use: "1500M"
+
 # --- lynis: installed only where it is scheduled and reported (#291) --------
 # The security role runs on BOTH hosts, so installing lynis here installed it
 # there too — while the schedule, the report script, the hardening-index ratchet

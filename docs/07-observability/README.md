@@ -53,6 +53,80 @@ transition-driven wiring could not:
   absent host turns the monitor red on its own. Notification on transition would
   have left it green forever.
 
+## Evidence, and how long it outlives the event
+
+A monitor that is green tells you the job ran. It does not tell you **what the
+job did** — and for a job with more than one mode, those are different
+questions. The rule this lab now applies:
+
+> Every periodic job must leave a distinguishable result in a store that
+> outlives its own period.
+
+Two halves, both load-bearing. *Distinguishable*: a message that a different
+mode of the same job could not have produced. *Outlives its period*: if the
+evidence expires before the job runs again, there is never a moment when you can
+compare this run to the last one.
+
+The census, taken 2026-08-30 over the 16 periodic jobs on the two hosts:
+
+| Evidence | Jobs | Retention | Against a period of |
+|----------|------|-----------|---------------------|
+| A Kuma push monitor whose message carries readings | 14 | 180 days | 5 minutes to 8 days |
+| The journal alone | 2 — `homelab-stack-heal`, `offsite-wg-reresolve` | 48 days (raised from 16 for this) | see below |
+
+Fourteen of sixteen were already correct, and not by accident: the messages
+carry readings — `dumps ok (19 checks), snapshot c8f63e2a`, `hardening index 73
+(best 73)`, `disk 17%, hdd 49C (peak 54C), pending 2` — so a run that did
+nothing cannot produce the message of a run that did something.
+
+**One was not, and it is the one that mattered most.** The weekly
+`prune + check` runs in two modes: in the first week of each month it re-reads
+one twelfth of the repository's actual bytes, and every other week it lists
+metadata. It is the **only** operation in the whole backup chain that reads
+backed-up bytes back. Both modes pushed the same message, `prune and check
+completed`, so nothing durable distinguished a verification from an inventory.
+
+The distinction had existed and was lost. The shell job that ADR-031 replaced
+pushed `local prune + deep check (8/12) passed` against `local prune + metadata
+check passed`, and Kuma still holds both — 2026-08-02 and 2026-08-09. The
+migration collapsed them, and the only remaining trace of which mode ran was the
+journal, which held 16 days against a 30-day period.
+
+Now:
+
+| Mode | Message |
+|------|---------|
+| deep | `prune ok, deep check re-read data subset 8/12` |
+| metadata | `prune ok, metadata check only (no data re-read)` |
+| mode not passed | `prune and check completed, mode not reported` |
+
+The third exists because a message that quietly claims a mode it was not told is
+the same defect one level down.
+
+### The silent degradation, and what catches it
+
+resticprofile decides the mode from the day of the month. If the host is off for
+the first week, the catch-up fires on a day the branch no longer matches, the
+run degrades to metadata only, and the monitor stays green — a twelfth of the
+repository then goes unverified for another year. resticprofile cannot know what
+ran last month, so nothing inside the job can notice.
+
+`restic-deep-check-not-stale` catches it from outside: it reads Kuma's heartbeat
+history — 180 days, against a journal that holds 48 — for the most recent beat
+saying a data subset was re-read, and fails past 45 days. Consecutive deep runs
+are 24 to 37 days apart on a healthy schedule, so one missed month trips it and
+a normal one never does.
+
+### The access log, and a weekly writer
+
+The same rule applies outside the backup chain. The redacted access log
+(ADR-034) grows 6.17 MB/day measured, so the daemon's default 3 x 10 MB spanned
+**4.86 days** — while the second host, for which a request through the proxy is
+the only trace it leaves there, writes **once a week**. A census taken mid-week
+concludes it is absent. That log now carries its own `logging:` block, 10 x
+20 MB, about 32 days.
+
+
 There is exactly one deliberate exception to "whatever the state", added by #289
 and worth stating because the sentence above would otherwise be false. A netdata
 that has just restarted answers HTTP 200 with an empty `alarms` object for

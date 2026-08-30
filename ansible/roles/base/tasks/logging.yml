@@ -17,6 +17,15 @@
 # with 45G free. Counter-check: the offsite host retains 42 days at the same
 # cap, which is what shows 200M is not a universal figure but a symptom of this
 # host's log rate.
+#
+# Raised again on 2026-08-30, 500M -> 1500M, for a different reason than the
+# first move (#290, class C39). 500M held 16 days at the measured 31 MB/day,
+# while the events this journal is the ONLY durable record of run monthly — the
+# rotating deep verification of the backup repository, and every container the
+# heal timer resurrects. Evidence that expires before the event repeats is not
+# evidence. 1500M is about 48 days, chosen to sit past the 45-day threshold the
+# posture spec uses for the deep check so that when the assertion names a missed
+# month, the journal can still say what happened instead.
 - name: logging | Ensure the journald drop-in directory exists
   ansible.builtin.file:
     path: /etc/systemd/journald.conf.d

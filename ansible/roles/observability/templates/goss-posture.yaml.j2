@@ -585,6 +585,54 @@ command:
     timeout: 20000
     exit-status: 0
 
+  # --- The only check that re-reads backed-up bytes (#290, class C39) --------
+  # The weekly maintenance runs `check`, and in the first week of each month it
+  # also re-reads one twelfth of the repository's actual data. That monthly run
+  # is the ONLY operation in the whole backup chain that reads bytes back;
+  # everything else — the nightly backup, the copy, the offsite check — asserts
+  # metadata. A twelfth a month is a full pass a year.
+  #
+  # Two ways it goes silently missing, and neither shows up as a failure:
+  #
+  #   - the host is off for the first week of a month. The catch-up fires on a
+  #     day the calendar branch no longer matches, the run degrades to metadata
+  #     only, the monitor stays green. resticprofile cannot know what ran last
+  #     month, so nothing in the job itself can notice;
+  #   - the branch is edited, or `read-data-subset` stops being understood by a
+  #     future restic, and the run keeps succeeding on metadata.
+  #
+  # Asserted against Kuma's heartbeat history rather than the journal, and that
+  # choice IS the fix for this class: the journal holds 16.8 days on this host
+  # against a period of 30, so the evidence expired before the event repeated.
+  # Kuma keeps 180 days of messages.
+  #
+  # Matched on the message rather than on a monitor id or name: only this job
+  # ever says "deep check", so the phrase identifies the event without this spec
+  # having to know which monitor carries it. It also matches the message the
+  # SHELL job used before ADR-031 — `local prune + deep check (8/12) passed`,
+  # still in Kuma from 2026-08-02 — so the assertion has evidence to stand on
+  # from the day it deploys instead of being red until the next first-of-month.
+  # A control that is red for a week on arrival teaches its operator to ignore
+  # it, which is #216 one level down.
+  #
+  # 45 days: consecutive deep runs are 24 to 37 days apart on a healthy
+  # schedule, and a whole month skipped puts the gap past 45. Tight enough to
+  # catch one missed month, loose enough never to fire on a normal one.
+  restic-deep-check-not-stale:
+    exec: |
+      last=$(docker exec uptime-kuma sqlite3 "file:/app/data/kuma.db?mode=ro" \
+            "select cast((strftime('%s','now') - strftime('%s', max(time))) / 86400 as int)
+             from heartbeat where status = 1 and msg like '%deep check%'")
+      case "$last" in
+        ''|*[!0-9]*) echo "no deep verification has ever reached the monitor"; exit 1 ;;
+      esac
+      [ "$last" -le 45 ] || {
+        echo "last deep verification $last days ago — a twelfth of the repository is going unverified"
+        exit 1
+      }
+    timeout: 20000
+    exit-status: 0
+
   # --- Offsite parity, and the gate that makes it one (#291, class C02) ------
   # C02's property is "a control on the homelab with no counterpart on the
   # offsite host". #285 closed it with seven assertions on the offsite, one per
