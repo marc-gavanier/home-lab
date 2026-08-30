@@ -34,6 +34,24 @@
     mode: "0640"
   notify: Restart traefik
 
+# Verbatim, so it belongs here rather than in templates/ (see the header).
+#
+# 0644, not the 0640 above it: traefik-log-redactor runs as root with EVERY
+# capability dropped, so it holds no DAC_OVERRIDE and the mode
+# bits decide. 0640 <user>:docker is unreadable to a uid that is neither the
+# owner nor in the group, and awk would exit on a missing script — leaving the
+# redactor up, shipping nothing, with the access log silently gone. The file
+# holds no secret; the directory it sits in is never traversed by the container,
+# which bind-mounts the FILE.
+- name: configs | Copy the Traefik access-log redactor (#287)
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../../docker/configs/traefik/redact-access-log.awk"
+    dest: /opt/homelab/configs/traefik/redact-access-log.awk
+    owner: "{{ ansible_user }}"
+    group: docker
+    mode: "0644"
+  notify: Restart traefik-log-redactor
+
 # Verbatim, so it belongs here rather than in templates/ (see the header). Read
 # by logrotate running as root inside the container, which holds DAC_OVERRIDE —
 # 0640 <user>:docker is the same treatment as the split-DNS config next to it.
