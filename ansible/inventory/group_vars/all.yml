@@ -365,9 +365,18 @@ credential_store_exemptions:
     /etc/shadow refused, pihole.toml refused, pihole-FTL.db refused, cli_pw
     refused. Only the listing of file NAMES is permitted.
 
-    So the directory mode is exempted and the property that holds is asserted
-    instead — see `pihole-etc-no-world-readable-file` in the posture spec, which
-    is also what would have caught #189's original 0644 finding.
+    That reasoning was half right and is dated 2026-08-25. It is true at START
+    and says nothing about the four files gravity rewrites at 0664 on its weekly
+    rebuild, hours later — which turned the blanket file-mode assertion red on
+    2026-08-30, its first gravity run. A mode set by one mechanism and undone by
+    another on a different schedule, twice over.
+
+    This directory's mode stays exempted, for the reason above. What is asserted
+    now is the PARENT, `{{ services_data_dir }}/pihole`, which the image's find
+    cannot reach because it is mounted by nothing — see
+    `pihole-store-not-traversable-by-others`, with
+    `pihole-credential-files-not-world-readable` beside it, narrowed to the set
+    it must protect rather than the set it may ignore.
   netdata/lib: netdata's registry and metrics database, 0750 as it ships, no credential
   netdata/cache: metrics page cache
   netdata/go.d: collector configuration, rendered from this repository

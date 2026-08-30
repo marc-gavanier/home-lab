@@ -84,11 +84,19 @@ refused    .../pihole/etc/pihole-FTL.db
 refused    .../pihole/etc/cli_pw
 ```
 
-Only the listing of file *names* is permitted. The posture spec therefore asserts
-`pihole-etc-no-world-readable-file` — which would also have caught #189's original
-finding (`pihole.toml` at `0644`) and does not depend on a mode the image owns.
-`versions` is excluded by name: the same script sets it `0644` deliberately and it
-holds version strings.
+Only the listing of file *names* is permitted — for the files that script owns.
+It does not own the ones gravity rewrites: the weekly rebuild puts `gravity.db`
+and the `listsCache/` files back at `0664` hours after a container start set them
+`0640`, which turned a blanket file-mode assertion red on 2026-08-30, its first
+gravity run. A mode set by one mechanism and undone by another on a different
+schedule — the same defect as #189's directory gate, one level down.
+
+So the gate sits one level UP, where neither reaches:
+
+| Assertion | What it holds |
+|---|---|
+| `pihole-store-not-traversable-by-others` | `/mnt/data/services/pihole` is `0750`. The image's `find` is scoped to `/etc/pihole/` inside the container and the bind mounts are this directory's *children*, so the parent is mounted by nothing and neither the image nor gravity can revert it. This is what makes the file modes inside stop mattering to any other account on the host. |
+| `pihole-credential-files-not-world-readable` | `pihole.toml`, `pihole-FTL.db`, `*.key` and `cli_pw` are not world-readable, and at least two of them are still *found* — a check that matches nothing is not a check that passed. Enumerates what must be protected rather than what may be ignored, so the next writer that behaves like gravity does not need a new exception. |
 
 ### Logs are deliberately NOT persisted
 

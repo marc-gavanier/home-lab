@@ -159,8 +159,8 @@ command:
   # bind mount SOURCES and stats only the source itself; `immich/upload` is the
   # mount, is exempt as media, and this is its child. The derivation is
   # structurally unable to see it — the same argument that made
-  # `pihole-etc-no-world-readable-file` a named assertion rather than a derived
-  # one, for the opposite reason.
+  # the Pi-hole store's gate a named assertion rather than a derived one, for
+  # the opposite reason (`pihole-store-not-traversable-by-others`).
   #
   # The directory mode, not the file modes: Immich writes the dumps with its own
   # umask, which no task here can reach, while the directory it owns is
@@ -372,12 +372,61 @@ command:
   # It would also have caught #189's original finding, pihole.toml at 0644, which
   # the directory gate closed only as a side effect.
   #
-  # `versions` is excluded by name: the same prestart script chmods it 0644
-  # deliberately, and it holds version strings and nothing else.
-  pihole-etc-no-world-readable-file:
-    exec: find {{ services_data_dir }}/pihole/etc -type f -perm /o+r ! -name versions -printf '%m %p\n'
+  # --- What the first day of this assertion's life disproved ------------------
+  # The paragraph above was written on 2026-08-29 and was wrong by 03:26 the
+  # next morning. "The same script sets every file to 0640 … on every start" is
+  # true AT START, and says nothing about files a periodic job rewrites after
+  # it. Gravity's weekly rebuild put gravity.db and three listsCache files back
+  # at 0664, four hours after a container start had set them 0640, and the
+  # blanket `find` went red — as it will after every gravity and green after
+  # every restart. It reported which of two clocks ran last, not a posture.
+  #
+  # Excluding what gravity writes was the cheap answer and is the shape #291 is
+  # open about: a list of exceptions cannot catch the next writer that behaves
+  # like gravity. So the list is INVERTED. What is enumerated below is what must
+  # be protected — a small, stable set — rather than what may be ignored, which
+  # is open-ended. Anything else world-readable in that tree is now covered by
+  # the directory gate instead, one level up, where neither the image nor
+  # gravity can reach: see `pihole-store-not-traversable-by-others`.
+  #
+  # The count check is not decoration. A `find` or a loop that matches nothing
+  # returns clean, and this whole spec exists because that is how an assertion
+  # goes green over zero subjects (ADR-032). If pihole.toml and pihole-FTL.db
+  # stop being found, the set stopped being derivable and that is the failure.
+  pihole-credential-files-not-world-readable:
+    exec: |
+      d={{ services_data_dir }}/pihole/etc
+      n=0; bad=""
+      for f in "$d/pihole.toml" "$d/pihole-FTL.db" "$d"/*.key "$d"/cli_pw; do
+        [ -f "$f" ] || continue
+        n=$((n + 1))
+        m=$(stat -c %a "$f")
+        case "$m" in *[4567]) bad="$bad $m ${f##*/}" ;; esac
+      done
+      if [ "$n" -lt 2 ]; then
+        echo "only $n credential file(s) found under $d — the set stopped being derivable"
+        exit 1
+      fi
+      [ -z "$bad" ] || { echo "world-readable:$bad"; exit 1; }
     exit-status: 0
-    stdout: ["!/./"]
+
+  # The gate the two mechanisms above cannot revert, and the one that makes the
+  # file modes inside stop mattering to any other account on this host.
+  #
+  # `credential-stores-all-closed` is structurally unable to see it: that
+  # derivation stats bind mount SOURCES, and the sources here are this
+  # directory's children (`etc`, `dnsmasq`). The parent is mounted by nothing —
+  # checked against the running containers, not read off the compose file — which
+  # is exactly why the image's `find /etc/pihole/ -type d` never touches it. Same
+  # reason `immich/upload/backups` had to be named rather than derived.
+  #
+  # 0750 rather than 0700: the directory is <user>:gpio with one member, and
+  # Docker resolves the mounts as root, so the OTHERS traverse bit is the only
+  # bit that was ever load bearing.
+  pihole-store-not-traversable-by-others:
+    exec: stat -c %a {{ services_data_dir }}/pihole
+    exit-status: 0
+    stdout: ["/^750$/"]
 
   # --- Pi-hole: FTL must be writing the log that is named `pihole.log` -------
   # The query log was orphaned from 2026-08-17 to 2026-08-25 and NOTHING saw it.
