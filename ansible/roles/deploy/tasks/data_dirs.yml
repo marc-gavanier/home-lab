@@ -168,10 +168,47 @@
 # /etc/shadow refused, pihole.toml refused, pihole-FTL.db refused, cli_pw
 # refused. Only the listing of file NAMES is permitted.
 #
-# So what is asserted now is the property that holds —
-# `pihole-etc-no-world-readable-file` in the posture spec, which would also have
-# caught #189's original finding (pihole.toml at 0644) and does not depend on a
-# directory mode the image owns.
+# So what was asserted instead was the FILE modes — a blanket
+# `pihole-etc-no-world-readable-file`, which would also have caught #189's
+# original finding (pihole.toml at 0644) without depending on a directory mode
+# the image owns. It survived one day. See below.
+# --- And the gate that the image cannot reach (2026-08-30) -------------------
+# Everything above this line is the record of ONE argument: that pihole/etc's
+# mode cannot hold, so the FILE modes are the property to assert instead. That
+# replacement lasted one day. `pihole-etc-no-world-readable-file` was deployed
+# on 2026-08-29 at 11:42 and went red on 2026-08-30 at 03:26, the first time a
+# gravity rebuild ran under it:
+#
+#   23:04  container start   prestart chmods every file 0640
+#   03:26  gravity rebuild   writes gravity.db + listsCache/* back at 0664
+#
+# "The same script sets every file to 0640 … on every start" is true AT START
+# and says nothing about the four files a weekly job rewrites afterwards. So the
+# assertion did not report a posture, it reported which of two clocks ran last —
+# red after every gravity, green after every restart. The same defect as #189's,
+# one level down: a mode set by one mechanism and undone by another on a
+# different schedule.
+#
+# The directory that neither mechanism can reach is the PARENT. The image's find
+# is scoped to `/etc/pihole/` and `/var/log/pihole/` INSIDE the container, and
+# the bind mounts are this directory's children (`etc`, `dnsmasq`) — the parent
+# itself is mounted by nothing, verified against the running containers rather
+# than read off the compose file. It is the same argument line 223 below already
+# makes for immich/upload/backups: the directory is what denies the traversal,
+# and the application does not reset it.
+#
+# 0750, not the 0700 used below, and not an ownership change: the directory is
+# <user>:gpio, gpio has exactly one member, and Docker resolves the bind mounts
+# as root, so the traverse bit for OTHERS is the only thing that was ever load
+# bearing. What it closes is concrete rather than theoretical — this host has a
+# second unprivileged account (uid 1001, not in gpio) which could read
+# gravity.db, its one `client` row and the blocklist caches until this task.
+- name: data_dirs | Gate the Pi-hole store at the level the image cannot revert
+  ansible.builtin.file:
+    path: "{{ services_data_dir }}/pihole"
+    state: directory
+    mode: "0750"
+
 - name: data_dirs | Gate the service directories that hold credentials
   ansible.builtin.file:
     path: "{{ services_data_dir }}/{{ item }}"
