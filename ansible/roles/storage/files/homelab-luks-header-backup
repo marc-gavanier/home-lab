@@ -9,8 +9,13 @@
 #
 # This produces a header backup file. It deliberately does NOT store it: the
 # header is as sensitive as the passphrase (header + passphrase = data). YOU
-# must move it OFF this machine — attach it to Vaultwarden AND an offline USB
-# key, then shred the working copy. See knowledge/runbooks/luks-header-backup.md.
+# must move it OFF this machine, to the two independent places the runbook
+# names, then shred the working copy. See knowledge/runbooks/luks-header-backup.md.
+#
+# The places are named THERE and not here: this file is in a public repository,
+# and the standing rule for the recovery copy is to publish the rule and never
+# the medium, the store or the place. The runbook already obeys it; these lines
+# did not until the audit of 2026-08-30 read them.
 #
 # Re-run after ANY cryptsetup change (added/removed keyslot, luksChangeKey).
 #
@@ -21,7 +26,14 @@
 set -euo pipefail
 
 DEVICE="${1:-/dev/sda1}"
-OUT="/tmp/luks-header-${DEVICE//\//_}-$(date +%Y%m%d-%H%M%S).img"
+# NOT /tmp: it is tmpfs on this host (measured, size=1048576k), so the file
+# lives in RAM and any power loss erases it. That matters here more than
+# anywhere else, because the very next step asks the operator to touch a USB
+# port while the tamper response may be armed — i.e. the most likely cause of a
+# sudden power-off on this machine is the procedure itself. /root is on the SD
+# card, survives a reboot, and is unreadable to everyone but root, which this
+# script already requires.
+OUT="/root/luks-header-${DEVICE//\//_}-$(date +%Y%m%d-%H%M%S).img"
 
 if [ "$(id -u)" -ne 0 ]; then
     echo "ERROR: run as root (needs raw access to $DEVICE)" >&2
@@ -31,6 +43,18 @@ fi
 if ! cryptsetup isLuks "$DEVICE"; then
     echo "ERROR: $DEVICE is not a LUKS device" >&2
     exit 1
+fi
+
+# Moving off tmpfs bought durability and cost a safety property: a forgotten
+# copy in /tmp used to vanish at the next boot, and one in /root does not. So
+# say so, every run — step 2 below is now mandatory rather than something a
+# power cut would eventually do on the operator's behalf.
+old=$(ls -1 /root/luks-header-*.img 2>/dev/null || true)
+if [ -n "$old" ]; then
+    echo "WARNING: header copies from an earlier run are still on this machine:" >&2
+    printf '  %s\n' $old >&2
+    echo "  Each is as sensitive as the passphrase. Shred them once they are safe." >&2
+    echo >&2
 fi
 
 umask 077
@@ -43,6 +67,25 @@ echo "SHA256: $(sha256sum "$OUT" | cut -d' ' -f1)"
 echo "Size:   $(du -h "$OUT" | cut -f1)"
 echo
 echo "NEXT (this file is as sensitive as the passphrase — do NOT leave it here):"
-echo "  1. Attach it to a secure note in Vaultwarden (your offsite password vault)."
-echo "  2. Copy it to an OFFLINE USB key kept off-site."
-echo "  3. Shred the working copy:  shred -u '$OUT'"
+echo "  1. Move it off this machine, to BOTH of the independent places named in"
+echo "     knowledge/runbooks/luks-header-backup.md."
+echo "  2. Shred the working copy:  shred -u '$OUT'"
+
+# The order matters, and getting it wrong costs a trip to the machine. Unlocking
+# the volume ARMS the USB tamper response (ADR-008): from that moment, plugging
+# or unplugging anything powers the Pi off. Step 1 above is very likely to
+# involve a cable. Nothing in this script used to say so.
+#
+# Why a power-off is expensive here rather than merely annoying: the WireGuard
+# config is a symlink onto the volume whose header you have just backed up, so
+# after the poweroff there is no tunnel without an unlock and no unlock without
+# the tunnel. Someone has to be physically present.
+if [ -e /run/homelab/tamper-armed ]; then
+    echo
+    echo "STOP — the USB tamper response is ARMED right now."
+    echo "Plugging or unplugging ANYTHING powers this machine off, and there is"
+    echo "no way back in remotely. Before you touch a cable:"
+    echo "    sudo homelab-tamper-disarm"
+    echo "and once the copy is done, put it back:"
+    echo "    sudo homelab-tamper-arm"
+fi
