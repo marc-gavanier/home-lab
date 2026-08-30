@@ -1540,3 +1540,105 @@ Count with `1..N` in TAP; never carry the figure forward, and never derive it.
   wide, not 24**: `dump-immich-fresh` accepts a dump under 48 hours old, so a
   single missing night passes and only the second fails. A corrupt dump is
   caught the next morning by `dump-immich-usable`.
+
+## The run of 2026-08-30 (evening) — the key was `order`, and the founding defect was still live
+
+### Shipped, deployed and verified — do not re-report
+
+PR #305, four commits, deployed to both hosts and re-validated at **359/359**
+(homelab) and **43/43** (offsite):
+
+1. **The ten Kuma push sites.** Seven detected a failed push and discarded the
+   verdict with `2>&1 || true`; one had no `--fail` at all. All now keep the
+   failure, and two assertions read the marker — one per host, each with a
+   floor DERIVED from the machine rather than a constant.
+2. **The token in argv.** `homelab-netdata-kuma.sh` passed the push URL, token
+   included, as a curl parameter. Converted to the `-K -` stdin form its twelve
+   siblings already used.
+3. **The LUKS header procedure.** Output moved off tmpfs to `/root`; the armed
+   USB tamper is now announced with the disarm/arm commands; the store and the
+   medium no longer appear in a public file; and the runbook's header-restore
+   ends with `homelab-unlock` instead of the raw `luksOpen` that skips the
+   integrity check.
+4. **Documentation.** Two procedures the machine refuses (the disaster-recovery
+   sequence that started the stack on empty data; the DNS remedy that is
+   measured to leave DNS dead after a recreate) and six counts it denies.
+
+### Two decisions, so nothing reopens them
+
+- **The LUKS header file lives on `/root`, not in `/tmp`.** Chosen knowing the
+  cost: a forgotten copy used to self-destruct at the next boot and no longer
+  does. The trade was taken because the procedure's own next step invites a
+  poweroff, which used to erase the header at exactly the moment it was needed.
+  Mitigated in the script — it lists leftovers on every run — and the runbook's
+  shred step is now mandatory rather than best-effort. **Do not "restore" this
+  to tmpfs on the security argument; the argument was considered.**
+- **One PR, three commits, rather than three PRs.** Both deployed lots ride one
+  deploy; the commit split preserves review and a clean revert path.
+
+### `cloudflare-ddns.sh` — the one artefact whose deploy was held back
+
+Its role has no task-level tags, so `--tags deploy` runs the whole deploy role
+including `compose up`. Established before deciding: the task that copies it
+**notifies no handler**, so the deploy changes one file and restarts nothing,
+and `compose.yaml` was byte-identical between repo and host (C27, 129/129), so
+nothing was armed for the heal timer. The safe form is
+`-e '{"deploy_services": "<one unchanged service>"}'` — JSON, because the shell
+strips the quotes on the bare `-e deploy_services="a b"` form, which the role's
+own header warns about.
+
+### New instrument traps — seven, and three were ours
+
+1. **`datetime(x, 'localtime')` inside the Kuma container is a NO-OP.** The
+   container runs UTC, so the modifier converts nothing and a fresh beat reads
+   as two hours stale. Compare epochs, or know the container's zone.
+2. **`journalctl | grep MARKER` matches the whole formatted line.** So `sudo`'s
+   audit log of a command that merely MENTIONS the marker counts as an
+   occurrence — measured, 7 phantom losses on a host that had lost none, all
+   seven being the audit's own verification commands. `journalctl --grep` tests
+   the MESSAGE field alone; anchor it at `^` to separate an emission from a
+   mention. Control both ways: anchored gave 0, unanchored gave 7, and a
+   deliberately looser pattern found the one real old-format line, proving the
+   filter reached script output rather than matching nothing.
+3. **dockerd's `failed to exit within Ns — using the force` is not proof of a
+   kill.** It is written when the grace elapses, and dockerd writes it for
+   containers that had already exited. Pair each by container id against
+   `received task-delete event from containerd`: after the message (+103 to
+   +338 ms) is a real kill, before it (2 to 9 s) is not. 17 messages, 8 kills,
+   1 undecidable. **Positive controls are what settle it** — three containers
+   wrote their own completion line seconds before their alleged killing.
+4. **Crash-recovery markers in container logs can only see databases.** That
+   instrument under-counted a 29-container shutdown class by a factor of two.
+   The daemon's own log is uniform across the fleet.
+5. **`-fsS` bundles `--fail`.** A classifier requiring `-f` as a standalone
+   token reports every sibling as unguarded. Ours did, for one turn.
+6. **A goss timeout is reported as `not ok`**, indistinguishable from a failed
+   assertion. Size the timeout against the load THIS SPEC creates, not the idle
+   cost: 20 s against a measured 4.2 s idle still timed out inside a 359-check
+   run. Re-paid, having already been paid at `no-container-came-back-recovering`.
+7. **`pgrep -f "<pattern>"` matches the command line of the shell running
+   `pgrep`.** Any healthcheck built on it passes vacuously — proven in-container
+   with a pattern naming a path that does not exist.
+
+### Claims that did not survive verification — two agents' and one of ours
+
+- **"17 containers force-killed"** — 8. Relayed to the operator before being
+  arbitrated, which was ours, not the agent's.
+- **"netdata killed at shutdown step 17/22"** — 15 of 22 steps completed. It
+  never reached `wait for dbengine collectors to finish`, `stop dbengine tiers`
+  or `close SQL databases`; its own counters read 41 restarts, 10 crashes.
+- **"everything deployed today is a file that has never been executed"** —
+  overstated. The deploy ran goss by hand at 17:25 and the audit re-ran it that
+  evening. The defect is the CADENCE (no boot hook, next scheduled run the
+  following day), which is narrower and repairable.
+
+### Still open going into the next run
+
+- The six OPEN classes in `classes.md`, of which **C51** has one unswept
+  sequence and one suspected instance, and **C50** is unswept at 2 of 64.
+- **C03 has now reopened four times.** It needs a gate, not a fifth sweep.
+- **C26 is GATED on one of its four axes** and the table said GATED. The argv
+  axis still has no assertion; the instance was fixed by hand.
+- **C44's remedy is not written.** No `homelab-*` timer has a boot hook and the
+  deploy role has no `meta: flush_handlers` before its posture re-assertion —
+  both one-liners, neither shipped.

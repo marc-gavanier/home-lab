@@ -109,37 +109,115 @@ Not one asked whether it was *timed* correctly. A single new dimension therefore
 paid five classes.
 
 The lesson for whoever writes the next key: pick a dimension, not a topic. The
-keys that have paid were dimensions the register had no vocabulary for. The next
-candidates, unused so far — **order** (what depends on what, and what happens
-when the order inverts), **scale** (what breaks at ten times the data), and
-**identity** (who exactly is acting, as opposed to what is running).
+keys that have paid were dimensions the register had no vocabulary for.
+
+**The evening run of 2026-08-30 used `order` and minted eleven** — more than
+`time` did — which confirms the mechanism rather than the pessimism: eleven
+classes existed all along and nothing had a word for them. The clock on the
+termination criterion therefore resets, and the two dimensions named and still
+unused are **scale** (what breaks at ten times the data) and **identity** (who
+exactly is acting, as opposed to what is running).
+
+One caution for whoever writes the `scale` key. `order` and `time` both had a
+property this file should not take for granted: every instance was observable
+on the machine tonight. `scale` mostly is not, and the mandate's rule 1 —
+"an evidenced clean beats a speculative list" — will bite harder there. Prefer
+the parts of scale that leave a trace already (retention windows, growth rates
+in netdata, a store whose oldest record is younger than its own period) over the
+parts that need a thought experiment.
 
 ---
 
 # The register
 
-Reconstructed from `settled.md`, runs of 2026-08-15 through 2026-08-29 (evening).
-**43 classes: 4 OPEN, 13 GATED, 24 ENUMERATED, 2 closed by decision, plus the
-DECLINED list.** (GATED = C02, C07, C10-C12 and C14-C21;
-ENUMERATED = C01, C03, C06, C09, C13, C22-C38, C39 and C43; closed by decision = C04, C08.)
-C02 was re-gated and C13 downgraded on 2026-08-30 by #291: the totals are
-unchanged and the membership is not, which is the half that matters.
+Runs of 2026-08-15 through 2026-08-30 (evening).
+**54 classes: 6 OPEN, 14 GATED, 32 ENUMERATED, 2 closed by decision, plus the
+DECLINED list.** (GATED = C02, C07, C10-C12, C14-C21 and C41;
+ENUMERATED = C01, C03, C06, C09, C13, C22-C40, C42-C45, C47-C49 and C53;
+closed by decision = C04, C08.)
 
-## OPEN — 4
+## What the run of 2026-08-30 (evening) cost and paid
 
-These are the audit's entire remaining perimeter. One survives from the morning;
-three of the five minted by the evening run of 2026-08-29 under the search key
-**time** are still here. C39 and C43 were enumerated and closed on 2026-08-30
-(#290, #292) and have moved to their own section below. **C42 stays open, and
-its row records why: the instance it was minted on was misdiagnosed, and the
-correction is the result.**
+Its key was **order** — what depends on what, and what breaks when the order
+inverts. It closed three of the four OPEN classes and **minted eleven**, which
+is the second confirmation of the pattern the `time` key established the night
+before: a register of 43 classes all asking whether something was *configured*
+correctly had no vocabulary for *sequence*, so a single new dimension paid
+eleven times.
+
+The honest reading is not that the system rotted overnight. It is that the mint
+rate tracks the number of dimensions never yet applied, and two remain named and
+unused: **scale** (what breaks at ten times the data) and **identity** (who
+exactly is acting, as opposed to what is running). Expect the next key to pay
+similarly, and expect the one after that to pay less.
+
+**The run's own headline was a class it did not mint.** C45 — a reporting path
+that cannot report its own failure — is the defect that created this skill on
+2026-08-15. It was found then on ONE script, fixed there, and the fix never
+reached the nine siblings. Ten push sites, swept: two both detected a failed
+push and said so, seven detected it and threw the verdict away with
+`2>&1 || true`, one had no `--fail` at all. Measured live, not inferred: after
+the 17:29 reboot three runs of `homelab-health` finished green having done their
+work, and none reached the dashboard. **A fixed instance is not a closed class,
+and this file existed for fifteen days before that sentence had a number.**
+
+## OPEN — 6
 
 | ID | Property | Space, and its cardinal | Why it is still open |
 |-----|--------------------------------------------|--------------------------------------------|----------------------------------------|
-| C05 | Something a reader would reasonably assume the posture check asserts, and which it does not | The gap between the posture spec and the security posture documented in `docs/03-security/` | Three instances closed by #285. The class is **not exhaustible by sweeping** — "what a reader would assume" has no cardinal. A standing question for each new service, not a backlog item. Two instances instructed under the time key on 2026-08-29 evening and tracked in **#294**: the lynis *rule set* has no freshness assertion (only the report has one), and no assertion binds the live WireGuard peers to the enrolled clients |
-| C40 | A container that begins an ordered shutdown and is killed before finishing it | 28 containers × (signal, grace, real drain time) | Swept 28/28 on the 02:45 reboot, **4 instances**: `immich-db`, `miniflux-db`, `nextcloud-db`, `pihole` all needed crash recovery after a *deliberate* reboot. Structurally invisible: the evidence of a failed shutdown is never in its own log, only in the **next** startup's. Cause is configurational — `StopTimeout=<nil>` on all 28, no `stop_grace_period` anywhere, no `ExecStop` on `homelab-stack-startup`. Tracked as **#288** |
-| C41 | A dead-man's fuse that the restart of its own watchdog re-arms from zero | The 15 Kuma push monitors | Kuma schedules a push monitor's first check one full interval after **process start**, not after the last heartbeat. Proven on data, not on code: monitor 30 was silent 93 474 s against a 90 000 s window and emitted **no DOWN**, while a 90 001 s silence on 2026-08-13 — one second over, no restart in between — did emit one. Degrades the *silence* half only; the failure half still works. Tracked as **#289**, together with a C03 instance whose space had been under-scoped to the goss specs. **Kuma is not repairable from here**, so the fuse is checked host-side against `heartbeat.time` — the moment a beat was received, which no restart reschedules — and the assertion fires on the INCONSISTENCY (silent past its window while the last beat still says UP), never on a genuine outage, so a late backup cannot mute the posture monitor for days |
-| C42 | A time-ordering mechanism that ranks by a timestamp the machine wrote before its clock was correct | 6 time-ordered mechanisms on the two hosts | **CONFIRMED, FIXED and VERIFIED on the boot of 2026-08-30 17:29 — skew fell from 32 days to 35 s, the kernel banner is back, and the boot's journal segment is named for today.** The instance is exactly as minted. With no RTC and no `/usr/lib/clock-epoch`, systemd advances the clock to the mtime of its own binary — 2026-07-28 17:04:45, measured, identical on both hosts because they carry the same package. On the reboot of 2026-08-30 17:00 the journal recorded boot 0 as beginning `Tue 2026-07-28 17:05:07`, timesyncd started **90 s** into that window, and the segment opened during it became the OLDEST file on the host — ahead of data from 2026-08-15 — ten minutes after being written. journald's vacuum deletes the oldest first, so the first thing it removes is the beginning of the current boot. Both hosts carry a 31-32 day skew; only the homelab has paid for it, because the offsite never vacuums. Fixed with `fake-hwclock` (ADR-030: a packaged tool, not new glue), which cannot make the pre-NTP clock correct but makes it close enough that ordering stops lying. Verified on the reboot of 17:29: the journal puts boot 0 at `2026-08-30 17:28:54` against a real boot at 17:29:29 — 35 s, where it had been 32 days — the banner is the first kernel line again, and the new segment is named for today instead of becoming the oldest file on the host. **And the reason is not the one the code predicted:** `systemd-journald.service` still starts with the bogus clock (`ExecMainStartTimestamp` reads 2026-07-28 17:05:14), about two monotonic seconds before `fake-hwclock-load` at 17:28:56, so `load` did NOT win the race the comment worried about. The outcome is right anyway and the mechanism for that is **not claimed here** — it was not measured, and this row has already paid once today for asserting a mechanism it had not established. **Recorded because it cost something:** the pass of 2026-08-30 16:00 declared this mechanism refuted — no segment carried a pre-synchronisation timestamp, and deleting the oldest first cannot remove the newest boot's beginning. Both observations were real; the conclusion was wrong. The segments were absent because they had already been vacuumed, and the newest boot's beginning is precisely what a delete-oldest-first vacuum takes when that beginning is stamped older than everything else. **The refutation trusted a timestamp written before synchronisation — it was an instance of the class it was refuting.** The lesson generalises past this row: absence of evidence in a store whose job is to delete things is not evidence of absence, and a class about untrustworthy values cannot be closed on a measurement of those values |
+| C05 | Something a reader would reasonably assume the posture check asserts, and which it does not | The gap between the posture spec and `docs/03-security/` | **Not exhaustible by sweeping** — "what a reader would assume" has no cardinal. A standing question for each new service. The two instances of #294 were verified live on 2026-08-30: the WireGuard gate is deployed, correct (4 live peers == 4 enrolled clients) and fails closed on both degenerate branches |
+| C46 | A supervisor's log that declares an act it did not perform | Unbounded as stated; the instance is `dockerd`'s stop path | **1 instance, arbitrated rather than believed.** `journalctl -u docker.service` wrote 17 `failed to exit within Ns — using the force` lines for the 17:29 shutdown; pairing each by container id against `received task-delete event from containerd` gives **8 genuinely killed** (task-delete +103 to +338 ms AFTER the message), **8 already gone** (2.07 to 9.09 s BEFORE it) and **1 undecidable** (`traefik`, 0.074 s). The controls are what make it a finding rather than a hunch: `uptime-kuma`, `navidrome` and `searxng` each wrote their own completion line — `Graceful shutdown successful!`, `Navidrome stopped, bye.`, `Granian shutdown completed, see ya!` — seconds before dockerd claimed to have forced them, and netdata's `killed hard on exit` holds the other end. Open because the space is not bounded: no sweep has asked which OTHER supervisors on these hosts log acts they did not perform |
+| C50 | A liveness probe whose subject answers without the component the probe claims to prove | 64 probes (25 healthchecks + 36 monitors + 3 `wait_healthy`) | **2 instances, both on the resolver's back half.** Kuma monitor 8 queries a name whose answer comes from cache: measured 91 of 94 queries in two hours never reached upstream (`forward IS NULL`), against a control showing the denominator artefact this register already documents. Up to ~65 min of green during a real outage. The boot gate is `dig +norecurse @127.0.0.1`, which cannot see `dnsproxy` — a container with no healthcheck at all. Cheapest close: give `dnsproxy` one. Not swept 64/64 |
+| C51 | A procedure whose written order differs from the order the machine imposes | 80 sequences (78 runbook sections + 2 instruction-bearing operator scripts) | **79/80 swept, 4 confirmed instances, ALL FOUR FIXED on 2026-08-30** — see the settled section. Still OPEN on two counts: one sequence unswept, and one SUSPECTED instance not established (`container-config-changes.md` step 4 says a capability sweep must precede step 1, which already drops capabilities; proving the cost would mean dropping one on a live container, which the pass would not do) |
+| C52 | A safety argument whose premise is a defect that has just been corrected | Unbounded as stated | **1 instance.** `filesystem-checks.yml:176-183` reasoned that the ext4 boot triggers were harmless, and `fake-hwclock` made that premise false the same evening — the kernel logged `checktime reached` for the first time since 1 August. The general shape is worse than the instance: every fix invalidates the safety arguments that rested on the broken behaviour, and nothing enumerates them |
+| C54 | A startup list that is neither derived from the machine nor asserted against it | 4 startup lists | **1 SUSPECTED instance, measured with no discrepancy today (29/29).** Only one of the four lists is derived and asserted. Recorded rather than dropped because "no discrepancy today" is exactly what C27 said before it reopened |
+
+## Settled by the run of 2026-08-30 (evening) — three of the four OPEN, and C27
+
+| ID | Property | Outcome |
+|-----|----------------------------------------------|--------------------------------------------|
+| C41 | A dead-man's fuse that the restart of its own watchdog re-arms from zero | **GATED, 15/15.** The assertion is genuinely DERIVED — it selects `where m.active = 1 and m.type = 'push'`, compares each silence against that monitor's own `m.interval`, fires only on the INCONSISTENCY (silent past its window while the last beat still says UP, so a late backup cannot mute it for days), and starves loudly (`only $n active push monitor(s) with a beat — the query stopped matching`). Verified live at 358/358, and on history: 54 silences past their window with a last beat UP, against 16 with a last beat DOWN where it correctly says nothing |
+| C40 | A container that begins an ordered shutdown and is killed before finishing it | **ENUMERATED 29/29, 8 instances**, and the sweep is worth more than the count. **This row previously asserted that the evidence "is never in its own log, only in the next startup's" — that was WRONG**, and it is why the 02:45 sweep found 4. The daemon logs it directly, and the previous instrument (crash-recovery markers in container logs) can only see databases. #288 is verified good: the four DBs drained in 7.6-9.1 s of a 30 s grace and are absent from the 17:29 list. The remaining cause is configurational — 25 containers still sit at Docker's default 10 s |
+| C42 | A time-ordering mechanism that ranks by a timestamp the machine wrote before its clock was correct | **ENUMERATED 6/6, 1 confirmed instance**, the journal one, fixed and verified (skew 32 days → 35 s). One residual and one belonging to `backup`. Broke a neighbour on the way out — see C17 below |
+| C27 | A deployed artefact differing from the repo | **ENUMERATED 129/129, 0 instances** (108 homelab, 21 offsite), by sha256 and by static-line containment in both directions, and on BOTH layers the reopening of 08-29 distinguished: 0 units awaiting `daemon-reload`, 15/15 container configs re-read at the 17:29 restart, 8/8 host services, 5/5 offsite. Twenty commits in a day and no drift |
+
+## Minted by the run of 2026-08-30 (evening) — 11
+
+Six arrived already enumerated, because the agent that minted them also swept
+them. Five are in the OPEN table above.
+
+| ID | Property | Swept | State |
+|-----|--------------------------------------------------|-----------------|------------|
+| C44 | A verification whose cadence cannot observe the event it guards | 13/13 timers, **12 instances** | ENUMERATED |
+| C45 | A reporting path that cannot report its own failure | 10/10 push sites, **8 instances** | ENUMERATED |
+| C47 | A PID 1 that cannot act on the signal it is sent | 29/29, **2 instances** | ENUMERATED |
+| C48 | A real dependency that nothing declares | 29 services + 18 configs, **1 instance** | ENUMERATED |
+| C49 | A hardening applied to an artefact its producer regenerates | 28/28, **1 new instance** (3 prior: #189, #299, the UFW sysctl) | ENUMERATED |
+| C53 | A handler whose effect is expected earlier in the play than it occurs | 34 handlers, 1 flush point, **2 instances** | ENUMERATED |
+
+**C44 is the one to act on, and it is not the one with the most instances.**
+`homelab-posture.timer` has no boot hook: the spec was written at 17:23:28, the
+last scheduled run was 11:09:01, and the next is the following day at 11:06.
+Swept, **none of the 13 `homelab-*` timers carries `OnBootSec`**; the 12
+calendar timers are `Persistent=yes`, which catches up a MISSED run but does not
+fire on a reboot whose day was already served. `homelab-stack-heal` is
+monotonic, so its absence is correct — 12 of 13.
+
+C53 sharpens it rather than duplicating it: the deploy role's LAST task is
+"Re-assert the container posture", and Ansible runs its 14 handlers at the end
+of the PLAY, so the posture check grades the stack **before** the restarts the
+deploy just queued. The repo holds exactly one `meta: flush_handlers`, in
+`security`. Together the two mean: **the only two occasions on which the posture
+could have covered a day's changes both fell at the wrong moment — one before
+the handlers, one before the reboot.** The state was in fact good; nothing in
+the system established that.
+
+## Reopened by the run of 2026-08-30 (evening) — C03 (fourth time) and C29
+
+| ID | What reopened it |
+|-----|--------------------------------------------------------------|
+| C03 | **Its fourth reopening, and the fourth is ours.** `homelab-netdata-kuma.sh` pushed with no `--fail`, so Kuma's 404 "Monitor not found or not active" exited 0 and its own `log "ERROR: push failed"` was unreachable — an instrument answering "did the transfer complete" where the comment claimed "did the beat land". Fixed. Then the ASSERTION written to close C45 committed the same error: `journalctl \| grep -c 'kuma-push-failed:'` answers "does the journal contain this string", not "did a push fail", and it counted 7 losses on a host that had lost none — all seven were sudo's log of the audit's own verification commands. **A class that reopens four times does not need a fifth sweep, it needs a gate**, and it has none |
+| C29 | `traefik-log-redactor`'s healthcheck is `pgrep -f "tail -F …"`, which matches the command line of the shell running `pgrep` — proven in the container, a pattern naming a nonexistent path returns a vacuous pass. The liveness half can never fail. **Calibrated down against the agent that found it:** PID 1 is the `tail \| awk` pipeline, so either death exits the container and the restart policy plus the container-down alarm already cover it. A real class instance with a one-line fix, not an exposure |
 
 ## Settled on 2026-08-30 — C39 and C43
 
@@ -177,7 +255,7 @@ Seven in the morning, C09 in the evening. C02's row records its downgrade.
 | C07 | A collector whose polling cost is disproportionate to the granularity of what it feeds | **GATED** by #285, and the gate is two assertions because one was a proxy. The floor is now derived from the resolution rather than written twice |
 | C08 | A threshold probe that samples at an instant which cannot contain the peak it guards | **Closed by decision.** The homelab reads `Power Cycle Min/Max`, which resets each boot. The offsite keeps the instantaneous reading and reports its peak instead — its only maximum is lifetime, and a threshold on a figure that cannot come back down latches red forever |
 
-## GATED — 12 here, plus C07 recorded above
+## GATED — 13 here, plus C07 recorded above
 
 A finding in any of these is a broken gate, not an audit result.
 
@@ -210,8 +288,31 @@ check, and it is stated as one.
 | C19 | A failed systemd unit, or a timer whose service did not succeed | goss `units.yaml` plus the health script's last-run check — **homelab only; the offsite half is C02** |
 | C20 | A secret that a deploy reports as rotated without rotating it | posture check reports the unrotated secret; case-mismatch bug fixed (#159) |
 | C21 | A snapshot that missed its offsite copy and is never retried | time-window filter plus the retention monitor (#158, #168) |
+| C41 | A dead-man's fuse re-armed from zero by the restart of its own watchdog | `kuma-no-push-monitor-silent-past-its-own-window`, derived from Kuma's own monitor table and each monitor's `interval`, with a starvation guard; discriminates on 54 historical silences against 16 (2026-08-30) |
 
-## ENUMERATED — 17
+### Broken gates found on 2026-08-30 — these are red tests, not audit results
+
+- **C17** (a filesystem never checked). `fake-hwclock` made the premise of
+  `filesystem-checks.yml:176-183` false the same evening: the kernel logged
+  `checktime reached` for the first time since 1 August, and the offsite retains
+  proof that `e2fsck` rewrote (`FIXED.`) the backup disk's superblock from a
+  wrong clock. The gate asserts `passno` and `ext4 clean`; it has never asserted
+  `Last checked`.
+- **C26** (a credential reaching a command line, a child process, a scheduled
+  job or a trace). Recorded GATED on the strength of one assertion covering the
+  *trace* axis. The *argv* axis has **no live assertion at all** — `grep -niE
+  "argv|cmdline|hidepid"` over the deployed spec returns nothing — and carried a
+  live instance: `homelab-netdata-kuma.sh` passed the push URL, token included,
+  as a curl argv on a `/proc` without `hidepid`. #177 converted eleven scripts to
+  the stdin form and #188 the twelfth; this role was the thirteenth and nothing
+  would have found it. Fixed 2026-08-30. **The class is GATED on one of its four
+  axes and the table said GATED — the same disguise that cost C02 and C13.**
+- **C06** (a `start_period` whose real startup cost has never been measured). 14
+  declared against a header that reads `THIRTEEN`; the redactor's 30 s was never
+  measured, and `/run/traefik/access.log` appears 99 s after its container starts
+  while its healthcheck requires the file.
+
+## ENUMERATED — 25 here; the rest (C01, C03, C06, C09, C13, C27, C39, C43) are recorded in their own sections above
 
 Swept completely at least once. Re-check only after a change that could reopen
 them; do not re-derive without a new symptom.
@@ -235,6 +336,14 @@ them; do not re-derive without a new symptom.
 | C36 | An unsized tmpfs | 37, parsed rather than grepped | 08-21 |
 | C37 | A WAL-mode SQLite copied without its `-wal` | 3 dumped / 4 declined / 3 ephemeral | 08-29 |
 | C38 | A container log growing without rotation | 28/28, rotation proven applied rather than declared | 08-21, 08-29 |
+| C40 | A container killed before finishing an ordered shutdown | 29/29, 8 instances, on the daemon's own log rather than on crash markers | 08-30 |
+| C42 | A mechanism ranking by a timestamp written before the clock was right | 6/6, 1 instance | 08-30 |
+| C44 | A verification whose cadence cannot observe the event it guards | 13/13 timers, 12 instances | 08-30 |
+| C45 | A reporting path that cannot report its own failure | 10/10 push sites, 8 instances | 08-30 |
+| C47 | A PID 1 that cannot act on the signal it is sent | 29/29, 2 instances (`SigCgt` masks, not documentation) | 08-30 |
+| C48 | A real dependency that nothing declares | 29 services + 18 configs, 1 instance | 08-30 |
+| C49 | A hardening applied to an artefact its producer regenerates | 28/28, 1 new instance | 08-30 |
+| C53 | A handler whose effect is expected earlier in the play than it occurs | 34 handlers, 1 flush point, 2 instances | 08-30 |
 
 ## DECLINED
 

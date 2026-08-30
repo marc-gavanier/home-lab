@@ -9,19 +9,34 @@ successive audits from repeating themselves.
 to close the OPEN classes that live in its space, not to hunt freely in it. The
 current ownership:
 
-| Domain          | OPEN classes it owns                                                                                 |
-|-----------------|------------------------------------------------------------------------------------------------------|
-| system          | C08 (sampling instant)                                                                               |
-| security        | C05 (posture-check gaps)                                                                             |
-| network         | C04 (delivery path — shares with observability)                                                      |
-| services        | C06 (`start_period`), C07 (collector cost), C09 (in-container scheduled work)                        |
-| backup          | C03 (instrument answers another question)                                                            |
-| observability   | C03, C04                                                                                             |
-| ansible-deploy  | C02 (the offsite host as a whole)                                                                    |
-| project-manager | C01 (content of documentary claims) — the largest, and the one that needs a gate rather than a sweep |
+**This table goes stale faster than anything else in these files.** It listed
+eight OPEN classes on 2026-08-30 that had all been closed, in some cases days
+earlier — which would have sent eight agents to re-derive settled work. Rebuild
+it from `classes.md`'s OPEN table at the start of every run; if the two
+disagree, `classes.md` wins.
 
-A class with two owners is deliberate: C03 and C04 cross domains, and the
-2026-08-29 run showed that neither half is visible from one side alone.
+As of the run of 2026-08-30 (evening):
+
+| Domain          | OPEN classes it owns                                                                                  |
+|-----------------|-------------------------------------------------------------------------------------------------------|
+| system          | C46 (a supervisor log declaring an act it did not perform), C52 (a safety premise since corrected)     |
+| security        | C05 (posture-check gaps) — not exhaustible, a standing question rather than a backlog item             |
+| network         | C50 (a liveness probe proving something other than what it claims) — shares with observability         |
+| services        | —                                                                                                     |
+| backup          | —                                                                                                     |
+| observability   | C50                                                                                                   |
+| ansible-deploy  | C54 (a startup list neither derived nor asserted)                                                      |
+| project-manager | C51 (a procedure whose written order the machine refuses) — 79/80 swept, 1 suspected instance left     |
+
+A class with two owners is deliberate: C50's two instances sit on the resolver's
+back half, and the 2026-08-30 run showed that neither the probe side nor the
+service side is visible alone.
+
+**A domain with no OPEN class is not idle.** Its job is to re-read the GATED
+assertions in its area and ask whether each is DERIVED from the thing it guards
+or merely a list of the instances once found. That question has now demoted C02,
+C13 and C26 — the last of which was recorded GATED while covering one of its
+four axes.
 
 The angles below share one idea: **Uptime Kuma already covers whether a service
 answers.** Sending an agent to confirm that wastes it. Send it after what no
