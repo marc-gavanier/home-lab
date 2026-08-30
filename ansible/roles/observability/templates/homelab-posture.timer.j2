@@ -6,6 +6,19 @@ Description=Daily homelab container security posture check
 # Daily, late morning: after the night's unattended-upgrades and any image
 # update, and at an hour where a notification will actually be read.
 OnCalendar=*-*-* 11:00:00
+# And after a reboot, which is the other moment the posture can change and the
+# one `Persistent=` does NOT cover: it replays a run the machine was down for,
+# but a reboot later the same day has already had its run and replays nothing.
+# Measured on 2026-08-30 — spec written at 17:23, last scheduled run 11:09, next
+# one the following morning, with twenty commits and a reboot in between.
+#
+# 30 min, not immediately: /mnt/data is unlocked by hand after a reboot and the
+# staged startup then takes about nine minutes (boot 17:29:29, last container up
+# ~17:38 that night). RandomizedDelaySec below applies here too, so the real
+# window is 30-40 min. If the volume is still locked the script exits 0 with
+# `/mnt/data locked — posture not checked` rather than failing, so an unlock
+# that comes later costs a skipped run, never a false alarm.
+OnBootSec=30min
 Persistent=true
 RandomizedDelaySec=10m
 
