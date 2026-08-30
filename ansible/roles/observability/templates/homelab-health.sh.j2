@@ -76,34 +76,51 @@ done
 # heartbeat; clears to UP after the reboot.
 [ -f /var/run/reboot-required ] && pending+=("reboot pending — schedule homelab reboot+unlock")
 
-# The start of boot, which this host has never kept (#292, class C42).
+# The clock this board has before it has a clock (#292, class C42).
 #
-# The issue blamed the journal's vacuum — a pre-synchronisation segment whose
-# filename sorts before everything, deleted first. Three measurements on
-# 2026-08-30 say otherwise: no segment on either host carries a
-# pre-synchronisation timestamp (the names were decoded), the vacuum's floor is
-# exactly where oldest-first puts it, and `Booting Linux on physical CPU`
-# appears in NO retained boot here — including the newest, which a
-# delete-oldest-first mechanism cannot explain. The loss happens before any
-# retention decision. The offsite keeps it, in both its journal and its live
-# ring buffer.
+# With no RTC and no /usr/lib/clock-epoch, systemd advances the clock at boot to
+# the mtime of its own binary — 2026-07-28 17:04:45 here, measured. Everything
+# logged until the first NTP reply carries that date, and the journal segment
+# opened in that window is NAMED for it: on the reboot of 2026-08-30 17:00, a
+# file written ten minutes earlier was the oldest on the host, ahead of data
+# from 2026-08-15. journald's vacuum deletes the oldest first, so what it
+# removes first is the beginning of the CURRENT boot.
 #
-# Standing hypothesis, from the one visible difference between the hosts: this
-# board waits for LUKS in an initramfs the other does not have, and the
-# initramfs-phase journal is not carried across switch-root. Confirming it needs
-# an observed boot, and this board must not be rebooted while nobody can reach
-# it physically — wg0.conf lives inside the volume.
+# This is reported here and not in the posture spec because it stays true until
+# the next boot and waits on a human — #216's rule, applied to the finding that
+# most tempted breaking it.
 #
-# So this goes to the PENDING monitor and not to the posture spec, which is
-# #216's rule applied to the finding that most tempted me to break it: a
-# condition that waits on a human and stays true for days must not sit in the
-# same signal as the acute checks, or it mutes them. What it costs to keep
-# losing: the only record of the kernel, the initramfs check, sysctl, udev and
-# the volume wait — the part of boot that has already produced #252, #253, #260.
+# Recorded because it cost something: an earlier pass declared this mechanism
+# refuted, on the grounds that no segment carried a pre-synchronisation
+# timestamp and that deleting the oldest first cannot remove the newest boot's
+# beginning. Both observations were real and the conclusion was wrong. The
+# segments were absent because they had ALREADY been vacuumed, and the newest
+# boot's beginning is exactly what a delete-oldest-first vacuum takes when that
+# beginning is stamped older than everything else. The refutation trusted a
+# timestamp written before synchronisation, which is the class it was refuting.
+#
+# TWO checks, because they fire at different moments. The skew is the leading
+# indicator: it is true from the first second of a bad boot, whether or not the
+# vacuum has run yet. The banner is the trailing one: by the time it fires, the
+# records are already gone.
+boot_journal=$(journalctl -b -o short-unix 2>/dev/null | head -1 | cut -d. -f1)
+boot_real=$(date -d "$(uptime -s)" +%s 2>/dev/null)
+case "${boot_journal:-x}${boot_real:-x}" in
+    *[!0-9]*) ;;   # either unreadable: say nothing rather than guess
+    *)
+        skew=$(( boot_real - boot_journal ))
+        if [ "$skew" -ge 86400 ]; then
+            pending+=("this boot's journal starts $(( skew / 86400 )) days before the machine did — the pre-NTP segment sorts oldest and the vacuum deletes it first (#292)")
+        elif [ "$skew" -gt 600 ]; then
+            pending+=("this boot's journal starts ${skew}s before the machine did — pre-NTP clock skew (#292)")
+        fi
+        ;;
+esac
+
 boot_first=$(journalctl -b -k -o cat 2>/dev/null | head -1)
 case "$boot_first" in
     *"Booting Linux on physical CPU"*) ;;
-    *) pending+=("boot record starts at '${boot_first:-nothing}' — the start of boot was never persisted (#292); confirming it needs an observed reboot with physical access") ;;
+    *) pending+=("the start of boot is already gone from this boot's record, which begins at '${boot_first:-nothing}' (#292)") ;;
 esac
 
 # --- Pending security updates (age-gated) ---

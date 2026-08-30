@@ -683,6 +683,29 @@ command:
       exit $rc
     exit-status: 0
 
+  # --- The clock before the clock (#292, class C42) --------------------------
+  # This board has no RTC. Without fake-hwclock, systemd starts it at the mtime
+  # of its own binary — 2026-07-28 on both hosts, measured — and every entry
+  # written before the first NTP reply carries that date. The journal segment
+  # opened in that window is NAMED for it, becomes the oldest file on the host,
+  # and journald's vacuum removes it first: the beginning of the current boot,
+  # deleted before anything genuinely old.
+  #
+  # Asserted on freshness rather than on the package being installed, because
+  # installed-and-never-run is the shape this repo has already refused twice
+  # (#155, #291). fake-hwclock saves hourly and at shutdown; 2 h is one missed
+  # save, which is slack rather than a symptom.
+  fake-hwclock-data-is-fresh:
+    exec: |
+      f=/etc/fake-hwclock.data
+      [ -f "$f" ] || { echo "$f absent — nothing sets this board's clock before NTP"; exit 1; }
+      age=$(( $(date +%s) - $(stat -c %Y "$f") ))
+      [ "$age" -le 7200 ] || {
+        echo "fake-hwclock last saved ${age}s ago — the restored clock is drifting back toward the systemd build date"
+        exit 1
+      }
+    exit-status: 0
+
   # --- Addresses this host does not control (#292, class C43) ----------------
   # The board holds no fixed address on the LAN side: the router hands it a
   # one-day DHCP lease, and 192.168.1.100 is written into the repository
