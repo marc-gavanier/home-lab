@@ -81,6 +81,26 @@
 # drift that has just been FIXED leaves its monitor red for the rest of the day.
 # Re-asserting here makes detection and recovery both minutes rather than a day
 # (issue #33; seen for real on 2026-07-27, when a corrected finding stayed red).
+# ...but this task is the LAST of the role, and Ansible runs handlers at the end
+# of the PLAY. So until this flush, the re-assertion graded the stack BEFORE the
+# restarts the same deploy had just queued: 14 handlers in this role, and the
+# repo held exactly one `meta: flush_handlers`, in the security role. Combined
+# with the timer having no boot hook, the only two occasions on which the
+# posture could cover a day's changes both fell at the wrong moment — one before
+# the handlers, one before the reboot (audit of 2026-08-30, class C44/C53).
+#
+# One interaction, stated because it is not obvious: a flush runs EVERY handler
+# pending in the play, not only this role's. `Restart Docker` is the one that
+# matters, and it is notified from a single site — the daemon.json template in
+# the docker role — so it is pending only on the rare run that changes it. When
+# it is, Docker now restarts before the posture check rather than after, which
+# is the right order for the check even though it means containers are settling
+# while it runs. The check asserts container CONFIGURATION (user, read-only
+# rootfs, capabilities), which is readable the moment a container exists, not
+# health, which is not.
+- name: Flush handlers so the posture check below sees the restarts, not the state before them
+  ansible.builtin.meta: flush_handlers
+
 - name: Re-assert the container posture now that the stack has changed
   ansible.builtin.systemd:
     name: homelab-posture.service
