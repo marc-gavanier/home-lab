@@ -119,32 +119,35 @@ when the order inverts), **scale** (what breaks at ten times the data), and
 # The register
 
 Reconstructed from `settled.md`, runs of 2026-08-15 through 2026-08-29 (evening).
-**43 classes: 5 OPEN, 13 GATED, 23 ENUMERATED, 2 closed by decision, plus the
+**43 classes: 4 OPEN, 13 GATED, 24 ENUMERATED, 2 closed by decision, plus the
 DECLINED list.** (GATED = C02, C07, C10-C12 and C14-C21;
-ENUMERATED = C01, C03, C06, C09, C13, C22-C38 and C39; closed by decision = C04, C08.)
+ENUMERATED = C01, C03, C06, C09, C13, C22-C38, C39 and C43; closed by decision = C04, C08.)
 C02 was re-gated and C13 downgraded on 2026-08-30 by #291: the totals are
 unchanged and the membership is not, which is the half that matters.
 
-## OPEN — 5
+## OPEN — 4
 
 These are the audit's entire remaining perimeter. One survives from the morning;
-four of the five minted by the evening run of 2026-08-29 under the search key
-**time** are still here; C39 was enumerated and closed on 2026-08-30 (#290) and
-has moved to its own section below.
+three of the five minted by the evening run of 2026-08-29 under the search key
+**time** are still here. C39 and C43 were enumerated and closed on 2026-08-30
+(#290, #292) and have moved to their own section below. **C42 stays open, and
+its row records why: the instance it was minted on was misdiagnosed, and the
+correction is the result.**
 
 | ID | Property | Space, and its cardinal | Why it is still open |
 |-----|--------------------------------------------|--------------------------------------------|----------------------------------------|
 | C05 | Something a reader would reasonably assume the posture check asserts, and which it does not | The gap between the posture spec and the security posture documented in `docs/03-security/` | Three instances closed by #285. The class is **not exhaustible by sweeping** — "what a reader would assume" has no cardinal. A standing question for each new service, not a backlog item. Two instances instructed under the time key on 2026-08-29 evening and tracked in **#294**: the lynis *rule set* has no freshness assertion (only the report has one), and no assertion binds the live WireGuard peers to the enrolled clients |
 | C40 | A container that begins an ordered shutdown and is killed before finishing it | 28 containers × (signal, grace, real drain time) | Swept 28/28 on the 02:45 reboot, **4 instances**: `immich-db`, `miniflux-db`, `nextcloud-db`, `pihole` all needed crash recovery after a *deliberate* reboot. Structurally invisible: the evidence of a failed shutdown is never in its own log, only in the **next** startup's. Cause is configurational — `StopTimeout=<nil>` on all 28, no `stop_grace_period` anywhere, no `ExecStop` on `homelab-stack-startup`. Tracked as **#288** |
 | C41 | A dead-man's fuse that the restart of its own watchdog re-arms from zero | The 15 Kuma push monitors | Kuma schedules a push monitor's first check one full interval after **process start**, not after the last heartbeat. Proven on data, not on code: monitor 30 was silent 93 474 s against a 90 000 s window and emitted **no DOWN**, while a 90 001 s silence on 2026-08-13 — one second over, no restart in between — did emit one. Degrades the *silence* half only; the failure half still works. Tracked as **#289**, together with a C03 instance whose space had been under-scoped to the goss specs. **Kuma is not repairable from here**, so the fuse is checked host-side against `heartbeat.time` — the moment a beat was received, which no restart reschedules — and the assertion fires on the INCONSISTENCY (silent past its window while the last beat still says UP), never on a genuine outage, so a late backup cannot mute the posture monitor for days |
-| C42 | A time-ordering mechanism that ranks by a timestamp the machine wrote before its clock was correct | 6 time-ordered mechanisms on the two hosts | 1 instance: the journal's vacuum deletes **the current boot's first 90 s** — kernel, initramfs fsck, sysctl, udev, the LUKS wait — while keeping 27 days of genuinely older logs, because the pre-timesync segment's filename timestamp sorts before everything. Same root cause as #260, a different consumer. Tracked as **#292** |
-| C43 | An address that a deployed configuration hard-codes and a third party assigns | Enumerated: **6**, of which **1** is monitored | Only the public IP is watched (by the DDNS). The Pi has no fixed address on the machine side — a 1-day DHCP lease — while `192.168.1.100` is hard-coded 21 times, including as the DNS server of every VPN client. The container network on which every VPN client's access depends is assigned by Docker with no `ipam_config`. Tracked as **#292** |
+| C42 | A time-ordering mechanism that ranks by a timestamp the machine wrote before its clock was correct | 6 time-ordered mechanisms on the two hosts | **STILL OPEN, and its instance was misdiagnosed — that is the 2026-08-30 finding (#292).** The vacuum was blamed: a pre-synchronisation segment sorting first, deleted first. Three measurements refute it. No journal segment on EITHER host carries a pre-synchronisation timestamp (filenames decoded; oldest 2026-08-15 here, 2026-07-05 offsite). The vacuum's floor is exactly where oldest-first puts it. And `Booting Linux on physical CPU` appears in **no retained boot** on the homelab, the newest included — which a delete-oldest-first mechanism cannot produce. The loss is upstream of every retention decision. The offsite keeps the banner in both its journal and its live ring buffer. Standing hypothesis, from the one visible difference: this board waits for LUKS in an initramfs the other does not have, and the initramfs-phase journal is not carried across switch-root. Confirming it needs an OBSERVED BOOT with physical access, because wg0.conf lives inside the volume. Reported meanwhile through the `pending` monitor and not the posture spec — #216's rule applied to the finding that most tempted breaking it |
 
-## Settled on 2026-08-30 — C39
+## Settled on 2026-08-30 — C39 and C43
 
 | ID | Property | Cardinal, and outcome |
 |-----|--------------------------------------------|--------------------------------------------|
 | C39 | An event whose only durable evidence has a retention shorter than the event's own period | **ENUMERATED, cardinal 16** — every periodic job on the two hosts, against the most durable store that records a *distinguishable* result for it. 14 of 16 already correct and not by accident: their Kuma messages carry readings, so a run that did nothing cannot produce the message of a run that did something. **1 instance**, and it was the one that mattered: the weekly `prune + check` has two modes — re-read a twelfth of the repository's bytes, or list metadata — and after ADR-031 both pushed `prune and check completed`. The distinction had EXISTED and was lost in the migration; Kuma still holds the shell job's `local prune + deep check (8/12) passed` from 2026-08-02 beside `local prune + metadata check passed` from 08-09. Restored, richer, and gated from outside by `restic-deep-check-not-stale` (45 days, against a 24-37 day healthy gap) because resticprofile cannot know what ran last month. **A second instance on the cardinal's other axis**: the redacted access log at 6.17 MB/day spanned 4.86 days on the daemon default, against a host whose only trace there is one request a week — given its own 10 x 20 MB block, ~32 days. The 2 jobs whose only evidence is the journal took the retention branch instead: 500M held 16 days against monthly events, raised to 1500M (~48 days), which adds no writes because a cap governs deletion |
+
+| C43 | An address that a deployed configuration hard-codes and a third party assigns | Enumerated: **6**, of which **1** was monitored | **ENUMERATED and closed on 2026-08-30 (#292).** Six addresses, each now pinned, derived, or watched, and the deliverable was stating which per address. 2 derived (the public IPv4 by the DDNS, the offsite endpoint by the re-resolve timer), 4 newly watched: the LAN address against `homelab_ip` — a one-day lease under 19 hardcoded occurrences, including the resolver handed to every VPN client — and the three Docker subnets, which carry no `ipam_config`. One of the four is load-bearing rather than tidy and is asserted against the two AUTHORITIES instead of a remembered value: Traefik's `vpn-only` admits `172.18.0.0/16` because that is where `proxy` happens to live, so the day Docker moves it every VPN client is refused — the assertion compares the live network to the allowlist file. Pinning was rejected on cost, not on principle: `proxy` is `external` and recreating it stops every container on it. Two stale ranges corrected (a C01 instance): one placed `homelab_socketproxy` at 172.21 against a measured 172.20, the other described 172.20 as a phantom's range when it is now a live one |
 
 ## Reopened by the run of 2026-08-29 (evening) — 2, plus one downgrade
 

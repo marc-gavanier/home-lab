@@ -52,10 +52,19 @@ http:
     #
     # `172.18.0.0/16` rather than the `172.16.0.0/12` it replaces: /12 spans
     # 172.16 through 172.31, admitting all three docker networks — including
-    # `homelab_socketproxy` (172.21), where the Docker socket proxy lives — plus
-    # thirteen /16s that do not exist. Nothing outside 172.18 has reached Traefik
-    # in those fourteen days, so this excludes nothing observed and closes a
+    # `homelab_socketproxy` (172.20, measured 2026-08-30; this comment said
+    # 172.21 and was wrong, which is #292's own point: nobody was watching where
+    # Docker put these), where the Docker socket proxy lives — plus thirteen
+    # /16s that do not exist. Nothing outside 172.18 has reached Traefik in
+    # those fourteen days, so this excludes nothing observed and closes a
     # lateral path that was open for no reason.
+    #
+    # The narrowing is what makes the allocation load-bearing: Docker assigns
+    # these subnets with no `ipam_config`, so a network recreated after the
+    # others comes back somewhere else, and the day `proxy` moves off 172.18
+    # this line refuses every VPN client. Watched by
+    # `traefik-allowlist-covers-the-live-proxy-subnet`, which compares the LIVE
+    # network against THIS FILE rather than against a remembered value (#292).
     #
     # One assertion per entry, because a single one covered only the survivor:
     #   traefik-allowlist-admits-the-proxy-network  probes from uptime-kuma

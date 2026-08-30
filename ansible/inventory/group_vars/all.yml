@@ -548,3 +548,28 @@ homelab_control_timers:
       a 4 GB board that also serves the restic endpoint. To go the other way:
       set lynis_scheduled on the offsite, and give it the observability role's
       report and monitor as the homelab has them
+
+# --- Addresses a third party assigns (#292, class C43) ----------------------
+# Docker allocates a subnet per network from its default pool, with no pinning
+# anywhere in compose.yaml. That allocation is stable in practice and is not
+# guaranteed: it depends on creation ORDER and on what is already taken, so a
+# network recreated after the others comes back somewhere else.
+#
+# One of them is load-bearing. Traefik's `vpn-only` middleware admits
+# `172.18.0.0/16` because that is where `proxy` happens to live, and every VPN
+# client reaches Traefik through it — so a shift of that one subnet locks every
+# VPN client out, silently, at the next deploy. Its assertion compares the LIVE
+# network against the allowlist FILE rather than against this list, because
+# those two are the authorities and this list is only a memory of them.
+#
+# Pinning with `ipam_config` was the other option and was not taken: it requires
+# recreating the networks, `proxy` is `external: true`, and recreating it means
+# stopping every container attached to it. The acceptance of #292 allows pinned,
+# derived, or watched; this is watched, deliberately, and cheaply.
+#
+# Values measured on 2026-08-30. If a deploy moves one, the assertion says which
+# and to where, which is the whole point of writing them down.
+docker_expected_subnets:
+  proxy: "172.18.0.0/16"
+  homelab_internal: "172.19.0.0/16"
+  homelab_socketproxy: "172.20.0.0/16"

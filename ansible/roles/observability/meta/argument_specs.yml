@@ -6,6 +6,14 @@ argument_specs:
   main:
     short_description: Host-level observability (Pi power/thermal health to Uptime Kuma)
     options:
+      docker_expected_subnets:
+        type: dict
+        required: true
+        description: >-
+          Docker network name -> the subnet it was measured on. Docker assigns
+          these from a pool with no ipam_config, and one of them is the range
+          Traefik's VPN allowlist admits, so a re-allocation locks out every
+          VPN client (#292).
       homelab_control_timers:
         type: list
         elements: dict
