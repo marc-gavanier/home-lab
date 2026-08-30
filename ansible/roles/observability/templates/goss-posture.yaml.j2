@@ -697,6 +697,10 @@ command:
   # save, which is slack rather than a symptom.
   fake-hwclock-data-is-fresh:
     exec: |
+      for u in fake-hwclock-load.service fake-hwclock-save.timer; do
+        [ "$(systemctl is-enabled "$u" 2>/dev/null)" = "enabled" ] ||
+          { echo "$u is not enabled — the clock is not restored at boot"; exit 1; }
+      done
       f=/etc/fake-hwclock.data
       [ -f "$f" ] || { echo "$f absent — nothing sets this board's clock before NTP"; exit 1; }
       age=$(( $(date +%s) - $(stat -c %Y "$f") ))

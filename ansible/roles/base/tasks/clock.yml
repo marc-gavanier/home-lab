@@ -38,15 +38,44 @@
 # and adding an edge between them risks an ordering cycle on a board that must
 # not fail to boot: there is no console, and wg0.conf lives inside the encrypted
 # volume, so a boot failure is not recoverable from anywhere but the room the Pi
-# is in. The package's own ordering is what it was designed with; whether it
-# lands before the first journal write is a question for the next boot, and the
-# health script's pending check is what will answer it.
+# is in. The package's own ordering is what it was designed with — measured:
+# fake-hwclock-load.service carries DefaultDependencies=no and
+# Before=sysinit.target, the same tier systemd-journald.service runs in, so the
+# two are unordered with respect to each other BY DESIGN. Whether `load` lands
+# before the first journal write is therefore a question for the next boot, and
+# the health script's pending check is what will answer it.
 - name: clock | Install fake-hwclock (no RTC on this board)
   ansible.builtin.apt:
     name: fake-hwclock
     state: present
 
-- name: clock | Enable fake-hwclock so the saved time is restored at boot
+# The package ships FOUR units and masks one of them itself:
+#
+#   fake-hwclock-load.service   restore at boot   DefaultDependencies=no,
+#                                                 Before=sysinit.target
+#   fake-hwclock-save.service   save              driven by the timer
+#   fake-hwclock-save.timer     hourly save
+#   fake-hwclock.service        the SysV compatibility unit — MASKED by the
+#                               package, so both mechanisms cannot run at once
+#
+# The first version of this file enabled `fake-hwclock.service`, which is the
+# name a reader expects and the one thing that cannot work: the deploy died with
+# "Unit file /usr/lib/systemd/system/fake-hwclock.service is masked" on the
+# offsite, 2026-08-30 17:18. The mask is the package's own and it is correct;
+# the task was wrong.
+#
+# debhelper already enables the two real units at install, so these are
+# idempotent by design. They are here to STATE the dependency rather than
+# inherit it: what makes this fix work is `load` running before the first
+# journal write, and a unit silently disabled by something else would put the
+# clock back at the systemd build date without a word.
+- name: clock | Restore the saved clock at boot
   ansible.builtin.systemd:
-    name: fake-hwclock.service
+    name: fake-hwclock-load.service
     enabled: true
+
+- name: clock | Keep the saved clock current
+  ansible.builtin.systemd:
+    name: fake-hwclock-save.timer
+    enabled: true
+    state: started
