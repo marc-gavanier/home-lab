@@ -74,9 +74,13 @@ Defense in depth — each layer is secured independently. If one layer falls, th
   explains why — for five of them it is structural and cannot be removed
   without breaking the service. This line used to read "no service runs as
   root", which the same document then contradicted
-- **Audit**: lynis for periodic security audits; CIS Ubuntu 24.04 benchmark
-  via `ansible/playbooks/cis-audit.yml` (read-only) — findings, remediation
-  batches and assumed deviations in
+- **Audit**: lynis for periodic security audits — **on the homelab only, and
+  that is now a declared property rather than an accident**. The package is
+  installed where `lynis_scheduled` is set, and purged where it is not, because
+  the schedule, the report script, the hardening-index ratchet and the push
+  monitor live in the observability role which runs here alone. CIS Ubuntu 24.04
+  benchmark via `ansible/playbooks/cis-audit.yml` (read-only) — findings,
+  remediation batches and assumed deviations in
   [knowledge/research/cis-audit-2026-07.md](../../knowledge/research/cis-audit-2026-07.md)
 
 ### 3. Containers (Docker)
@@ -282,6 +286,42 @@ Rationale: [ADR-008](../../knowledge/decisions/ADR-008-usb-tamper-poweroff.md)
 (arm/disarm — **disarm before touching any cable**), [boot & unlock runbook](../../knowledge/runbooks/boot-and-unlock.md)
 (evil-maid policy), [SSH lockout recovery](../../knowledge/runbooks/ssh-lockout-recovery.md)
 (no console fallback exists — this is the trade-off's escape hatch).
+
+## Offsite parity, and why a list of assertions is not a gate
+
+The offsite host runs the same `base` and `security` roles as the homelab, so
+a control that exists here and not there is a real gap rather than a difference
+of purpose. Closing that gap by *listing* the gaps found does not work, and the
+lab has the measurement: seven assertions were added to the offsite on
+2026-08-29, all correct, all green — and an eighth divergence was found the same
+day. lynis was installed there with its distribution timer masked and nothing
+scheduled in its place, its last report dated 2026-08-17. On any inventory of
+what is installed, that reads as coverage.
+
+The arbitration rule was already written in the repository, next to the task
+that had removed rkhunter for the same shape:
+
+> An absent tool is honest; an installed tool that never runs is not.
+
+lynis was removed from the offsite on that rule rather than carried across, and
+the reasoning — including what to do to go the other way — is recorded in
+`homelab_control_timers` in `group_vars/all.yml`.
+
+What replaces the list is a pair of assertions that close on each other:
+
+| Assertion | Host | What it establishes |
+|-----------|------|---------------------|
+| `offsite-parity-register-covers-every-control-timer` | homelab | Every deployed `homelab-*.timer` is classified in the register — with the offsite unit that carries the same property, or a written reason it does not exist there. Fails in **both** directions: an unclassified timer is the divergence, a register entry with no timer is a stale exemption, which is a written reason not to look at something that no longer exists |
+| `offsite-carries-<unit>` | offsite | Generated, one per distinct counterpart the register names, asserting its timer is armed |
+
+The first is the gate: it derives the set from the machine, so a new control
+creates a timer, the timer appears in the enumeration, and the assertion fails
+until somebody decides what it means for the offsite. The second cannot be
+shorter than the register, and the register cannot be shorter than reality.
+
+The limit is worth stating rather than leaving to be discovered: this gates
+controls that **are timers**. A homelab control that is neither a timer nor a
+goss assertion would still escape it.
 
 ## Remote Kill Switch
 

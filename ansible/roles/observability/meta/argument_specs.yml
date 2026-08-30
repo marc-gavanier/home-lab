@@ -6,6 +6,15 @@ argument_specs:
   main:
     short_description: Host-level observability (Pi power/thermal health to Uptime Kuma)
     options:
+      homelab_control_timers:
+        type: list
+        elements: dict
+        required: true
+        description: >-
+          Every homelab control timer and what it means for the offsite host —
+          `offsite:` names the unit carrying the same property there, `exempt:`
+          says why it does not exist. The posture spec asserts this register
+          covers the timers actually deployed, in both directions (#291).
       homelab_health_kuma_push_url:
         type: str
         required: false

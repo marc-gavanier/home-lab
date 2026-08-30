@@ -4,6 +4,15 @@ argument_specs:
   main:
     short_description: System hardening (SSH, UFW, fail2ban, updates, cloud-init redaction)
     options:
+      lynis_scheduled:
+        type: bool
+        required: false
+        default: false
+        description: >-
+          Whether THIS host schedules, reports and ratchets lynis (the
+          observability role does, on the homelab only). The package is
+          installed where this is true and purged where it is false — an
+          installed tool that never runs reads as coverage and is not (#291).
       ssh_port_hardened:
         type: int
         required: true

@@ -444,3 +444,88 @@ netdata_expected_plugins:
   - "sd-unit.plugin"
   - "spawn-plugins"
 netdata_min_contexts: 270
+
+# --- lynis: installed only where it is scheduled and reported (#291) --------
+# The security role runs on BOTH hosts, so installing lynis here installed it
+# there too — while the schedule, the report script, the hardening-index ratchet
+# and the push monitor all live in the observability role, which runs on the
+# homelab only. The offsite therefore carried the package with its distribution
+# timer masked and nothing in its place: a security auditing tool whose last
+# report was 2026-08-17 and which would never produce another.
+#
+# The default is false on purpose. A host gets the package by declaring that it
+# schedules it, not by being in the inventory.
+lynis_scheduled: false
+
+# --- Offsite parity: derived, not enumerated (#291, class C02) --------------
+# #285 closed C02 by adding seven assertions to the offsite host, one per
+# control the homelab had and it lacked. The seven are real and they are green.
+# They are also a LIST, and a list closes the instances it names — it cannot
+# fail on the eighth. The eighth was found the same day: lynis installed on the
+# offsite with its timer masked and nothing scheduled in its place, last report
+# 2026-08-17, looking like coverage on any inventory of what is installed.
+#
+# So the parity is derived instead, from the machine rather than from memory.
+# Every `homelab-*.timer` actually deployed must appear below, classified one
+# way or the other, and the register must not name a timer that no longer
+# exists. A new control creates a timer, the timer appears in the enumeration,
+# and the assertion fails until somebody decides what it means for the offsite.
+# That is the difference between a sweep and a gate, and it is the same shape
+# as C10's credential stores: derive the set, subtract documented exemptions.
+#
+# The limit, stated rather than left to be discovered: this gates controls that
+# ARE timers. A homelab control that is neither a timer nor a goss assertion
+# would still escape it.
+#
+# `offsite:` names the unit that carries the same property over there.
+# `exempt:` says why the property does not exist on that host — and "the offsite
+# has no docker and no netdata" (both verified 2026-08-30) does most of the
+# work, because it is a fact about the host and not an opinion about the check.
+homelab_control_timers:
+  - timer: homelab-health
+    offsite: offsite-health
+  - timer: homelab-disk
+    offsite: offsite-health
+  - timer: homelab-smart-test
+    offsite: offsite-smart-test
+  - timer: homelab-posture
+    offsite: offsite-health
+  - timer: homelab-backup
+    exempt: >-
+      the offsite is the DESTINATION of this backup, not a second source. A
+      counterpart here would mean the offsite backing itself up somewhere else,
+      which is a different lab
+  - timer: homelab-local-maintenance
+    exempt: >-
+      resticprofile's prune and check on the LOCAL repository. The offsite
+      repository's equivalent maintenance is homelab-offsite-check, run from
+      here, because the append-only rest-server is what makes that safe
+  - timer: homelab-offsite-check
+    exempt: >-
+      it already checks the offsite, from here. A counterpart on the offsite
+      would be the host auditing its own repository, which is the property
+      append-only exists to refuse
+  - timer: homelab-ddns
+    exempt: >-
+      one public hostname in the lab, and it points here. The offsite reaches
+      the tunnel as a WireGuard client and has no public name to keep current
+  - timer: homelab-netdata-kuma
+    exempt: "netdata is not installed on the offsite (verified 2026-08-30)"
+  - timer: homelab-stack-heal
+    exempt: "docker is not installed on the offsite (verified 2026-08-30)"
+  - timer: homelab-notify-push
+    exempt: "it watches a Nextcloud service that does not run on the offsite"
+  - timer: homelab-feed-digest
+    exempt: "not a control — it writes a reading digest into the notes vault"
+  - timer: homelab-lynis
+    exempt: >-
+      settled on 2026-08-30 (#291) by REMOVING the package from the offsite
+      rather than carrying the schedule across, under the arbitration rule this
+      repo already wrote for rkhunter: an absent tool is honest, an installed
+      tool that never runs is not. Both hosts are configured by the same
+      security and base roles, so the weekly homelab audit already covers the
+      configuration the offsite shares; what it would add is a report script, a
+      timer and a Kuma monitor created by hand on a v2 with no editing API, on
+      a 4 GB board that also serves the restic endpoint. To go the other way:
+      set lynis_scheduled on the offsite, and give it the observability role's
+      report and monitor as the homelab has them

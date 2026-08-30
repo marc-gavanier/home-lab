@@ -4,6 +4,14 @@ argument_specs:
   main:
     short_description: Append-only restic rest-server on the offsite Pi (ADR-010)
     options:
+      homelab_control_timers:
+        type: list
+        elements: dict
+        required: true
+        description: >-
+          The homelab's control register. The offsite spec generates one
+          `offsite-carries-<unit>` assertion per counterpart it names, so the
+          parity checks cannot be shorter than the register (#291).
       backup_disk_device:
         type: str
         required: true

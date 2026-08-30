@@ -5,11 +5,23 @@
 # hardening index pushed to a monitor, and a ratchet that goes DOWN on any
 # regression. That is what makes it a control rather than a package.
 
-- name: audit | Install security audit tools
+# `state` derived from whether this host SCHEDULES the tool, rather than
+# `present` unconditionally (#291). The schedule, the report script, the
+# hardening-index ratchet and the push monitor all live in the observability
+# role, which runs on the homelab only — so `present` here put lynis on the
+# offsite too, where nothing would ever run it. Its timer was masked (correctly,
+# below) and its last report is 2026-08-17: on any inventory of what is
+# installed, that reads as coverage.
+#
+# Same arbitration as rkhunter at the bottom of this file, and the same task
+# shape, so the two decisions are legible side by side: an absent tool is
+# honest, an installed tool that never runs is not.
+- name: audit | Install security audit tools where they are scheduled
   ansible.builtin.apt:
     name:
       - lynis
-    state: present
+    state: "{{ 'present' if lynis_scheduled | default(false) else 'absent' }}"
+    purge: "{{ not (lynis_scheduled | default(false)) }}"
 
 # The distribution ships its own lynis.timer, enabled, OnCalendar=daily. It was
 # masked on the homelab on 2026-08-16 for two reasons — roughly 40 minutes of
@@ -23,6 +35,8 @@
 # minutes of CPU on a 4 GB board with no report script, no push monitor and no
 # log anyone reads — the timer had no consumer on that host at all (#155). The
 # `security` role runs on both, which is the property that matters.
+# Statting the unit file rather than assuming it: on a host where the package
+# has just been purged the file is gone, and every task below correctly skips.
 - name: audit | Look for the distribution's own lynis timer
   ansible.builtin.stat:
     path: /usr/lib/systemd/system/lynis.timer

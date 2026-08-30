@@ -120,8 +120,10 @@ when the order inverts), **scale** (what breaks at ten times the data), and
 
 Reconstructed from `settled.md`, runs of 2026-08-15 through 2026-08-29 (evening).
 **43 classes: 6 OPEN, 13 GATED, 22 ENUMERATED, 2 closed by decision, plus the
-DECLINED list.** (GATED = C07 and C10-C21; ENUMERATED = C01, C02, C03, C06, C09
-and C22-C38; closed by decision = C04, C08.)
+DECLINED list.** (GATED = C02, C07, C10-C12 and C14-C21;
+ENUMERATED = C01, C03, C06, C09, C13 and C22-C38; closed by decision = C04, C08.)
+C02 was re-gated and C13 downgraded on 2026-08-30 by #291: the totals are
+unchanged and the membership is not, which is the half that matters.
 
 ## OPEN — 6
 
@@ -147,7 +149,8 @@ practice, and both were reopened by changes made *after* their sweep.
 | C26 | A credential reaching **a trace**. #259 removed the Traefik access log's 400-599 filter on 2026-08-28 so the log could answer who is present, and that filter is exactly what had made this class invisible to the 4-axis sweep of 2026-08-22 — the sweep was correct on the day and a later fix reopened the class underneath it. Two services, both of which can only present the credential where it lands. **The mechanism is not recorded here: this file is public and, until #287 shipped, the condition was live.** It is in the audit report of 2026-08-29, held off-repo. Closed by ADR-034 — masked before the line reaches any durable store, and gated by `traefik-access-log-carries-no-credential`. Tracked as **#287** |
 | C27 | The repo is ahead of the host by the four `compose.yaml` changes of PR #286: `uptime-kuma` 960 s→180 s, `forgejo` 420 s→120 s, and both Redis healthchecks still unguarded. **C03 and C06 are therefore closed in the repo and not on the machine.** 12/12 running containers do match the deployed file, so there is no second "deployed but not applied" layer. **Not an issue — deploy #286.** |
 | C03 | **Its space, not a change to the code.** Closed on 2026-08-29 as enumerated across the four goss specs; the instance found on 2026-08-30 is in none of them, because the sweep had been scoped to the files it was reading instead of to the property. Nothing regressed — the class had never been swept over the space it names. Restated and re-swept in **#289**; see its row below |
-| C02 | **Downgraded GATED → ENUMERATED.** Its gate is a *list* of seven assertions, not a derivation, so it cannot catch an eighth instance — and there is one: lynis is installed on the offsite with its timer masked and no replacement, last report 2026-08-17. C10 is the shape C02 needs ("derived from the dump variables rather than listed"). Tracked as **#291**, which also re-checks the twelve remaining GATED rows for the same disguise |
+| C13 | **Downgraded GATED → ENUMERATED on 2026-08-30 (#291),** by the re-check C02's downgrade called for. Its gate is `homelab-posture.sh`'s config.json comparison, hardcoded to **vaultwarden** — a list of one presented as a gate on "a declared environment value shadowed by a persisted config file". The check itself is careful (it resolves `*_FILE` indirections, it reports an unreadable secret rather than passing), and none of that makes it derived. Its real space is every container that persists a config file capable of shadowing an injected value, and that has never been enumerated. **No second instance is claimed here** — what is claimed is that nothing would find one |
+| C02 | **Downgraded GATED → ENUMERATED.** Its gate is a *list* of seven assertions, not a derivation, so it cannot catch an eighth instance — and there is one: lynis is installed on the offsite with its timer masked and no replacement, last report 2026-08-17. C10 is the shape C02 needs ("derived from the dump variables rather than listed"). Tracked as **#291**, which also re-checks the twelve remaining GATED rows for the same disguise. **Re-GATED on 2026-08-30.** The gate derives the control set from the machine — every deployed `homelab-*.timer` — and requires each to be classified in `homelab_control_timers`, failing in both directions so a stale exemption is as loud as an unclassified timer. The offsite assertions are generated from that register, so they cannot be shorter than it and it cannot be shorter than reality. Proven by removing an entry (`no offsite decision: homelab-lynis`), by adding one for a timer that does not exist (`register names timer(s) that are not deployed`), and by starving the enumeration (`only 0 ... the sweep stopped matching`). The eighth instance was settled by REMOVING lynis from the offsite rather than carrying its schedule across |
 
 ## Closed by the runs of 2026-08-29 — eight classes
 
@@ -175,12 +178,20 @@ it guards — the way C10's is generated from the dump variables and C18's from 
 same source — rather than enumerating the instances that happened to be found.
 A listed gate closes the instances; only a derived one closes the class.
 
+**Re-checked on 2026-08-30 (#291).** Two rows were read at the code rather than
+taken from their description. **C11 is genuinely derived** — the posture spec is
+generated from `compose.yaml` and emits the user assertion for every service that
+declares one, so "9 services" is a count and not a hand-list. **C13 is not**, and
+it was downgraded. The remaining ten were checked against what this register
+records of their derivation rather than re-read line by line; that is a weaker
+check, and it is stated as one.
+
 | ID | Property | Gate |
 |-----|------------------------------------------------------|--------------------------------------------------------|
 | C10 | A credential store readable beyond its service | goss posture, **derived** from the dump variables rather than listed, plus a named assertion for the Immich dumps (#217, #272) |
 | C11 | A container whose running `Config.User` differs from what compose declares | posture assertion, 9 services (#145) |
 | C12 | A rotated secret no consumer restarts to read | one handler per consumer, mapped from the running mounts; 51 notify sites, 0 orphans (#145) |
-| C13 | A declared environment value shadowed by a persisted config file | posture assertion comparing the container's environment to the file it reads (#124) |
+| C13 | A declared environment value shadowed by a persisted config file | **Left this table on 2026-08-30 — see the downgrade above.** The assertion is hardcoded to vaultwarden (#124, #159); a list of one is not a gate |
 | C14 | A certificate with no expiry watch, or a silent ACME failure | `homelab-health.sh` parses `acme.json` directly, 21-day threshold, 18/18 (#157) |
 | C15 | The offsite repository losing the one property that makes it a backup | goss assertion on the live rest-server process, proven to fail in both modes (#278) |
 | C16 | A read-write bind mount its container cannot create files in | posture assertion, continuous since 2026-08-16 |
