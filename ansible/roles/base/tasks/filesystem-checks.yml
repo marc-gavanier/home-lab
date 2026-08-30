@@ -274,7 +274,7 @@
     group: root
     mode: "0444"
     content: |
-      # {{ ansible_managed }}
+      # Ansible managed — rendered from the home-lab repo, edits on the host will be overwritten
       # e2fsck judges the superblock against the system clock. Without this
       # edge it can run before fake-hwclock-load, read the systemd build date,
       # call correct timestamps "in the future" and rewrite them — which
