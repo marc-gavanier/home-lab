@@ -315,6 +315,16 @@ services:
   traefik-log-redactor:
     image: alpine:3.20
     container_name: traefik-log-redactor
+    # Tier 0, and not because anything depends on it: `tail -F` opens the file
+    # where it is, so every line written while the redactor is down is lost from
+    # the durable log. Left to the staged startup it would come up in wave 1,
+    # after the 300 s DNS gate — blinding the access log for the whole of the
+    # part of boot that has already produced #252, #253, #260 and #292. It costs
+    # the boot storm nothing: one alpine reading one file, no image layers off
+    # the USB disk, no healthcheck to gate on. `-F` retries a file that does not
+    # exist yet, so starting before Traefik has created it is not a race.
+    # Listed in homelab-stack-startup.sh's tier-0 set, which the deploy asserts
+    # against this very line.
     restart: unless-stopped
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
