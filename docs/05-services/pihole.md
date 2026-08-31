@@ -161,12 +161,31 @@ fixed.
 From Restic backup:
 ```bash
 restic restore latest --target / --include /mnt/data/services/pihole
-# Both, in this order, and never `docker restart pihole` alone: dnsproxy runs
-# with `network_mode: service:pihole`, so restarting Pi-hole destroys the
+# Both, in this order, and never Pi-hole alone: dnsproxy runs with
+# `network_mode: service:pihole`, so bringing Pi-hole back destroys the
 # namespace dnsproxy is attached to. dnsproxy keeps running and stays healthy
 # while being permanently unreachable, which leaves Pi-hole with no upstream at
-# all — a LAN-wide DNS outage with both containers green. The Ansible handler
-# does exactly this pair for the same reason.
+# all — a LAN-wide DNS outage with both containers green.
 docker restart pihole && docker restart dnsproxy
-# Then re-run Ansible deploy to set the password
 ```
+
+> **The remedy differs by trigger, and the wrong one leaves DNS dead.** The pair
+> above is correct after `docker restart pihole`, which keeps the container's
+> ID. It is **wrong** after anything that RECREATES Pi-hole — including the
+> `compose up` that the Ansible deploy runs, i.e. the very next step below:
+>
+> ```bash
+> # after `compose up -d pihole`, or any other recreate:
+> docker compose up -d --force-recreate dnsproxy
+> ```
+>
+> `HostConfig.NetworkMode` holds a container ID resolved once at creation. A
+> recreated Pi-hole gets a new ID, so restarting dnsproxy re-runs it against the
+> dead one: it exits 1 and leaves dnsproxy **stopped**, which is worse than the
+> detached state the restart was meant to repair. Only recreating re-resolves
+> `service:pihole`. Measured on a throwaway pair —
+> `knowledge/runbooks/container-config-changes.md` carries the full reasoning.
+
+Then re-run the Ansible deploy to set the password — and note that it recreates
+Pi-hole, so it is the `--force-recreate dnsproxy` branch above that applies
+afterwards, not the `docker restart` one.
