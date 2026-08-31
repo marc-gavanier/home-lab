@@ -52,16 +52,42 @@
     mode: "0644"
   notify: Restart traefik-log-redactor
 
-# Verbatim, so it belongs here rather than in templates/ (see the header). Read
-# by logrotate running as root inside the container, which holds DAC_OVERRIDE —
-# 0640 <user>:docker is the same treatment as the split-DNS config next to it.
+# Verbatim, so it belongs here rather than in templates/ (see the header).
+#
+# root:root 0644, NOT the `<ansible_user>:docker 0640` the split-DNS config
+# next to it uses. That analogy was wrong and it cost this file five days of
+# rotation: logrotate refuses any configuration file it does not own, and says
+# so before reading a single rule —
+#
+#     error: Ignoring pihole because the file owner is wrong
+#            (should be root or user with uid 0).
+#     error: found error in file pihole, skipping
+#
+# "skipping" is the part that matters, and it is the whole FILE, not the rule:
+# all three of its stanzas die together, so the 2026-08-25 `copytruncate` fix
+# never ran once and it silently took FTL.log and webserver.log — which had been
+# rotating correctly all along — down with it.
+#
+# Reproduced on 2026-08-31 against the invocation the container actually makes
+# nightly (`/etc/periodic/daily/logrotate` runs `logrotate /etc/logrotate.conf`,
+# which includes /etc/logrotate.d/ — this file is mounted there as
+# `/etc/logrotate.d/pihole`):
+#
+#     docker exec pihole logrotate -d /etc/logrotate.conf
+#
+# `pihole.log` was 24.3 MiB with no rotated copy, growing 14.4 MB/day.
+#
+# This is the same treatment `/etc/logrotate.d/traefik` already gets in
+# traefik_accesslog.yml, for the same reason. DAC_OVERRIDE lets the container's
+# root READ the file whatever its mode; it does not make logrotate accept a
+# config it does not own, which is an ownership check and not a permission one.
 - name: configs | Copy the Pi-hole logrotate override (#202)
   ansible.builtin.copy:
     src: "{{ playbook_dir }}/../../docker/configs/pihole/logrotate"
     dest: /opt/homelab/configs/pihole/logrotate
-    owner: "{{ ansible_user }}"
-    group: docker
-    mode: "0640"
+    owner: root
+    group: root
+    mode: "0644"
   notify: Restart pihole
 
 - name: configs | Template Pi-hole split DNS config (resolve variables)
