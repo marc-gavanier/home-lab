@@ -15,6 +15,29 @@ omitted from this list until #178, though the backup has always included them), 
 DB dumps, and `/opt/homelab`. See
 `docs/06-backup/README.md`.
 
+## Where this runbook stages — `/mnt/data/tmp/restore`, never `/tmp`
+
+Every `--target` below writes to `/mnt/data/tmp/restore`, on the encrypted disk.
+**Do not "simplify" them back to `/tmp`.** `/tmp` on this host is a RAM disk —
+`tmpfs size=1048576k`, so 1 GiB and no more, whatever `free` reports — and the
+restores here are not small:
+
+| What a step stages | Size on 2026-08-31 |
+|-----------------------------------------------|--------------------|
+| Immich's dump directory (7 files, `keepLastAmount: 7`) | **595 MiB** |
+| The whole `/mnt/data/backups/dumps` folder | tens of MiB |
+
+The Immich step alone would take 595 MiB of a 1 GiB ceiling. It fits today with
+429 MiB to spare and fails with a hard ENOSPC in the middle of a restore once the
+library grows by roughly two thirds. **Say that as a photo count, not as a date**:
+the dumps grew 13.5 KB in the six days to 2026-08-31, so a calendar projection
+gives decades and means nothing — the dump tracks the number of assets (9 489
+today) and the ceiling arrives around 16 000.
+
+`/mnt/data/tmp/` has 3.6 TB free and is the convention
+`uptime-kuma-migration-failure.md` already uses. The one thing it costs you: it
+is not cleared at reboot, so remove the scratch directory when you are done.
+
 ## Prerequisites
 
 Restic needs the repo credentials and a HOME (for its cache). As root on the Pi:
@@ -30,7 +53,7 @@ restic snapshots          # list snapshots
 
 ```bash
 # Safest: restore into a scratch dir, then copy out what you need
-restic restore latest --target /tmp/restore --include /mnt/data/services/vaultwarden
+restic restore latest --target /mnt/data/tmp/restore --include /mnt/data/services/vaultwarden
 
 # Or restore in place (OVERWRITES existing files)
 restic restore latest --target / --include /mnt/data/media/photos/2019
@@ -80,7 +103,7 @@ and `SETGID`.
 
 `restic restore` runs as root and preserves ownership, so a normal restore is
 safe. What is not safe is recreating a datadir by hand — `mkdir`, `cp -r` out of
-`/tmp/restore`, or an `rsync` without `-a` — which leaves it owned by root.
+`/mnt/data/tmp/restore`, or an `rsync` without `-a` — which leaves it owned by root.
 Postgres then refuses to start ("data directory has wrong ownership") and
 MariaDB fails on its first write.
 
@@ -107,13 +130,13 @@ DB dumps are taken before each backup and captured in the snapshot at
 snapshot first:
 
 ```bash
-restic restore latest --target /tmp/restore --include /mnt/data/backups/dumps
+restic restore latest --target /mnt/data/tmp/restore --include /mnt/data/backups/dumps
 
 # Nextcloud (MariaDB) — put it in maintenance mode around the import
 docker exec -u www-data nextcloud php occ maintenance:mode --on
 docker exec -i nextcloud-db sh -c \
   'MYSQL_PWD=$(cat /run/secrets/nextcloud_db_password) mariadb -u"$MYSQL_USER" "$MYSQL_DATABASE"' \
-  < /tmp/restore/mnt/data/backups/dumps/nextcloud.sql
+  < /mnt/data/tmp/restore/mnt/data/backups/dumps/nextcloud.sql
 docker exec -u www-data nextcloud php occ maintenance:mode --off
 
 # Immich (PostgreSQL) — see "Restore Immich" below (special search_path handling)
@@ -129,13 +152,13 @@ that file rather than the live `db.sqlite3` from the service folder — the live
 copy can carry a torn WAL. Restore it as the new database:
 
 ```bash
-restic restore latest --target /tmp/restore --include /mnt/data/backups/dumps
+restic restore latest --target /mnt/data/tmp/restore --include /mnt/data/backups/dumps
 
 cd /opt/homelab
 docker compose down vaultwarden
 # Drop any stale WAL/SHM so SQLite reopens cleanly from the restored DB
 rm -f /mnt/data/services/vaultwarden/db.sqlite3-wal /mnt/data/services/vaultwarden/db.sqlite3-shm
-cp /tmp/restore/mnt/data/backups/dumps/vaultwarden.sqlite3 \
+cp /mnt/data/tmp/restore/mnt/data/backups/dumps/vaultwarden.sqlite3 \
    /mnt/data/services/vaultwarden/db.sqlite3
 docker compose up -d vaultwarden
 ```
@@ -158,7 +181,7 @@ extensions, and the dump must be loaded into a **freshly-initialised** database.
 
 ```bash
 # 1. Get the newest dump (from disk, or restore the folder from a snapshot first):
-restic restore latest --target /tmp/restore \
+restic restore latest --target /mnt/data/tmp/restore \
   --include /mnt/data/services/immich/upload/backups
 # `sudo sh -c`, NOT `sudo ls`: the directory is 0700 root since #272, and a glob
 # in `sudo ls /path/*.sql.gz` is expanded by YOUR shell, which cannot read it —
@@ -166,7 +189,7 @@ restic restore latest --target /tmp/restore \
 # backup directory. The restored copy under /tmp is root-owned 0700 for the same
 # reason, so it needs the same form.
 DUMP=$(sudo sh -c 'ls -t /mnt/data/services/immich/upload/backups/*.sql.gz' | head -1)
-# (or: DUMP=$(sudo sh -c 'ls -t /tmp/restore/mnt/data/services/immich/upload/backups/*.sql.gz' | head -1))
+# (or: DUMP=$(sudo sh -c 'ls -t /mnt/data/tmp/restore/mnt/data/services/immich/upload/backups/*.sql.gz' | head -1))
 
 cd /opt/homelab
 
@@ -215,7 +238,7 @@ loaded into a freshly-initialised database.
 > (`homelab-stack-heal.sh`).
 
 ```bash
-restic restore latest --target /tmp/restore --include /mnt/data/backups/dumps
+restic restore latest --target /mnt/data/tmp/restore --include /mnt/data/backups/dumps
 
 cd /opt/homelab
 
@@ -234,7 +257,7 @@ until [ "$(docker inspect -f '{{.State.Health.Status}}' miniflux-db)" = healthy 
 docker exec -i miniflux-db psql \
     --dbname=miniflux --username=miniflux \
     --single-transaction --set ON_ERROR_STOP=on \
-  < /tmp/restore/mnt/data/backups/dumps/miniflux.sql
+  < /mnt/data/tmp/restore/mnt/data/backups/dumps/miniflux.sql
 
 # 5. Start the reader again:
 docker compose up -d miniflux
@@ -257,7 +280,7 @@ restic restores directly. Restore only one and you get a forge that lists
 repositories it cannot serve, or serves repositories it does not list.
 
 ```bash
-restic restore latest --target /tmp/restore \
+restic restore latest --target /mnt/data/tmp/restore \
   --include /mnt/data/backups/dumps \
   --include /mnt/data/services/forgejo
 
@@ -265,14 +288,14 @@ cd /opt/homelab
 docker compose down forgejo
 
 # Repositories and config — skip if only the database was lost:
-rsync -a --delete /tmp/restore/mnt/data/services/forgejo/ /mnt/data/services/forgejo/
+rsync -a --delete /mnt/data/tmp/restore/mnt/data/services/forgejo/ /mnt/data/services/forgejo/
 
 # Database. The doubled data/data is the rootless layout, not a typo: the host
 # directory forgejo/data is mounted at /var/lib/gitea, and APP_DATA_PATH sits
 # one level under that. Drop any stale WAL/SHM so SQLite reopens cleanly.
 rm -f /mnt/data/services/forgejo/data/data/forgejo.db-wal \
       /mnt/data/services/forgejo/data/data/forgejo.db-shm
-cp /tmp/restore/mnt/data/backups/dumps/forgejo.sqlite3 \
+cp /mnt/data/tmp/restore/mnt/data/backups/dumps/forgejo.sqlite3 \
    /mnt/data/services/forgejo/data/data/forgejo.db
 
 chown -R 1000:1000 /mnt/data/services/forgejo   # `git` in the rootless image
@@ -293,7 +316,7 @@ itself. The database also has no second copy anywhere: Kuma v2 has no
 configuration export, and the monitors were entered by hand in the web UI.
 
 ```bash
-restic restore latest --target /tmp/restore \
+restic restore latest --target /mnt/data/tmp/restore \
   --include /mnt/data/backups/dumps \
   --include /mnt/data/services/uptime-kuma
 
@@ -303,7 +326,7 @@ docker compose down uptime-kuma
 # Drop any stale WAL/SHM so SQLite reopens cleanly against the restored file.
 rm -f /mnt/data/services/uptime-kuma/kuma.db-wal \
       /mnt/data/services/uptime-kuma/kuma.db-shm
-cp /tmp/restore/mnt/data/backups/dumps/uptime-kuma.sqlite3 \
+cp /mnt/data/tmp/restore/mnt/data/backups/dumps/uptime-kuma.sqlite3 \
    /mnt/data/services/uptime-kuma/kuma.db
 chown root:root /mnt/data/services/uptime-kuma/kuma.db   # the image runs as root
 
@@ -439,9 +462,27 @@ the one that matters when the house is gone — not from the local one.
 | DB dumps (`nextcloud.sql`, `vaultwarden.sqlite3`) | 13.3 MiB | 2 s |
 | Nextcloud datadir (`services/nextcloud/db`) | 243 MiB | 18 s |
 
-**≈ 13.5 MiB/s** through the tunnel. The whole snapshot is **343 GiB across
-116 482 files**, so a full restore at that rate is **around 7 hours** — the
-number worth knowing before deciding anything during an incident.
+**≈ 13.5 MiB/s** through the tunnel *on this sample*. The whole snapshot is
+**343 GiB across 116 482 files** — and the honest answer for a full restore is
+**between 7 and 33 hours**, not the "around 7 hours" this paragraph used to give.
+
+That figure was one number extrapolated 1 400-fold from a 243 MiB, 18-second
+sample of a single datadir. Both ends of the real range are measured:
+
+| Rate | Where it comes from | 343 GiB takes |
+|--------------|--------------------------------------------------|---------------|
+| 13.5 MiB/s | the burst above, small files already in cache | **7.4 h** |
+| 3.13 MB/s | the sustained nightly tunnel rate over 7 nights | **~33 h** |
+
+Which end you land on depends on the file-size mix and on what the link is doing
+at the time; nothing here can predict it closer. **Plan on a day and a half and
+be pleased if it is a morning** — an estimate that is wrong by 4.5x in the
+optimistic direction is worse than a wide one, because it is the number someone
+uses at 3 a.m. to decide whether to wait for the restore or rebuild from
+scratch.
+
+To narrow it on the day: restore one large directory first, time it, and
+re-extrapolate from that rather than from this table.
 
 Verified by *loading*, never by listing:
 

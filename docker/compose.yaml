@@ -588,8 +588,18 @@ services:
     # Docker tears the namespace down and builds a new one; dnsproxy stays up,
     # stays healthy, and is attached to the dead one. Pi-hole then has no
     # upstream and the whole LAN loses DNS while both containers read green.
-    # Always restart the pair, in this order (the deploy handler does):
-    #   docker restart pihole && docker restart dnsproxy
+    # Always bring the pair back together, in this order — but THE REMEDY IS NOT
+    # THE SAME FOR THE TWO TRIGGERS, and using the wrong one leaves DNS dead:
+    #   after `docker restart pihole`     -> docker restart dnsproxy
+    #   after `compose up -d pihole`, or  -> docker compose up -d --force-recreate dnsproxy
+    #   anything else that RECREATES it
+    # `HostConfig.NetworkMode` holds a container ID resolved once at creation, so
+    # a recreated pihole gets a new ID and restarting dnsproxy re-runs it against
+    # the DEAD one: it exits 1 and leaves dnsproxy stopped, which is worse than
+    # the detached state the restart was meant to repair. Only recreating
+    # re-resolves `service:pihole`. Measured on a throwaway pair; the full
+    # reasoning is in knowledge/runbooks/container-config-changes.md.
+    # The deploy handler does the restart form, which is correct for it.
     network_mode: "service:pihole"   # share Pi-hole's netns → reachable at 127.0.0.1#5053
     command:
       - "-l"
