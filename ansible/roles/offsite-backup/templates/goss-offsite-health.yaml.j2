@@ -392,6 +392,17 @@ command:
       [ -n "$ts" ] || { echo "wg-quick@wg0 has no ActiveEnterTimestamp — no floor, refusing to judge"; exit 1; }
       floor=$(date -d "$ts" +%s 2>/dev/null)
       case "$floor" in ''|*[!0-9]*) echo "unparseable tunnel timestamp: [$ts]"; exit 1 ;; esac
+      # CAP THE LOOKBACK, for the reason its homelab twin now carries at length:
+      # the derived floor is correct but unbounded — it is the tunnel's uptime,
+      # and this tunnel is meant to stay up for months. 8 days, because
+      # `offsite-health.timer` fires WEEKLY, so 8 covers the widest gap between
+      # two runs with a day of margin.
+      #
+      # `max(floor, now-8d)`, so a tunnel that came up an hour ago still wins
+      # and the check keeps refusing to judge a period in which no push to the
+      # homelab's Kuma could have landed.
+      cap=$(( $(date +%s) - 8 * 86400 ))
+      [ "$floor" -lt "$cap" ] && floor="$cap"
       # Anchored --grep, for the reason spelled out in the homelab's twin: --grep
       # tests MESSAGE alone, and the anchor rejects a line that merely mentions
       # the marker. Without it, an operator grepping for the string trips the
@@ -405,4 +416,20 @@ command:
         printf '%s\n' "$hits" | tail -5 | sed 's/^/  /'
         exit 1
       }
+    # This check declared NO timeout and therefore ran on goss's 10 s default —
+    # proven empirically on this host, `sleep 11` returns `timed out (10s)`.
+    # It passed only because the tunnel happened to be young: at 63 h of uptime
+    # the scan cost 5.88 s, and the window was the tunnel's uptime, so on a
+    # tunnel up for a month it would have failed with `not ok` and been read as
+    # a lost report.
+    #
+    # With the 8 day cap above, measured on this host on 2026-08-31: 14.5 s —
+    # which is already OVER the default it was silently running on. 60 s is ~4x
+    # that, and unlike the homelab twin this spec is 43 checks rather than 382,
+    # so it adds little self-load.
+    #
+    # As on the homelab: never filter this scan with `-p err`. Script stderr is
+    # journalled at priority 6, so the filter cannot see the marker and the
+    # check would go permanently, silently green.
+    timeout: 60000
     exit-status: 0

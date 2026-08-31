@@ -1209,6 +1209,22 @@ command:
       case "$first" in
         ''|*[!0-9]*) echo "uptime-kuma has recorded no beat since it started at $started — nothing can be judged, and that is itself wrong"; exit 1 ;;
       esac
+      # CAP THE LOOKBACK, and the reason is written one screen down under
+      # `timeout:`. The floor above is derived and correct, but it is bounded by
+      # Kuma's uptime, which is bounded by nothing — so the scan grew every day
+      # this container stayed up and crossed its own budget on the second day.
+      #
+      # 26 h, because this spec's timer fires daily and OnBootSec=30min: a
+      # 26 h window covers the widest gap between two consecutive runs with
+      # margin, so nothing can be lost BETWEEN runs, which is all this check has
+      # ever needed to see. Beyond that the window was buying history no run
+      # reads.
+      #
+      # `max(first, now-26h)` and not a bare `now-26h`: the derived floor still
+      # wins when Kuma restarted recently, so the check keeps refusing to judge
+      # a period during which no push could have landed.
+      cap=$(( $(date +%s) - 26 * 3600 ))
+      [ "$first" -lt "$cap" ] && first="$cap"
       # --grep, and ANCHORED, for two separate reasons.
       #
       # --grep applies to the MESSAGE field alone, where a pipe into grep sees
@@ -1236,17 +1252,41 @@ command:
         printf '%s\n' "$hits" | tail -5 | sed 's/^/  /'
         exit 1
       }
-    # Measured idle on 2026-08-30: 0.06 s for the inspect, 0.25 s for the
-    # sqlite3 round trip, and 3.87 s for the journal scan — 4.2 s total. The
-    # timeout is not sized against that figure but against the load THIS SPEC
-    # creates: at 20 s the check timed out on its first real run, inside a spec
-    # of 359 checks many of which shell out to docker. That is a >4.5x factor,
-    # and goss reports a timeout as `not ok`, which reads as a failed assertion
-    # when it is the instrument failing — the trap this file already paid for at
-    # `no-container-came-back-recovering`. 45 s is ~11x the idle cost.
+    # The paragraph that used to sit here sized 45 s as ~11x a 4.2 s idle cost
+    # and then said, correctly: "The scan grows with the window, which is
+    # bounded by Kuma's uptime rather than by anything here. If this ever times
+    # out again, that is the reason, and the fix is to bound the window — not to
+    # raise the number."
     #
-    # The scan grows with the window, which is bounded by Kuma's uptime rather
-    # than by anything here. If this ever times out again, that is the reason,
-    # and the fix is to bound the window — not to raise the number.
+    # It timed out the next day. Measured on 2026-08-31 at idle, one session,
+    # same query, four window lengths:
+    #
+    #     6 h -> 5.63 s    12 h -> 6.54 s    25 h -> 20.04 s    48 h -> 52.90 s
+    #
+    # and 34.5-40.6 s under the load this spec itself creates, at ONE day of
+    # Kuma uptime. The claimed 11x margin was 1.2x. So the window is now capped
+    # at 26 h above, and the number is unchanged, exactly as that paragraph
+    # instructed.
+    #
+    # What the cap buys is not speed, it is a bounded term: cost now tracks the
+    # journal's WRITE RATE (~29 MB/day, stable) instead of this container's
+    # uptime. Re-measured after capping: 22.4 s, twice, against 45 s. It also
+    # decouples this check from #290 — raising the journal cap 500M -> 1500M
+    # lengthened retention and would otherwise have tripled this scan as the
+    # journal filled.
+    #
+    # 45 s stays because the failure mode has not changed: goss reports a
+    # timeout as `not ok`, indistinguishable from a failed assertion, so an
+    # instrument that got slow would announce that reports were lost. That trap
+    # was paid at `no-container-came-back-recovering` before it was paid here.
+    #
+    # NEVER "fix" this by filtering the scan with `-p err`. It is a 13x win and
+    # it makes the check blind: the marker is written to plain stderr, these
+    # units run StandardError=inherit with SyslogLevel=6, and script stderr
+    # therefore lands at priority 6 — verified with a positive control, `curl:
+    # (28) Operation timed out ...` sits at priority 6. An empty `-p err` sweep
+    # is not evidence that nothing failed; it is evidence that the filter cannot
+    # see the marker. If a priority filter is ever wanted, the marker has to be
+    # EMITTED at that priority first, in the same change.
     timeout: 45000
     exit-status: 0
