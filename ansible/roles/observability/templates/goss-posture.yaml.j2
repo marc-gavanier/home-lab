@@ -1043,6 +1043,49 @@ command:
   # `php -i` prints `opcache.jit_buffer_size => 0 => 0` (local => master); the
   # local value is the one that decides. notify-push shares the image and is
   # deliberately absent: it runs a Rust binary and has no PHP to configure.
+  # --- The one thing the password had to change, asserted from where it was
+  # --- proven open ------------------------------------------------------------
+  # nextcloud-redis ran `nopass ~* &* +@all`, and PHP's session handler is redis:
+  # 217 of its 254 keys were live Nextcloud sessions, ~1.9 KB each. Reading one
+  # is becoming a logged-in user, with no password and no second factor.
+  #
+  # This probes from the HOST, deliberately, because the host is the path the
+  # audit proved open and the one a network change would NOT have closed — the
+  # host routes to the docker bridge, so `bash -c 'exec 3<>/dev/tcp/<ip>/6379'`
+  # answered `+PONG` from an ordinary account. The `claude` account is the
+  # concrete case: uid 1001, not in the `docker` group, so it can reach this port
+  # and cannot read the secret file.
+  #
+  # The address is DERIVED and not written down: it is assigned by Docker, and a
+  # hardcoded one silently probes nothing the day the subnet moves.
+  #
+  # Three outcomes, three verdicts, and the third is what stops a vacuous pass:
+  # NOAUTH is correct, PONG is the regression this exists to catch, and an EMPTY
+  # reply is reported as "proved nothing" rather than quietly succeeding.
+  nextcloud-redis-refuses-an-unauthenticated-caller:
+    exec: |
+      ip=$(docker inspect nextcloud-redis 2>/dev/null |
+           jq -r '.[0].NetworkSettings.Networks[].IPAddress' 2>/dev/null | head -1)
+      case "$ip" in
+        ''|*[!0-9.]*) echo "cannot read nextcloud-redis's address — nothing was tested"; exit 1 ;;
+      esac
+      reply=$(timeout 5 bash -c "exec 3<>/dev/tcp/$ip/6379 && printf 'PING\r\nQUIT\r\n' >&3 && cat <&3" 2>/dev/null)
+      case "$reply" in
+        *NOAUTH*)
+          exit 0 ;;
+        *PONG*)
+          echo "$ip:6379 answered PONG to an unauthenticated ping from the host — requirepass is NOT in force, and every live Nextcloud session is readable by any local account"
+          exit 1 ;;
+        '')
+          echo "no reply at all from $ip:6379 — the probe proved nothing, which is not the same as a refusal"
+          exit 1 ;;
+        *)
+          echo "unexpected reply from $ip:6379: $reply"
+          exit 1 ;;
+      esac
+    timeout: 30000
+    exit-status: 0
+
   nextcloud-php-jit-is-disabled:
     exec: |
       for c in nextcloud nextcloud-cron; do

@@ -49,6 +49,12 @@ homelab_wg_conf: |
 # account is created once through the web installer (see ADR-016).
 nextcloud_db_password: ""
 nextcloud_db_root_password: ""
+# Redis is where PHP keeps the SESSIONS, not just a cache — 217 live ones when
+# this was added — so an empty value here leaves anything that can reach the
+# port able to lift a logged-in session. Generate with `openssl rand -base64 36`.
+# Rotating it is a normal deploy: the value reaches Redis and both its readers
+# from the same variable, and everyone is logged out once when Redis restarts.
+nextcloud_redis_password: ""
 
 # --- LibreSign (PDF signing, ADR-022) ---
 # Identity of the root certificate every signature is issued from. Not secret —
