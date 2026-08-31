@@ -1794,3 +1794,81 @@ running hosts rather than on the play recap.
    Paid three times in one session: it made the new capability sweep report 29
    of 29 NOT INSPECTED, and it twice made a push-site count come back short. The
    fix is `sudo test`, and the tell is a sweep that finds nothing at all.
+
+## The run of 2026-08-31 — the key was `scale`, and the gate written the night before was already over budget
+
+### State, in one line
+
+Nine OPEN classes (not eight — the header omitted C03 while its own prose kept
+it open), five closed by enumeration, seven minted after arbitrating eleven
+proposals, five OPEN at the end. Counts live in `classes.md` and **only** there.
+
+### Three decisions, so nothing reopens them
+
+- **`-p err` must never be added to a `kuma-push-failed:` scan as a speedup.**
+  It is a 22x win and it makes the check blind: the marker is written to plain
+  stderr, the units run `StandardError=inherit` with `SyslogLevel=6`, and script
+  stderr therefore lands at priority 6. Proven with a positive control — `curl:
+  (28) Operation timed out after 10001 milliseconds`, unmistakably stderr, sits
+  at priority 6. **The remedy for that check is to bound the window**, which its
+  own comment already says. If a priority filter is ever wanted, the marker must
+  be EMITTED at that priority in the same change, never before.
+- **C05's cardinal is 104, not 53**, under a stated criterion: one proposition
+  per verifiable predicate, not one per bullet. Three of the seven false
+  statements hide inside bullets whose other clauses are true, which is why the
+  per-bullet count could not see them. Do not restore the 53.
+- **The `scale` key is spent, and it was the last one this project had named.**
+  `time` paid 5, `order` 11, `identity` 12, `scale` 7. The rate is decaying,
+  which is the good news; the bad news is that the next key has to be invented
+  rather than taken off a list, and until one is, no run can honestly claim the
+  second half of the termination criterion.
+
+### Measured and rejected — added 2026-08-31
+
+Five leads closed with numbers and needing no action. Recorded so no future run
+re-derives them:
+
+- `/mnt/data` grows **+0.913 GiB/day** -> 85 % in ~8.8 years. Offsite
+  **+0.524 GiB/day** -> 85 % in ~6.3 years with 525 days of lead. Level
+  thresholds are sufficient; **a trend watcher was considered and is not needed.**
+- SD card: **1.97 GB/day = 11.5 card-writes per year.** Decades of endurance.
+- The data volume's forced fsck falls due ~2026-09-25 and costs **3 min 27 s** —
+  dominated by a fixed 152.6 M-inode table, so it does **not** grow with the data.
+- Swap is a ceiling, not a ramp: 35.3 % at 25 h after a reboot, post-08-18 peak
+  45.0 % against an 85 % gate.
+- netdata's 2.2 GB/day of JSON through the socket proxy costs the proxy
+  **0.70 % of one core**. Not worth touching.
+- fail2ban cannot grow: 0 bans, 1-day purge; no log rotates within 1000x of its
+  `findtime`; no auth store exceeds four digits.
+
+### New instrument traps — four, and two were the main session's
+
+1. **`journalctl --since` cost is superlinear in the window and swamped by
+   ambient load.** The same query measured 5.63 s at 6 h, 20.04 s at 25 h and
+   52.90 s at 48 h at idle, and 59.6 s at 25 h while eight agents were on the
+   Pi. **Never quote one reading**: sweep three window lengths in one session,
+   and say whether the machine was loaded.
+2. **A `-p err` sweep returning nothing is not evidence of no events.** It is
+   evidence about priorities, and script stderr is priority 6 by default. The
+   control is to find a line you KNOW came from stderr and read its PRIORITY
+   field. Ours, and it nearly shipped as a remedy.
+3. **A correlation between two logs one second apart is not attribution.**
+   Kuma probes 34 monitors on ~60 s cycles, so a one-second coincidence between
+   a probe and a real request is the expected case, not evidence. Any such claim
+   needs a base-rate control. An agent's, and it was asking to overturn a
+   settled entry on that basis.
+4. **`free` is not the constraint on a tmpfs write; the tmpfs `size=` is.**
+   Reading `free -m`'s *free* column (260 MB) instead of *available* (4038 MB)
+   turned a cap question into a false RAM-pressure question. Ours to catch, an
+   agent's to make.
+
+### One reasoning trap, and it is subtler than the instrument ones
+
+**A negative result on one axis does not clear a claim tested on another.** Two
+agents examined the same "around 7 hours" restore estimate. One asked whether it
+had drifted with data growth — it had not, +2.6 % — and reported the lead as not
+surviving. The other asked whether it had ever been derived correctly — it had
+not, being extrapolated from a 243 MiB / 18 s sample against a true range of
+7.4-33 h. **Both were right, and reporting only the first would have been a
+false all-clear.** When an agent reports a lead as dissolved, check which
+question it actually answered.

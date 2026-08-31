@@ -114,9 +114,10 @@ keys that have paid were dimensions the register had no vocabulary for.
 **The evening run of 2026-08-30 used `order` and minted eleven** — more than
 `time` did — which confirms the mechanism rather than the pessimism: eleven
 classes existed all along and nothing had a word for them. The clock on the
-termination criterion therefore resets, and the two dimensions named and still
-unused are **scale** (what breaks at ten times the data) and **identity** (who
-exactly is acting, as opposed to what is running).
+termination criterion therefore resets. **Both dimensions this sentence once
+named as unused — `identity` and `scale` — have since been spent, on 2026-08-30
+and 2026-08-31. There is no named unused dimension left; the next key must be
+invented.**
 
 One caution for whoever writes the `scale` key. `order` and `time` both had a
 property this file should not take for granted: every instance was observable
@@ -130,56 +131,201 @@ parts that need a thought experiment.
 
 # The register
 
-Runs of 2026-08-15 through 2026-08-30 (night).
-**66 classes: 8 OPEN, 13 GATED, 43 ENUMERATED, 2 closed by decision, plus the
-DECLINED list.** (OPEN = C05, C46, C56-C58, C60, C62, C66;
-GATED = C02, C07, C10-C12, C14-C17, C19-C21 and C41;
-closed by decision = C04, C08; everything else ENUMERATED.)
+Runs of 2026-08-15 through 2026-08-31.
+**73 classes: 5 OPEN, 13 GATED, 53 ENUMERATED, 2 closed by decision, plus the
+DECLINED list.** (OPEN = C03, C46, C57, C66, C73; GATED = C02, C07, C10-C12,
+C14-C17, C19-C21 and C41; closed by decision = C04, C08; everything else
+ENUMERATED.)
 
-**The counter moved the wrong way, and that is the honest headline.** Six OPEN
-became two — C50, C51, C52 and C54 all closed by enumeration — and then the
-`identity` key minted twelve, six of them OPEN. A run that closes four classes
-and opens six has not gone backwards; it has bought vocabulary. But it means
-the termination clock resets for the third consecutive run, and the one
-dimension still named and unused is now **scale** alone.
+**The counter moved the right way for the first time in four runs: 9 OPEN to 5.**
+It started at 9, not the 8 the previous header claimed — see the C03 correction
+below. Five closed by enumeration (C05, C56, C58, C60, C62), seven minted after
+arbitration, six of which arrived already ENUMERATED because the agent that
+minted them also swept them.
 
-## What the run of 2026-08-30 (evening) cost and paid
+**But the termination clock does not merely reset — it has run out of road.**
+`scale` was the last dimension this file had named and never applied. It minted
+seven, against five for `time`, eleven for `order` and twelve for `identity`.
+The mint rate is decaying, which is the encouraging half. The discouraging half
+is that **there is no named unused dimension left**, so the next run's key has to
+be invented rather than taken off this list. Until one is, a run cannot honestly
+claim the second half of the termination criterion.
 
-Its key was **order** — what depends on what, and what breaks when the order
-inverts. It closed three of the four OPEN classes and **minted eleven**, which
-is the second confirmation of the pattern the `time` key established the night
-before: a register of 43 classes all asking whether something was *configured*
-correctly had no vocabulary for *sequence*, so a single new dimension paid
-eleven times.
+## What the run of 2026-08-31 cost and paid
 
-The honest reading is not that the system rotted overnight. It is that the mint
-rate tracks the number of dimensions never yet applied, and two remain named and
-unused: **scale** (what breaks at ten times the data) and **identity** (who
-exactly is acting, as opposed to what is running). Expect the next key to pay
-similarly, and expect the one after that to pay less.
+Its key was **scale** — what breaks at ten times the data. The register warned
+that this key would be harder than its predecessors because `time`, `order` and
+`identity` were all observable on the machine that night and most of scale is
+not. The warning was right and the mitigation worked: agents were confined to
+the forms of scale that already leave a trace, and the result is that **most of
+what came back is a closed question with a number on it** rather than a lead.
+`/mnt/data` reaches 85 % in 8.8 years; the offsite in 6.3 with 525 days of
+warning; SD wear is 11.5 card-writes a year; the forced fsck costs 3 min 27 s
+and does not grow with the data because a fixed inode table dominates it. None
+of those needed action, and saying so with numbers is the point.
 
-**The run's own headline was a class it did not mint.** C45 — a reporting path
-that cannot report its own failure — is the defect that created this skill on
-2026-08-15. It was found then on ONE script, fixed there, and the fix never
-reached the nine siblings. Ten push sites, swept: two both detected a failed
-push and said so, seven detected it and threw the verdict away with
-`2>&1 || true`, one had no `--fail` at all. Measured live, not inferred: after
-the 17:29 reboot three runs of `homelab-health` finished green having done their
-work, and none reached the dashboard. **A fixed instance is not a closed class,
-and this file existed for fifteen days before that sentence had a number.**
+**The run's headline is that the gate written the previous night to close C45 —
+the founding defect of this skill — is already failing, and its own comment
+predicted it in writing.** Three agents and the main session converged on it from
+four directions.
 
-## OPEN — 8
+## OPEN — 5
 
 | ID | Property | Space, and its cardinal | Why it is still open |
 |-----|--------------------------------------------|--------------------------------------------|----------------------------------------|
-| C05 | Something a reader would reasonably assume the posture check asserts, and which it does not | **Bounded at last: the 53 machine-checkable statements of `docs/03-security/README.md`** | Was recorded "not exhaustible by sweeping" because *what a reader would assume* has no cardinal. That framing was the obstacle, not the property: the document itself is the reader's expectation, written down. **12 of 53 instructed, 12/12 true on both hosts, 4 unasserted** — SSH key-only (non-negotiable rule 1, the only access path, no assertion on either host), unattended-upgrades, AppArmor asserted for 1 of 29, and "no secret in `Env`" (29/29 compliant, unasserted). The load-bearing one is "80/443 not forwarded", which has no continuous assertion and **was proven measurable from the offsite uplink with two positive controls**, so the assertion is buildable there. 41 statements unswept |
-| C46 | A supervisor's log that declares an act it did not perform | **Bounded at last: 99 host actors (journald index, both hosts) + 29 in-container supervisors = 128**; 34 retained as genuine supervisors | 14 of 34 swept with a control, **1 confirmed** (the arbitrated `dockerd` instance), 1 suspected. The space was the blocker on the previous run and it no longer is; what remains is 20 unswept supervisors |
-| C56 | An authorization or an attribution decided after the caller's identity has already been lost | Unbounded as stated; 3 surfaces swept | **The best catch of the `identity` key, and it arrived three times from three agents who did not coordinate.** Pi-hole attributes 48.3 % of its queries to a bridge gateway, so its only per-client rule is indexed on an identity the transport erased; the socket proxy holds ONE grant set (`CONTAINERS=1 INFO=1 IMAGES=1 EVENTS=1 PING=1`, all writes 0) shared by every client, with no caller identity in the decision. **The third instance was rejected** — see the verification note below. Open because nothing enumerates the points at which an authorization is taken |
-| C57 | An authentication failure recorded without an identity | Unbounded as stated; 1 instance | 5 Vaultwarden 2FA failures carrying neither a source address nor an account. Small, but it is the exact shape that makes a real attempt indistinguishable from a fat finger |
-| C58 | A control all of whose assertions test the direction that permits | Unbounded as stated; 3 assertions swept | The three `traefik-allowlist-*` assertions fail when a legitimate client is refused, and none fires when an illegitimate one is admitted. Worse, the refusing direction was measured **unobservable from any address on this machine**. A control that can only fail in the safe direction is a control that cannot report the failure it exists for |
-| C60 | A copy whose scope is a list of fields facing a third party's schema | Unbounded as stated; 1 instance | `ops/kuma-dump.sh` exports 22 columns of 118 and omits the only two non-default identity values. A restore from it would hand back a "Pi-hole DNS" monitor silently querying 1.1.1.1 — green, and measuring the wrong resolver |
-| C62 | An announced exclusion that the mechanism does not enforce | Unbounded as stated; 1 SUSPECTED | `homelab-fsck` writes "nothing can mount /mnt/data while this runs"; the guard it sets is read only by `homelab-unlock` and by itself. Correction is one sentence — but the property is worth a sweep |
-| C66 | A correction applied to the instance that revealed it, whose siblings were never enumerated | **Enumerable: the fixes of the last N days, each confronted with an enumeration of its own property** | **This is the register's own thesis — "corrected is not gated" — turned into a sweepable class instead of a repeated warning.** Three instances are already on file from tonight alone: C45's fix reached one script of ten on 2026-08-15 and the other nine waited fifteen days; the LUKS header procedure was deliberately moved off tmpfs on 2026-08-30 while the seven `--target /tmp/restore` steps of `restore-from-backup.md` did not move; C53's `meta: flush_handlers` landed on one instance and its sibling is untouched. Minted by the main session, not by an agent |
+| C03 | A validation whose instrument answers a different question from the one its comment claims | **104: 20 shell artefacts + 84 template `exec:` blocks**, both re-measured on 2026-08-31 | **The previous header counted 8 OPEN and omitted this row; the prose was right and the table was wrong.** The gate is designed, derived and measured — and it exists on paper only: **0 hits across the 249 deployed goss `exec:` blocks on both hosts, 0 in pre-commit, 0 in CI**. A class that has reopened four times and still has no deployed assertion. A fifth instance was found tonight: `uptime-kuma-migration-failure.md:37` reads the database with `?immutable=1`, which ignores the WAL — proven with a control, 45 099 rows against 45 040 and a 5.3 MB WAL — in the step that decides whether to restore |
+| C46 | A supervisor's log that declares an act it did not perform | 34 genuine supervisors of 128 candidates; **34/34 examined** | **The blocker is now instrumentation, not coverage, and that is progress.** 28 swept with a working control, 0 new confirmed. The remaining 6 emit nothing durable — `journalctl -t homelab-unlock` over 45 days returns `-- No entries --` — so their silence is not evidence of anything. **Four `logger -t` lines make this closable next run**, and would give C62's instance a durable trace at the same time |
+| C57 | An authentication failure recorded without an identity | **Bounded for the first time: N=24 with a stated criterion**; 17/24 decided | Instances went 1 → 4. Pi-hole logs no web-auth failure at all; the offsite `rest-server` runs with no `--log`, so a rejected request against the backup of last resort leaves **zero trace**; and the kill-switch topic received 35 non-keyword messages on 2026-08-27 that nothing can attribute — operator test or someone else holding the topic, indistinguishable. The 7 undecided have never recorded a failure and their format cannot be read from the artefact; closing them needs a deliberate-failure drill, which is a change and not an audit act |
+| C66 | A correction applied to the instance that revealed it, whose siblings were never enumerated | **Both halves swept: 128/128 correction commits (technical) and 188/188 correction hunks over 54 files and 60 commits (documentary)** | **Open for a reason the sweep itself established, which is the honest outcome.** A `git log` sweep cannot bound hand-fixes that were never committed. Four instances confirmed live across the two halves, and a fifth arrived from `security` without being recognised as one — `killswitch.service` is in no spec, exactly as `ssh.service` was until 2026-08-29, whose entry in `health_watched_units` states the identical argument two lines away. **Three agents produced C66 instances independently tonight**, which is the convergence the method treats as signal |
+| C73 | A documented duration extrapolated from an unrepresentative sample | Unbounded as stated; 1 instance | `restore-from-backup.md:442` sells "around 7 hours" derived from a 243 MiB / 18 s sample. The true range is **7.4-33 h**. Distinct from C01, which asks whether a claim has drifted: this asks whether it was ever derived. Both were asked tonight and only this one found anything — see the two-agent disagreement recorded below |
+
+## Closed by the run of 2026-08-31 — 5
+
+| ID | Property | Outcome |
+|-----|----------------------------------------------|--------------------------------------------|
+| C05 | Something a reader would reasonably assume the posture check asserts, and which it does not | **ENUMERATED, and the cardinal was wrong: N=104, not 53.** Swept 104/104 on both hosts under a stated criterion — one proposition per verifiable predicate rather than one per bullet, so the disagreement with the previous count is explicit rather than silent. **7 FALSE, and of the 97 true, 37 asserted / 60 unasserted.** Six of the seven false are drifted counts and **in three the deployed posture is STRONGER than the prose** — 16 zero-capability containers where the document claims 15, and so on. No exposure among them. The load-bearing unasserted statements are unchanged in nature: SSH key-only (the only access path, ~6 lines per host against `sudo sshd -T`) and 80/443 not forwarded (~12 lines, endpoint derived from the offsite's own `wg0.conf`, both positive controls inside the assertion). **Correction to this file: `unattended-upgrades` IS asserted on both hosts**, at the outcome level — both health scripts alarm if security updates stay pending past 48 h |
+| C56 | An authorization or an attribution decided after the caller's identity has already been lost | **CLOSED on both halves, and both cardinals are derived from the running machine rather than from compose.** Network half **19/19, 6 instances** (4 UFW source rules, 1 scoped DNAT, 2 deciding middlewares, 0 of 21 routers with their own auth, 2 attribution fields, 1 Pi-hole client rule, 2 shared-secret logins, 4 WG peers, 3 jails). Container half **32/32, 5 instances** — the space being every non-loopback listening socket another container can reach, enumerated with `ss` inside each network namespace. 4 endpoints authorize with no caller identity at all; 1 shares a principal across three callers. The socket proxy's grant set was measured rather than argued: **103 069 requests over 22 h**, netdata 92.9 %, dozzle 3.9 %, traefik 0.6 %, and no caller uses more than 3 of the 5 grants |
+| C58 | A control all of whose assertions test the direction that permits | **CLOSED 14/14, and it closed by REFUTING its own blocking premise**, which is worth more than the count. 3 permitting-only (the three already on file — there is no fourth), 5 refusing-only, 5 bidirectional, 1 presence-only. The register recorded the refusing direction as "unobservable from any address on this machine". **It is observable**: `curl --interface 172.20.0.1 --resolve ...` returns **403** against a **200** positive control, reproduced on three routers. Every other host address fails as a control because POSTROUTING launders 172.17/172.19 into the allowlisted 172.18.0.1, and `homelab_socketproxy` escapes only because it is `internal: true` — so an assertion must pin `%{local_ip}` and treat 000 as control failure rather than as a pass |
+| C60 | A copy whose scope is a list of fields facing a third party's schema | **ENUMERATED 12/12, 1 instance, and the register's own numbers were wrong.** Live: **21 of 114 columns**, not 22 of 118. `dns_resolve_server` on the Pi-hole DNS monitor and the Transmission basic-auth triple are the omissions that carry intent. **The register also overstated the impact and that is corrected**: nothing restores from the JSON — the documented path is the whole-file `.sqlite3` — so the cost is not a silently wrong restore but **review blindness in the very instrument used to review monitoring**, which is live today |
+| C62 | An announced exclusion that the mechanism does not enforce | **CLOSED 21/21** (25 candidates, 4 rejected as capability statements rather than exclusions), **2 instances, the same sentence at two sites**. **The register's description of the mechanism was wrong**: the guard is NOT read only by `homelab-unlock` and itself — `AssertPathExists=!/run/homelab/unlock-fsck-in-progress` is deployed on `mnt-data.mount`, so every systemd path is blocked. The real gap is `mount(8)`, which nothing consults. The worse of the two sites prints "nothing else can mount it either" immediately after `e2fsck` has declined to repair a damaged filesystem. **The fix on file — "one sentence" — was wrong twice over**: it is a reworded sentence *or* a real interlock, and the choice is the operator's |
+
+## Minted by the run of 2026-08-31 — 7, after arbitration of 11 proposals
+
+**Four agents proposed a class numbered C67 and they were not the same class;
+three of those four were.** The arbitration below is part of the run's output,
+because an unmerged mint list inflates the counter and hides the convergence.
+
+| ID | Property | Space swept | State |
+|-----|--------------------------------------------------|-----------------|------------|
+| C67 | A verification whose deadline was sized against an input that was empty or small when it was measured, and which grows without bound | 13 constructs across both hosts' verification layer, 13/13 | ENUMERATED, **not gated** |
+| C68 | A store whose declared retention is overridden by a limit that is not the one written down | 7 stores + 31 container log rings | ENUMERATED |
+| C69 | A periodic control whose own runtime is a fraction of its period that nothing measures | 16 periodic controls, 16/16 | ENUMERATED |
+| C70 | A rule that is inert today and would be a fault if it were enforced | 19 UFW rules, 19/19 | ENUMERATED |
+| C71 | A recurring cost driven by rewrite rate rather than by information carried | 22 backup subtrees, 22/22 | ENUMERATED |
+| C72 | A remedy that enlarges a window, and therefore takes effect only after a delay equal to the enlargement | 2 windows enlarged since 08-29 | ENUMERATED |
+| C73 | A documented duration extrapolated from an unrepresentative sample | 1 instance, space unbounded | **OPEN** |
+
+**C67 absorbed three independent proposals** — `ansible-deploy`'s "cost grows
+against a fixed budget", `observability`'s "timeout sized while its store was
+near-empty" and `backup`'s "deadline sized against an input that had just been
+emptied". Three agents, three routes, one class. **C69 was kept separate on
+purpose**: it is not about a deadline being crossed but about a runtime nothing
+measures at all, and its instance (`homelab-health` going 6 s to 24 s at the
+08-30 reboot and holding, load controlled for) would be invisible to C67.
+
+**C68 absorbed two** — `services`' "two limits where the binding one is not the
+one written down" and `observability`'s "declared retention silently overridden
+by a size cap" — and `system`'s "retention window whose binding limit is an
+unrelated routine event" is its third face: no container on the host is older
+than 4.96 days, so **29 of 29 log rings have never reached their configured
+size**, including the 200 MB ring sized at ~32 days five days earlier whose log
+is 19 hours old.
+
+### C67's instance is the run's headline, and the gate predicted its own failure
+
+`no-kuma-report-was-lost-in-silence` — written on 2026-08-30 to close C45, the
+defect that created this skill — scans the journal from Kuma's start, and Kuma's
+uptime is what bounds the window. Measured by the main session at idle:
+
+    6 h  -> 5.63 s      12 h -> 6.54 s
+    25 h -> 20.04 s     48 h -> 52.90 s      against a 45 s budget
+
+`backup` measured it under the load the spec itself creates: **34.5 / 35.9 /
+40.6 s of 45 s at one day of Kuma uptime.** The spec's comment claims an 11x
+margin; **it is 1.2x**. Its twin `offsite-no-report-was-lost-in-silence`
+declares no `timeout:` at all and runs against goss's 10 s default, proven
+empirically (`sleep 11` -> `timed out (10s)`).
+
+**The comment on the assertion states the failure and the remedy in advance:**
+*"The scan grows with the window, which is bounded by Kuma's uptime rather than
+by anything here. If this ever times out again, that is the reason, and the fix
+is to bound the window — not to raise the number."* Written 2026-08-30, true
+2026-08-31.
+
+When it trips, goss reports a timeout as `not ok`, indistinguishable from a
+failed assertion — so **the gate built to catch "a report was lost" will
+announce that reports were lost, for having got slow.** `backup` left two dated,
+falsifiable predictions: the posture run of 2026-09-01 11:09 and the offsite run
+of 2026-09-06 08:00.
+
+**A compounding term nobody had connected, found in halves by two agents.**
+C39's remedy raised the journal cap 500M -> 1500M on 2026-08-30 to lengthen
+RETENTION. This gate's cost is linear in journal bytes scanned. The fix for one
+class is the load term of another. That interaction is C72.
+
+### The `-p err` remedy was REJECTED by the main session, and the rejection matters more than the finding
+
+`backup` offered a 22x speedup: the same query with `-p err` falls from 34.5 s
+to 1.56 s, reproduced by the main session at 20.59 s -> 1.57 s.
+
+**It would make the gate blind.** The marker is emitted as `echo
+"kuma-push-failed: ..." >&2` at 10 of its 11 sites; the units run
+`StandardError=inherit` with `SyslogLevel=6`; and the positive control is
+decisive — a line that is unmistakably script stderr, `curl: (28) Operation
+timed out after 10001 milliseconds`, sits in the journal at **priority 6**. So
+an empty `-p err` sweep over 45 days is not evidence that no push has failed; it
+is evidence that the filter cannot see the marker.
+
+Applying it would have made the assertion 22x faster and **permanently,
+silently green** — a C03 instance installed inside the gate for the class that
+created this skill, and one that would pass review because the check keeps
+saying `ok`. **If a priority filter is ever wanted, the marker must be EMITTED
+at that priority first, in the same change.**
+
+### Two agents disagreed, and the disagreement was the finding
+
+- `project-manager`: the restore-time claim is fine — the repository is 352 GiB
+  against 343 documented, +2.6 %, so "around 7 hours" still holds.
+- `backup`: "around 7 hours" was extrapolated from a 243 MiB / 18 s sample; the
+  true range is 7.4-33 h.
+
+Not a contradiction. They tested different axes: one asked whether the number had
+DRIFTED, the other whether it had ever been DERIVED. The second is the deeper
+question and its answer stands as C73. **The first is correct on the question it
+asked and must not be reported as clearing the claim** — which is precisely how
+a negative result becomes a false all-clear.
+
+### Rejected by the main session — one agent claim, re-measured
+
+`network` asked to overturn `settled.md`'s retraction *"VPN clients appear in the
+clear as 10.8.0.x"*, concluding that fail2ban's jails cannot ban a VPN client.
+Its evidence was a correlation: one device seen as `10.8.0.2` to Pi-hole and
+`172.18.0.1` to Navidrome one second apart.
+
+Measured directly on the live access log instead: the 22 993 laundered requests
+are **Uptime Kuma's own probes** — `/healthcheck`, `/ping`, `/alive`,
+`/healthz`, `/status.php` — exactly as `settled.md` recorded, and **14 requests
+arrive with `10.8.0.x` preserved**, an address in no ignored range. The
+correlation had no base-rate control: Kuma probes 34 monitors on ~60 s cycles,
+so a one-second coincidence is the expected case. **Rejected.** What survives is
+narrower: both paths exist and nothing establishes which one a given request
+takes.
+
+## Reopened and broken gates found on 2026-08-31 — red tests, not audit results
+
+- **C38** (a container log growing without rotation). **REOPENED, and it is the
+  most immediately actionable thing the run found.**
+  `/opt/homelab/configs/pihole/logrotate` is owned `marc-gavanier:docker`, so
+  logrotate refuses the entire file — *"file owner is wrong"*, nightly. The
+  `copytruncate` fix of 2026-08-25 has therefore **never been in effect**, and it
+  silently killed the two rules in that file that WERE working. `pihole.log` is
+  23.8 MiB with no rotated copy, growing **14.4 MB/day**. One word — `owner: root`
+  on a single Ansible task. This is also a C49 instance: a hardening applied to
+  an artefact whose producer regenerates it.
+- **C63** (a recovery destination that cannot hold what it restores). Two live
+  instances, and they are the same shape found independently by two agents.
+  `restore-from-backup.md` restores Immich's dump directory — **595 MiB
+  measured, 7 files of 89 MiB** — into `/tmp`, which is `tmpfs size=1048576k`.
+  It fits today with 429 MiB of headroom and fails at roughly 16 000 assets
+  against today's 9 489. **State that horizon in assets, never in dates**: the
+  dumps grew 13.5 KB in six days, so a calendar projection gives decades and is
+  meaningless. Separately, `offsite-backup.md:189` restores ~343 GiB into the
+  offsite root's 221 GiB free, on the path taken when the homelab is lost.
+- **C06** (`start_period` never measured) and **C29** (a construct that disables
+  a feature silently) were not re-swept tonight. C29's calibration was corrected
+  in `settled.md` on 2026-08-31: the redactor's PID 1 is `sh`, not the pipeline,
+  so if `tail` dies the container stays `Up` with a vacuous `pgrep` healthcheck.
+  It is an exposure, not a tidy-up.
 
 ## The run of 2026-08-30 (night) — the key was `identity`
 
@@ -510,6 +656,12 @@ them; do not re-derive without a new symptom.
 | C48 | A real dependency that nothing declares | 29 services + 18 configs, 1 instance | 08-30 |
 | C49 | A hardening applied to an artefact its producer regenerates | 28/28, 1 new instance | 08-30 |
 | C53 | A handler whose effect is expected earlier in the play than it occurs | 34 handlers, 1 flush point, 2 instances, 1 fixed | 08-30 |
+| C67 | A verification whose deadline was sized against an input that has since grown | 13/13 both hosts, 2-4 instances | 08-31 |
+| C68 | A store whose declared retention is overridden by a limit that is not the one written down | 7 stores + 31 log rings | 08-31 |
+| C69 | A periodic control whose own runtime nothing measures | 16/16, 1 material instance | 08-31 |
+| C70 | A rule inert today that would be a fault if enforced | 19/19 UFW rules, 2 instances | 08-31 |
+| C71 | A recurring cost driven by rewrite rate rather than information carried | 22/22 backup subtrees, 6 instances | 08-31 |
+| C72 | A remedy that enlarges a window, effective only after a delay equal to the enlargement | 2 windows | 08-31 |
 
 ## DECLINED
 
