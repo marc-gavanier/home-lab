@@ -15,29 +15,36 @@ earlier — which would have sent eight agents to re-derive settled work. Rebuil
 it from `classes.md`'s OPEN table at the start of every run; if the two
 disagree, `classes.md` wins.
 
-As of the run of 2026-08-30 (night). **Rebuilt from `classes.md`'s OPEN table —
-do not trust this copy if the two disagree.**
+As of the run of 2026-08-31. **Rebuilt from `classes.md`'s OPEN table — do not
+trust this copy if the two disagree.**
 
-| Domain          | OPEN classes it owns                                                                                  |
-|-----------------|-------------------------------------------------------------------------------------------------------|
-| system          | C46 (a supervisor log declaring an act it did not perform), C62 (an announced exclusion not enforced)  |
-| security        | C05 (posture-check gaps — **now bounded at 53 statements**, 12 swept), C57 (a failure with no identity) |
-| network         | C56 (authorization after the identity is lost), C58 (a control testing only the permitting direction)  |
-| services        | C56 — shares with network (the socket proxy's single grant set)                                        |
-| backup          | —                                                                                                      |
-| observability   | C03 (gate designed, not deployed), C60 (a copy scoped as a field list)                                 |
-| ansible-deploy  | C66 (a correction whose siblings were never enumerated) — it owns the fix history                      |
-| project-manager | C66 — shares with ansible-deploy (it owns the documentary half)                                        |
+| Domain          | OPEN classes it owns                                                                                   |
+|-----------------|--------------------------------------------------------------------------------------------------------|
+| system          | C46 (a supervisor log declaring an act it did not perform) — **4 `logger -t` lines from closable**       |
+| security        | C57 (an authentication failure with no identity) — bounded at 24, 17 decided, 7 need a failure drill     |
+| network         | —                                                                                                        |
+| services        | —                                                                                                        |
+| backup          | C73 (a documented duration extrapolated from an unrepresentative sample)                                 |
+| observability   | C03 (the gate is designed and derived; 0 of 249 deployed `exec:` blocks carry it)                        |
+| ansible-deploy  | C66 (a correction whose siblings were never enumerated) — it owns the fix history                        |
+| project-manager | C66 — shares with ansible-deploy (it owns the documentary half)                                          |
 
-A class with two owners is deliberate: C50's two instances sit on the resolver's
-back half, and the 2026-08-30 run showed that neither the probe side nor the
-service side is visible alone.
+**Both halves of C66 were swept to completion on 2026-08-31** — 128/128
+correction commits and 188/188 correction hunks — and the class is still OPEN
+for a reason the sweep established rather than assumed: a `git log` sweep cannot
+bound hand-fixes that were never committed. That is a better kind of open than
+the one it replaced.
 
-**A domain with no OPEN class is not idle.** Its job is to re-read the GATED
-assertions in its area and ask whether each is DERIVED from the thing it guards
-or merely a list of the instances once found. That question has now demoted C02,
-C13 and C26 — the last of which was recorded GATED while covering one of its
-four axes.
+**Three domains own no OPEN class and are not idle.** Their job is the one that
+demoted C02, C13 and C26: re-read the GATED assertions in their area and ask
+whether each is DERIVED from the thing it guards or merely a list of the
+instances once found. `backup` did exactly that on 2026-08-31 and found C10 to
+be *stronger* than recorded, C21's description stale, and C18's list underived.
+
+A class with two owners is deliberate: C66's two halves are code and prose, and
+the 2026-08-31 run showed that neither is visible from the other — the technical
+sweep found a handler ordering its own half could not see, and the documentary
+sweep found a runbook the code sweep had no reason to open.
 
 The angles below share one idea: **Uptime Kuma already covers whether a service
 answers.** Sending an agent to confirm that wastes it. Send it after what no
