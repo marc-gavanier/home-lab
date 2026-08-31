@@ -995,6 +995,32 @@ command:
           *)  echo "$c: JIT buffer is $v — the tracing JIT is back, PHP will segfault"; exit 1 ;;
         esac
       done
+    # It timed out for real on 2026-08-31 at 20:19, during the deploy that
+    # shipped this file's sibling changes, and took the whole `Pi security
+    # posture` monitor DOWN with a message that reads like a JIT regression:
+    #
+    #     Command: nextcloud-php-jit-is-disabled: exit-status:
+    #     Error Command execution timed out (10...
+    #
+    # It declared no `timeout:`, so it was running on goss's 10 s default. The
+    # check itself is cheap — measured three times on an idle host at 1.53,
+    # 1.27 and 1.30 s — and what it cannot survive is the load of a DEPLOY,
+    # because two `docker exec ... php -i` calls queue behind a daemon that is
+    # restarting containers. The posture re-assertion runs at the END of the
+    # deploy by design (#307), so this check meets that load every time.
+    #
+    # 60 s, matching `netdata-health-engine-has-verdicts` above — the closest
+    # analogue in this file, being the other assertion that shells into a
+    # container while the machine is busy. Stated honestly: the true requirement
+    # is NOT measured. All that is known is that it exceeded 10 s once under a
+    # deploy; 60 s is ~46x the idle cost, chosen for the analogue rather than
+    # from a measurement of the loaded case.
+    #
+    # The general problem is larger than this line and is not fixed here: of the
+    # 193 assertions in the deployed spec, 9 declare a timeout. The other 184
+    # run on the 10 s default and can each report `not ok` for having been slow,
+    # which goss cannot distinguish from a real failure.
+    timeout: 60000
     exit-status: 0
 
   # --- The perimeter is the peer set, and nothing said so until 2026-08-29 ----
