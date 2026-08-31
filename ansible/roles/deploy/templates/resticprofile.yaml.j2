@@ -171,8 +171,74 @@ homelab:
       - /mnt/data/backups/dumps
       - /mnt/data/secrets
       - /opt/homelab
+    # Everything below the libresign line was added on 2026-08-31, and the
+    # measurement is the argument. Seven consecutive nightly summaries, read out
+    # of Kuma:
+    #
+    #     769.0 / 745.4 / 803.2 / 784.5 / 814.1 / 750.9 / 773.5 MiB added
+    #
+    # ~770 MiB every night. Bytes actually CHANGED in the same 24 h, per subtree
+    # (`find -newermt '24 hours ago'`, 22 subtrees swept):
+    #
+    #     services/netdata    398.8 MiB    services/immich      105.1 MiB
+    #     services/pihole     320.9 MiB    services/nextcloud   101.5 MiB
+    #     services/miniflux   115.6 MiB    media/*                0.0 MiB
+    #
+    # 1 058 of 1 095 MiB — 96.6 % — is machine-generated churn, and the media
+    # trees (274 GB of video, 29 GB of photos, 28 GB of music) changed by ZERO
+    # bytes while restic added 770 MiB. The goal of these exclusions is exactly
+    # that: a night in which no user data moved should cost the repository, and
+    # the tunnel to the offsite copy, close to nothing.
+    #
+    # THE RULE APPLIED HERE, and it is the only one that makes an exclusion
+    # safe: exclude nothing that a documented restore procedure reads. Every
+    # database below is excluded as a LIVE DATADIR while its dump stays in the
+    # snapshot, and `restore-from-backup.md` already restores all of them from
+    # the dump — each of its procedures resets the datadir and lets the
+    # container re-run initdb. These copies are not a fallback anyone would use;
+    # this profile's own comment calls them worse than that, since "restic walks
+    # it file by file while Postgres writes: the copy is not atomic and can
+    # restore to a torn cluster".
+    #
+    # Checked before each line was written, so a database cannot lose its last
+    # copy here: nextcloud -> nextcloud.sql (mariadb-dump), miniflux ->
+    # miniflux.sql (pg_dump), uptime-kuma -> uptime-kuma.sqlite3 (sqlite3
+    # .backup, from backup_sqlite_dumps), immich -> its own dump under
+    # upload/backups, which is NOT excluded. The goss backup-dumps spec asserts
+    # each of those every night.
     exclude:
       - /mnt/data/services/nextcloud/data/data/appdata_*/libresign/aarch64
+
+      # A metrics ring buffer, 2.0 GiB on disk and 398.8 MiB rewritten nightly.
+      # It is capped by netdata and regenerates itself; restoring it restores
+      # nothing anyone needs, and netdata starts a fresh history anyway.
+      - /mnt/data/services/netdata/cache
+
+      # The Pi-hole query log: one 317 MiB SQLite file on a 91-day retention,
+      # rewritten every day. FILE-level and not directory-level, deliberately —
+      # Pi-hole's configuration lives in the same directory and IS restore
+      # material: pihole.toml, gravity.db, the custom lists. Only the query
+      # history goes, and the register already records the decision that a
+      # rescan rebuilds this class of store.
+      - /mnt/data/services/pihole/etc/pihole-FTL.db
+      - /mnt/data/services/pihole/etc/pihole-FTL.db-wal
+      - /mnt/data/services/pihole/etc/pihole-FTL.db-shm
+
+      # Live database datadirs. See the rule above: the dump is the copy, this
+      # is the torn one. Note the paths are the DB directories only — Immich's
+      # `upload/` (10 GB of photos plus its own dumps) and Nextcloud's `data/`
+      # (the user files) are untouched and still backed up in full.
+      - /mnt/data/services/miniflux/db
+      - /mnt/data/services/nextcloud/db
+      - /mnt/data/services/immich/db
+      - /mnt/data/services/uptime-kuma/kuma.db
+      - /mnt/data/services/uptime-kuma/kuma.db-wal
+      - /mnt/data/services/uptime-kuma/kuma.db-shm
+
+      # Two 7 MB copies left behind by the 2.5.0 migration and the migration
+      # marker. Dead files that have gone into every snapshot since 2026-08-02.
+      - /mnt/data/services/uptime-kuma/kuma-pre-2.5.0.db
+      - /mnt/data/services/uptime-kuma/kuma-pre-migration-mark.db
     tag:
       - auto
     # restic's own summary, which the current script parses out of --json to
