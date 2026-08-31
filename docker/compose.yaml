@@ -116,6 +116,8 @@ secrets:
     file: /mnt/data/secrets/docker/cf_dns_api_token
   nextcloud_db_password:
     file: /mnt/data/secrets/docker/nextcloud_db_password
+  nextcloud_redis_password:
+    file: /mnt/data/secrets/docker/nextcloud_redis_password
   nextcloud_db_root_password:
     file: /mnt/data/secrets/docker/nextcloud_db_root_password
   immich_db_password:
@@ -729,6 +731,17 @@ services:
       TRUSTED_PROXIES: 172.16.0.0/12
       OVERWRITECLIURL: https://drive.${DOMAIN}
       REDIS_HOST: nextcloud-redis
+      # For the PHP SESSION HANDLER, which the config files cannot reach. The
+      # entrypoint runs `file_env REDIS_HOST_PASSWORD` on every start and writes
+      # the credential into `conf.d/redis-session.ini`'s save_path — that is the
+      # path carrying the 217 live sessions this password exists to protect.
+      # `_FILE` and not the plain variable: the plain one would sit in
+      # `docker inspect` output for anyone in the docker group.
+      #
+      # The CACHE side is handled separately, by the config file Ansible renders
+      # into the Nextcloud config directory, because notify_push cannot read
+      # this variable. See secrets.yml.
+      REDIS_HOST_PASSWORD_FILE: /run/secrets/nextcloud_redis_password
       NEXTCLOUD_MAINTENANCE_WINDOW_START: "4"
       # For the JVM LibreSign spawns to sign PDFs, not for PHP (ADR-022).
       # The image sets no locale, so Java 21 derives its *native* encoding from
@@ -743,6 +756,11 @@ services:
       # command reports UTF-8 for all four encodings.
       LANG: C.UTF-8
       LC_ALL: C.UTF-8
+    secrets:
+      # Read by the entrypoint through `file_env REDIS_HOST_PASSWORD`, for the
+      # session handler. The cache side gets the same value from the config file
+      # Ansible renders, because notify_push cannot read a docker secret.
+      - nextcloud_redis_password
     volumes:
       - ${SERVICES_DATA_DIR}/nextcloud/data:/var/www/html
       # The image's opcache-recommended.ini turns the tracing JIT on, which
@@ -849,21 +867,44 @@ services:
     # upgrade down with it. These caches hold nothing worth keeping across a
     # restart — they never had a volume — so the honest fix is to stop saving
     # rather than hand a cache a disk.
-    command: ["redis-server", "--save", ""]
+    # The configuration moved into a FILE because the alternative publishes the
+    # password. `redis-server --requirepass <value>` puts it in this process's
+    # argv, and the host's /proc carries no hidepid — so `ps aux` from any local
+    # account would hand out the very credential this exists to enforce. The file
+    # is rendered by Ansible into the secrets directory and bind-mounted below;
+    # it carries the `save ""` this line used to.
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    volumes:
+      # A single FILE, never the directory: a container reading a secret through
+      # a DIRECTORY bind mount resolves it in its own namespace, which is how
+      # SearXNG's settings dangled for weeks (#27).
+      - /mnt/data/secrets/docker/nextcloud_redis.conf:/usr/local/etc/redis/redis.conf:ro
     # Same treatment as the databases, and even simpler here: no volume at all,
     # so there is nothing for the entrypoint's root phase to chown (#28).
     user: "999:999"
     networks:
       - internal
     healthcheck:
-      # `grep -q PONG` and not the bare exit status: redis-cli returns 0 on an
-      # ERROR REPLY, so `redis-cli ping` alone reports healthy for any server
-      # that answers at all. Proven in this container on 2026-08-29 —
+      # Grep the REPLY and never the exit status: redis-cli returns 0 on an error
+      # reply, so `redis-cli ping` alone reports healthy for any server that
+      # answers at all. Proven in this container on 2026-08-29 —
       # `redis-cli ping a b c` prints "ERR wrong number of arguments" and exits
-      # 0, while the guarded form exits 1 and still exits 0 on a real PONG.
-      # Latent today because neither Redis sets `requirepass`; a NOAUTH reply is
-      # exactly the shape that would slip through.
-      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      # 0. That reasoning is unchanged; only the string it greps for has moved.
+      #
+      # It used to grep PONG, and the comment here already named what would
+      # happen the day a password appeared: "latent today because neither Redis
+      # sets requirepass; a NOAUTH reply is exactly the shape that would slip
+      # through". The password has now appeared, so the expected reply to an
+      # UNAUTHENTICATED ping is `NOAUTH Authentication required`.
+      #
+      # Grepping NOAUTH is stronger than grepping PONG was, not a concession to
+      # it: it proves the server is answering AND that `requirepass` is in
+      # force, so a Redis that silently lost its password goes red instead of
+      # green. Authenticating here was rejected for the same reason the command
+      # line was — `redis-cli -a <value>` puts the password in argv, every 10 s
+      # forever. The working auth PATH is exercised continuously by Nextcloud
+      # itself and watched by its own Kuma monitor.
+      test: ["CMD-SHELL", "redis-cli ping 2>&1 | grep -q NOAUTH"]
       interval: 10s
       timeout: 5s
       retries: 3

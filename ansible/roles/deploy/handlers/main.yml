@@ -106,6 +106,23 @@
     cmd: docker restart nextcloud-db
   changed_when: true
 
+# The three consumers come back WITH it, and the order is the whole point. Redis
+# starts requiring a password the moment it restarts; a Nextcloud still holding
+# the old empty credential answers `NOAUTH` on every cache and session call,
+# which logs everyone out and leaves the web UI erroring rather than merely
+# slower. So this handler restarts the pair and the reader together instead of
+# leaving them to the `Restart nextcloud` handler, which may not be notified by
+# the same deploy.
+#
+# notify_push is included here and NOT in `Restart nextcloud` — the comment
+# above says it is deliberately left out there because it runs a Rust binary
+# rather than PHP. That reasoning is about a PHP setting; this one is about a
+# credential the Rust binary also needs, so it belongs in this list.
+- name: Restart nextcloud-redis
+  ansible.builtin.command:
+    cmd: docker restart nextcloud-redis nextcloud nextcloud-cron nextcloud-notify-push
+  changed_when: true
+
 - name: Restart miniflux
   ansible.builtin.command:
     cmd: docker restart miniflux
