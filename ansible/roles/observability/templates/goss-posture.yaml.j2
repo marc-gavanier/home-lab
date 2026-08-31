@@ -345,6 +345,65 @@ command:
     timeout: 60000
     exit-status: 0
 
+  # --- Retention delivered against retention declared (class C68) ------------
+  # Every `db` setting used to be commented out, so all three tiers ran on stock
+  # 1024MiB caps against stock 14d/3mo/2y time bounds. The size bound binds
+  # first, so the store held 4 d 18 h where the configuration asked for 14 d —
+  # and netdata publishes BOTH numbers, side by side, with nothing reading
+  # either. Nine days of per-second history that only existed in the config.
+  #
+  # `expected_retention` and NOT `retention`, and this is the whole design of
+  # the check. `retention` is what the store holds RIGHT NOW, so a tier that is
+  # merely young reads as a tier that is capped: tier 2 held 1 mo 5 d of a
+  # 10 mo 5 d projection simply because netdata had not been running longer.
+  # Asserting on that would have been red for months and then quietly green,
+  # which is worse than not asserting. `expected_retention` is netdata's own
+  # projection of what the tier will hold at the current ingest rate, so it
+  # answers the question the class actually asks: WILL this store keep what the
+  # configuration claims?
+  #
+  # 0.8, not equality. A store with a time bound and a size bound cannot deliver
+  # its declared time exactly — the size cap bites a few hours early, by design.
+  # Measured on 2026-08-31 against the declared values: 0.960, 0.976, 1.003.
+  # Against the stock values it replaced: 0.342, 0.325, 0.418 — so the floor
+  # separates the two states by a wide margin and does not need to be precise.
+  #
+  # Proven in both directions without contriving anything: this assertion FAILED
+  # on all three tiers before docker/configs/netdata/netdata.conf was deployed
+  # and PASSED on all three after, on the same machine, the same day.
+  #
+  # The jq is deliberately path-independent (`.. | objects | select(has(...))`)
+  # rather than `.db_size[]`: netdata has moved this structure between versions,
+  # and a hardcoded path that stops matching would make the check pass on an
+  # empty set — the vacuous-pass shape this spec exists to avoid. The starvation
+  # guard below is what turns that into a loud failure instead.
+  netdata-delivers-the-retention-it-declares:
+    exec: |
+      rows=$(docker exec netdata curl -s --max-time 20 \
+               http://127.0.0.1:19999/api/v2/info 2>/dev/null |
+             jq -r '[.. | objects
+                     | select(has("tier") and has("expected_retention")
+                              and has("requested_retention"))]
+                    | .[] | "\(.tier) \(.expected_retention) \(.requested_retention)"' \
+               2>/dev/null)
+      n=$(printf '%s' "$rows" | grep -c .)
+      [ "$n" -ge 3 ] || {
+        echo "read $n tier(s) from netdata's info API, expected at least 3 — the query stopped matching, so this check proves nothing"
+        exit 1
+      }
+      # awk rather than a `while read` loop: a pipe into `while` runs in a
+      # subshell under dash, so anything it accumulates is lost at the `done`
+      # and the check passes vacuously. awk returns the verdict on stdout, which
+      # survives.
+      bad=$(printf '%s\n' "$rows" |
+            awk '$2 * 10 < $3 * 8 { printf " tier%s(%ss of %ss declared)", $1, $2, $3 }')
+      [ -z "$bad" ] || {
+        echo "netdata declares more retention than it will deliver:$bad"
+        exit 1
+      }
+    timeout: 60000
+    exit-status: 0
+
   # --- The resolution the container-unhealthy floor is built on (#262) -------
   # `homelab_container_unhealthy` only fires once its window holds more than 500
   # samples, ninety per cent of the 556 a saturated window was measured to hold
