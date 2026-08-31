@@ -61,6 +61,28 @@
   loop_control:
     label: "{{ item.name }}"
 
+# Retention, declared rather than inherited (class C68). Every `db` setting was
+# commented out, so all three tiers ran on netdata's stock 1024MiB caps against
+# stock 14d/3mo/2y time bounds — and the size bound binds first, so the store
+# held 4 d 18 h where the configuration asked for 14 d. Netdata publishes both
+# numbers side by side and nothing read either.
+#
+# Verbatim, hence `copy` and not `template`: the file carries no variables, and
+# `ansible_managed` is not defined for copy (see the base role, 2026-08-31).
+#
+# NO DATA IS LOST BY DEPLOYING THIS. The declared times are all ABOVE what each
+# tier currently holds — 5d against 4d18h, 30d against 28d20h, 10mo against
+# 1mo5d — so netdata has nothing to expire on startup. Checked before writing
+# them; a lower value here would silently truncate history on the next restart.
+- name: netdata | Declare the dbengine retention (class C68)
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../../docker/configs/netdata/netdata.conf"
+    dest: "{{ services_data_dir }}/netdata/netdata.conf"
+    owner: root
+    group: root
+    mode: "0444"
+  notify: Restart netdata
+
 - name: netdata | Create the curated alarm directory on the encrypted volume
   ansible.builtin.file:
     path: "{{ services_data_dir }}/netdata/health.d"

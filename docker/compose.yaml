@@ -1698,6 +1698,13 @@ services:
       # /var/lib/netdata, so mounting over it masks nothing that matters.
       - ${SERVICES_DATA_DIR}/netdata/lib:/var/lib/netdata
       - ${SERVICES_DATA_DIR}/netdata/cache:/var/cache/netdata
+      # Retention, declared rather than inherited (class C68). A single FILE and
+      # not the directory, for the reason stated below: /etc/netdata carries the
+      # container's bootstrap files and mounting over it would mask them. The
+      # image's own netdata.conf is a comment stub with no settings, so this
+      # masks nothing. The cache mount above is what it governs — and that cache
+      # is excluded from the restic backup, being a ring buffer that regenerates.
+      - ${SERVICES_DATA_DIR}/netdata/netdata.conf:/etc/netdata/netdata.conf:ro
       # Curated alarms (ADR-030). /etc/netdata/health.d is EMPTY in the image —
       # the 57 stock alarms live in /usr/lib/netdata/conf.d/health.d — so this
       # shadows nothing. /etc/netdata itself is deliberately NOT mounted: it
