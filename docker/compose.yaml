@@ -738,9 +738,11 @@ services:
       # `_FILE` and not the plain variable: the plain one would sit in
       # `docker inspect` output for anyone in the docker group.
       #
-      # The CACHE side is handled separately, by the config file Ansible renders
-      # into the Nextcloud config directory, because notify_push cannot read
-      # this variable. See secrets.yml.
+      # The CACHE side is handled separately, in `config.php`, because
+      # notify_push cannot read this variable — it has no REDIS_HOST at all, so
+      # the image's `redis.config.php` short-circuits for it. `config.php` is
+      # the one file both readers share; Ansible writes the value there. See
+      # secrets.yml.
       REDIS_HOST_PASSWORD_FILE: /run/secrets/nextcloud_redis_password
       NEXTCLOUD_MAINTENANCE_WINDOW_START: "4"
       # For the JVM LibreSign spawns to sign PDFs, not for PHP (ADR-022).
