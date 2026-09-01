@@ -89,6 +89,30 @@ command:
         [ "$mode" = "$want" ] || bad="$bad $rel=$mode"
       done
       [ -z "$bad" ] || { echo "not $want:$bad"; exit 1; }
+    # It went red on 2026-09-02 at 23:58 with `Error Command execution timed
+    # out (10s)` — the third check in one evening to fail for being SLOW rather
+    # than wrong, after `no-kuma-report-was-lost-in-silence` and
+    # `nextcloud-php-jit-is-disabled`.
+    #
+    # Measured on an idle host, three runs: 510, 648, 513 ms. So this is a
+    # half-second check that blew past ten seconds — a factor above fifteen —
+    # and it did it while an Ansible deploy was writing to the same disk it
+    # stats. goss reports a timeout exactly like a failed assertion, so the
+    # dashboard said the credential stores were open when nothing had been
+    # measured at all.
+    #
+    # 30 s is ~50x the idle cost and the modal value in this file. It is sized
+    # against the LOAD this check meets, not against the figure above: the
+    # deploy role re-asserts the posture as its last task, so every run of this
+    # spec lands in the busiest minute the host has.
+    #
+    # The general problem is untouched here and is not a small one: of the 193
+    # assertions in this spec, 9 declare a timeout. The other 184 sit on goss's
+    # 10 s default and can each report `not ok` for having been slow. Patching
+    # them as they bite is sampling; the systemic answer is `--retry-timeout` on
+    # the runner, which is a decision about what "green" means and belongs to
+    # the operator.
+    timeout: 30000
     exit-status: 0
 
   # The same derivation, asserted for SIZE rather than for modes, and it is a
