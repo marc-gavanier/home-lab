@@ -79,3 +79,51 @@
     name: fake-hwclock-save.timer
     enabled: true
     state: started
+
+# --- How stale the restored clock may be, and why one hour was too much ------
+# The package saves hourly and at shutdown. The shutdown save is the one that
+# matters and the one you never get when it counts: a power cut, a kill-switch,
+# or the USB tamper poweroff all cut without it. So the clock restored at the
+# next boot is as stale as the time since the last HOURLY save — up to 60
+# minutes, averaging 30.
+#
+# That is not theoretical. On 2026-09-01 the tamper cut the Pi at 01:48 with the
+# last save at 01:20, and the machine came back believing it was 01:20. The
+# journal of that boot begins 1734 s before the machine did, which is exactly
+# the ordering lie this file exists to prevent — and the health check's own
+# threshold is 600 s, so an hourly save cannot help but breach it.
+#
+# Five minutes caps the staleness below both that threshold and the ten-minute
+# antedating at which the vacuum was OBSERVED to delete the current boot's
+# opening (2026-08-30, see the header). It does not remove the residue: this
+# timer is not ordered after time synchronisation, so a save can still record a
+# pre-NTP instant. It shortens how long that wrong value survives from an hour
+# to five minutes.
+#
+# The cost was measured before choosing the number, not after. The file is 20
+# bytes in one 4 KiB block; 264 extra saves a day is 2-3 MiB of SD writes
+# against a measured 1.39 GiB/day, or about 0.2 %. The audit puts this card at
+# 11.5 rewrites a year, so the addition is below the noise.
+#
+# The empty `OnCalendar=` is required and not decoration: without it systemd
+# ADDS this schedule to the packaged `hourly` one instead of replacing it.
+- name: clock | Create the timer drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/fake-hwclock-save.timer.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: clock | Cap how stale the restored clock can be (#292, class C42)
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/fake-hwclock-save.timer.d/override.conf
+    content: |
+      # Managed by Ansible — do not edit on the host.
+      [Timer]
+      OnCalendar=
+      OnCalendar=*:0/5
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload the fake-hwclock save interval
