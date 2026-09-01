@@ -362,11 +362,28 @@ command:
   # answers the question the class actually asks: WILL this store keep what the
   # configuration claims?
   #
-  # 0.8, not equality. A store with a time bound and a size bound cannot deliver
-  # its declared time exactly — the size cap bites a few hours early, by design.
-  # Measured on 2026-08-31 against the declared values: 0.960, 0.976, 1.003.
-  # Against the stock values it replaced: 0.342, 0.325, 0.418 — so the floor
-  # separates the two states by a wide margin and does not need to be precise.
+  # 0.6, and the number was WRONG at first — it shipped as 0.8, calibrated on a
+  # single reading taken minutes after a netdata restart. It went red the next
+  # day on a healthy store, which is the defect this spec exists to avoid: a
+  # threshold that has never met the variance it will live in.
+  #
+  # netdata charts this exact ratio itself, and reading it back gave three
+  # regimes instead of one point. `netdata.dbengine_retention_tier0`, `time`
+  # dimension — note the chart has TWO dimensions and `space` is the other one,
+  # which is what the first attempt at this comment misread as hours:
+  #
+  #   stock 14d/3mo/2y declared   34 %   the structural mismatch to catch
+  #   steady state, 5d declared   100 %  held flat for 14 h (03:00-17:00)
+  #   after an Ansible deploy     72-75 % and it does not bounce back
+  #
+  # The middle row is what matters: 5d IS deliverable, so the declaration is
+  # right and must not be lowered. The bottom row is a deploy spiking series
+  # cardinality on a store already at 1021 MiB of its 1024 MiB cap, which evicts
+  # the oldest data — evicted data does not return, so the dip persists.
+  #
+  # 0.6 sits between a regime this must never miss (0.34) and one it must never
+  # flag (0.72), with margin on both sides. It is not a concession: at 0.6 the
+  # stock defaults are still caught by a factor of nearly two.
   #
   # Proven in both directions without contriving anything: this assertion FAILED
   # on all three tiers before docker/configs/netdata/netdata.conf was deployed
@@ -396,7 +413,7 @@ command:
       # and the check passes vacuously. awk returns the verdict on stdout, which
       # survives.
       bad=$(printf '%s\n' "$rows" |
-            awk '$2 * 10 < $3 * 8 { printf " tier%s(%ss of %ss declared)", $1, $2, $3 }')
+            awk '$2 * 10 < $3 * 6 { printf " tier%s(%ss of %ss declared)", $1, $2, $3 }')
       [ -z "$bad" ] || {
         echo "netdata declares more retention than it will deliver:$bad"
         exit 1
