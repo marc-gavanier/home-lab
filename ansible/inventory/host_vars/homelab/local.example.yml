@@ -51,7 +51,28 @@ nextcloud_db_password: ""
 nextcloud_db_root_password: ""
 # Redis is where PHP keeps the SESSIONS, not just a cache — 217 live ones when
 # this was added — so an empty value here leaves anything that can reach the
-# port able to lift a logged-in session. Generate with `openssl rand -base64 36`.
+# port able to lift a logged-in session.
+#
+# ALPHANUMERIC ONLY, and this is a hard constraint rather than a preference:
+#
+#     openssl rand -hex 48
+#
+# The value travels INSIDE A URL. The image's entrypoint builds PHP's session
+# handler as `session.save_path = tcp://nextcloud-redis:6379?auth=<value>` and
+# does not escape it, so any character with a meaning in a URL breaks the parse
+# — silently, and only for sessions.
+#
+# Measured on 2026-09-01, because this shipped with `openssl rand -base64 36`
+# and a value containing `@` and `&`: the cache kept working (config.php holds
+# an ordinary PHP string) while every login failed with
+#
+#     session_start(): Failed to read session data: redis
+#       (path: tcp://xxx:xxx@0dpq06*Z8l5)
+#
+# `@` made PHP read the tail of the password as the HOSTNAME; `&` would have
+# truncated it at the query separator. The base64 originally documented here is
+# no safer: `+` decodes to a space and `/` reads as a path boundary.
+#
 # Rotating it is a normal deploy: the value reaches Redis and both its readers
 # from the same variable, and everyone is logged out once when Redis restarts.
 nextcloud_redis_password: ""
