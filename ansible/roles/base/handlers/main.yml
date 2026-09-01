@@ -26,3 +26,13 @@
 - name: Reload systemd units
   ansible.builtin.systemd_service:
     daemon_reload: true
+
+# The timer that keeps this board's clock current has to re-read its schedule
+# when the drop-in changes. A handler and not a `when: ... is changed` task:
+# ansible-lint rejects the latter, rightly — a handler fires once at the end
+# however many tasks notified it, and not at all on a run that changed nothing.
+- name: Reload the fake-hwclock save interval
+  ansible.builtin.systemd:
+    name: fake-hwclock-save.timer
+    daemon_reload: true
+    state: restarted

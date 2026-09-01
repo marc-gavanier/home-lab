@@ -769,8 +769,20 @@ command:
   #
   # Asserted on freshness rather than on the package being installed, because
   # installed-and-never-run is the shape this repo has already refused twice
-  # (#155, #291). fake-hwclock saves hourly and at shutdown; 2 h is one missed
-  # save, which is slack rather than a symptom.
+  # (#155, #291).
+  #
+  # 900 s, and the number moves WITH the save interval — that is the whole point
+  # of touching it here. This tolerance used to be 7200 s, justified as "hourly
+  # saves, so 2 h is one missed save, which is slack rather than a symptom".
+  # Correct while the timer was hourly. The timer now saves every 5 minutes
+  # (base/tasks/clock.yml), so 7200 s would have meant TWENTY-FOUR missed saves:
+  # the assertion would have kept its shape and lost its meaning, staying green
+  # through most of a day of a dead timer.
+  #
+  # 900 s is three missed saves — the same slack the old number expressed,
+  # against the new cadence. **If the save interval changes again, this changes
+  # with it**; a tolerance that does not track the thing it tolerates is how a
+  # check goes quietly vacuous.
   fake-hwclock-data-is-fresh:
     exec: |
       for u in fake-hwclock-load.service fake-hwclock-save.timer; do
@@ -780,7 +792,7 @@ command:
       f=/etc/fake-hwclock.data
       [ -f "$f" ] || { echo "$f absent — nothing sets this board's clock before NTP"; exit 1; }
       age=$(( $(date +%s) - $(stat -c %Y "$f") ))
-      [ "$age" -le 7200 ] || {
+      [ "$age" -le 900 ] || {
         echo "fake-hwclock last saved ${age}s ago — the restored clock is drifting back toward the systemd build date"
         exit 1
       }
