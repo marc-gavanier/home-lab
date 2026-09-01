@@ -259,7 +259,7 @@ services:
 
   # --- Traefik (Reverse Proxy) ---
   traefik:
-    image: traefik:v3.7.11
+    image: traefik:v3.7.12
     container_name: traefik
     restart: unless-stopped   # Tier 0: auto-start at boot (see stack-startup role)
     security_opt: *no-new-privs
@@ -354,7 +354,7 @@ services:
   # accumulated — minutes at noon, hours at 04:00, and the tail lost outright if
   # the container is killed. Measured, which is why this is awk.
   traefik-log-redactor:
-    image: alpine:3.20
+    image: alpine:3.24
     container_name: traefik-log-redactor
     # This container's stdout IS the durable access log (ADR-034), so its
     # retention is a property of the log and not of the host's default (#290,
@@ -1005,7 +1005,7 @@ services:
 
   # --- Collabora Online (collaborative editing inside Nextcloud) ---
   collabora:
-    image: collabora/code:26.04.3.1.1
+    image: collabora/code:26.04.3.2.1
     # Only start_period and start_interval are declared. `test` is deliberately
     # absent so the image's own healthcheck is kept — this file has no business
     # re-implementing it, and #156 is the reminder of what happens when a
@@ -1827,7 +1827,7 @@ services:
   # without SSH, logs were not. Reads the daemon through the same read-only
   # socket-proxy as Traefik and Netdata — never the raw docker.sock.
   dozzle:
-    image: amir20/dozzle:v10.7.4
+    image: amir20/dozzle:v10.8.0
     container_name: dozzle
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
