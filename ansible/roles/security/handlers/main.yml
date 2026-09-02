@@ -33,3 +33,10 @@
   ansible.builtin.systemd:
     name: systemd-timesyncd
     state: restarted
+
+# `ufw reload` re-runs iptables-restore over before.rules, the user rules and
+# after.rules — which is what puts the DOCKER-USER block back in place. It does
+# not drop the tunnel: existing conntrack entries survive a reload.
+- name: Reload UFW
+  ansible.builtin.command: ufw reload
+  changed_when: true
