@@ -86,6 +86,55 @@
     comment: "{{ item.comment | default(omit) }}"
   loop: "{{ ufw_service_rules | default([]) }}"
 
+# Every rule above lands on the INPUT path. A packet bound for a published
+# container port never takes it: it is FORWARDed, and in FORWARD Docker's own
+# chains sit ahead of every ufw-* chain — DOCKER-USER at position 1,
+# DOCKER-FORWARD at 2, the six ufw-*-forward chains only from 3. Docker's
+# DOCKER chain then ACCEPTs by destination port with no source filter at all,
+# which terminates the traversal before ufw is ever consulted.
+#
+# Measured on the running host 2026-09-02: six of the seven inbound ufw rules
+# were in that position. Five of them (80, 443, 51413 twice, 51820) say
+# "Anywhere" and are therefore honest — Docker permits exactly what they
+# describe. The sixth said "DNS (Pi-hole, LAN only)" and restricted nothing,
+# so it is the only one whose written intent was violated, and the only one
+# restored here. Deliberately NOT a general default-deny in front of Docker:
+# 51820/udp is the WireGuard tunnel, which is the only way into this host.
+#
+# DOCKER-USER is the single supported hook — Docker traverses it first and
+# never rewrites its contents. Declaring the chain here also creates it when
+# ufw loads before dockerd has ever run, so the ruleset cannot fail to parse.
+- name: firewall | Declare the DOCKER-USER chain in UFW's after.rules
+  ansible.builtin.blockinfile:
+    path: /etc/ufw/after.rules
+    marker: "# {mark} ANSIBLE MANAGED — DOCKER-USER chain"
+    insertafter: '^# End required lines'
+    block: |
+      :DOCKER-USER - [0:0]
+  notify: Reload UFW
+
+# Source addresses are still the original ones here: filter/FORWARD is
+# traversed before nat/POSTROUTING, so the laundering that rewrites bridge
+# sources into 172.18.0.1 has not happened yet and `-s` matches what the
+# client actually sent.
+- name: firewall | Restrict Pi-hole's DNS to the LAN, the VPN and the container networks
+  ansible.builtin.blockinfile:
+    path: /etc/ufw/after.rules
+    marker: "# {mark} ANSIBLE MANAGED — DOCKER-USER rules"
+    insertbefore: '^COMMIT'
+    block: |
+      -A DOCKER-USER -p udp --dport 53 -s 192.168.1.0/24 -j RETURN
+      -A DOCKER-USER -p tcp --dport 53 -s 192.168.1.0/24 -j RETURN
+      -A DOCKER-USER -p udp --dport 53 -s 10.8.0.0/24 -j RETURN
+      -A DOCKER-USER -p tcp --dport 53 -s 10.8.0.0/24 -j RETURN
+      # The stack resolves through Pi-hole too, and that traffic is FORWARDed
+      # from a bridge subnet. Omitting this pair breaks DNS for every container.
+      -A DOCKER-USER -p udp --dport 53 -s 172.16.0.0/12 -j RETURN
+      -A DOCKER-USER -p tcp --dport 53 -s 172.16.0.0/12 -j RETURN
+      -A DOCKER-USER -p udp --dport 53 -j DROP
+      -A DOCKER-USER -p tcp --dport 53 -j DROP
+  notify: Reload UFW
+
 - name: firewall | Enable UFW
   community.general.ufw:
     state: enabled

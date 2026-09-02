@@ -10,7 +10,10 @@ ufw_service_rules:
   - { port: "51820", proto: udp, comment: "WireGuard VPN" }
   - { port: "51413", proto: tcp, comment: "BitTorrent peer (Transmission)" }
   - { port: "51413", proto: udp, comment: "BitTorrent peer (Transmission, µTP/DHT)" }
-  - { port: "53", from_ip: "192.168.1.0/24", comment: "DNS (Pi-hole, LAN only)" }
+  # This rule is on the INPUT path and does not govern the published container
+  # port — see the DOCKER-USER block in roles/security/tasks/firewall.yml, which
+  # is what actually restricts it. Kept for host-level reach and for symmetry.
+  - { port: "53", from_ip: "192.168.1.0/24", comment: "DNS (Pi-hole, LAN + VPN via DOCKER-USER)" }
 
 # --- Security audit ---
 # lynis is scheduled, reported and ratcheted here by the observability role
