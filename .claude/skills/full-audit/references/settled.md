@@ -1872,3 +1872,58 @@ not, being extrapolated from a 243 MiB / 18 s sample against a true range of
 7.4-33 h. **Both were right, and reporting only the first would have been a
 false all-clear.** When an agent reports a lead as dissolved, check which
 question it actually answered.
+
+## The run of 2026-09-02 — the key was `authority`, and the operator cut the backlog
+
+### Three decisions, so nothing reopens them
+
+- **The next key had to be invented and was.** `authority` asks, for every fact
+  the machine acts on, how many places state it, which one binds when they
+  diverge, and what detects the divergence. It minted 3 — against 12 for
+  `identity`, 11 for `order`, 7 for `scale`, 5 for `time`. First single-digit
+  yield, and the first key whose tell was already in the register: C13 and C27
+  were narrow cases of a dimension nothing had a general word for.
+- **A class may be closed by arbitration, not only by sweeping.** C57 and C66
+  both reached the point where the only remaining move was one the operator
+  declines to make — a deliberate-failure drill, and an unbounded hunt through
+  uncommitted hand-fixes. Recording that as *closed by decision* is more honest
+  than leaving them OPEN to be re-sampled by every future run. Two classes had
+  already been closed this way (C04, C08); this is now a normal outcome, not an
+  exception.
+- **What replaces C66 is a method, not a class.** Compare live populations
+  against what is written — every unit, every assertion, every path — and ask
+  which have one member treated and siblings intact. It bounds without history,
+  which `git log` cannot. It found three instances the evening it was proposed,
+  including a doc row listing five watched units against the six deployed.
+
+### The operator's arbitration — three items kept, the rest refused
+
+Kept: the port-53 firewall pre-emption, Miniflux's two administrators, and the
+documentation tidying. Refused, with the instruction never to raise them again:
+the 2026-09-01 Docker daemon stall, `killswitch.service`'s inability to reach
+`failed`, the offsite restore that cannot fit, C29's vacuous liveness half, the
+offsite root's missing fsck assertion, the files hidden under `/mnt/data`, and
+both intrusive measurements. The list lives in `classes.md`'s DECLINED table.
+
+**The lesson for the report, not for the register:** the operator asked for the
+findings again in plain language before deciding, and cut six of nine. A run's
+output is only as good as the sentence the operator can act on.
+
+### New instrument traps — one, and it was the main session's to catch
+
+**An audit that loads the machine invalidates its own timing measurements.**
+Two goss assertions were reported as timing out; re-measured at near-idle they
+ran the entire spec in 27.68 s and 24.55 s with zero timeouts. Eight concurrent
+agents were the cause. This is trap #1 (`journalctl --since` cost swamped by
+ambient load) generalised: **any duration measured while the fleet is running is
+a measurement of the fleet.** Re-measure at idle before reporting a timing
+result, and say which regime each reading came from.
+
+### One rule-5 violation, disclosed by the agent that made it
+
+`security` provoked a genuine authentication failure against the offsite
+`rest-server` while investigating C57, and said so unprompted. Nothing was
+persisted and the append-only repository was untouched. It is recorded because
+the act was exactly what the register places out of scope — and because the
+operator refused that same drill hours later, which makes the violation a
+decision taken on their behalf rather than a harmless shortcut.
