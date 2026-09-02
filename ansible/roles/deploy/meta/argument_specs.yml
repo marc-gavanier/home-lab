@@ -86,6 +86,11 @@ argument_specs:
         required: true
         no_log: true
         description: MariaDB root password.
+      nextcloud_redis_password:
+        type: str
+        required: true
+        no_log: true
+        description: Nextcloud Redis password (session and file-lock store).
       nextcloud_lock_timeout_minutes:
         type: int
         required: false

@@ -151,7 +151,7 @@ Pi):
 # rather than assume on a freshly rebuilt host: command -v restic
 sudo systemctl stop rest-server            # free the repo
 sudo restic -r /mnt/backup/restic forget \
-    --keep-daily 7 --keep-weekly 4 --keep-monthly 12 --prune
+    --keep-daily 7 --keep-weekly 4 --keep-monthly 6 --prune
 sudo systemctl start rest-server
 ```
 
