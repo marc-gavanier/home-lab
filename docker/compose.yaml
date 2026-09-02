@@ -47,7 +47,7 @@ x-security-opt: &no-new-privs
 # quiet one — the two are a factor of two apart, measured.
 #
 # ENUMERATED on 2026-08-29 from netdata's own health_status charts over the
-# 02:50-03:25 window. Of the FOURTEEN containers declaring a start_period,
+# 02:50-03:25 window. Of the FIFTEEN containers declaring a start_period,
 # exactly two ever left `starting` for `unhealthy` in that window:
 #
 #   collabora       overshot   993 s against 600 s   -> 1320 s
@@ -2049,6 +2049,14 @@ services:
       # Idempotent by design: Miniflux logs "user already exists" and carries on
       # when the account is there, so this stays on across deploys instead of
       # being a first-boot flag someone has to remember to remove.
+      #
+      # That idempotence has a sharp edge, found 2026-09-02: because the account
+      # only has to EXIST for this to no-op, a second administrator created by
+      # hand in the web UI is completely invisible here. The host carried two —
+      # this one, never logged into, and the one in daily use, whose password
+      # lived only in Postgres. ADMIN_USERNAME must therefore name the account
+      # actually used, so that a rebuild from an empty database recreates the
+      # right one rather than adding a second.
       CREATE_ADMIN: "1"
       ADMIN_USERNAME: ${MINIFLUX_ADMIN_USER}
       ADMIN_PASSWORD_FILE: /run/secrets/miniflux_admin_password

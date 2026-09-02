@@ -191,6 +191,19 @@ nextcloud_lock_timeout_minutes: 60
 # Login of the admin account created at first start. Not a secret; the password
 # is, and belongs in the vaulted local.yml. Note this is read ONLY while the
 # account does not exist — renaming it later has no effect, the old user stays.
+#
+# That last sentence had a consequence nobody had drawn, found 2026-09-02: the
+# account this variable names was created once and NEVER USED (last_login_at
+# empty), while the account carrying real daily admin access was made by hand in
+# the web UI. Two full administrators, and the rotation machinery governed the
+# one nobody logs in with — so "we rotate Miniflux's admin password" was true of
+# a dead account and false of the live one.
+#
+# This value must therefore name the account actually in use, and it is set in
+# the vaulted local.yml alongside its password rather than here, so the public
+# repo carries the mechanism and not the login. The default below is the
+# first-install value only; on a host where an admin already exists, CREATE_ADMIN
+# is a documented no-op and the pair matters solely for a rebuild from empty.
 miniflux_admin_user: "admin"
 
 # --- Netdata curated alarms (ADR-030, phase 1) ---

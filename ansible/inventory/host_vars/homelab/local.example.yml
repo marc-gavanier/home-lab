@@ -110,6 +110,11 @@ transmission_password: ""
 # and again inside the connection string Miniflux reads, because Miniflux takes
 # a whole DSN rather than a password to slot into one.
 miniflux_db_password: ""
+# Login of the admin account that is ACTUALLY USED. Overrides the first-install
+# default in group_vars/all.yml, and must match the account you really log in
+# with: if the two diverge you get a second, unused administrator that the
+# rotation machinery governs instead of the real one (measured 2026-09-02).
+miniflux_admin_user: ""
 # Admin account password, used ONLY at first start (CREATE_ADMIN). Changing it
 # here later does not rotate the account — Miniflux reads it only while the user
 # is absent. Rotate through Settings → Password in the web UI, then update this
