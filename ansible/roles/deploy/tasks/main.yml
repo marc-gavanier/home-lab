@@ -72,8 +72,21 @@
 - name: Set up the weekly offsite repo check
   ansible.builtin.import_tasks: offsite.yml
 
+# Tagged, alone among the imports in this file, and the asymmetry is the point
+# rather than an oversight. This role mixes host-level concerns — secrets, the
+# AppArmor profile, systemd units — with the container stack, and only the
+# container half is expensive: `compose.yml` copies the whole compose.yaml on
+# every run, which arms every pending image pin for the crash-heal timer. That
+# is the right price for a service deploy and the wrong one for a change to a
+# 130-line shell script that no container reads.
+#
+# `--tags ddns` therefore installs the script, its environment file and the two
+# systemd units, and nothing else runs. Added 2026-09-03 alongside the retry fix
+# in cloudflare-ddns.sh, whose deploy is what wanted it. Other imports can be
+# tagged the same way when they need it; none is today.
 - name: Set up the Cloudflare DDNS updater for the vpn record
   ansible.builtin.import_tasks: ddns.yml
+  tags: [ddns]
 
 # A deploy is the moment the container posture is most likely to have changed,
 # and the posture check runs only once a day. Without this, a drift introduced
