@@ -815,10 +815,11 @@ which is what makes this paragraph findable.
 
 `cloudflare-ddns.sh` keeps the `vpn.<domain>` A record pointing at the current
 public IP, every 15 minutes. It pushes on **every** run, including the common
-no-change one, and pushes `down` with a specific reason on each failure path
-(no public IP, zone lookup, create, update). Heartbeat 1080 s — the 900 s period
-plus a 180 s grace, the same period-plus-margin shape the other push monitors
-use — with retries **off**, like `Pi health`.
+no-change one, and pushes `down` with a specific reason on each failure path —
+no public IP, and, for each of the four Cloudflare calls, one message when the
+transport failed and a different one when an answer arrived unusable. Heartbeat
+1080 s — the 900 s period plus a 180 s grace, the same period-plus-margin shape
+the other push monitors use — with retries **off**, like `Pi health`.
 
 Zero retries is deliberate and is the opposite of what it looks like: on a push
 monitor a retry does not buy patience, it **replaces the message the script sent
@@ -826,6 +827,27 @@ with a generic `"No heartbeat in the time window"`**, so the alert then names th
 wrong thing. Measured over every notifying beat before #179 changed it. The
 reasoning is in [uptime-kuma.md](../05-services/uptime-kuma.md); this line said
 "one retry" until #203.
+
+**The script's own retries are a different knob, and postdate that paragraph.**
+Three runs died on a single 10-second timeout to `api.cloudflare.com` —
+2026-08-31 20:00, 2026-09-02 16:30, 2026-09-03 12:45 — out of 4364 since
+2026-07-20, each healing unaided at the next tick 15 minutes later. Each one
+reddened two monitors rather than one: DDNS, and `Pi health`, which reports the
+last systemd unit that failed. The A record was correct throughout; only the
+confirmation of it was lost. The Cloudflare calls now carry `--retry 2`, the
+same flags the push in `notify` had all along — except the create, deliberately
+left at one attempt, because a POST replayed after a lost answer is how a
+duplicate A record appears. That is curl retrying one HTTP call inside a run and
+does **not** touch the monitor's retry count, which stays at zero for the reason
+above.
+
+The messages were the other half. `curl -f` reports an expired token and an
+unreachable network with the same exit code, and the old guards could not tell a
+body that never arrived from one that arrived saying nothing useful — so on
+2026-09-02 the log read `zone 'example.com' not found (token scope?)` for what
+was a network timeout, sending the reader to audit a token that was never
+involved. Each call now names which of the two happened, and prints curl's exit
+code so the message matches the line above it in `journalctl`.
 
 **What it adds is narrower than it looks, and worth stating.** A DDNS run that
 *fails* was already caught within 5 minutes: the host-health timer check
