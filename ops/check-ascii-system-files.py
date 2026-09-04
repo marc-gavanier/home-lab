@@ -55,7 +55,7 @@ ANSIBLE = REPO / "ansible"
 # Add a prefix here only with the line of source that proves it.
 ASCII_STRICT_PREFIXES = ("/etc/ufw/",)
 
-WRITTEN_KEYS = ("block", "content", "line", "marker")
+WRITTEN_KEYS = ("block", "content", "line", "marker", "replace")
 PATH_KEYS = ("path", "dest")
 
 
