@@ -132,7 +132,7 @@ parts that need a thought experiment.
 # The register
 
 Runs of 2026-08-15 through 2026-09-03.
-**80 classes: 0 OPEN, 12 GATED, 63 ENUMERATED, 5 closed by decision, plus the
+**82 classes: 1 OPEN, 13 GATED, 63 ENUMERATED, 5 closed by decision, plus the
 DECLINED list.** (GATED = C02, C07, C10, C11, C14-C19, C21 and C41; closed by
 decision = C04, C08, C57, C66 and C77's non-secret half; everything else
 ENUMERATED.)
@@ -199,11 +199,17 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
-## OPEN — 0
+## OPEN — 1
 
-Nothing. See the closing table in the 2026-09-03 section below for how each of
-the three got there, and read the caution in the header before treating this as
-the end: an empty OPEN column is half the criterion, not the whole of it.
+The column reached zero on 2026-09-03 and left it the next evening, when
+**deploying the corrections found a fourteenth defect that no agent could have
+seen**: it was not observable in the repository, on any dashboard, or in any
+assertion. It only exists while Ansible is running. That is worth more than the
+count it costs.
+
+| ID | Property | Space, and its cardinal | Why it is still open |
+|-----|--------------------------------------------|--------------------------------------------|----------------------------------------|
+| C82 | A fault whose only detector runs EARLIER in the same sequence than the step that introduces it, so it cannot surface in the run that creates it | Every ordered sequence in which one step writes what an earlier step consumes: role task files, play ordering, handler flush points. **Not swept** | Minted 2026-09-04 with two instances the same evening, one of them the main session's own. `a5d450f` wrote a non-ASCII marker into `after.rules` at task ~20 of the security role; `Set UFW default deny incoming` chokes on that file at task 4. The run that introduced it therefore SUCCEEDED, and every run after it failed — two days of an unrunnable firewall role that no green dashboard could show. Then the first fix repeated the shape exactly: the repair was placed at task 20, where Ansible could never reach its own remedy, and both hosts would have needed a hand-edit. The fix that works is a `replace` at task 1. **The class is distinct from C53** (a handler whose effect is expected earlier than it occurs) and from C74 (pre-emption by another component): here there is one sequence, one actor, and the blindness is internal to it |
 
 ## The run of 2026-09-03 — the key was `representation`, and it was invented
 
@@ -256,6 +262,30 @@ run's most expensive finding and C14's blind spot with a single sentence.
 | C78 | A set of which two or more components each hold their own definition, in different grammars, with nothing comparing the definitions | 4/4 name grammars (18/18/18, Kuma 15/18) + 21/21 restore expressions against 13 exclude patterns | ENUMERATED |
 | C79 | A statement recording a deliberate non-action, which survives the reversal of that decision | **13/13** | ENUMERATED |
 | C80 | A timestamp crossing a boundary without its timezone | **26/26** | ENUMERATED |
+
+### C81, minted and GATED the next evening by the deploy itself
+
+| ID | Property | Gate |
+|-----|------------------------------------------------------|--------------------------------------------------------|
+| C81 | A byte written into a file whose consumer reads it back through a NARROWER encoding than the producer's | `ops/check-ascii-system-files.py`, in pre-commit. **Made to fail on purpose on the three live markers before they were changed**, and made to fail again on a deliberately re-introduced em dash after they were fixed — both directions, which is what the C58 lesson asks for |
+
+Distinct from C77, and the difference is the useful part. C77 is about a
+character the consumer's GRAMMAR gives meaning to — a `$` in a shell source, a
+delimiter in a DSN. C81 is about a byte the consumer's CODEC cannot represent at
+all, whatever it means. `ufw` rewrites `/etc/ufw/after.rules` line by line
+through `os.write(fd, bytes(out, 'ascii'))`, so one em dash in a blockinfile
+marker made the whole security role unrunnable — at the fourth task, before it
+could reach a single rule.
+
+The gate's two learned boundaries are what make it derived rather than a
+denylist, and both were measured rather than assumed:
+
+- **`state: absent` names a marker to FIND, not one to write.** A check that
+  forbade that would forbid its own remedy.
+- **A ufw RULE COMMENT is hex-encoded** into `user.rules`
+  (`comment=426974...c2b5...`), so any byte survives there by construction. The
+  live `µTP/DHT` comment is safe and must not be "fixed". Verified on the host:
+  no rule file contains a raw non-ASCII byte.
 
 ### How the three closed, the same night they were minted
 
@@ -904,6 +934,7 @@ check, and it is stated as one.
 | C19 | A failed systemd unit, or a timer whose service did not succeed | goss `units.yaml` plus the health script's last-run check — **homelab only; the offsite half is C02** |
 | C20 | A secret that a deploy reports as rotated without rotating it | **Left this table on 2026-09-03 — downgraded to ENUMERATED.** 4 hand-written probes over a space of 16 secret files; a list of four is not a gate (#159 fixed the case-mismatch bug, which is a different question) |
 | C21 | A snapshot that missed its offsite copy and is never retried | retention monitor (#158, #168). **The "time-window filter" this row used to name no longer exists** — re-verified 2026-09-03: `copy:` carries no bound, every snapshot is re-offered nightly, 31 local / 81 offsite with no gaps. The class holds; the description was stale for the second time |
+| C81 | A byte written into a file whose consumer reads it back through a narrower encoding than the producer's | `ops/check-ascii-system-files.py` in pre-commit, proven to fail in both directions (2026-09-04) |
 | C41 | A dead-man's fuse re-armed from zero by the restart of its own watchdog | `kuma-no-push-monitor-silent-past-its-own-window`, derived from Kuma's own monitor table and each monitor's `interval`, with a starvation guard; discriminates on 54 historical silences against 16 (2026-08-30) |
 
 ### Broken gates found on 2026-08-30 — these are red tests, not audit results

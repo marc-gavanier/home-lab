@@ -2015,3 +2015,57 @@ transited its context, its own redaction having filtered `auth[]=` and not `auth
 Nothing was written and nothing was transmitted. Recorded for the same reason as
 last run's rule-5 violation: an audit that handles secrets says when it mishandles
 one.
+
+## The deploy of 2026-09-04 — what running the corrections found
+
+The audit's thirteen findings were all visible from a repository, a database or
+a running process. **The fourteenth existed only while Ansible was running**, and
+no agent could have found it: `a5d450f` had written a non-ASCII marker into
+`/etc/ufw/after.rules`, which ufw rewrites through an ASCII codec, so the
+security role had been unrunnable on the homelab for two days. Nothing was red.
+That is C81, and its shape is C82.
+
+### Three decisions, so nothing reopens them
+
+- **Deploying from the PR branch before merging is what found it**, exactly as
+  the rule promises. It is now paid for twice over: this defect predated the
+  branch entirely and would have surfaced on whatever deploy came next, at a
+  moment nobody had chosen.
+- **A gate is only a gate once it has failed on purpose in BOTH directions.**
+  `ops/check-ascii-system-files.py` was made to fail on the three live markers
+  before they were changed, and made to fail again on a deliberately
+  re-introduced em dash afterwards. The second half is the one usually skipped.
+- **Idempotence is checked before the merge, on every host, per playbook.** Four
+  runs, `changed=0` on all four, including the `replace` that repairs the marker
+  — a repair task that is not idempotent re-introduces what it just fixed, and
+  the only way to know is to run it twice.
+
+### New instrument traps — three, and all three were the main session's
+
+- **A negative result from an instrument that could not read its input.** The
+  first search for the offending character ran `grep` without `sudo` against
+  0640 root-owned files and came back empty. It produced a confident wrong
+  answer for several minutes. **A search that finds nothing must prove it could
+  have found something** — the same positive-control rule this file already
+  applies to ports and to assertions, applied to file reads.
+- **Testing the wrong address and then explaining the result.** A DNS check ran
+  against `192.168.1.10`; the host is `192.168.1.100`. The timeout was then
+  rationalised at length as "a path nobody uses", complete with a caveat about
+  missing baselines. Both were fiction. **Verify the target of a probe before
+  interpreting its answer**, especially when the answer is the one that would
+  justify a story.
+- **A regexp written in byte escapes for a character matcher.** `\xe2\x80\x94`
+  in a Python regexp matches three Latin-1 characters, not an em dash. It would
+  have matched nothing, silently, and the repair task would have reported
+  success while repairing nothing. Caught by testing the pattern against the
+  real deployed lines before committing — which is the only reason it is a trap
+  and not a fourth finding.
+
+### One fail-open found in our own fix, before it could bite
+
+The task obscuring the WebDAV password through stdin had no guard on its output.
+An rclone exiting 0 with an empty stdout would have written `pass = ` into
+rclone.conf — well-formed INI, silently wrong, and the vault mount would have
+stopped working with nothing to explain it. **A fix that replaces a loud failure
+mode with a quiet one is not an improvement**, and the guard went in before the
+merge.
