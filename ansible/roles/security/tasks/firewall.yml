@@ -86,6 +86,23 @@
     comment: "{{ item.comment | default(omit) }}"
   loop: "{{ ufw_service_rules | default([]) }}"
 
+# Same shape as the legacy IPv6 SSH rule above, and for the same reason: adding
+# a scoped rule does not retract an older one whose tuple differs. This one is
+# the proto-less `53` entry that host_vars carried until 2026-09-03, which ufw
+# stores as proto `any` and prints with the comment "DNS (Pi-hole, LAN only)" —
+# a claim DOCKER-USER, not ufw, has been enforcing since 2026-09-02. Ordered
+# AFTER the loop that creates the explicit udp and tcp rules, so the INPUT path
+# is never left without a udp/53 allow.
+#
+# `delete: true` with no `proto` is what matches the proto-less rule: the module
+# passes no protocol and ufw resolves that to `any`, which is the tuple to remove.
+- name: firewall | Remove the legacy proto-less DNS rule ufw added beside its replacement
+  community.general.ufw:
+    rule: allow
+    port: "53"
+    from_ip: 192.168.1.0/24
+    delete: true
+
 # Every rule above lands on the INPUT path. A packet bound for a published
 # container port never takes it: it is FORWARDed, and in FORWARD Docker's own
 # chains sit ahead of every ufw-* chain — DOCKER-USER at position 1,

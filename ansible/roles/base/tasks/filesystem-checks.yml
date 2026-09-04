@@ -117,6 +117,50 @@
 # kept because they fail in opposite directions — the interval covers a host
 # that never reboots, the mount count covers one that reboots constantly.
 #
+# --- CORRECTION, 2026-09-03: on ROOT the interval trigger cannot fire ---------
+# The sentence above is true of every filesystem here except the one it is
+# written about. Root is checked in the INITRAMFS — this boot's journal on both
+# hosts shows `systemd-fsck-root.service ... skipped because of an unmet
+# condition check (ConditionPathExists=!/run/initramfs/fsck-root)`, i.e. the
+# initramfs already did it — and the initramfs has no clock. fake-hwclock-load
+# runs in the main system, after; the `After=fake-hwclock-load.service` drop-in
+# further down targets `systemd-fsck@` instances and, as its own comment says,
+# not this unit. Nothing can order the initramfs after a clock that lives on the
+# filesystem being checked.
+#
+# So e2fsck stamps `Last checked` with the pre-NTP clock, which is the mtime of
+# the systemd binary and therefore a FIXED date. Measured on the offsite,
+# 2026-09-04:
+#
+#   /lib/systemd/systemd mtime   2026-07-28 17:04:45
+#   Last checked                 Tue Jul 28 17:04:59 2026   <- 14 s later
+#   Next check after             Thu Aug 27 17:04:59 2026
+#   the clock at every boot      ~2026-07-28 17:04
+#
+# `Next check after` is a month past a clock that never advances past it, so the
+# interval is never due and never will be. The trigger is inert, silently — the
+# exact shape this file's own header describes as worse than no trigger at all.
+#
+# The homelab's root reads `Last checked Sun Aug 30 17:28:54 2026`, a real date,
+# equal to the second to the start of boot -2 in `journalctl --list-boots`. Its
+# interval works today because that boot happened to have a good clock. That is
+# luck, not design, and it is the same luck the C42 note below describes.
+#
+# --- What is done about it, and what is not ----------------------------------
+# Nothing in this file, deliberately. There is no `tune2fs` value that fixes it:
+# stamping `Last checked` forward from Ansible, which does have a correct clock,
+# pushes `Next check after` further beyond the boot clock and makes the trigger
+# MORE inert; stamping it backward forces a full e2fsck at every single boot, and
+# `e2fsck -p` refusing to preen drops this host into an emergency shell with no
+# console, no tunnel and no one in the building. That is a decision about failure
+# modes, not a fix, and it is not taken here.
+#
+# `-c` is therefore the load-bearing trigger on root, and it works: the mount
+# count is a counter, not a clock. Both are kept — the interval costs nothing and
+# becomes correct the day this board gets an RTC or the initramfs gets the clock.
+# What changes here is only that the file no longer claims a coverage it does not
+# have.
+#
 # The real cost is not time. systemd-fsck runs `e2fsck -p`, which fixes only
 # what is unambiguously safe and exits non-zero on anything else, and systemd
 # turns that into an emergency shell. On a host reachable only through a tunnel

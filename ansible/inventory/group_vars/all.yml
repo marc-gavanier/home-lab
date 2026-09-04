@@ -436,6 +436,21 @@ health_watched_units:
     why: looped 1112 times over 5h47 on 2026-07-27 without ever reaching failed
   - unit: wg-quick@wg0.service
     why: the only route to this host, and to the offsite one
+    # The ONLY entry carrying this flag, and it is opt-in for a measured reason:
+    # `systemctl is-enabled` on 2026-09-03 returns enabled for containerd,
+    # fail2ban, claude-remote-control and this unit, but DISABLED for docker and
+    # ssh, which are socket-activated. A blanket assertion would fail forever on
+    # a correct machine, which is what the units template's comment warns about.
+    #
+    # Why this unit and not the others: `systemctl show` gives it
+    # `WantedBy=mnt-data.mount` and nothing else, so the symlink in
+    # mnt-data.mount.wants/ is the SOLE activation path of the only remote access
+    # to this host. `running: true` already covers it, but only after the reboot
+    # that has already cost the tunnel — at which point the fix needs someone in
+    # the room. This reads the precondition while the machine is still reachable,
+    # and `is-enabled` reads that symlink directly. The precedent is on file:
+    # `enabled: false` erased it on 2026-07-13.
+    enabled: true
   - unit: ssh.service
     why: >-
       the only way in, and nothing asserted it — the 2026-08-29 audit found it

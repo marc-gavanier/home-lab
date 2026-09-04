@@ -65,10 +65,26 @@ command:
 
   # The catch-all the four named units cannot provide: a unit NOBODY listed.
   # `systemctl --failed` is one command and the same one the operator would run.
+  #
+  # The test is `[ -z "$(...)" ]` and NOT the bare command, because the bare form
+  # asserted nothing at all. `systemctl` returns 0 whether the list is empty or
+  # full — its exit status reports that the QUERY succeeded, not that the answer
+  # was empty. Control taken on this host on 2026-09-03:
+  #
+  #     systemctl list-units --state=active --no-legend --plain | wc -l  -> 433
+  #     echo $?                                                          -> 0
+  #
+  # and `stdout: []` is an empty list of patterns, which emits no assertion
+  # either. So the only unit-level safety net on the host with no physical
+  # access, probed once a week, was a check that could not fail. The homelab has
+  # carried the correct form since it was written (goss-units.yaml.j2): the
+  # command substitution is what turns the OUTPUT into the exit status.
+  #
+  # Keep the two hosts' forms identical. This one drifted precisely because it
+  # was written separately from its sibling rather than derived from it.
   offsite-no-failed-units:
-    exec: systemctl --failed --no-legend --plain
+    exec: '[ -z "$(systemctl --failed --no-legend --plain 2>/dev/null)" ]'
     exit-status: 0
-    stdout: []
 
   # ufw is a oneshot and sits in `active (exited)` on a correct machine, so a
   # service resource would assert the wrong thing about the component whose job

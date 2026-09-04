@@ -61,18 +61,55 @@
   failed_when: false
   no_log: true
 
-- name: vault | Configure rclone WebDAV remote for the claude user
+# `rclone config create` put the cleartext app-password in the argv of a process
+# on a /proc with no hidepid — while the probe ELEVEN LINES ABOVE passes the same
+# value through `environment:`, which is the form the rest of this repository
+# settled on in #177 and #188. `no_log: true` hides it from Ansible's output and
+# not from /proc, which is exactly what made this read as safe.
+#
+# The guard made it worse rather than narrower: the probe carries
+# `failed_when: false`, so a probe that fails registers rc != 0 with an empty
+# stdout, and `'REMOTE_MATCH' not in ''` is TRUE. The guard opens on failure
+# instead of closing.
+#
+# So the password is now obscured through STDIN — verified on the host, `rclone
+# obscure -` reads standard input — and the config file, five lines of INI, is
+# written by Ansible over the SSH transport, where no command line is involved.
+#
+# What this does NOT fix, stated rather than left to be rediscovered: the probe
+# above still passes the OBSCURED value on a command line. rclone's own help
+# calls obscuring "not a secure way of encrypting", so that string is equivalent
+# to the password. It is the same string this task writes into the 0600 file on
+# the encrypted volume, and taking it out of argv needs a `reveal` that reads
+# stdin — measured on this host, `rclone reveal` has no such form.
+- name: vault | Obscure the WebDAV password without it reaching a command line
   ansible.builtin.command:
-    cmd: >
-      rclone config create nextcloud webdav
-      url=https://drive.{{ domain }}/remote.php/dav/files/admin/
-      vendor=nextcloud user=admin pass={{ rclone_webdav_pass }}
+    cmd: rclone obscure -
+    stdin: "{{ rclone_webdav_pass }}"
+    stdin_add_newline: false
   become: true
   become_user: claude
-  environment:
-    RCLONE_CONFIG: /mnt/data/secrets/claude/rclone.conf
+  register: rclone_obscured_pass
+  changed_when: false
+  check_mode: false
   no_log: true
-  changed_when: true
+  when: "'REMOTE_MATCH' not in rclone_remote_check.stdout | default('')"
+
+- name: vault | Configure rclone WebDAV remote for the claude user
+  ansible.builtin.copy:
+    dest: /mnt/data/secrets/claude/rclone.conf
+    owner: claude
+    group: claude
+    mode: "0600"
+    content: |
+      # Managed by Ansible — do not edit on the host.
+      [nextcloud]
+      type = webdav
+      url = https://drive.{{ domain }}/remote.php/dav/files/admin/
+      vendor = nextcloud
+      user = admin
+      pass = {{ rclone_obscured_pass.stdout }}
+  no_log: true
   when: "'REMOTE_MATCH' not in rclone_remote_check.stdout | default('')"
 
 - name: vault | Remove legacy rclone config from the SD card
