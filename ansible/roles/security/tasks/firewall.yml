@@ -121,10 +121,49 @@
 # DOCKER-USER is the single supported hook — Docker traverses it first and
 # never rewrites its contents. Declaring the chain here also creates it when
 # ufw loads before dockerd has ever run, so the ruleset cannot fail to parse.
-- name: firewall | Declare the DOCKER-USER chain in UFW's after.rules
+# =============================================================================
+# The markers below are ASCII, and that is not a style choice (2026-09-04)
+# =============================================================================
+# ufw rewrites this file line by line whenever the default policy is set:
+#
+#   ufw/backend_iptables.py:156  ufw.util.write_to_file(fd, line)
+#   ufw/util.py:256              os.write(fd, bytes(out, 'ascii'))
+#
+# The markers shipped by a5d450f contained an em dash, so the NEXT run of this
+# role died before it reached a single rule:
+#
+#   UnicodeEncodeError: 'ascii' codec can't encode character '\u2014' in
+#   position 24: ordinal not in range(128)
+#
+# position 24 being exactly where the dash sits in "# BEGIN ANSIBLE MANAGED ".
+# It stayed latent for two days because the failing task, "Set UFW default deny
+# incoming", runs BEFORE the tasks that write the marker: the run that
+# introduced the character could not trip over it, and every run after it did.
+# The offsite host was one successful run away from the same state.
+#
+# ops/check-ascii-system-files.py is the gate, and it was made to fail on these
+# three markers before they were changed.
+#
+# The two removals are what keeps the rename from DUPLICATING the blocks:
+# blockinfile matches on the marker, so a changed marker means a second block
+# appended beside an orphaned first one. Each is ordered immediately before its
+# replacement, and the live chain is untouched until the handler reloads at the
+# end of the play — so the only window is on disk, and a run that died inside it
+# would leave the rules absent from the file while the running kernel still
+# enforces them. Recovery is re-running this role.
+#
+# They can be deleted once both hosts have converged; left in place they are one
+# no-op task each, which is cheaper than remembering.
+- name: firewall | Retire the non-ASCII DOCKER-USER chain marker
   ansible.builtin.blockinfile:
     path: /etc/ufw/after.rules
     marker: "# {mark} ANSIBLE MANAGED — DOCKER-USER chain"
+    state: absent
+
+- name: firewall | Declare the DOCKER-USER chain in UFW's after.rules
+  ansible.builtin.blockinfile:
+    path: /etc/ufw/after.rules
+    marker: "# {mark} ANSIBLE MANAGED - DOCKER-USER chain"
     insertafter: '^# End required lines'
     block: |
       :DOCKER-USER - [0:0]
@@ -134,10 +173,16 @@
 # traversed before nat/POSTROUTING, so the laundering that rewrites bridge
 # sources into 172.18.0.1 has not happened yet and `-s` matches what the
 # client actually sent.
-- name: firewall | Restrict Pi-hole's DNS to the LAN, the VPN and the container networks
+- name: firewall | Retire the non-ASCII DOCKER-USER rules marker
   ansible.builtin.blockinfile:
     path: /etc/ufw/after.rules
     marker: "# {mark} ANSIBLE MANAGED — DOCKER-USER rules"
+    state: absent
+
+- name: firewall | Restrict Pi-hole's DNS to the LAN, the VPN and the container networks
+  ansible.builtin.blockinfile:
+    path: /etc/ufw/after.rules
+    marker: "# {mark} ANSIBLE MANAGED - DOCKER-USER rules"
     insertbefore: '^COMMIT'
     block: |
       -A DOCKER-USER -p udp --dport 53 -s 192.168.1.0/24 -j RETURN
