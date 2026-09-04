@@ -17,10 +17,24 @@
 # blockinfile appends at EOF, which lands inside the LAST conditional section
 # of config.txt ([pi4]/[cm4]/...) — the [all] header makes the overlays apply
 # unconditionally wherever the block ends up.
-- name: attack-surface | Disable Wi-Fi and Bluetooth radios in firmware
+# ASCII marker, for the reason firewall.yml documents at length: a marker is
+# written into the target file, and this target is read by the Raspberry Pi
+# firmware before Linux exists. No consumer is known to reject the byte here —
+# it sits in a comment the parser skips — so this is the same SHAPE as the ufw
+# breakage rather than a second instance of it. Changed anyway, because the gate
+# that now gates the ufw case is derived from the property and not from the file,
+# and an exception would have to be argued rather than inherited.
+- name: attack-surface | Retire the non-ASCII radio-kill marker
   ansible.builtin.blockinfile:
     path: /boot/firmware/config.txt
     marker: "# {mark} ANSIBLE MANAGED — radio kill (base role)"
+    state: absent
+  notify: Reboot required
+
+- name: attack-surface | Disable Wi-Fi and Bluetooth radios in firmware
+  ansible.builtin.blockinfile:
+    path: /boot/firmware/config.txt
+    marker: "# {mark} ANSIBLE MANAGED - radio kill (base role)"
     block: |
       [all]
       dtoverlay=disable-wifi

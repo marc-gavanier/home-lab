@@ -43,6 +43,20 @@ repos:
       # bodies. So the error was reachable only by deploying against the live
       # host — measured 2026-08-29, on a comment warning about the very braces
       # that broke it. This parses every .j2 instead.
+      # ufw rewrites /etc/ufw/after.rules through an ASCII codec, so one em dash
+      # in a blockinfile marker made the whole security role unrunnable — and
+      # did it two days after the run that introduced it, because the failing
+      # task precedes the one that writes the marker. Nothing else here can see
+      # it: yamllint and ansible-lint both read UTF-8 happily, and the file is
+      # only rewritten by ufw itself. Made to fail on the three live markers
+      # before they were changed.
+      - id: ascii-system-files
+        name: no non-ASCII bound for an ASCII-strict system file
+        entry: ops/check-ascii-system-files.py
+        language: system
+        files: ^ansible/.*\.ya?ml$
+        pass_filenames: false
+
       - id: jinja-templates-parse
         name: jinja templates parse
         entry: ops/check-jinja-templates.py
