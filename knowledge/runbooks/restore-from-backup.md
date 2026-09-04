@@ -73,6 +73,31 @@ restic restore latest --target / --include /mnt/data/services/<service>
 docker compose up -d <service>
 ```
 
+> **This command alone is NOT a complete restore for a service that has a
+> database.** Since 2026-08-31 the live database datadirs are excluded from the
+> snapshot on purpose — the dump is the consistent copy, the datadir is the torn
+> one (`resticprofile.yaml`, `exclude:`). The command above therefore restores
+> the files and silently leaves the database at whatever state is on disk, and it
+> **exits 0** either way. Verified on the snapshot of 2026-09-03 with
+> `restic ls latest <path>`:
+>
+> | `--include` path | What comes back | Then also do |
+> |---|---|---|
+> | `services/miniflux` | **the empty directory, nothing else** — `db` is its only content | "Restore Miniflux" below |
+> | `services/nextcloud` | `data/` (the user files) — **no `db`** | "Restore a database" below |
+> | `services/immich` | `upload/`, `ml-cache` — **no `db`** | "Restore Immich" below |
+> | `services/uptime-kuma` | the directory — **no `kuma.db`** | "Restore Uptime Kuma" below |
+> | `services/pihole` | config, gravity, lists — **no query history** | nothing: a rescan rebuilds it |
+> | `services/netdata` | config — **no `cache/`** | nothing: it regenerates |
+>
+> Every other service is complete from this command alone.
+>
+> How this got here is worth one sentence, because it is the shape to watch for:
+> `resticprofile.yaml` states the rule that makes an exclusion safe — *"exclude
+> nothing that a documented restore procedure reads"* — and the rule was checked
+> against the per-service procedures further down this file and not against the
+> generic one right here. One file was edited; its sibling was not.
+
 `<service>` is the **compose service name**, not the container name. They
 are identical for every service here except `immich-machine-learning`,
 whose container is named `immich-ml`; `compose` answers "no such service"

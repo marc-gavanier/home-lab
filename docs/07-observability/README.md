@@ -478,11 +478,23 @@ docker exec netdata curl -s http://127.0.0.1:19999/api/v3/contexts \
 p=collections.Counter(k.split(".")[0] for k in c); print(len(c), dict(p.most_common(8)))'
 ```
 
-Reference on this host: uid **201**, **10** plugin processes (`NETWORK-VIEWER`,
-`apps.plugin`, `debugfs.plugin`, `go.d.plugin`, `otel-plugin`,
-`otel-signal-viewer`, `sd-jrnl.plugin`, `sd-unit.plugin`, `spawn-plugins`,
-`spawn-setns`), **278** contexts — app 14, user 14, usergroup 14, cgroup 25,
-systemd 7. AppArmor denials, if any, land in `dmesg | grep apparmor`.
+Reference, re-measured on this host 2026-09-03 with the three commands above:
+uid **201**, **11** distinct plugin processes (`NETWORK-VIEWER`, `apps.plugin`,
+`debugfs.plugin`, `go.d.plugin`, `netflow-plugin`, `otel-plugin`,
+`scripts.d.plugin`, `sd-jrnl.plugin`, `sd-unit.plugin`, `spawn-plugins`,
+`spawn-setns`), **383** contexts — netdata 137, system 43, ipv6 26, cgroup 25,
+ipv4 24, mem 23, app 14, user 14. AppArmor denials, if any, land in
+`dmesg | grep apparmor`.
+
+The previous reference here read 10 plugins and 278 contexts, listed
+`otel-signal-viewer` — which is not running — and omitted `netflow-plugin` and
+`scripts.d.plugin`. The image had not changed, so the numbers had drifted under
+it. **That is the failure mode of a reference value, and it is worth naming: a
+baseline nobody re-measures turns the check it serves into a boy who cried
+wolf.** Axis 2 exists precisely because `NETWORK-VIEWER`'s absence shows nowhere
+else; it can only do that job against a list that is current. Re-measure these
+three numbers whenever you change the container, and update this paragraph in
+the same commit — the point of the axis is the comparison, not the ritual.
 
 ## What is actually monitored
 

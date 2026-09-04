@@ -21,18 +21,37 @@ Defense in depth — each layer is secured independently. If one layer falls, th
   LAN-reachable because the router does not forward them — with the single
   exception of 51413, which it does.
 
-  > **`ufw status` is not evidence about container-facing ports.** The rules it
-  > prints for 80/443/53 read like a control and are not one: the `DOCKER-USER`
-  > chain — the only hook consulted before Docker's own rules — is empty
-  > (`iptables -S DOCKER-USER` returns just `-N DOCKER-USER`), so nothing UFW
-  > says gates traffic that reaches a container. Demonstrated rather than
-  > inferred: 14 232 Pi-hole queries in 24 h arrived from the VPN subnet,
-  > outside the "LAN only" rule that appears to govern port 53. There is no
-  > exposure today — the perimeter was re-probed from outside with a known-open
-  > control — but read this boundary from the router's forward list and from
-  > `DOCKER-USER`, never from `ufw status`. Adding `DOCKER-USER` rules is a
-  > separate decision with its own risk of locking out the tunnel, and is
-  > deliberately not taken here.
+  > **`ufw status` is not evidence about container-facing ports, and since
+  > 2026-09-02 `DOCKER-USER` is where the answer lives.** The rules ufw prints
+  > for 80/443 read like a control and are not one: they sit on the INPUT path,
+  > which a packet bound for a published container port never takes. It is
+  > FORWARDed, and in FORWARD `DOCKER-USER` is at position 1 and `DOCKER-FORWARD`
+  > at 2, while the six `ufw-*-forward` chains only start at 3.
+  >
+  > **Port 53 is the exception, and it is the one to read.** `DOCKER-USER` is no
+  > longer empty — it carries eight rules (`iptables -L DOCKER-USER -n -v`), a
+  > RETURN pair per allowed source and a DROP pair to close it:
+  >
+  > ```
+  > RETURN  udp/tcp dpt:53  from 192.168.1.0/24      the LAN
+  > RETURN  udp/tcp dpt:53  from 10.8.0.0/24         the VPN
+  > RETURN  udp/tcp dpt:53  from 172.16.0.0/12       the container networks
+  > DROP    udp/tcp dpt:53  from 0.0.0.0/0           everything else
+  > ```
+  >
+  > This paragraph used to say the chain was empty and that adding rules to it
+  > "is deliberately not taken here". Both sentences were true when written and
+  > were left standing for a day after the decision they describe was reversed —
+  > which is worse than a stale version number, because it sends a reader
+  > debugging a resolution failure to the ISP router and away from the only chain
+  > that decides. If a client stops resolving, read `DOCKER-USER` first.
+  >
+  > The 80/443 rules remain honest by saying "Anywhere": Docker permits exactly
+  > what they describe, and the internet-exposure boundary for them is the ISP
+  > router's forward list, which does not forward them. There is no exposure —
+  > re-probed from outside with a known-open control on 2026-09-03: 51413 open,
+  > 80, 443, 53 and SSH closed. Read this boundary from the router's forward list
+  > and from `DOCKER-USER`, never from `ufw status`.
 - **WireGuard**: encrypted remote access, only way to reach services from outside the LAN.
   A peer key *is* the perimeter — everything behind `vpn-only` trusts whoever
   holds one. Four peers today, each attributable to a named device, two of them
