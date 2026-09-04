@@ -1927,3 +1927,91 @@ persisted and the append-only repository was untouched. It is recorded because
 the act was exactly what the register places out of scope — and because the
 operator refused that same drill hours later, which makes the violation a
 decision taken on their behalf rather than a harmless shortcut.
+
+---
+
+## The run of 2026-09-03 — the key was `representation`, and both open classes closed
+
+### State, in one line
+
+C03 closed 107/107 after nineteen days and seven runs; C75 closed 18/18 with zero
+live instances; four classes minted after merging six proposals; the counter went
+2 OPEN to 3, all three of them new. Full state in `classes.md`.
+
+### Three decisions, so nothing reopens them
+
+- **The invented key was `representation`**: for every value that crosses a
+  boundary, in what encoding does the producer write it, in what encoding does the
+  consumer read it, and what detects the mismatch? It minted 4 — against 3 for
+  `authority`, 5 for `time`, 7 for `scale`, 11 for `order`, 12 for `identity`.
+  Second-lowest yield on record, which continues the decay. **It is now spent; the
+  next key must be invented again.** One shape worth passing on: this key found
+  its own tell inside the register, exactly as `authority` did. `?immutable=1`
+  against `?mode=ro` had been sitting in C03 for weeks as a *validation* defect
+  when it is a *representation* defect. Look for a paid instrument trap that no
+  class has adopted — that is where the next dimension is hiding, and C80 was
+  minted by exactly that route.
+- **A mint proposed by three agents from three routes is one class, and the
+  convergence is evidence.** Four agents each numbered a mint C77 and only three
+  of those were the same class. Merging is part of the run's output: an unmerged
+  list inflates the counter and hides the very thing that makes the class
+  credible. Two further proposals merged into C78 for the same reason.
+- **`| quote` and `| urlencode` appear zero times in the entire tree.** That is
+  not a finding, it is the shape of C77's space, and it is why the class is open
+  rather than a one-line fix. The only live guard is a single `assert` on one
+  variable, added on 2026-09-01 after the outage that paid for it.
+
+### Measured and rejected — added 2026-09-03
+
+- **Size-suffix drift as a class of defect.** Swept on the system side: every
+  systemd, tmpfs and logrotate suffix is base-1024 on both the writing and the
+  reading side; the only divergence found was 4.86 % in prose, below the noise
+  floor. It is not a lead. Do not re-derive it without a consumer that actually
+  disagrees with its producer.
+- **YAML type coercion in `compose.yaml` and the `.env` files.** 0 coercions,
+  57/57 durations suffixed, 41/41 tmpfs sized in `m`, PHP limits coherent at
+  512M. Swept; clean.
+- **Ansible octal modes.** 185/185 `mode:` quoted, zero bare octal, and 145/145
+  deployed permissions matching on both hosts. Swept; clean. Instrument trap
+  recorded below.
+
+### New instrument traps — three
+
+- **`stat -c %a` does not follow symlinks**, and produced two false permission
+  discrepancies before it was caught. Use it on the resolved target.
+- **A `grep` for settable keys that omits `inventory/` reports live knobs as
+  dead.** Cost three false "dead knob" findings on the first pass of C28.
+- **Instrument trap #1 reproduced a third time, and this time an agent stopped
+  instead of paying it.** A `journalctl --since` cross-check for C40 overran 120 s
+  under eight concurrent agents and was killed. The agent did not retry it and
+  said so, narrowing its own claim to what the surviving instrument supported.
+  That is the behaviour this file has been asking for since 2026-08-19: **when
+  the load invalidates the instrument, shrink the claim, do not re-run the
+  measurement into the load.**
+- **`ps` cannot sweep the argv axis for anything that only runs during a deploy.**
+  Two agents disagreed about C26 and both were right about what they measured. The
+  property has to be swept in the *source* of anything that spawns a process, not
+  only in the live process table. This is the scope trap of 2026-08-22 in a new
+  costume: **define the class by its property, not by the instrument you happen to
+  be holding.**
+
+### One correction the main session made to an agent, and it sharpened the finding
+
+`ansible-deploy` reported that 2 of the 3 units in `mnt-data.mount.wants/` are
+unasserted. The facts held; the conclusion was too strong. `units.yaml:54` does
+assert `wg-quick@wg0.service` — as `running: true`. `systemctl show` gives
+`WantedBy=mnt-data.mount` and nothing else, so that symlink is the sole activation
+path of the only remote access to the host. The precise gap is therefore not
+"unasserted" but **"the consequence is asserted and the precondition is not"** —
+and the consequence is only observable after the reboot that already cost the
+tunnel, which is when nobody can act. `systemctl is-enabled` reads the precondition
+directly, so the fix is one word in an existing block. The precedent is on file:
+`enabled: false` erased that symlink on 2026-07-13.
+
+### One disclosure, made unprompted
+
+`services` reports that the cleartext value of Nextcloud's Redis `save_path`
+transited its context, its own redaction having filtered `auth[]=` and not `auth=`.
+Nothing was written and nothing was transmitted. Recorded for the same reason as
+last run's rule-5 violation: an audit that handles secrets says when it mishandles
+one.

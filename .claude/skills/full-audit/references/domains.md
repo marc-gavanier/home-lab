@@ -15,25 +15,33 @@ earlier — which would have sent eight agents to re-derive settled work. Rebuil
 it from `classes.md`'s OPEN table at the start of every run; if the two
 disagree, `classes.md` wins.
 
-As of the run of 2026-08-31. **Rebuilt from `classes.md`'s OPEN table — do not
+As of the run of 2026-09-03. **Rebuilt from `classes.md`'s OPEN table — do not
 trust this copy if the two disagree.**
 
-| Domain          | OPEN classes it owns                                                                                   |
-|-----------------|--------------------------------------------------------------------------------------------------------|
-| system          | C46 (a supervisor log declaring an act it did not perform) — **4 `logger -t` lines from closable**       |
-| security        | C57 (an authentication failure with no identity) — bounded at 24, 17 decided, 7 need a failure drill     |
-| network         | —                                                                                                        |
-| services        | —                                                                                                        |
-| backup          | C73 (a documented duration extrapolated from an unrepresentative sample)                                 |
-| observability   | C03 (the gate is designed and derived; 0 of 249 deployed `exec:` blocks carry it)                        |
-| ansible-deploy  | C66 (a correction whose siblings were never enumerated) — it owns the fix history                        |
-| project-manager | C66 — shares with ansible-deploy (it owns the documentary half)                                          |
+**No domain owns an OPEN class. The register's OPEN column is empty**, for the
+first time, as of 2026-09-03. C03 closed 107/107 after nineteen days and seven
+runs, C75 18/18, and the three classes minted that evening all closed the same
+night. Do not re-derive any of them; re-check only after a change that could
+reopen one.
 
-**Both halves of C66 were swept to completion on 2026-08-31** — 128/128
-correction commits and 188/188 correction hunks — and the class is still OPEN
-for a reason the sweep established rather than assumed: a `git log` sweep cannot
-bound hand-fixes that were never committed. That is a better kind of open than
-the one it replaced.
+**So the next run has a different job from every run before it, and the mandate
+below is the whole of it.** The termination criterion needs two consecutive runs,
+each with a NEWLY INVENTED key, that mint zero new classes. Six keys are spent:
+`time`, `order`, `identity`, `scale`, `authority`, `representation`. A run that
+reuses one of those proves nothing, and a run that finds nothing while reusing
+one proves less than nothing.
+
+**Invent the key first, write it into the brief, and send the agents after it.**
+The two keys that paid best were both found the same way: look for an instrument
+trap in `settled.md` that no class has adopted, or a pair of narrow classes in
+`classes.md` that are obviously two faces of a dimension nobody named. `authority`
+came from C13 and C27; `representation` came from the `docker logs --since`
+timezone trap, which had sat unclassed since 2026-08-19 and became C80.
+
+**If the key is well made and the run comes back empty, say so plainly and stop.**
+An empty run is the expected outcome now, not a failure — but only if each report
+says what was checked to establish it, checks it against the running systems, and
+verifies the previously reported defects gone rather than assuming it.
 
 **Three domains own no OPEN class and are not idle.** Their job is the one that
 demoted C02, C13 and C26: re-read the GATED assertions in their area and ask
