@@ -92,6 +92,13 @@
   register: rclone_obscured_pass
   changed_when: false
   check_mode: false
+  # Fail closed. Without this, an rclone that exited 0 with nothing on stdout
+  # would have the copy below write `pass = ` and break the vault mount that
+  # Claude Code reads through — silently, because the file would be perfectly
+  # well-formed INI. `rclone obscure -` was verified working as the `claude`
+  # user before this shipped; the guard is for the case that verification
+  # cannot cover, which is a future rclone.
+  failed_when: rclone_obscured_pass.rc != 0 or rclone_obscured_pass.stdout | length == 0
   no_log: true
   when: "'REMOTE_MATCH' not in rclone_remote_check.stdout | default('')"
 
