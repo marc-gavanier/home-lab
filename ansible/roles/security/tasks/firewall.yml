@@ -1,6 +1,35 @@
 ---
 # UFW: deny by default, explicit whitelist.
 
+# =============================================================================
+# Repair a non-ASCII marker BEFORE ufw is invoked (2026-09-04)
+# =============================================================================
+# This task is FIRST, and the position is the whole point. ufw rewrites
+# after.rules line by line through an ASCII codec whenever the default policy is
+# set — ufw/backend_iptables.py:156 into ufw/util.py:256, os.write(fd,
+# bytes(out, 'ascii')) — so an em dash anywhere in that file kills
+# "Set UFW default deny incoming", which is the fourth task of this role.
+#
+# The first attempt at this fix put the repair in the blockinfile tasks near the
+# bottom, and that was a DEADLOCK: the task that fails runs before the task that
+# repairs, so Ansible could never reach its own remedy and both hosts would have
+# needed a hand-edit. Measured — the homelab failed at that task on 2026-09-04
+# 22:35, and the offsite wrote itself into the same state eight minutes later
+# from the pre-fix code.
+#
+# `replace` and not blockinfile-absent-then-present: it converts the marker in
+# place, so the block is never briefly missing from the file, and the blockinfile
+# tasks below then find their own ASCII marker and report no change. That
+# no-change is the proof the repair landed.
+#
+# Idempotent and self-healing: on a host that never had the bad marker, and on
+# every run after the first, it matches nothing.
+- name: firewall | Repair non-ASCII Ansible markers in after.rules
+  ansible.builtin.replace:
+    path: /etc/ufw/after.rules
+    regexp: '^(# (?:BEGIN|END) ANSIBLE MANAGED) — (.*)$'
+    replace: '\1 - \2'
+
 - name: firewall | Install UFW
   ansible.builtin.apt:
     name: ufw
@@ -154,12 +183,6 @@
 #
 # They can be deleted once both hosts have converged; left in place they are one
 # no-op task each, which is cheaper than remembering.
-- name: firewall | Retire the non-ASCII DOCKER-USER chain marker
-  ansible.builtin.blockinfile:
-    path: /etc/ufw/after.rules
-    marker: "# {mark} ANSIBLE MANAGED — DOCKER-USER chain"
-    state: absent
-
 - name: firewall | Declare the DOCKER-USER chain in UFW's after.rules
   ansible.builtin.blockinfile:
     path: /etc/ufw/after.rules
@@ -173,12 +196,6 @@
 # traversed before nat/POSTROUTING, so the laundering that rewrites bridge
 # sources into 172.18.0.1 has not happened yet and `-s` matches what the
 # client actually sent.
-- name: firewall | Retire the non-ASCII DOCKER-USER rules marker
-  ansible.builtin.blockinfile:
-    path: /etc/ufw/after.rules
-    marker: "# {mark} ANSIBLE MANAGED — DOCKER-USER rules"
-    state: absent
-
 - name: firewall | Restrict Pi-hole's DNS to the LAN, the VPN and the container networks
   ansible.builtin.blockinfile:
     path: /etc/ufw/after.rules
