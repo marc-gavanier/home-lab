@@ -166,11 +166,29 @@
       maxretry = 5
       findtime = 600
 
+      # `logtimezone` because Vaultwarden writes a NAKED local timestamp and its
+      # container runs on UTC while this host runs on CEST. fail2ban diagnoses it
+      # itself, in its own log, once per restart:
+      #
+      #   WARNING [vaultwarden] Detected a log entry 2h before the current time
+      #   in operation mode. This looks like a timezone problem. Treating such
+      #   entries as if they just happened.
+      #
+      # In steady state that recovery is adequate. What it cannot recover is the
+      # backfill: findtime is 600 s against a 7200 s offset, so at every fail2ban
+      # restart — five of them so far — the whole existing file falls outside the
+      # window and the jail starts from nothing.
+      #
+      # The [nextcloud] jail deliberately does NOT get this: its log is JSON with
+      # an explicit offset ("time":"2026-09-01T21:55:01+00:00"), so fail2ban
+      # already reads it correctly and forcing a timezone here would break it.
+      # The difference is the presence of the offset in the log, not the service.
       [vaultwarden]
       enabled = true
       filter = vaultwarden
       backend = auto
       logpath = {{ services_data_dir }}/vaultwarden/logs/vaultwarden.log
+      logtimezone = UTC
       port = http,https
       banaction = iptables-allports
       chain = DOCKER-USER

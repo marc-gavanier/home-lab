@@ -42,6 +42,12 @@ service:
   # {{ u.why }}
   {{ u.unit }}:
     running: true
+{% if u.enabled | default(false) %}
+    # Opt-in per unit, never blanket: docker and ssh are socket-activated and
+    # report `disabled` on a correct machine. See the flag's comment in
+    # group_vars for why exactly one unit carries it.
+    enabled: true
+{% endif %}
 {% endfor %}
 
 command:

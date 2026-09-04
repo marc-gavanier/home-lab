@@ -989,7 +989,17 @@ services:
         exec /var/www/html/custom_apps/notify_push/bin/aarch64/notify_push
         /var/www/html/config/config.php
     volumes:
-      - ${SERVICES_DATA_DIR}/nextcloud/data:/var/www/html
+      # `:ro`, and it is a correction rather than a hardening step. The mount was
+      # declared read-write and the container could not write to it: it runs as
+      # uid 0 with `cap_drop: ALL` and only DAC_READ_SEARCH, which overrides read
+      # and traverse but NOT write. Measured inside the container with a positive
+      # control at the same uid — `/var/www/html` NOT writable, `/tmp` writable —
+      # so the instrument was answering about capabilities and not about uid.
+      # Declaring rw asserted a permission the process demonstrably did not have,
+      # which is the class the posture check exists to catch and could not see
+      # here: its predicate is `owner == OPERATOR_UID`, a proxy for the property
+      # rather than the property. The process only reads config.php.
+      - ${SERVICES_DATA_DIR}/nextcloud/data:/var/www/html:ro
     networks:
       - proxy
       - internal

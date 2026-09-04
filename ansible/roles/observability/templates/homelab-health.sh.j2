@@ -322,9 +322,9 @@ if mountpoint -q /mnt/data && [ -f "$ACME_JSON" ]; then
     # absurd. The countdown itself is arithmetic on the cached date.
     mkdir -p "$(dirname "$CERT_STAMP")"
     acme_mtime=$(stat -c %Y "$ACME_JSON" 2>/dev/null || echo "")
-    cached_mtime=""; cached_epoch=""; cached_name=""; cached_count=""
+    cached_mtime=""; cached_epoch=""; cached_name=""; cached_count=""; cert_high=""
     # shellcheck disable=SC2034
-    read -r cached_mtime cached_epoch cached_name cached_count < "$CERT_STAMP" 2>/dev/null || true
+    read -r cached_mtime cached_epoch cached_name cached_count cert_high < "$CERT_STAMP" 2>/dev/null || true
 
     if [ -n "$acme_mtime" ] && [ "$acme_mtime" != "$cached_mtime" ]; then
         cert_facts=$(python3 - "$ACME_JSON" <<'PYEOF' 2>/dev/null || true
@@ -358,13 +358,29 @@ if soonest and count:
 PYEOF
         )
         if [ -n "$cert_facts" ]; then
-            printf '%s %s\n' "$acme_mtime" "$cert_facts" > "$CERT_STAMP"
-            cached_epoch=$(cut -d' ' -f2 <<< "$acme_mtime $cert_facts")
-            cached_name=$(cut -d' ' -f3 <<< "$acme_mtime $cert_facts")
-            cached_count=$(cut -d' ' -f4 <<< "$acme_mtime $cert_facts")
+            cached_epoch=$(cut -d' ' -f1 <<< "$cert_facts")
+            cached_name=$(cut -d' ' -f2 <<< "$cert_facts")
+            cached_count=$(cut -d' ' -f3 <<< "$cert_facts")
+            # High-water mark, carried across re-parses. See the ratchet note
+            # below for what it is for and what it deliberately is not.
+            if [ -z "$cert_high" ] || [ "$cached_count" -gt "$cert_high" ]; then
+                cert_high=$cached_count
+            fi
+            printf '%s %s %s\n' "$acme_mtime" "$cert_facts" "$cert_high" > "$CERT_STAMP"
         else
             cached_epoch=""
         fi
+    fi
+
+    # Seed the mark from whatever is already cached. Without this the ratchet
+    # would stay dormant until acme.json is next rewritten — a renewal, so up to
+    # two months — and a fix that arms itself in two months is not deployed.
+    # Stamp files written before 2026-09-03 have four fields, so the fifth reads
+    # empty and lands here on the very first run after the deploy.
+    if [ -z "$cert_high" ] && [ -n "$cached_count" ]; then
+        cert_high=$cached_count
+        printf '%s %s %s %s %s\n' "$cached_mtime" "$cached_epoch" "$cached_name" \
+            "$cached_count" "$cert_high" > "$CERT_STAMP"
     fi
 
     if [ -n "$cached_epoch" ]; then
@@ -372,6 +388,28 @@ PYEOF
         report+=("certs ${cert_days}d/${cached_count}")
         if [ "$cert_days" -lt "$CERT_MIN_DAYS" ]; then
             pending+=("certificate $cached_name expires in ${cert_days}d — Traefik renews at 30d, so ACME has been failing for over a week")
+        fi
+        # The ratchet, added 2026-09-03. Everything above reads the OFFER — the
+        # certificates that exist — and asks when the nearest one expires. It has
+        # never asked whether one is MISSING, and the count it prints was compared
+        # to nothing at all: 18 went into the Kuma message and out again. A
+        # resolver that stops issuing, or a store that loses an entry, lowers the
+        # count and moves the soonest expiry FURTHER AWAY, so the existing alarm
+        # gets quieter exactly when something has gone wrong.
+        #
+        # A high-water mark rather than an expected total, deliberately. The
+        # demand side lives in Traefik's dynamic configuration and reaching it
+        # from here would mean a new dependency inside a five-minute health
+        # script; the same ratchet shape is already what the lynis hardening
+        # index uses, and it needs nothing that is not in this file. It cannot
+        # see a service that never got a certificate — say so rather than let a
+        # reader assume otherwise — but it does catch every regression from a
+        # state that once worked, which is the failure this gap actually had.
+        #
+        # It resets by hand: delete $CERT_STAMP after deliberately retiring a
+        # hostname, or the alarm is permanent and correct about the old world.
+        if [ -n "$cert_high" ] && [ -n "$cached_count" ] && [ "$cached_count" -lt "$cert_high" ]; then
+            problems+=("$(( cert_high - cached_count )) certificate(s) gone from $ACME_JSON — $cached_count now, $cert_high before; a resolver has stopped issuing and the expiry alarm goes QUIETER when this happens")
         fi
     else
         problems+=("certificate expiry unreadable in $ACME_JSON")

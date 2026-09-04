@@ -13,7 +13,22 @@ ufw_service_rules:
   # This rule is on the INPUT path and does not govern the published container
   # port — see the DOCKER-USER block in roles/security/tasks/firewall.yml, which
   # is what actually restricts it. Kept for host-level reach and for symmetry.
-  - { port: "53", from_ip: "192.168.1.0/24", comment: "DNS (Pi-hole, LAN + VPN via DOCKER-USER)" }
+  # Both protocols spelled out, and that is the whole of the 2026-09-03 fix.
+  # This entry used to omit `proto`, the role applies `default('tcp')`, and ufw
+  # keys a rule on the (port, proto, source, comment) tuple — so the tcp rule was
+  # ADDED beside the older proto-less one instead of replacing it. `ufw status`
+  # went on printing `53 ALLOW IN 192.168.1.0/24 # DNS (Pi-hole, LAN only)`,
+  # which is the exact sentence the 2026-09-02 work was done to retire, while the
+  # real filtering had already moved to DOCKER-USER. No exposure at any point —
+  # re-probed from outside with a known-open control — but the instrument the
+  # operator reads was still telling the old story.
+  #
+  # Declaring udp explicitly rather than deleting the proto-less rule outright:
+  # its removal is below, and these two must exist BEFORE it runs so the INPUT
+  # path is never briefly without a udp/53 allow on a host that resolves DNS for
+  # the house.
+  - { port: "53", proto: udp, from_ip: "192.168.1.0/24", comment: "DNS (Pi-hole, LAN; container path governed by DOCKER-USER)" }
+  - { port: "53", proto: tcp, from_ip: "192.168.1.0/24", comment: "DNS (Pi-hole, LAN; container path governed by DOCKER-USER)" }
 
 # --- Security audit ---
 # lynis is scheduled, reported and ratcheted here by the observability role
