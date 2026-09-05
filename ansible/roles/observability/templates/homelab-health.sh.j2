@@ -598,10 +598,33 @@ fi
 #                       nothing, or the daemon is not answering. Healing is off
 #                       and nothing else would say so.
 #
-# Gated on the service having run at least once since boot: ExecMainExitTimestamp
-# is empty until then, and demanding a report from a timer that has not yet had
-# its first tick would fire on every unlock.
-if systemctl -q is-active homelab-stack-heal.timer 2>/dev/null &&
+# TWO guards, and the second one cost a false DOWN on 2026-09-05 before it was
+# written. An assertion must not demand a window LONGER THAN THE PRODUCER HAS
+# EXISTED, and here the producer is always younger than the assertion:
+# `observability` is a phase-1 role and `stack-startup` is phase-5, so every
+# deploy that touches both installs this check roughly ten minutes before the
+# script whose output it reads. Measured that day: health script at 10:31:39,
+# heal script at 10:41:08, first `checked` line at 10:42:14, and the run at
+# 10:41:08 pushed DOWN for a mechanism that was working. Recovered by itself at
+# 10:45:58, which is exactly what makes it a trap — a four-minute red that looks
+# like a fault and is an ordering artefact.
+#
+# It is the shape C82 describes, met inside the change that closed C82. The
+# remedy is not to reorder the roles, which would fight the phase structure for
+# one check: it is to start the window at the later of "15 minutes ago" and
+# "when the producer was installed".
+#
+#   script older than the window   the report is genuinely overdue.
+#   script younger                 there has not been time for one yet; silence
+#                                  carries no information and must not be read.
+#
+# The mtime guard does not subsume the boot case, so both stay: after a reboot
+# the script is old but has not run, and ExecMainExitTimestamp is empty until
+# its first tick.
+heal_script=/usr/local/sbin/homelab-stack-heal.sh
+heal_installed=$(stat -c %Y "$heal_script" 2>/dev/null || echo 0)
+if [ $(( $(date +%s) - heal_installed )) -gt 900 ] &&
+   systemctl -q is-active homelab-stack-heal.timer 2>/dev/null &&
    [ -n "$(systemctl show homelab-stack-heal.service -p ExecMainExitTimestamp --value 2>/dev/null)" ]; then
     heal_last=$(journalctl -t homelab-heal --since -15min -o cat 2>/dev/null | grep '^checked ' | tail -1)
     if [ -z "$heal_last" ]; then
