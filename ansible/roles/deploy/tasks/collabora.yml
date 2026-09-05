@@ -338,23 +338,53 @@
 
 # Deliberately after the cleanup, so a failed probe still leaves no litter.
 # The three verdicts below read `.rc | default(0)`, so a probe that never ran
-# supplies its own pass. With `collabora_up` true all three should have run, and
-# if one did not, the deploy is about to conclude "Collabora serves documents"
-# from an absence. Asserting that the results EXIST costs one task and keeps the
-# `default(0)` in the three guards, which is what makes them readable.
-- name: collabora | Refuse to conclude from probes that did not run
+# supplies its own pass, and the deploy would conclude "Collabora serves
+# documents" from an absence. Asserting that the results EXIST costs one task
+# and keeps the `default(0)` in the three guards, which is what makes them
+# readable.
+#
+# --- But "did not run" has two meanings, and the first version of this assert
+# --- collapsed them, which is the exact defect it was written against.
+# The conversion probe carries `collabora_convert_probe` as well as
+# `collabora_up`: a run targeted at other services deliberately skips it,
+# because verifying a service the run did not touch is work that proves nothing
+# — the reasoning is thirty lines above. The other two carry only
+# `collabora_up`.
+#
+# Asserting all three under `collabora_up` alone therefore failed a legitimate
+# targeted deploy. Measured 2026-09-05 14:01 on
+# `deploy_services="traefik dnsproxy dozzle"`, which is the shape of run this
+# repository uses most: three images updated correctly, then the play aborted on
+# an assertion about a probe nobody had asked for.
+#
+# A probe skipped BY DESIGN is absent; a probe that ran and produced nothing is
+# unresolvable. Each condition below now mirrors the condition of the probe it
+# asserts, so the two cannot drift apart.
+- name: collabora | Refuse to conclude from the reachability probes if they did not run
   ansible.builtin.assert:
     that:
-      - collabora_convert.rc is defined
       - collabora_urlsrc.rc is defined
       - collabora_cache_final.rc is defined
     fail_msg: >-
-      Collabora is running but at least one of the three deploy-gating probes
-      produced no result, so the checks below would pass on an absence rather
-      than on an answer.
+      Collabora is running but one of the two reachability probes produced no
+      result, so the checks below would pass on an absence rather than on an
+      answer.
     quiet: true
   when:
     - collabora_up
+    - not ansible_check_mode
+
+- name: collabora | Refuse to conclude from a conversion probe that did not run
+  ansible.builtin.assert:
+    that:
+      - collabora_convert.rc is defined
+    fail_msg: >-
+      The conversion probe was expected to run and produced no result, so the
+      check below would pass on an absence rather than on an answer.
+    quiet: true
+  when:
+    - collabora_up
+    - collabora_convert_probe
     - not ansible_check_mode
 
 - name: collabora | Fail the deploy when Collabora cannot serve a document
