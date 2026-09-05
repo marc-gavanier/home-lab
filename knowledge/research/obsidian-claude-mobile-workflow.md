@@ -149,9 +149,21 @@ service restart). The app happily lets you create a session on the **dead** one 
 to spawn a worker → infinite spin. The journal makes it obvious:
 
 ```bash
+# Line 1 first: an empty result from line 2 means "no ghost" ONLY if the journal
+# had something to search. Zero lines and zero ghosts look identical otherwise.
+journalctl -u claude-remote-control | wc -l
 journalctl -u claude-remote-control | grep -oE 'env_[A-Za-z0-9]+' | sort | uniq -c
 # the env still logged by the RUNNING process is the LIVE one; any other env_… is a ghost.
 ```
+
+> **Measured 2026-09-05: this no longer finds anything, and that is not good
+> news.** The journal held 126 lines and **zero** of them contained `env_` — the
+> token stopped being logged at some point after this page was written. So the
+> second command returns an empty result today whether there is a ghost
+> environment or not, which is exactly the failure this page was written to
+> diagnose. Until a replacement marker is identified, treat an empty result as
+> "the instrument sees nothing", never as "the environment list is clean", and
+> confirm against the app's own environment list instead.
 
 **Fix**: keep only the live environment and remove the ghost from the app's environment
 list. Creating a brand-new session **directly from the app does work** on the live

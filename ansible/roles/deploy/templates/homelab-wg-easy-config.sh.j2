@@ -176,8 +176,20 @@ print("\n".join(rows))
 PYDRIFT
 )" || die "cannot compare the clients"
 
+# --- An empty client list is not a list of clients that all agree -------------
+# `DRIFTED` is empty both when every client matches and when there is no client
+# to compare: `/api/client` returning `[]` produces no rows, and the line below
+# then reports agreement. That is the same sentence this script prints on a
+# healthy run, and this script IS the guard against a recurrence of #125 — the
+# defect where per-client values silently stopped matching the repository.
+#
+# The count is asserted before the comparison is believed, and it is carried
+# into the log line so the healthy case states how many were actually checked.
+CLIENT_COUNT="$(printf '%s' "$CLIENTS" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))' 2>/dev/null || echo 0)"
+[ "$CLIENT_COUNT" -ge 1 ] || die "wg-easy returned no client at all — nothing was compared"
+
 if [ -z "$DRIFTED" ]; then
-    log "per-client values already match the repository"
+    log "per-client values already match the repository ($CLIENT_COUNT clients)"
 else
     # A here-string, NOT a pipeline: `while ... | read` runs the body in a
     # subshell, where `die` would kill only that subshell and let the script

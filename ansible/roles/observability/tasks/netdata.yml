@@ -41,6 +41,28 @@
          | selectattr('group', 'in', netdata_active_groups | map(attribute='name') | list)
          | list }}
 
+# main.yml gates this whole file on "at least one group has a push URL", and
+# that gate is satisfied by the FIRST derivation. The second one can still come
+# back empty — a group renamed on one side of `group:`/`name:` and not the other
+# leaves every alarm unmatched — and the role would then install zero alarms,
+# report `ok`, and satisfy its own gate on the way past. That is the shape
+# main.yml's own else-branch was written against, one derivation earlier: "the
+# run was correct; its silence was not."
+- name: netdata | Refuse a derivation that selected no alarm at all
+  ansible.builtin.assert:
+    that:
+      - netdata_active_alarms | length > 0
+    fail_msg: >-
+      {{ netdata_active_groups | length }} alarm group(s) carry a push URL, but
+      NO curated alarm matched them — every alarm's `group` names a group that
+      is not in netdata_alarm_groups. Zero alarms would be installed and the
+      deploy would otherwise report success. Check that `group:` in
+      netdata_curated_alarms matches `name:` in netdata_alarm_groups.
+    success_msg: >-
+      {{ netdata_active_alarms | length }} curated alarm(s) selected across
+      {{ netdata_active_groups | length }} configured group(s).
+    quiet: true
+
 - name: netdata | Refuse a push URL that cannot deliver
   # These alarms only reach this task when their push_url is non-empty, so this
   # is a SHAPE check, not a presence check. A value that is set but malformed

@@ -106,13 +106,40 @@ else
     # 197 (pending) is deliberately NOT in this list — it is the one attribute
     # here that does not mean what the others mean, and it has its own block
     # below the self-test parsing, which it depends on.
+    #
+    # --- An attribute that is not on this drive is not an attribute at zero ---
+    # `raw` returns an empty string for an ID the drive does not publish, and
+    # the `[ -n "$v" ]` below then reads that silence as "healthy". Measured
+    # 2026-09-05 on the 5 TB drive: its table holds
+    # `1 3 4 5 7 9 10 11 12 192 193 194 196 197 198 199 200`, so **184 and 187
+    # are absent** and this loop was checking three of the five predictors its
+    # own comment above names. Nothing said so.
+    #
+    # Not an alarm: an attribute missing from a drive's table is a property of
+    # the drive, and alarming on it would paint a permanent red, which is the
+    # mistake #207 documents at length. The count goes in the message instead,
+    # exactly like `ext4 clean ($ext4_seen)` below, so the coverage is visible
+    # every morning rather than assumed. ZERO of five is a different thing —
+    # that means the table stopped parsing, and it alarms.
+    smart_seen=0
+    smart_absent=""
     for spec in 5:realloc 184:end-to-end 187:uncorrectable \
                 198:offline-uncorrectable 199:crc-err; do
         v=$(raw "${spec%%:*}")
-        if [ -n "$v" ] && [ "$v" != "0" ]; then
+        if [ -z "$v" ]; then
+            smart_absent="$smart_absent ${spec#*:}"
+            continue
+        fi
+        smart_seen=$((smart_seen + 1))
+        if [ "$v" != "0" ]; then
             problems+=("SMART ${spec#*:}=$v")
         fi
     done
+    if [ "$smart_seen" -eq 0 ]; then
+        problems+=("SMART: none of the five predictors is readable — the check asserted nothing")
+    else
+        report+=("SMART ${smart_seen}/5${smart_absent:+ (absent:$smart_absent)}")
+    fi
 
     # Temperature (attribute 194). 60C rather than the offsite SSD's 70: this is
     # a spinning drive in an enclosure and it already idles near 53.

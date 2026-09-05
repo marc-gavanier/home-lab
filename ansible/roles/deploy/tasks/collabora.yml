@@ -337,6 +337,26 @@
   when: collabora_up
 
 # Deliberately after the cleanup, so a failed probe still leaves no litter.
+# The three verdicts below read `.rc | default(0)`, so a probe that never ran
+# supplies its own pass. With `collabora_up` true all three should have run, and
+# if one did not, the deploy is about to conclude "Collabora serves documents"
+# from an absence. Asserting that the results EXIST costs one task and keeps the
+# `default(0)` in the three guards, which is what makes them readable.
+- name: collabora | Refuse to conclude from probes that did not run
+  ansible.builtin.assert:
+    that:
+      - collabora_convert.rc is defined
+      - collabora_urlsrc.rc is defined
+      - collabora_cache_final.rc is defined
+    fail_msg: >-
+      Collabora is running but at least one of the three deploy-gating probes
+      produced no result, so the checks below would pass on an absence rather
+      than on an answer.
+    quiet: true
+  when:
+    - collabora_up
+    - not ansible_check_mode
+
 - name: collabora | Fail the deploy when Collabora cannot serve a document
   ansible.builtin.fail:
     msg: >-

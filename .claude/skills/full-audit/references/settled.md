@@ -2156,3 +2156,82 @@ push instead of the assertion that caused it. Kuma stores UTC; applying
 `datetime(…, 'localtime')` to a value that is already UTC is right, and doing it
 to one that is not shifts the answer two hours — always print `datetime('now')`
 from the same query as a control.
+
+---
+
+## The run of 2026-09-05 (midday) — the key was `exclusivity`, and it came back empty
+
+The first run in this skill's history to sweep a new dimension and mint nothing.
+Recorded here so the next run does not re-sweep the eight concurrency spaces
+that dissolved on measurement. Details, counts and class states live in
+`classes.md`, not here.
+
+### Settled, so a later run does not re-derive them
+
+- **No `homelab-*` timer can overlap itself.** All 13 measured against their own
+  periods, worst ratio 45-58 s of 300 s under load average 8.06.
+  `homelab-stack-heal.timer` is `OnUnitActiveSec`, which makes overlap
+  unreachable by construction rather than by luck.
+- **`ufw reload` cannot flush a fail2ban chain.** `delete_chains` is a hardcoded
+  list, every restore is `-n`, `MANAGE_BUILTINS` is unset, and `flush_builtins`
+  is unreachable from a reload. Do not re-investigate.
+- **Two concurrent Ansible runs need no lock in this layout**: no fact cache,
+  atomic `rename(2)` writes, no `serial`/`throttle`, one host per play. The only
+  shared objects are four fixed-name temp paths, and a collision there fails
+  loudly.
+- **The restic locks are genuinely taken.** Both profile locks are declared in
+  the deployed `resticprofile.yaml`, `locks/` is empty, and the weekly units
+  carry `--lock-wait 2h` against a 1h38m margin. The 2026-08-17 03:12:53
+  collision belonged to the old `backup.sh` and is impossible under ADR-031.
+- **One writer per object, wherever it mattered**: 15/15 push tokens, four state
+  directories, one `acme.json` writer, one wg-easy allocator (the homelab Pi is
+  itself one of its four clients — that is why the address looked shared), and
+  exactly one two-writer bind path out of 60, guarded by Redis locking.
+- **Nextcloud is 177/177 InnoDB**, so `--single-transaction` on its dump is
+  load-bearing rather than decorative.
+- **The heal-loop-versus-operator shape has no interlock and does not need a new
+  class.** It is a convention, documented in five places, settled via #126, and
+  it belongs to C44/C69.
+
+### New instrument traps — five, and two were the main session's
+
+1. **A pipeline ending in `jq` reports `jq`'s exit status.** `docker inspect
+   <absent-container> | jq -r '...'` yields exit 0 and an empty line — byte for
+   byte what a healthy container with no added capabilities produces. Any goss
+   check of that shape is unfalsifiable by construction; a control on a name
+   that does not exist is one command and settles it.
+2. **`@127.0.0.99` is not a dead DNS target on this host.** Pi-hole's
+   `listeningMode: all` binds all of 127/8, so a probe meant as a negative
+   control answers. It nearly produced a false headline about the Pi-hole
+   healthcheck. A genuinely dead target returns exit 9.
+3. **Both hosts run OpenSSH 9.6p1, not 9.8.** The `sshd` -> `sshd-session`
+   process rename does not apply here, and any reasoning built on it is wrong
+   for this estate. Re-check the version before reusing that argument.
+4. **A zero from a journal grep needs a positive control in the same journal.**
+   The technique that validated one: run the same failure patterns over the
+   whole retained journal with no `_COMM` restriction and group by `_COMM`. It
+   returned 7 real authentication failures elsewhere (2 polkit, 5 sudo) and 0
+   from any sshd process, which turns "the grep found nothing" into "there is
+   nothing to find". This is the antidote to the `fail2ban-regex` file-mode trap
+   recorded the night before.
+5. **A SMART counter loop cannot assume its attributes exist.** `raw <id>`
+   returning empty means the attribute is absent from THIS drive's table, not
+   that it is zero. Read the table first: the 5 TB drive holds
+   `1 3 4 5 7 9 10 11 12 192 193 194 196 197 198 199 200`, so a loop over
+   `5 184 187 198 199` silently checks three of five.
+
+### The main session's own near-miss, recorded because it nearly shipped
+
+`Current_Pending_Sector: 2` on the 5 TB drive reads exactly like a live fault
+nobody has been told about. It is not one: it is deliberately excluded from the
+disk script's counter loop, always reported, and alarmed on a RISE rather than
+on a value — the reasoning is written out at length in the script and in #207,
+because a permanently red monitor is a monitor nobody reads. **Check whether the
+repo already argued with you before reporting a number as a discovery.**
+
+### Read the file that is deployed, not the file in the repo
+
+Every instance the main session confirmed this run was confirmed by reading
+`/etc/goss/*.yaml` and `/usr/local/bin/*` on the host, and two of them were
+sharpened in the process. The repo is where a fix is written; the host is where
+it is true.

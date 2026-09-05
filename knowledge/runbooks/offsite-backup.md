@@ -25,11 +25,21 @@ append-only mode. The repo password is deliberately NOT stored on it.
   The authoritative list is the named assertions in the spec itself:
 
   ```bash
-  ssh offsite 'sudo sh -c "grep -oE \"^  [a-z0-9-]+:\" /etc/goss/offsite-health.yaml"'
+  ssh offsite 'sudo sh -c "grep -oE \"^  [^ #][^:]*:\" /etc/goss/offsite-health.yaml | sort | nl"'
   ```
 
   Note the `sudo sh -c`: `/etc/goss` is `drwx------`, so a glob or a redirect
   written outside the privileged shell silently returns nothing.
+
+  **And note the character class, which is the reason this command is numbered.**
+  It used to read `[a-z0-9-]+`, and that pattern cannot match a resource whose
+  name carries a `.`, a `/` or an `@`. Measured 2026-09-05: it returned **30 of
+  35**, dropping `/mnt/backup`, `fail2ban.service`, `rest-server.service`,
+  `ssh.service` and `wg-quick@wg0.service` — the five whose own comments in the
+  spec say every other assertion depends on them. The page told you to read the
+  spec instead of maintaining a list by hand, and then read it through a filter
+  that quietly removed the important part. `nl` numbers the output so the count
+  is in front of you: if it drops, suspect the pattern before the spec.
 
   **The count and the taxonomy that used to sit here have been deleted, and the
   deletion is the fix.** This paragraph said "22 assertions, in five groups" and

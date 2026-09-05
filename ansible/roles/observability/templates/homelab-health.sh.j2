@@ -554,9 +554,19 @@ if command -v systemctl >/dev/null 2>&1 && mountpoint -q /mnt/data; then
     # and the units that do it declare SuccessExitStatus=1. homelab-lynis did not
     # until 2026-08-24, so one event arrived twice: its own monitor red, and this
     # line naming the unit.
+    #
+    # The enumeration needs a floor for the same reason every other derived set
+    # in this stack does: `list-timers` returning nothing — systemd not
+    # answering, the glob matching none — leaves `badrun` empty, which is the
+    # healthy value. "No timer failed" and "no timer was looked at" were one
+    # sentence. Thirteen are expected; the floor is one, because the point is
+    # to separate an empty enumeration from a clean one, not to hardcode a
+    # count that a new timer would falsify.
     badrun=""
+    timers_seen=0
     for t in $(systemctl list-timers 'homelab-*' --all --no-legend --no-pager 2>/dev/null | awk '{print $NF}'); do
         case "$t" in *.service) ;; *) continue ;; esac
+        timers_seen=$((timers_seen + 1))
         r=$(systemctl show "$t" -p Result --value 2>/dev/null)
         # `exec-condition` is a RUN THAT DECIDED IT HAD NOTHING TO DO, not a
         # failure — systemd's own word for an ExecCondition that declined. It
@@ -579,6 +589,7 @@ if command -v systemctl >/dev/null 2>&1 && mountpoint -q /mnt/data; then
     # shellcheck disable=SC2086
     badrun=$(gate systemd-timer-result 240 $badrun)
     [ -n "$badrun" ] && problems+=("last run failed: $(printf '%s ' $badrun | sed 's/ $//')")
+    [ "$timers_seen" -eq 0 ] && problems+=("no homelab-* timer was enumerated — the unit check asserted nothing")
 fi
 
 # --- The crash-heal timer is LOOKING, not merely running ---------------------
@@ -597,6 +608,12 @@ fi
 #                       the docker socket is gone, the label filter matches
 #                       nothing, or the daemon is not answering. Healing is off
 #                       and nothing else would say so.
+#   checked N of M      the daemon answered, and answered short. A store that
+#                       came back partial reports a number that is small and
+#                       truthful, and the `>= 1` floor this block first shipped
+#                       with accepted it. M comes from compose, not from the
+#                       daemon, so the two sides of the comparison cannot fail
+#                       together.
 #
 # TWO guards, and the second one cost a false DOWN on 2026-09-05 before it was
 # written. An assertion must not demand a window LONGER THAN THE PRODUCER HAS
@@ -630,8 +647,27 @@ if [ $(( $(date +%s) - heal_installed )) -gt 900 ] &&
     if [ -z "$heal_last" ]; then
         problems+=("crash-heal has not reported in 15 min — it may be firing blind")
     else
+        # --- The floor is the DECLARED count, not one --------------------
+        # `>= 1` caught a run that saw nothing and missed a run that saw
+        # three of twenty-nine — a daemon answering from a half-built store
+        # reports a number that is small, truthful and useless. The heal
+        # script now emits `checked N of M declared`, M coming from
+        # `docker compose config --services`, so the comparison has an
+        # independent right-hand side.
+        #
+        # Both formats are accepted on purpose. This role is phase 1 and
+        # stack-startup is phase 5, so a deploy installs this parser about
+        # ten minutes before the producer whose new sentence it reads —
+        # which is precisely the fault this block's own header describes.
+        # The mtime guard above already suppresses the window; accepting the
+        # old sentence as well means a straggler cannot manufacture a DOWN.
         heal_n=$(printf '%s' "$heal_last" | sed -n 's/^checked \([0-9]\{1,\}\) .*/\1/p')
-        [ "${heal_n:-0}" -ge 1 ] || problems+=("crash-heal examined 0 containers — recovery is off")
+        heal_m=$(printf '%s' "$heal_last" | sed -n 's/^checked [0-9]\{1,\} of \([0-9]\{1,\}\) declared.*/\1/p')
+        if [ -z "$heal_m" ]; then
+            [ "${heal_n:-0}" -ge 1 ] || problems+=("crash-heal examined 0 containers — recovery is off")
+        elif [ "${heal_n:-0}" -lt "$heal_m" ]; then
+            problems+=("crash-heal saw ${heal_n:-0} of $heal_m declared services — it is looking at a partial stack")
+        fi
     fi
 fi
 
