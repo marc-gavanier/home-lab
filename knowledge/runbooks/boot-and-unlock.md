@@ -84,9 +84,21 @@ What to expect and do when the Pi comes back up. Design rationale in
    the list is not repeated here on purpose — read it from the source of truth:
 
    ```bash
+   cd /opt/homelab || echo "wrong path — the command below will lie"
    docker compose config --format json | jq -r \
      '.services | to_entries[] | select(.value.restart=="unless-stopped") | .key'
    ```
+
+   **An empty result is not an answer, it is a wrong directory.** Run from
+   anywhere but `/opt/homelab`, `docker compose config` fails, `jq` reads its
+   empty output as an empty list, and the pipeline exits 0 having printed
+   nothing — a pipeline reports its LAST command's status, so jq's success
+   masks the failure ahead of it. Measured both ways: six names from
+   `/opt/homelab`, zero lines and exit 0 from `$HOME`. Since the section
+   "If the orchestrator aborts" below sends you back here to rebuild missing
+   Tier 0 containers by hand, an empty list read as "nothing to rebuild" is the
+   expensive way to get this wrong. **If you see no names, fix your directory
+   and run it again — do not conclude anything about the stack.**
 
    This line used to name five containers and claim they had been "enumerated on
    the host by restart policy", which made prose read as a derived fact. It was

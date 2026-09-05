@@ -581,6 +581,37 @@ if command -v systemctl >/dev/null 2>&1 && mountpoint -q /mnt/data; then
     [ -n "$badrun" ] && problems+=("last run failed: $(printf '%s ' $badrun | sed 's/ $//')")
 fi
 
+# --- The crash-heal timer is LOOKING, not merely running ---------------------
+# The heal timer is the only recovery path for the 23 of 29 containers that run
+# with `restart: "no"`, and until 2026-09-05 a run that examined nothing looked
+# exactly like a run that found nothing wrong: no journal line either way, and
+# `Result=success` either way. That is not a hypothetical — it is what the
+# 2026-08-26 outage looked like from here, with 15 containers stopped.
+#
+# The script now reports its own cardinal, so this asserts on the number rather
+# than on the silence. Two different failures, named separately:
+#
+#   no line at all      the timer fires and the script dies before its report,
+#                       or the timer is not firing while claiming to be active.
+#   checked 0           the script ran and its query returned an empty set —
+#                       the docker socket is gone, the label filter matches
+#                       nothing, or the daemon is not answering. Healing is off
+#                       and nothing else would say so.
+#
+# Gated on the service having run at least once since boot: ExecMainExitTimestamp
+# is empty until then, and demanding a report from a timer that has not yet had
+# its first tick would fire on every unlock.
+if systemctl -q is-active homelab-stack-heal.timer 2>/dev/null &&
+   [ -n "$(systemctl show homelab-stack-heal.service -p ExecMainExitTimestamp --value 2>/dev/null)" ]; then
+    heal_last=$(journalctl -t homelab-heal --since -15min -o cat 2>/dev/null | grep '^checked ' | tail -1)
+    if [ -z "$heal_last" ]; then
+        problems+=("crash-heal has not reported in 15 min — it may be firing blind")
+    else
+        heal_n=$(printf '%s' "$heal_last" | sed -n 's/^checked \([0-9]\{1,\}\) .*/\1/p')
+        [ "${heal_n:-0}" -ge 1 ] || problems+=("crash-heal examined 0 containers — recovery is off")
+    fi
+fi
+
 # --- Verdict ---
 # TWO signals, not one, and that split is the whole point of #216.
 #

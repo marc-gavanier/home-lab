@@ -96,12 +96,31 @@ Opening it under any other name gives a volume that `/mnt/data` will not mount.
 ```bash
 # Retrieve luks-header-*.img from one of the offline copies first.
 
-# The volume must be closed before the header is overwritten. Check first:
-# "inactive" is the good case; anything else must be closed, and the close
-# must succeed — do not swallow its error, a restore over an open volume is
-# how you lose the disk.
-sudo cryptsetup status data_crypt
-sudo cryptsetup luksClose data_crypt      # only if the status showed it active
+# The volume must be closed before the header is overwritten: a restore over an
+# OPEN volume is how you lose the disk.
+#
+# Ask the DISK, not the name. `cryptsetup status <name>` prints
+# "<name> is inactive." for a mapper that does not exist at all, which is word
+# for word what it prints for one that is genuinely closed — so a typo in the
+# name produces the exact go-ahead for the command below. Measured: `cryptsetup
+# status data_cryptX` answers "/dev/mapper/data_cryptX is inactive." and exits 4,
+# and the exit code is the only thing that differs. Do not read the sentence.
+#
+# lsblk is immune to that, because it answers about the device rather than about
+# a name you typed: if ANY mapping is open on /dev/sda1, it appears as a child.
+lsblk -o NAME,TYPE,MOUNTPOINTS /dev/sda1
+
+# A crypt child, e.g.
+#     sda1         part
+#     └─data_crypt crypt /mnt/data
+# means the volume is OPEN. Close it, and require the close to succeed — do not
+# swallow its error:
+sudo cryptsetup luksClose data_crypt
+
+# Then run lsblk AGAIN and require sda1 to have no child at all. That, and not
+# the word "inactive", is the go-ahead. If you cannot get lsblk to show a bare
+# sda1, stop here rather than continuing.
+lsblk -o NAME,TYPE,MOUNTPOINTS /dev/sda1
 
 sudo cryptsetup luksHeaderRestore /dev/sda1 \
   --header-backup-file /path/to/luks-header-YYYYMMDD.img

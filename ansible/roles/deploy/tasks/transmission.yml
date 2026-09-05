@@ -24,6 +24,27 @@
   ansible.builtin.set_fact:
     transmission_up: "{{ 'transmission' in transmission_running.stdout_lines }}"
 
+# A skipped block that says nothing is the defect ADR-030 names, and it is the
+# same one `observability/tasks/main.yml` guards against with its "no silent
+# caps" report: the run is CORRECT — there is genuinely nothing to do against a
+# container that is not running — but its silence is not. `ok=0 changed=0` for
+# this whole section is what a healthy no-op and a missed configuration pass
+# look like from the outside, and `changed=0` is exactly what an idempotence
+# check is looking for, so a re-run confirms the wrong thing too.
+#
+# No count in the message on purpose: a hardcoded number is what went stale in
+# boot-and-unlock.md and in ADR-007. The message names the CONSEQUENCES, which
+# do not drift when a task is added.
+
+- name: transmission | Report that the port-forwarding state was NOT asserted
+  ansible.builtin.debug:
+    msg: >-
+      Transmission is NOT running, so NAT-PMP/UPnP was left exactly as the
+      container last had it rather than turned off. Start it and re-run this
+      play.
+  when: not transmission_up
+
+
 # NAT-PMP here is not merely useless, it is misdirected: the daemon asks the
 # DOCKER bridge gateway (172.18.0.1 — this Pi) for a port mapping, not the
 # router, and UFW drops the request. It has therefore never opened anything.
