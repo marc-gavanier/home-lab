@@ -97,6 +97,31 @@ def environment_blocks(text):
         i = j
 
 
+def world_readable_secret_writes(root):
+    """Every task writing under /mnt/data/secrets with a world-readable mode.
+
+    Derived from the DEST, not from a list of files, because the store has six
+    writers across two roles and a sweep of one of them missed a file on
+    2026-09-06 — the same scope trap this repo has now paid for four times.
+    """
+    bad = []
+    for glob in TASK_GLOBS:
+        for path in sorted(root.glob(glob)):
+            text = path.read_text(encoding="utf-8")
+            offset = 0
+            for block in re.split(r"(?m)^- name:", text):
+                nlines = block.count("\n")
+                if "dest: /mnt/data/secrets" in block:
+                    m = re.search(r'mode:\s*"?(\d{3,4})"?', block)
+                    if m:
+                        mode = m.group(1).zfill(4)
+                        if int(mode[3]) & 4:
+                            line = offset + block[:block.index("mode:")].count("\n") + 1
+                            bad.append((path.relative_to(root), line, mode))
+                offset += nlines
+    return bad
+
+
 def scan(root, secret_vars):
     bad = []
     for glob in TASK_GLOBS:
@@ -153,11 +178,30 @@ def selftest():
             if flagged != should_flag:
                 failures.append("%s: flagged=%s expected=%s" % (label, flagged, should_flag))
 
+    mode_cases = [
+        ("MUST FLAG - the real defect, searxng_settings as it stood",
+         '  ansible.builtin.template:\n    dest: /mnt/data/secrets/docker/x\n    mode: "0444"\n', True),
+        ("must pass - owner only",
+         '  ansible.builtin.copy:\n    dest: /mnt/data/secrets/docker/x\n    mode: "0400"\n', False),
+        ("must pass - group read for a container uid",
+         '  ansible.builtin.copy:\n    dest: /mnt/data/secrets/docker/x\n    mode: "0440"\n', False),
+        ("must pass - world-readable OUTSIDE the secret store",
+         '  ansible.builtin.copy:\n    dest: /etc/motd\n    mode: "0444"\n', False),
+    ]
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        (root / "ansible/roles/x/tasks").mkdir(parents=True)
+        for label, body, should_flag in mode_cases:
+            (root / "ansible/roles/x/tasks/main.yml").write_text("- name: t\n" + body, encoding="utf-8")
+            flagged = bool(world_readable_secret_writes(root))
+            if flagged != should_flag:
+                failures.append("%s: flagged=%s expected=%s" % (label, flagged, should_flag))
+
     for f in failures:
         print("SELFTEST FAILED: %s" % f, file=sys.stderr)
     if failures:
         return 1
-    print("selftest: %d controls, all as expected" % len(cases))
+    print("selftest: %d controls, all as expected" % (len(cases) + len(mode_cases)))
     return 0
 
 
@@ -169,6 +213,13 @@ def main():
         print("the secret set derived to ZERO names — the derivation is broken, "
               "not the repo", file=sys.stderr)
         return 1
+    modes = world_readable_secret_writes(ROOT)
+    for path, lineno, mode in modes:
+        print("%s:%d: writes into /mnt/data/secrets with mode %s — the world "
+              "read bit. The directory does not close it: `--x` hides the names "
+              "and the names are in compose.yaml, in a public repo."
+              % (path, lineno, mode), file=sys.stderr)
+
     bad = scan(ROOT, secret_vars)
     for path, lineno, key, var in bad:
         print("%s:%d: `environment: %s` carries {{ %s }} — sudo journals this "
@@ -177,8 +228,10 @@ def main():
     if bad:
         print("\n%d secret(s) passed through `environment:`. `no_log` does not "
               "mask it." % len(bad), file=sys.stderr)
+    if bad or modes:
         return 1
-    print("no secret in `environment:` (%d secret variables derived)" % len(secret_vars))
+    print("no secret in `environment:` (%d secret variables derived), "
+          "no world-readable write into the secret store" % len(secret_vars))
     return 0
 
 

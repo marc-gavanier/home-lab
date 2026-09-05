@@ -141,7 +141,17 @@
     dest: /mnt/data/secrets/docker/searxng_settings
     owner: root
     group: root
-    mode: "0444"
+    # 0400, not 0444, since 2026-09-06. Every process in the SearXNG container
+    # runs as uid 0 — verified by reading /proc for the container's pid tree,
+    # not by `docker exec id`, which lands as root whatever the app then drops
+    # to — so the owner bit is all it needs.
+    #
+    # This file was missed by the sweep that closed the other fourteen, because
+    # that sweep read secrets.yml and this write lives in configs.yml. SIX task
+    # files across two roles write into the secret store; the gate added in the
+    # same change derives them instead of listing them, which is the only
+    # version of this check that survives the next writer.
+    mode: "0400"
   notify: Restart searxng
 
 - name: configs | Drop the superseded SearXNG settings path and symlink dir
