@@ -15,34 +15,45 @@ earlier — which would have sent eight agents to re-derive settled work. Rebuil
 it from `classes.md`'s OPEN table at the start of every run; if the two
 disagree, `classes.md` wins.
 
-As of the run of 2026-09-05. **Rebuilt from `classes.md`'s OPEN table — do not
-trust this copy if the two disagree.**
+As of the run of 2026-09-05 (evening). **Rebuilt from `classes.md`'s OPEN
+table — do not trust this copy if the two disagree.**
 
-**One OPEN class: C83, and no single domain owns it.** It has a producer face
-(`backup`, `services`, `ansible-deploy`: every artefact a periodic job produces
-and something certifies) and a consumer face (`observability`, `security`,
-`system`: every mechanism that iterates a derived set and reports on the run
-rather than on the count). Its space has NOT been swept as one — five domains hit
-it with five different questions on 2026-09-05, which is sampling. **Closing it
-means one unified sweep with one predicate and one cardinal**, not five more
-partial ones. That is the whole lesson of C01 and C03.
+**Two OPEN classes, and neither is a hunt.** Both were ENUMERATED that morning
+and both were reopened for the same reason: an instance of the class's own
+property was found OUTSIDE the space its sweep had been bounded to. Each has a
+restated space and needs one sweep, not another sample.
 
-C82 closed 308/308 on 2026-09-05. Do not re-derive it; note only that the
-ORDERING it describes is still live in `firewall.yml` and the structural fix is
-one edit.
+- **C74 — `security`, with `system` on the systemd half.** Property unchanged:
+  a rule whose decision is pre-empted by another component acting earlier on the
+  same object. It was swept over 7 UFW inbound rules; the space is every
+  DELEGATED decision an arbiter can refuse. The systemd slice was bounded at 5
+  delegating sites with 1 material instance; the union has never been swept as
+  one. Close it by deriving the full set of sites that ask another component to
+  act on their behalf, on both hosts.
+- **C82 — `observability`, with `ansible-deploy` on the handler half.** Property
+  unchanged: a fault whose only detector runs earlier in the same sequence than
+  the step that introduces it. Its 308/308 sweep covered write-sites, binary-use
+  sites and handlers — but not the INTERNAL statement sequences of the deployed
+  executables under `/usr/local/bin`, which is where its live instance sits.
 
-**Seven keys are now spent**: `time`, `order`, `identity`, `scale`, `authority`,
-`representation`, `vacuity`. A run that reuses one proves nothing. The two keys
-that paid best were both found the same way: look for an instrument trap in
-`settled.md` that no class has adopted, or a pair of narrow classes in
-`classes.md` that are obviously two faces of a dimension nobody named.
+**C84 and C85 were minted the same evening and both arrived ENUMERATED**, so
+neither is a mandate. Do not re-derive them; note only that C84's instance
+(`immich-redis` holding Immich's queues with persistence off) and C85's
+(`homelab-unlock`'s `e2fsck` logged on the SKIP branch and not on the RUN
+branch) are both one-line fixes that had not shipped when this was written.
+
+**Nine keys are now spent**: `time`, `order`, `identity`, `scale`, `authority`,
+`representation`, `vacuity`, `exclusivity`, `interruption`. A run that reuses one
+proves nothing. The keys that paid best were found the same way: look for an
+instrument trap in `settled.md` that no class has adopted, or a pair of narrow
+classes in `classes.md` that are obviously two faces of a dimension nobody named.
 
 **Invent the key first, write it into the brief, and send the agents after it.**
 
-**Three domains own no OPEN class and are not idle.** Their job is the one that
-demoted C02, C13 and C26: re-read the GATED assertions in their area and ask
-whether each is DERIVED from the thing it guards or merely a list of the
-instances once found. `backup` did exactly that on 2026-08-31 and found C10 to
+**Six domains own no OPEN class and are not idle.** Their job is the one that
+demoted C02, C13, C20, C26 and, on 2026-09-05 evening, C17: re-read the GATED
+assertions in their area and ask whether each is DERIVED from the thing it
+guards or merely a list of the instances once found. `backup` did exactly that on 2026-08-31 and found C10 to
 be *stronger* than recorded, C21's description stale, and C18's list underived.
 
 A class with two owners is deliberate: C66's two halves are code and prose, and
