@@ -47,11 +47,22 @@
       # second; default start-rate limiting would then refuse a start for 10 s.
       # A tamper response must never be refused — disable the limiter.
       StartLimitIntervalSec=0
+      # Same rule, the other refusal path, and this one was measured rather
+      # than foreseen. Default dependencies give a service Conflicts= and
+      # Before= shutdown.target, so while a shutdown or reboot transaction is
+      # queued systemd rejects the start outright: "Transaction for
+      # usb-tamper.service/start is destructive". That happened three times on
+      # 2026-09-01 (01:47:38, 01:48:17, 01:48:20) with the tamper ARMED, each
+      # time leaving only `exit code 4` from the udev worker — a journal
+      # indistinguishable from a benign plug event. Dropping the implicit
+      # ordering is what makes the response reachable during the one window
+      # where someone rebooting the machine is most plausible.
+      DefaultDependencies=no
       # No [Install] section: started only by the udev trigger script.
 
       [Service]
       Type=oneshot
-      ExecStart=/usr/bin/logger -t usb-tamper "TRIGGER while armed — powering off NOW"
+      ExecStart=/usr/bin/logger -t usb-tamper "RESPONSE running — powering off NOW"
       ExecStart=/usr/bin/systemctl poweroff
 
 - name: Reload systemd for usb-tamper.service

@@ -55,27 +55,12 @@
         path: /tmp/resticprofile.tar.gz
         state: absent
 
-# Password FILES, not values in the configuration. Established in the spike:
-# with an inline password, `copy` fails with "an empty password is not allowed"
-# because the SOURCE password is not forwarded to the secondary repository. It
-# is also the right shape — no secret in the config, and none on the process
-# table, which is the #198 class.
-- name: resticprofile | Write the repository password files
-  ansible.builtin.copy:
-    dest: "/mnt/data/secrets/{{ item.name }}"
-    content: "{{ item.value }}"
-    owner: root
-    group: root
-    mode: "0400"
-  loop:
-    - name: restic_password
-      value: "{{ restic_password }}"
-    - name: offsite_restic_password
-      value: "{{ offsite_restic_password }}"
-  loop_control:
-    label: "{{ item.name }}"
-  no_log: true
-  when: item.value | default('') | length > 0
+# The password files this profile reads are written by secrets.yml, which runs
+# far earlier in the role. They used to be written HERE, and the move is not
+# cosmetic: `restic init` in backup.yml runs before this file and now reads the
+# same password through RESTIC_PASSWORD_FILE, so writing them here would have
+# left a fresh host initialising its repository against a file that does not
+# exist yet. The existing host would never have shown it.
 
 # The half no tool expresses. resticprofile's hooks receive PROFILE_NAME and
 # PROFILE_COMMAND and nothing else, so a readable notification has to be built

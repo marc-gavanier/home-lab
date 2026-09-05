@@ -116,6 +116,21 @@
         # "Checking data volume integrity...", is an operator reaching for the
         # power button.
         rc=0; e2fsck -p -C 0 "/dev/mapper/$MAPPER" || rc=$?
+        # Journal the verdict, symmetric with the SKIP branch above. Without
+        # this line the run leaves NO trace at all: preen mode prints only to
+        # the operator's terminal, and `e2fsck -p` does not rewrite the
+        # superblock's `Last checked` when it decides the filesystem is clean.
+        # So an hour later "repaired", "had nothing to do" and "was skipped"
+        # are indistinguishable — measured after the unclean shutdown of
+        # 2026-09-01, where the check ran for 1 min 53 s and nothing recorded
+        # what it concluded. rc is e2fsck's own: 0 = clean, 1 = errors FIXED,
+        # 2 = fixed and a reboot is wanted, >= 4 handled below.
+        case "$rc" in
+          0) logger -t homelab-unlock "integrity check passed (e2fsck rc=0, no errors)" ;;
+          1) logger -t homelab-unlock -p daemon.warning "integrity check REPAIRED errors (e2fsck rc=1)" ;;
+          2) logger -t homelab-unlock -p daemon.warning "integrity check REPAIRED errors, reboot advised (e2fsck rc=2)" ;;
+          *) logger -t homelab-unlock -p daemon.err "integrity check could not auto-repair (e2fsck rc=$rc)" ;;
+        esac
         if [ "$rc" -ge 4 ]; then
           # The gate STAYS UP on this path, and the trap is disarmed to keep it
           # there. Without that, "NOT mounting" would be advice rather than a

@@ -140,11 +140,21 @@ parts that need a thought experiment.
 
 # The register
 
-Runs of 2026-08-15 through 2026-09-05.
-**83 classes: 0 OPEN, 13 GATED, 65 ENUMERATED, 5 closed by decision, plus the
-DECLINED list.** (GATED = C07, C10, C11, C14-C19, C21, C41 and C81; closed by
-decision = C04, C08, C57, C66 and C77's non-secret half; everything else
-ENUMERATED.)
+Runs of 2026-08-15 through 2026-09-05 (evening).
+**85 classes: 2 OPEN, 11 GATED, 67 ENUMERATED, 5 closed by decision, plus the
+DECLINED list.** (OPEN = C74 and C82, both REOPENED with restated spaces;
+GATED = C07, C10, C11, C14, C15, C16, C18, C19, C21, C41 and C81 — **C17 left
+the table on 2026-09-05 evening**; closed by decision = C04, C08, C57, C66 and
+C77's non-secret half; everything else ENUMERATED.)
+
+**The evening run of 2026-09-05 used `interruption` and the termination clock
+RESETS for the second time in one day.** The counter moved 0 -> 2 and the class
+total 83 -> 85. That is the honest outcome and, again, it was not the convenient
+one: the run's own headline is that the two mints it kept are real and that two
+classes recorded ENUMERATED were enumerated over spaces smaller than their own
+properties. Declining all four moves would have shown `0 OPEN` and a second
+consecutive zero-mint run, which is precisely the number this register exists to
+stop anyone from manufacturing.
 
 **The midday run of 2026-09-05 closed C83 by unified sweep — 976/976 across
 eight slices — and minted NOTHING. The counter is 1 -> 0, and for the first
@@ -224,13 +234,294 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
-## OPEN — 0
+## OPEN — 2
 
-**The column is empty.** C83 closed 976/976 on 2026-09-05 (midday). It is the
-second time the column has reached zero — the first was 2026-09-03, and it
-lasted two days — but it is the FIRST time it reached zero on a run that minted
-nothing. Those are different facts and only the second one advances the
-termination criterion.
+Both were ENUMERATED this morning. Neither was reopened by a change to the
+system; both were reopened because the evening run found an instance of the
+class's own PROPERTY sitting outside the space its sweep had been bounded to.
+That is the scope trap this file has now paid for a fifth time, and the entry
+below states the restated space rather than the old cardinal.
+
+| ID | Property (unchanged) | Space it WAS swept over | Space it must be swept over | Reopened by |
+|-----|--------------------------------------------------|-----------------------------|----------------------------------|-------------|
+| C74 | A rule whose decision is pre-empted by another component acting earlier on the same object | 7/7 UFW inbound rules | **Every delegated decision an arbiter can refuse**, not only packet rules. The security sweep bounded the systemd slice at **5** delegating sites and found 1 material; the union of the two slices is 12 and has never been swept as one | The USB tamper response refused three times by systemd's shutdown transaction, armed, 2026-09-01 |
+| C82 | A fault whose only detector runs earlier in the same sequence than the step that introduces it | 308/308 write-sites + 77/77 binary-use + 34/34 handlers | **Plus the internal statement sequences of the deployed executables** (~10 under `/usr/local/bin`), which no slice of the 308 covered | `homelab-lynis-report.sh` calling `lynis show version` after the parse and before the copy, which truncates the artefact being copied |
+
+**Neither is a hunt.** Each has a stated restated space and a cardinal that can
+be derived; closing them means one sweep each, not another sample.
+
+## The run of 2026-09-05 (evening) — the key was `interruption`, and it cost the clean sheet
+
+**For every mechanism that changes state in more than one step, what does it
+leave behind if it stops BETWEEN two of them, and can anything tell that remnant
+apart from a finished result?** `time` asked *when*, `order` *in what sequence*,
+`identity` *who*, `scale` *how much*, `authority` *on whose authority*,
+`representation` *in what encoding*, `vacuity` *what at zero*, `exclusivity`
+*what at two*. **Nothing in 83 classes had asked what at HALF** — the words
+`interruption` and `crash-consistency` appeared zero times in 280 KB of
+reference files, and `atomic` once in each.
+
+The key was given three admissible shapes so that agents would not return
+thought experiments: (1) the half-remnant is INDISCERNIBLE from a finished
+result for its consumer; (2) it BLOCKS the next pass in silence; (3) the resume
+REDOES or SKIPS work silently. Everything else was to be refuted with a number.
+
+### The eight sweeps, and the five that came back empty
+
+| Domain | N | How N was derived | Result |
+|-----------------|-----|--------------------------------------------------------|--------------------|
+| ansible-deploy | 155 | 573 module sites -> 396 state-changing -> 69 multi-step + 61 write/handler pairs + 25 resume decisions | 120/120 in scope, 1 latent, 0 mint |
+| system | 82 | 35 timer-driven services + 37 non-timer units on the boot/shutdown path + 10 system executables, both hosts | 82/82 classified, 31 read at code or disk, 1 instance |
+| services | 62 | 29 shutdown paths + 19 persistent-artefact writers + 8 work queues + 6 host lifecycle mechanisms | 62/62, 1 instance |
+| project-manager | 59 | 82 files -> 855 sections -> 92 machine candidates -> 59 after arbitration, +2 by hand for a disclosed instrument miss | 59/59, 4 instances, **24 already handle interruption** |
+| backup | 31 | 5 resticprofile sequences + 2 multi-`ExecStart` units + 6 dump producers + the goss->TAP->push chain + 4 offsite mechanisms + 2 LUKS-header + 11 restore procedures | 31/31, **0** |
+| network | 30 | 8 network executables + 4 pihole crons + 1 access-log rotation + 6 Ansible operations + 8 daemon-internal sequences + 3 state fingerprints, both hosts | 30/30, **0** |
+| security | 30 | 7 multi-step executables/units + 7 enforcement transitions + 8 handler sequences + 8 documented manual procedures | 22/30 deep, 8 handed to ansible-deploy, 2 instances |
+| observability | 22 | 8 reporting chains + 10 durable state writes + 4 stores re-read afterwards | 22/22, **0 interruption instance** |
+
+**Five domains returned an evidenced empty space with a stated cardinal, and
+that is the run's most reusable output.** Recorded so nothing re-derives them:
+Ansible writes through `atomic_move` at 160 of 163 sites with `unsafe_writes`
+nowhere in the repo, and the 61 write/handler pairs were compared against
+`StartedAt`/`ActiveEnterTimestamp` on both hosts with **zero** stale pairs;
+`pihole -g` writes `info.updated` into the TEMPORARY database, so an interrupted
+gravity build cannot refresh the timestamp its guard reads, and the swap `mv` is
+atomic; all five dumps write in place, but the C18 floor is a COMPLETION MARKER
+rather than a size and it runs after every dump and before the snapshot, so a
+truncated dump can neither survive nor be certified; an interrupted offsite copy
+has been caught and retried twice in the historical record (07-20 empty -> 2
+snapshots on 07-21; 23 on 08-23); `dpkg --audit` is empty and
+`/var/lib/dpkg/updates/` is empty on both hosts; and no `.tmp`, `.new` or
+`.part` residue exists anywhere that was looked.
+
+**None of the eight reporting chains pushes "up" for its own first half.** All
+push once, on the last line.
+
+### Minted — 2, after arbitration of 4 proposals
+
+Two proposals were refused, and the reason they were refused is the same
+sentence the register has used four times: *define the class by its property,
+not by the directory you happen to be reading.* Applying it symmetrically is
+what turned them into reopenings instead of mints, and the security agent had
+already applied it against its own second proposal before the main session saw
+it.
+
+| ID | Property | Space | Cardinal | State on arrival |
+|-----|-------------------------------------------------------------|-------------------------------|-----|------------|
+| C84 | A work queue whose only record of what REMAINS to do is destroyed by the same interruption that leaves the work unfinished | Every store in the estate holding outstanding work | **8** — 7 durable, verified on disk; 1 volatile | ENUMERATED 8/8 |
+| C85 | A verification whose verdict is delivered only to an EPHEMERAL channel — the operator's interactive terminal — so that afterwards nothing distinguishes "ran and passed", "ran and repaired" and "did not run" | Operator-launched system verifications that produce a verdict | **6** — 2 produce an INTEGRITY verdict | ENUMERATED 6/6, 1 instance |
+
+Both arrived with their space already swept, which is why neither is OPEN.
+**They are adjacent and deliberately not merged**: unifying them would give
+"any record whose consumer needs it after an interruption", whose space spans
+all eight domains and has no derivable cardinal — the exact shape this file
+calls "you can only sample it forever". A later run may merge them once both
+have been closed; it must not merge them to make one sweep look bigger.
+
+### C84's instance, verified by the main session rather than relayed
+
+`immich-redis` runs `redis-server --save ""` with `appendonly no`
+(`docker inspect` on `.Config.Cmd`, plus `config get save` returning empty and
+`config get appendonly` returning `no`). It is **not** a cache: Immich's BullMQ
+queues live in it — the keyspace carries `immich_bull:*` across
+`thumbnailGeneration`, `smartSearch`, `videoConversion`, `storageTemplateMigration`
+and `workflow`, 51 keys at the time of reading, all `meta` / `stalled-check` /
+`id` / `events` with no `:wait` or `:failed` list, i.e. the queues are empty at
+this instant.
+
+The faulty reasoning is written into the deployed assertion:
+`/etc/goss/posture.yaml:2336` exempts Redis because it "has nothing to recover"
+— true of the Nextcloud cache, and false in consequence for a queue. No monitor
+and no goss spec looks at it.
+
+Live residue, re-measured by the main session on the deployed database rather
+than taken from the agent: **2 of 9 474 active assets have no `thumbnail` row in
+`asset_file`** (`asset_file` holds 9 512 thumbnail and 9 512 preview rows).
+The agent's further counts — 28 never face-detected, 37 never
+duplicate-checked — were not independently re-derived and are recorded as its
+measurement, not the session's.
+
+**The doubt is recorded because it is real and it belongs to the instance, not
+to the class**: a job that FAILED and was then evicted leaves the same residue
+as a job that was interrupted, and nothing retained can separate them. The class
+does not depend on that: the volatility is a configuration fact, and
+`journalctl -u docker` holds **220 SIGKILL-at-grace-expiry events since
+2026-08-15 across 18 of the 29 containers**, the most recent this evening at
+15:56 — so the interrupting event is frequent rather than hypothetical.
+
+### C85's instance, and the asymmetry is in the deployed script
+
+The shutdown of boot `fdbfd00114b84b75a75ee32503450ebf` did not unmount
+`/mnt/data`: four `Unmounting timed out. Terminating.` on the docker overlay2
+mounts and a `Deactivation timed out` on the swapfile, at 2026-09-01 01:47:39-41,
+against 1 clean unmount / 0 timeouts on boots -1 and -3. The 4.6 TB volume went
+down dirty.
+
+`homelab-unlock` ran at 02:02:46 — and the **only** trace that it ran at all is
+the `sudo` line in `auth.log`. Read on the deployed script:
+
+- line 92: `logger -t homelab-unlock -p daemon.warning "$SKIP"` — the SKIP
+  branch IS journalled.
+- line 110: `rc=0; e2fsck -p -C 0 "/dev/mapper/$MAPPER" || rc=$?` — the RUN
+  branch is **not**.
+
+And the superblock cannot substitute for it: `tune2fs -l /dev/mapper/data_crypt`
+still reads `Last checked: Wed Aug 26 21:22:20 2026`, because `e2fsck -p` on a
+filesystem it deems clean exits without rewriting the field. So "repaired",
+"had nothing to do" and "was skipped" are indistinguishable one hour later, on
+the volume that carries the data, the Docker store and the local restic
+repository. The remedy is one `logger` line symmetric with the one already on
+the SKIP branch — not a new script, so ADR-030 is not engaged.
+
+### Broken gates — red tests, not audit results
+
+**C26 (a credential reaching a command line, a child process, a scheduled job or
+a TRACE) — the trace axis, which is the one axis it was ever GATED on.**
+`roles/deploy/tasks/backup.yml:67` passes `RESTIC_PASSWORD` through
+`environment:` under `become`, so Ansible builds a `sudo ... /bin/sh -c
+'RESTIC_PASSWORD=<value> ...'` command line and **sudo logs the command line**.
+
+Re-measured by the main session, without `sudo`, from the operator's own shell,
+and then RE-measured a second time because the first pass counted the variable
+NAME rather than the leak:
+
+    ls -l /var/log/auth.log   -> syslog:adm 0640 ; id -> ...,4(adm),...
+    grep -ah 'RESTIC_PASSWORD=' auth.log auth.log.1 | grep -ac BECOME-SUCCESS   -> 82
+    grep -ah 'RESTIC_PASSWORD=' auth.log auth.log.1 | grep -avc BECOME-SUCCESS  -> 2
+
+**82 lines carry the value**, spread over twelve days from 2026-08-23 to
+2026-09-05 (14 on the worst day, 6 today). The 2 remaining matches are earlier
+audit agents' own `grep` patterns, which is also the whole explanation of the
+other three variables the first pass reported: **`WG_ADMIN_PASSWORD`,
+`KILLSWITCH_KEYWORD` and `CF_DNS_API_TOKEN` are NOT leaked.** Their occurrences
+are `awk -F= '/^WG_ADMIN_PASSWORD=.../'` and similar audit commands logged by
+`sudo`. Those three secrets live in `.env` files and never reach a command line.
+**The counting method was the defect**: matching `NAME=` finds the pattern of a
+command that searches for the secret exactly as readily as the secret itself.
+Any future sweep of this class must require a value, and the discriminator that
+works here is `BECOME-SUCCESS` — because the leak is Ansible's become wrapper.
+
+**And that narrows the mechanism usefully**: the nightly backup reads its
+password from `backup.env`, a FILE, so it leaks nothing. The 82 lines are all
+`ansible-playbook` runs. The exposure is per-DEPLOY, not per-night, which is why
+it starts on 2026-08-23 rather than at the beginning of the journal.
+
+**The systemd journal is a second store** and `journalctl` needs no `sudo` for
+the same `adm` reason — 11 matching lines in the current boot alone (4 days) and
+2 in boot -1. A purge would have to cover two stores with independent rotations,
+which is the argument for fixing the SOURCE first.
+**Do not carry the figure of 123 that an agent reported for the whole journal**:
+the session's own per-boot samples run at a few per day and do not extrapolate
+to it, the total was not completed within budget, and the finding does not
+depend on it. The `auth.log` figure of 82, which the same agent reported, DID
+reproduce exactly. The privilege gain is nil — the reader is already in
+`sudo` — but the secret ADR-011 places on the LUKS volume is duplicated in
+cleartext **on the SD card**, which is the medium `sd-theft-response.md` assumes
+carries none. Space enumerated at 4 tasks. The remedy is
+`RESTIC_PASSWORD_FILE`, **not** `no_log`, which `settled.md` already forbids.
+
+### Downgraded from GATED — 1, for the reason that already cost C02, C13, C20 and C26
+
+**C17 (a filesystem never checked, and boot triggers reset every boot).** Its
+three assertions are hardwired to `/`: **one filesystem out of four**, and
+`Last checked` is still asserted nowhere — the same omission this file recorded
+on 2026-08-30 and which has now survived six days. A list of one is not a gate.
+It goes to ENUMERATED. **Nothing is proposed**: its only live instance is the
+offsite root, nine days past its interval with a frozen trigger, and the
+operator DECLINED that on 2026-09-02 (`offsite.yml` never plays the
+`observability` role).
+
+### Register corrections — five, and three were the register being behind the repo
+
+1. **C11 is NOT broken, and this morning's line is stale by one day.** The
+   numbers are unchanged — 9 assertions against 11 containers with a non-empty
+   `Config.User` — but the deployed template now carries the written arbitration
+   of exactly that gap (`goss-posture.yaml.j2:322-340`, re-read by the main
+   session): `Config.User` returns the IMAGE's user when compose declares none,
+   so asserting the complement would mean writing upstream's values into this
+   repo, and a service that loses its `user:` is answered by review of
+   `compose.yaml`, not by a probe of the result. Under its own property the gate
+   is derived 9/9. **Correct the register, not the spec.**
+2. **C18 carries 26 checks, not 22**, and the derivation defect recorded this
+   morning is FIXED: `-container-present` is generated in the same loop
+   (2x3 + 3x5 + 5 = 26, counted on the deployed spec). The residue is a list of
+   one, Immich.
+3. **C19's script half is no longer vacuous at zero** — the `timers_seen -eq 0`
+   floor shipped 2026-09-05 (`homelab-health.sh:592`). Only the goss half still
+   is (positive control: `PATH=/nonexistent` -> exit 0). Two agents said this
+   independently.
+4. **C14, C15, C21, C41 and C16 were each re-read at the code and are genuinely
+   DERIVED.** C14 iterates `store.values()` and names no host, so a certificate
+   added tomorrow is covered without an edit (18/18 live, 33 days to the nearest
+   expiry against a 21-day threshold). C41 selects `active=1 and type='push'`,
+   compares against each monitor's own `interval`, and starves below n=10; killed
+   mid-evaluation it fails loudly. C21's description was re-verified for a third
+   time and holds.
+5. **C81's gate is active but its path filter is a LIST OF ONE**:
+   `ASCII_STRICT_PREFIXES = ("/etc/ufw/",)`. Its `marker:` half is derived, the
+   hook is wired in `.pre-commit-config.yaml` and was made to fail on purpose in
+   a sandbox with both negative controls passing, and its two blind spots
+   (`*.yaml`, `.j2` into `/etc/ufw/`) are empty today. Recorded, not downgraded:
+   unlike C17 the class has never had a live instance outside the listed prefix.
+
+### Rejected from the agents, and why
+
+- **"4 truncation points out of 4 load a partial Immich database silently."**
+  Re-measured by the main session on the runbook's exact pipeline against a
+  disposable Postgres 16 on the workstation: **12 of 30 truncation points commit
+  silently with exit 0** (3 159 to 19 399 rows of 20 000); the other 18 are
+  caught by `ON_ERROR_STOP` and roll back. The headline survives, the generality
+  does not — whether it is caught depends on where the cut falls inside the
+  `COPY` block. The agent's own negative control (a truncation inside an
+  `INSERT`, which errors cleanly) was correct and is what made the difference
+  visible.
+- **"The tamper was refused while armed"** was very nearly rejected by the main
+  session and turned out to be RIGHT. `fake-hwclock` makes boots -1 and -2
+  overlap in wall-clock time, so a `ConditionPathExists` skip at 01:44:44 looks
+  like it precedes the refusals at 01:47-01:48 and belongs to the same boot. It
+  does not. Per-boot: `armed` at 2026-08-30 17:31:56 in boot -2, no disarm, and
+  the three refusals are the last lines of that boot. **Check the boot id before
+  reasoning about any timestamp on this host.**
+- **Three refusals, not two.** 01:47:38 (`systemd-tmpfiles-setup-dev-early`
+  stop), 01:48:17 (`systemd-tmpfiles-setup-dev` stop), 01:48:20 (`reboot.target`
+  start), each with `exit code 4` from the udev worker.
+- **And the window is 8 boots, not 6** — a `--list-boots | tail -6` truncated the
+  list on the first pass; the retained journal runs from 2026-08-16 22:09,
+  boots -7 to 0. The correction ENLARGES the evidence. Over those 8 boots
+  `usb-tamper.service` appears exactly **5 times, every one of them "skipped
+  because of an unmet condition check"** — the coldplug replay at boot, before
+  arming. **So in the whole observable window the unit has never once passed its
+  own condition, and its only recorded opportunity to fire ended in `exit code
+  4`.** The main session verified the 5 skips independently before this was
+  written.
+- The `journalctl --grep=TRIGGER` over the entire retained journal, with no tag
+  filter, returns zero real occurrences — and it carries its own positive
+  control for free, because `sudo` journals the `COMMAND=` of the grep itself,
+  which is the only line that matches. That is instrument trap #4 of
+  `settled.md` satisfied without extra work, and it is worth reusing: **a grep
+  meant to return zero can be controlled by the audit line of its own
+  invocation.** It costs ~30 minutes on this host and belongs in the
+  background.
+- **The restic `locks/` directory is NOT empty**, contrary to this morning's
+  entry: 2 stale locks from 11:28 today, almost certainly a midday agent's
+  restic commands killed by a tool timeout. No consequence — restic expires them
+  at 30 minutes, and the `--lock-wait 2h` recorded this morning is
+  *resticprofile*'s lock, not the repository's.
+
+### Two near-mints declined, and one instrument miss disclosed by the agent that made it
+
+`CERT_STAMP` is rewritten in place and a torn read would freeze the ACME ratchet
+low for ~60 days — zero trace and a microsecond-wide window, so a thought
+experiment. And the `Restart pihole && restart dnsproxy` handler interrupted
+between its two commands costs LAN DNS with two green containers — real, but
+**detected in 5-9 minutes** by the random-label DNS probe, so neither form 1 nor
+form 2.
+
+The documentary agent disclosed that its mutating-verb pattern missed two whole
+runbooks (`kill-switch.md`, `usb-tamper.md`) because their commands are
+in-house executables — *a sweep by verb list is a list, not a derivation*, which
+is the same criticism this file levels at enumerative gates. Both were
+reinstated by hand and the cardinal of 59 includes them.
 
 ## The run of 2026-09-05 (midday) — the key was `exclusivity`, and it minted nothing
 
@@ -1486,7 +1777,7 @@ Seven in the morning, C09 in the evening. C02's row records its downgrade.
 | C07 | A collector whose polling cost is disproportionate to the granularity of what it feeds | **GATED** by #285, and the gate is two assertions because one was a proxy. The floor is now derived from the resolution rather than written twice |
 | C08 | A threshold probe that samples at an instant which cannot contain the peak it guards | **Closed by decision.** The homelab reads `Power Cycle Min/Max`, which resets each boot. The offsite keeps the instantaneous reading and reports its peak instead — its only maximum is lifetime, and a threshold on a figure that cannot come back down latches red forever |
 
-## GATED — 11 here, plus C07 recorded above
+## GATED — 10 here, plus C07 recorded above
 
 A finding in any of these is a broken gate, not an audit result.
 
@@ -1508,18 +1799,18 @@ check, and it is stated as one.
 | ID | Property | Gate |
 |-----|------------------------------------------------------|--------------------------------------------------------|
 | C10 | A credential store readable beyond its service | goss posture, **derived** from the dump variables rather than listed, plus a named assertion for the Immich dumps (#217, #272) |
-| C11 | A container whose running `Config.User` differs from what compose declares | posture assertion, 9 services (#145). **BROKEN, measured 2026-09-05: 9 assertions against 11 running containers with a non-empty `Config.User`** — `socket-proxy` (root) and `collabora` (1001) unasserted, because the assertion is emitted per DECLARATION, so dropping a declaration removes its own check. Same `{% if %}` defect twice more in that loop: `apparmor` (1) and `pinned-port` (1) |
+| C11 | A container whose running `Config.User` differs from what compose declares | posture assertion, 9 services (#145). **NOT broken — the "BROKEN" verdict of 2026-09-05 midday measured a property C11 does not state, and was corrected the same evening.** The figures stand (9 assertions, 11 containers with a non-empty `Config.User`), but `socket-proxy` and `collabora` DECLARE nothing, so there is nothing for the assertion to disagree with: `Config.User` carries the IMAGE's user when compose is silent, and asserting the complement would write upstream's values into this repo. The deployed template argues exactly this at `goss-posture.yaml.j2:322-340`. Under its own property the gate is derived 9/9. A service that loses its `user:` is caught by review of `compose.yaml`, not by a probe of the result |
 | C12 | A rotated secret no consumer restarts to read | **Left this table on 2026-09-03 — downgraded to ENUMERATED.** There is no live assertion at all: nothing in the three deployed goss specs mentions handler coverage. The 51 notify sites and 0 orphans of #145 were a sweep, not a gate |
 | C13 | A declared environment value shadowed by a persisted config file | **Left this table on 2026-08-30 — see the downgrade above.** The assertion is hardcoded to vaultwarden (#124, #159); a list of one is not a gate |
 | C14 | A certificate with no expiry watch, or a silent ACME failure | `homelab-health.sh` parses `acme.json` directly, 21-day threshold, 18/18 (#157) |
 | C15 | The offsite repository losing the one property that makes it a backup | goss assertion on the live rest-server process, proven to fail in both modes (#278) |
 | C16 | A read-write bind mount its container cannot create files in | posture assertion, continuous since 2026-08-16 |
-| C17 | A filesystem never checked, and boot triggers reset every boot | `passno` plus the daily disk report's `ext4 clean` field (#254, #260) |
-| C18 | A database dump absent, stale, or empty | goss `backup-dumps`, now **22** checks, generated from the dump variables so a database cannot get a dump without a check (#177, ADR-032). **The `empty` word is no longer an overstatement** — the derived `-content` floor shipped 2026-09-05 10:39 and 2x3+3x4+4 = 22 matches the host. **What IS defective is the derivation half**: `docker inspect <svc> ... || exit 0` opens all four assertions for vaultwarden, forgejo, uptime-kuma and immich-server when the container is absent |
-| C19 | A failed systemd unit, or a timer whose service did not succeed | goss `units.yaml` plus the health script's last-run check — **homelab only; the offsite half is C02**. **BOTH halves are vacuous at zero** (2026-09-05, three controls): the goss half exits 0 with the binary absent. Rescued by composition, not by assertion |
+| C17 | A filesystem never checked, and boot triggers reset every boot | **Left this table on 2026-09-05 evening — downgraded to ENUMERATED.** The three assertions are hardwired to `/`: one filesystem of four, and `Last checked` is asserted nowhere, six days after this file first recorded that omission. Nothing is proposed — the only live instance is the offsite root, and the operator DECLINED it on 2026-09-02 |
+| C18 | A database dump absent, stale, or empty | goss `backup-dumps`, now **26** checks (2x3 + 3x5 + 5, counted on the deployed spec 2026-09-05 evening), generated from the dump variables so a database cannot get a dump without a check (#177, ADR-032). **The `empty` word is no longer an overstatement** — the derived `-content` floor shipped 2026-09-05 10:39 and 2x3+3x4+4 = 22 matches the host. The derivation half recorded as defective that morning is **FIXED**: `-container-present` is now generated in the same loop, and the residue is a list of one (Immich) |
+| C19 | A failed systemd unit, or a timer whose service did not succeed | goss `units.yaml` plus the health script's last-run check — **homelab only; the offsite half is C02**. **Only the GOSS half is vacuous at zero** — corrected 2026-09-05 evening by two agents independently: the script half now carries a derived floor (`timers_seen -eq 0`, `homelab-health.sh:592`, shipped 2026-09-05). The goss half still exits 0 with the binary absent (positive control: `PATH=/nonexistent`), rescued by composition rather than by assertion |
 | C20 | A secret that a deploy reports as rotated without rotating it | **Left this table on 2026-09-03 — downgraded to ENUMERATED.** 4 hand-written probes over a space of 16 secret files; a list of four is not a gate (#159 fixed the case-mismatch bug, which is a different question) |
 | C21 | A snapshot that missed its offsite copy and is never retried | retention monitor (#158, #168). **The "time-window filter" this row used to name no longer exists** — re-verified 2026-09-03: `copy:` carries no bound, every snapshot is re-offered nightly, 31 local / 81 offsite with no gaps. The class holds; the description was stale for the second time |
-| C81 | A byte written into a file whose consumer reads it back through a narrower encoding than the producer's | `ops/check-ascii-system-files.py` in pre-commit, proven to fail in both directions (2026-09-04) |
+| C81 | A byte written into a file whose consumer reads it back through a narrower encoding than the producer's | `ops/check-ascii-system-files.py` in pre-commit, proven to fail in both directions (2026-09-04); re-exercised 2026-09-05 evening in a sandbox, 3 flags with both negative controls passing. **Its `marker:` half is derived; its path filter is a LIST OF ONE** — `ASCII_STRICT_PREFIXES = ("/etc/ufw/",)`. Kept GATED rather than downgraded because, unlike C17, no live instance has ever existed outside that prefix; its two blind spots (`*.yaml`, `.j2` into `/etc/ufw/`) are empty today |
 | C41 | A dead-man's fuse re-armed from zero by the restart of its own watchdog | `kuma-no-push-monitor-silent-past-its-own-window`, derived from Kuma's own monitor table and each monitor's `interval`, with a starvation guard; discriminates on 54 historical silences against 16 (2026-08-30) |
 
 ### Broken gates found on 2026-08-30 — these are red tests, not audit results
@@ -1544,7 +1835,7 @@ check, and it is stated as one.
   measured, and `/run/traefik/access.log` appears 99 s after its container starts
   while its healthcheck requires the file.
 
-## ENUMERATED — 28 here; the rest (C01, C03, C06, C09, C13, C27, C39, C43, C75) are recorded in their own sections above
+## ENUMERATED — 31 here; the rest (C01, C03, C06, C09, C13, C27, C39, C43, C75) are recorded in their own sections above
 
 Swept completely at least once. Re-check only after a change that could reopen
 them; do not re-derive without a new symptom.
@@ -1589,6 +1880,9 @@ them; do not re-derive without a new symptom.
 | C78 | A set of which two or more components each hold their own definition, in different grammars, with nothing comparing the definitions | 4/4 name grammars (18/18/18, Kuma 15/18) + 21/21 restore expressions against 13 exclude patterns | 09-03 |
 | C82 | A fault whose only detector runs earlier in the same sequence than the step that introduces it | 308/308 write-sites + 77/77 binary-use + 34/34 handlers; 12 pairs, 2 instances, 10 refuted | 09-05 |
 | C83 | A mechanism that reports success, health or completion after producing or examining a set, without bounding that set's cardinality from below | **976/976 across 8 slices**, each slice's N derived and stated; 92 instances of which 32 are two families of 16 and 12 are no-action upstream, 884 refuted. **PARTIALLY GATED 09-05** — `ops/check-empty-set-floors.py` in pre-commit derives the space rather than listing it, and its six controls run beside it, three of which must FLAG. **The Ansible face is NOT gated** — see the note below before writing GATED anywhere | 09-05 |
+| C17 | A filesystem never checked, and boot triggers reset every boot | **Downgraded from GATED 09-05 evening** — 3 assertions hardwired to `/`, 1 filesystem of 4, `Last checked` asserted nowhere. Its only live instance is DECLINED | 08-30, 09-05 |
+| C84 | A work queue whose only record of what REMAINS to do is destroyed by the same interruption that leaves the work unfinished | 8/8 stores — 7 durable, verified on disk; 1 volatile (`immich-redis`, `--save ""`, `appendonly no`, holding Immich's `immich_bull:*` queues). 1 instance, 2 of 9 474 assets with no thumbnail row | 09-05 |
+| C85 | A verification whose verdict is delivered only to an EPHEMERAL channel, so that afterwards nothing distinguishes "ran and passed", "ran and repaired" and "did not run" | 6/6 operator-launched system verifications; 2 produce an INTEGRITY verdict; 1 instance (`homelab-unlock`'s `e2fsck -p`, logged on the SKIP branch and not on the RUN branch) | 09-05 |
 
 ## DECLINED
 
