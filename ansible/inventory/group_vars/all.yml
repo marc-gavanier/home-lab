@@ -72,8 +72,19 @@ data_fsck_interval_days: 30
 docker_data_root: /mnt/data/docker  # Docker images/layers on HDD
 # Seconds the daemon gives ALL containers, together, to drain on shutdown. The
 # default is 15 and it killed four databases mid-shutdown on 2026-08-29 (#288).
-# Must stay below docker.service's TimeoutStopSec (90 s) — asserted in goss.
-docker_shutdown_timeout: 60
+# 60 was not enough either: on 2026-09-05 three of them were still killed at
+# their own 30 s grace, so the per-container budget went to 90 s and this one
+# has to make room for it. The number that sizes it is not the grace but the
+# 54 s the daemon took that night with 30 s of grace — 24 s of network and mount
+# teardown OUTSIDE any container's budget, which every future sizing carries too.
+# Must stay below docker_stop_timeout — asserted in goss.
+docker_shutdown_timeout: 150
+# Seconds systemd gives docker.service itself to stop (TimeoutStopSec), written
+# into a drop-in rather than inherited. It was the distribution default of 90 s
+# until 2026-09-06, which made the budget above depend on a value this repo
+# neither set nor asserted — a distribution shipping 60 would have moved the
+# kill up one level, silently. Ordering: container grace < daemon < this.
+docker_stop_timeout: 240
 
 # --- Network ---
 domain: example.com

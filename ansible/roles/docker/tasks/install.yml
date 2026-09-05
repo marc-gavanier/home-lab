@@ -67,12 +67,35 @@
 # its writes, checkpointing while twenty-eight containers drain onto the same USB
 # disk, needs far more than 10 s. MEASURE THE CONDITION THAT ACTUALLY OCCURS.
 #
-# So both knobs are set: 30 s per database in compose.yaml, and this budget to
-# make room for them — four containers that may each take 30 s cannot fit in 15.
+# So both knobs are set: a per-database grace in compose.yaml, and this budget to
+# make room for them — four containers that may each take their grace cannot fit
+# in 15.
 #
-# 60 s, not more: systemd allows docker.service 90 s to stop (TimeoutStopSec,
-# left at the distribution default), and a daemon budget that outlived its own
-# supervisor's would just move the kill one level up. 60 leaves 30 s of headroom.
+# RE-SIZED 2026-09-06, after a third deliberate reboot found the same class. On
+# 2026-09-05 22:56, with 60 s here and 30 s per container, miniflux-db,
+# nextcloud-db and pihole were each killed at their own 30 s mark and came back
+# recovering. Per-container grace went to 90 s, and this budget follows to 150.
+#
+# What was NOT the constraint that night, so that nobody re-derives it:
+#
+#   - this budget. The daemon logged "Daemon shutdown complete" 54 s after the
+#     signal, 6 s inside its own 60. It never fired.
+#   - the signals. Fast shutdown (SIGINT) for both PostgreSQL, SIGTERM for the
+#     other two; every container's own log shows it received and acted on one.
+#   - pihole's CAP_KILL (#288). It worked — FTL ran its clean shutdown path and
+#     logged "Finished final database update" before being killed anyway.
+#
+# What the 54 s DOES say is the useful part: 24 s of that shutdown was network
+# and mount teardown happening outside any container's grace, with dockerd stuck
+# in nf_conntrack_lock long enough for the kernel to report RCU stalls. A daemon
+# budget has to carry that overhead on top of the slowest container, not instead
+# of it — 90 + 24 is ~115, and 150 is the margin over a host that is misbehaving
+# precisely when this budget matters.
+#
+# The third rung is now PINNED rather than inherited: docker_stop_timeout writes
+# TimeoutStopSec into a drop-in below. Until 2026-09-06 this comment read
+# "left at the distribution default", which is exactly the defect — the budget
+# here was bounded by a number this repo did not own and did not assert.
 # The relationship is asserted, not assumed — see the goss posture spec.
 - name: install | Configure Docker daemon
   ansible.builtin.copy:
@@ -90,6 +113,26 @@
       }
     mode: "0644"
   notify: Restart Docker
+
+# Also ensured by unlock-integration.yml, deliberately duplicated so neither file
+# depends on the other's import order.
+- name: install | Create Docker service override directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/docker.service.d
+    state: directory
+    mode: "0755"
+
+- name: install | Pin docker.service stop timeout
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/docker.service.d/shutdown-budget.conf
+    content: |
+      [Service]
+      # Must stay ABOVE daemon.json's shutdown-timeout ({{ docker_shutdown_timeout }} s),
+      # or systemd kills the daemon while containers are still draining — the
+      # same loss #288 removed, one level up. Asserted in the goss posture spec.
+      TimeoutStopSec={{ docker_stop_timeout }}
+    mode: "0644"
+  notify: Reload systemd units
 
 - name: install | Create Docker data directory on HDD
   ansible.builtin.file:

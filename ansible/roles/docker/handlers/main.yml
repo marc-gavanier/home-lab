@@ -1,4 +1,10 @@
 ---
+# A unit property change (TimeoutStopSec) needs a daemon-reload to take effect,
+# not a daemon restart — the running dockerd keeps serving throughout.
+- name: Reload systemd units
+  ansible.builtin.systemd:
+    daemon_reload: true
+
 - name: Restart Docker
   ansible.builtin.service:
     name: docker

@@ -17,5 +17,12 @@ argument_specs:
         required: true
         description: >-
           Seconds the daemon gives all containers together to drain on shutdown
-          (daemon.json shutdown-timeout). Must be less than docker.service's
-          TimeoutStopSec, or systemd kills the daemon mid-drain.
+          (daemon.json shutdown-timeout). Must be less than docker_stop_timeout,
+          or systemd kills the daemon mid-drain.
+      docker_stop_timeout:
+        type: int
+        required: true
+        description: >-
+          Seconds systemd gives docker.service to stop (TimeoutStopSec, pinned in
+          a drop-in). Must be greater than docker_shutdown_timeout, which must in
+          turn exceed the largest stop_grace_period in compose.yaml.

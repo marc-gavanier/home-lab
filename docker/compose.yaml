@@ -440,10 +440,22 @@ services:
     # comment said it was. pihole was given 30 s and still came back recovering
     # on the very next restart, while the three databases went clean. The cause
     # is the missing CAP_KILL below: FTL is never asked to stop at all, so no
-    # amount of waiting helps. The 30 s is kept because it is the budget FTL
-    # will need once it CAN be signalled - a checkpoint on the query database is
-    # not instant - but the capability is the fix.
-    stop_grace_period: 30s
+    # amount of waiting helps.
+    #
+    # With the capability in place the shutdown path finally runs - and the
+    # reboot of 2026-09-05 22:56 showed what it costs. FTL was asked to stop,
+    # terminated its four threads, logged "Finished final database update" and
+    # "Stored 1 API session in the database" by 22:56:18.8, then went silent and
+    # was killed at 22:56:34, exactly 30 s after the signal. It came back with
+    # "recovered 802 frames from WAL". Arbitrated the way this repo requires:
+    # containerd's task-delete landed 0.89 s AFTER dockerd's "using the force",
+    # so this was a real kill - not the message dockerd also writes for
+    # containers that had already exited.
+    #
+    # 90 s, not 30. Closing that SQLite store behind a checkpoint is a tail
+    # nobody has measured to its end, because every observation of it so far
+    # terminates in a kill.
+    stop_grace_period: 90s
     image: pihole/pihole:2026.07.2
     container_name: pihole
     restart: unless-stopped   # Tier 0: auto-start at boot (see stack-startup role)
@@ -802,11 +814,19 @@ services:
     # this container came back running InnoDB crash recovery (853 pages, 47 s)
     # after a DELIBERATE reboot (#288).
     #
-    # 30 s is 3x the measured drain rather than a round number. The two PostgreSQL
-    # databases need 1.6 s and 2.5 s and are left on the default deliberately: the
-    # budget that killed THEM is the daemon-wide one, not this one, and giving a
-    # container a grace period it never uses hides which knob is doing the work.
-    stop_grace_period: 30s
+    # 30 s was 3x that measured drain, and it was still not enough. On the reboot
+    # of 2026-09-05 22:56 this container was killed at the 30 s mark while InnoDB
+    # was still dumping its LSN and pending-IO state, and came back running crash
+    # recovery from checkpoint LSN 4645640494 - task-delete 1.47 s after dockerd's
+    # "using the force", so a real kill.
+    #
+    # The lesson is the one this repo keeps re-learning: a drain measured on a
+    # healthy host does not bound a drain during a REBOOT, where twenty-eight
+    # containers hit the same USB disk while the kernel tears down their networks.
+    # That night dockerd sat in nf_conntrack_lock long enough for the kernel to
+    # report RCU stalls and take NMI backtraces. 90 s is not a measurement, it is
+    # headroom over a condition that has never been measured to completion.
+    stop_grace_period: 90s
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     read_only: true
@@ -1430,13 +1450,35 @@ services:
     # shutdown and the correct signal - the signal was never the problem. The
     # budget was that the final checkpoint did not fit in 10 s.
     #
-    # 30 s because that is what nextcloud-db, the largest of the three, was
-    # measured completing in on the same restart. Do NOT size this from a solo
-    # `docker stop` on an idle database, which reads 1.6-2.5 s - that is how this
-    # container came to be left on the default in the first place. The real cost
-    # is a full checkpoint with twenty-eight containers draining onto the same
-    # USB disk at once.
-    stop_grace_period: 30s
+    # 90 s since 2026-09-06, raised with nextcloud-db and miniflux-db. Do NOT size
+    # this from a solo `docker stop` on an idle database, which reads 1.6-2.5 s -
+    # that is how this container came to be left on the default in the first
+    # place. The real cost is a full checkpoint with twenty-eight containers
+    # draining onto the same USB disk at once.
+    #
+    # AND THIS KNOB DOES NOT COVER THIS CONTAINER'S LAST FAILURE, which is the
+    # only reason the distinction is written down. On the reboot of 2026-09-05
+    # 22:56 immich-db came back recovering WITHOUT being killed: containerd's
+    # task-delete landed at 22:56:21, thirteen seconds BEFORE dockerd wrote
+    # "failed to exit within 30s - using the force", and that ordering is the
+    # signature of a container that exited on its own. Its log names a different
+    # cause:
+    #
+    #     20:56:04.291  received fast shutdown request
+    #     20:56:18.625  aborting any active transactions      (14 s to reach this)
+    #     20:56:18.650  server process (PID 3234) exited with exit code 2
+    #     20:56:18.650  terminating any other active server processes
+    #     20:56:18.862  abnormal database system shutdown
+    #     20:56:20.051  database system is shut down
+    #
+    # A backend died mid-shutdown, the postmaster took the crash path, and the
+    # next start replayed WAL - after an arrest that fitted inside its budget
+    # twice over. No OOM kill on the host that night. Seen once, not explained,
+    # and deliberately not chased: whatever ended PID 3234 is not a time budget,
+    # so no value on the line below can reach it. If this container comes back
+    # recovering again while task-delete PRECEDES the force message, that is the
+    # thread to pull - not this number.
+    stop_grace_period: 90s
     # Official Immich postgres (VectorChord + legacy pgvecto.rs): required by
     # Immich v3, which dropped pgvecto.rs. Same PG major (16) as the previous
     # tensorchord/pgvecto-rs image, so the data files load as-is; the extension
@@ -2129,13 +2171,26 @@ services:
     # shutdown and the correct signal - the signal was never the problem. The
     # budget was that the final checkpoint did not fit in 10 s.
     #
-    # 30 s because that is what nextcloud-db, the largest of the three, was
-    # measured completing in on the same restart. Do NOT size this from a solo
-    # `docker stop` on an idle database, which reads 1.6-2.5 s - that is how this
-    # container came to be left on the default in the first place. The real cost
-    # is a full checkpoint with twenty-eight containers draining onto the same
-    # USB disk at once.
-    stop_grace_period: 30s
+    # 30 s was sized from nextcloud-db's drain on that restart, and the reboot of
+    # 2026-09-05 22:56 spent every second of it without finishing. Do NOT size
+    # this from a solo `docker stop` on an idle database, which reads 1.6-2.5 s -
+    # that is how this container came to be left on the default in the first
+    # place. The real cost is a full checkpoint with twenty-eight containers
+    # draining onto the same USB disk at once, and this is what that looks like:
+    #
+    #     20:56:03.834  received fast shutdown request
+    #     20:56:10.514  aborting any active transactions        (6.7 s to reach it)
+    #     20:56:29.182  checkpoint complete: ... write=226.213 s
+    #                   - the PERIODIC checkpoint, which the shutdown had to wait
+    #                     out before it could start its own
+    #     20:56:31.853  checkpoint starting: shutdown immediate
+    #                   ... killed 2.2 s later, at the 30 s mark, and back with
+    #                     "database system was not properly shut down"
+    #
+    # That is the whole shape of it: the final checkpoint could not even BEGIN
+    # until 28 of the 30 seconds were gone. 90 s is headroom over that, not a
+    # measurement - nothing has yet observed this drain reaching its end.
+    stop_grace_period: 90s
     # Postgres 18, not the 16 immich-db is pinned to. This database is Miniflux's
     # alone — nothing reads it across services — so there is no schema to match,
     # and 18 is what upstream's own compose ships.
