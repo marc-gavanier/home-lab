@@ -449,10 +449,21 @@ assertion the repo has already written six times by hand.
   the count is outside the loop in the deployed file; the missing-report branch
   and the `checked 0` branch were both exercised without creating or deleting
   anything; `f8c547c`'s producer-mtime guard is armed.
-- **The dumps fix is deployed but has NOT executed yet.** The TAP on disk still
-  reads `1..19` from the 03:00 run that preceded the 10:31 deploy. First
-  execution 2026-09-06 03:00, and tonight's beat must read `dumps ok (22
-  checks)`. Nothing about it is proven by tonight.
+- **The dumps fix is deployed but has NOT executed yet, and the number this
+  entry first carried was already stale when it was written.** The TAP on disk
+  reads `1..19` from the 03:00 run that preceded the 10:31 deploy. The spec now
+  holds **26** assertions, not 22: the afternoon's `-container-present` addition
+  put one more on each of vaultwarden, forgejo, uptime-kuma and immich-server.
+  First execution **2026-09-06 03:00**, and the beat must read `dumps ok (26
+  checks)`. Nothing about the floor itself is proven before then — the four
+  container assertions pass today because they do not need the dump files, which
+  exist only between resticprofile's `run-before` and its `run-after`. Running
+  that spec by hand at any other hour reports thirteen failures and means
+  nothing; that is the shape of the check, not a defect.
+
+  This correction is the register's own warning working: a cardinal written down
+  in the afternoon and read the next morning is how the same figure has
+  propagated into eight agent briefs three times.
 - **`/boot/firmware/config.txt` on the homelab still carries em-dash markers**
   and is the ONLY one of the twenty corrections from 09-03/04/05 that is not
   true on the machines. It self-converges: `base/tasks/attack-surface.yml:29-30`'s
