@@ -1541,14 +1541,75 @@ command:
       #
       # One call, not two: the listing reuses what the count read, so the
       # failing path costs no more than the passing one.
-      hits=$(journalctl --since "@$first" --no-pager -o cat \
+      # --- A LOSS IS AN EVENT; THIS ALARM MUST DESCRIBE A STATE ---------------
+      # Counting losses in the window made this a level alarm on an edge event:
+      # one push that failed at 13:56 held the monitor red until 15:56 the NEXT
+      # DAY, while reports had been landing again since 14:01. Measured
+      # 2026-09-05, and the cause was our own deploy — recreating dnsproxy took
+      # DNS away for the seconds in which homelab-health ran, and its report
+      # could not escape because escaping needs to resolve a name.
+      #
+      # Every deploy that touches dnsproxy or traefik would repaint 26 hours of
+      # red that says nothing new, and #207 is this repository's own record of
+      # what that costs: a monitor that is permanently red is a monitor nobody
+      # reads. The question worth alarming on is not "was a report lost" but
+      # "are reports STILL not getting through".
+      #
+      # So a loss is LIVE unless the push path has demonstrably recovered, and
+      # recovery is read from Kuma's own tables rather than from a new marker in
+      # ten copies of push_to():
+      #
+      #   no beat at all since the loss        nothing proves the path works.
+      #   a reporter silent past its OWN       that reporter is still failing;
+      #   cadence since the loss               derived from monitor.interval,
+      #                                        the same source C41 uses.
+      #
+      # A weekly job that has not run yet is NOT judged, which is the whole
+      # reason the second clause compares against each monitor's own interval
+      # instead of demanding that everything beat. Both clauses were run against
+      # the live database in both directions before this shipped.
+      hits=$(journalctl --since "@$first" --no-pager -o short-iso \
              --grep '^kuma-push-failed:' 2>/dev/null)
       lost=$(printf '%s' "$hits" | grep -c . )
-      [ "$lost" -eq 0 ] || {
-        echo "$lost report(s) never reached the dashboard since Kuma began recording:"
+      [ "$lost" -eq 0 ] && exit 0
+
+      # journalctl prints local time and Kuma stores UTC. Converting through an
+      # epoch rather than string-handling the offset is deliberate: reading one
+      # as the other is an instrument trap this audit has already paid for.
+      newest=$(printf '%s\n' "$hits" | tail -1 | cut -d' ' -f1)
+      loss_epoch=$(date -d "$newest" +%s 2>/dev/null)
+      case "$loss_epoch" in
+        ''|*[!0-9]*) echo "$lost report(s) lost and the newest timestamp is unreadable — refusing to judge"; exit 1 ;;
+      esac
+      loss_utc=$(date -u -d "@$loss_epoch" +'%Y-%m-%d %H:%M:%S')
+      since=$(( $(date +%s) - loss_epoch ))
+
+      kq() { docker exec uptime-kuma sqlite3 "file:/app/data/kuma.db?mode=ro" "$1" 2>/dev/null; }
+
+      beats=$(kq "select count(*) from heartbeat h join monitor m on m.id = h.monitor_id
+                  where m.type = 'push' and m.active = 1 and h.time > '$loss_utc';")
+      case "$beats" in
+        ''|*[!0-9]*) echo "$lost report(s) lost and Kuma cannot be read — refusing to judge"; exit 1 ;;
+      esac
+      if [ "$beats" -eq 0 ]; then
+        echo "$lost report(s) never reached the dashboard, and NOTHING has reached it since:"
         printf '%s\n' "$hits" | tail -5 | sed 's/^/  /'
         exit 1
-      }
+      fi
+
+      silent=$(kq "select m.name || ' (every ' || m.interval || 's, last ' ||
+                          coalesce(datetime(h.t), 'never') || ')'
+                   from monitor m
+                   left join (select monitor_id, max(time) t from heartbeat group by monitor_id) h
+                     on h.monitor_id = m.id
+                   where m.type = 'push' and m.active = 1
+                     and m.interval <= $since
+                     and (h.t is null or h.t <= '$loss_utc');")
+      if [ -n "$silent" ]; then
+        echo "$lost report(s) lost, and these reporters are still silent past their own cadence:"
+        printf '%s\n' "$silent" | sed 's/^/  /'
+        exit 1
+      fi
     # The paragraph that used to sit here sized 45 s as ~11x a 4.2 s idle cost
     # and then said, correctly: "The scan grows with the window, which is
     # bounded by Kuma's uptime rather than by anything here. If this ever times
