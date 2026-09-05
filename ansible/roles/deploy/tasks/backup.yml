@@ -59,12 +59,25 @@
     line: "{{ homelab_ip }} services.{{ domain }}"
     state: present
 
+# RESTIC_PASSWORD_FILE, never RESTIC_PASSWORD. Ansible's become wrapper builds
+# `sudo ... /bin/sh -c 'echo BECOME-SUCCESS-… ; VAR=value …'`, and sudo journals
+# the command line it runs — so an inline value lands in cleartext in
+# /var/log/auth.log AND in the systemd journal, both readable without sudo by
+# any account in `adm`. Measured 2026-09-05: 82 lines carrying this repository's
+# password, across twelve days, on the SD card that ADR-011 exists to keep
+# secret-free. It is per-DEPLOY rather than per-night — the nightly job reads
+# backup.env, a file, and leaks nothing.
+#
+# `no_log: true` is NOT the fix and must not be proposed as one: it does not
+# mask `environment:`, which was measured on a previous run and recorded in the
+# audit's settled notes. The file below is written by secrets.yml, which runs
+# earlier in this same role.
 - name: backup | Initialize restic repository
   ansible.builtin.command:
     cmd: restic init
   environment:
     RESTIC_REPOSITORY: "{{ backup_dir }}/restic-repo"
-    RESTIC_PASSWORD: "{{ restic_password }}"
+    RESTIC_PASSWORD_FILE: /mnt/data/secrets/restic_password
   register: restic_init
   failed_when: false
   changed_when: "'created restic repository' in restic_init.stdout"
