@@ -256,6 +256,27 @@ the hosts: 0 non-ASCII bytes across all six ufw files, markers rewritten 23:20 /
 `ASCII_STRICT_PREFIXES` half is a hand-kept list of one. Recorded so the next run
 does not mistake the second half for a derivation.
 
+**A THIRD instance appeared the same morning, and the change that closed C82
+introduced it.** The corrections of this run added an assertion to
+`homelab-health.sh` that reads the output of `homelab-stack-heal.sh`.
+`observability` is a phase-1 role and `stack-startup` is phase-5, so the deploy
+installed the check at 10:31:39 and its producer at 10:41:08; the health run at
+10:41:08 pushed a DOWN for a mechanism that was working, the first `checked`
+line arrived at 10:42:14, and the monitor cleared itself at 10:45:58.
+
+Two things follow, and the second is the more important.
+
+- The instance is fixed by starting the window at the later of "15 minutes ago"
+  and "when the producer was installed" — an assertion must not demand a window
+  longer than the producer has existed. Reordering the roles would fight the
+  phase structure for one check.
+- **C82 is ENUMERATED and that is not enough.** The sweep was correct when it
+  ran; nothing stopped the very next commit from adding a pair. A class whose
+  space can be re-populated by any deploy needs a gate, and C82 has none — no
+  assertion derives the (writer, earlier-consumer) set. This is the C45 problem
+  wearing a different coat, and it is why the class must not be read as settled
+  merely because 308/308 came back clean.
+
 ### Minted — 1, after arbitration of 3 proposals
 
 `backup` proposed "a verification that certifies an artefact's form and never
