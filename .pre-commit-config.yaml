@@ -63,3 +63,33 @@ repos:
         language: system
         files: \.j2$
         pass_filenames: false
+
+      # A loop over a set that came back EMPTY falls through to the success
+      # path, so "I examined nothing" and "I found nothing wrong" reach the
+      # dashboard as the same green. The audit of 2026-09-05 swept 976 sites
+      # for that shape and found about thirty live instances, in goss specs, in
+      # shell reports and in Ansible task gates — and the remedy had already
+      # been written into this repo by hand six separate times without ever
+      # being generalised. Six statements of one rule, six times not applied
+      # next door. This is the generalisation.
+      #
+      # Two hooks, not one. The second runs the controls, because a lint that
+      # has only ever been run over a clean repository has proven nothing: it
+      # would pass exactly as quietly with its own regex broken, which is this
+      # gate's defect class applied to itself. Three of the six controls MUST
+      # be flagged, and two of them are real defects taken from the machine —
+      # the published-port derivation as it stood that morning, and the
+      # crash-heal loop as it stood through the 2026-08-26 outage.
+      - id: empty-set-floors
+        name: no iteration over a derived set without a floor
+        entry: ops/check-empty-set-floors.py
+        language: system
+        files: (goss-.*\.ya?ml\.j2|\.sh(\.j2)?)$
+        pass_filenames: false
+
+      - id: empty-set-floors-selftest
+        name: the floor gate still fails when it should
+        entry: ops/check-empty-set-floors.py --selftest
+        language: system
+        files: ^ops/check-empty-set-floors\.py$
+        pass_filenames: false

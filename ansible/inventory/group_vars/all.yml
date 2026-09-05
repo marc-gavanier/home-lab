@@ -342,12 +342,20 @@ resticprofile_sha256: "58e4fd6fbe2bd460ee6823c3693f39a10f0f24c90635f0215c19b0ab2
 credential_store_default_mode: "0700"
 
 # A floor, not a count to maintain. goss cannot report a value, so a derivation
-# that silently returned nothing would be a green assertion over zero stores —
-# the exact defect ADR-032 exists to make impossible. Measured at 12 on
-# 2026-08-24, then 11 on 2026-08-25 when pihole/etc moved to the exemptions —
-# see its entry: the image reverts that directory's mode on every start, so the
-# file modes are asserted instead. It fails if a store stops being derivable.
-credential_store_min_count: 11
+# `credential_store_min_count` was RETIRED on 2026-09-05 and the reason is worth
+# keeping. It was a floor kept by hand — "measured at 12 on 2026-08-24, then 11
+# on 2026-08-25 when pihole/etc moved to the exemptions". That second edit is
+# the whole argument: an exemption was added and the number was decremented,
+# but the population before the exemption was 13, not 12. The floor has sat one
+# below the truth ever since, so a credential store could have stopped being
+# derivable without this assertion noticing — which is the exact defect it
+# exists to prevent, committed by its own bookkeeping.
+#
+# goss-posture.yaml.j2 now derives the floor from compose.yaml, over the same
+# set the runtime side builds: bind sources under the services data dir, kept
+# when exactly one service declares them, minus the exemptions below. Verified
+# on 2026-09-05 to produce the twelve names the host reports, name for name.
+# The exemptions stay here, because a reason cannot be derived.
 
 # Out of scope, each with the reason. Not "known exceptions to fix later" — a
 # directory listed here is one the property reaches and that holds no credential,

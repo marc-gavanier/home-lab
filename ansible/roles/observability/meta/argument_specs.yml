@@ -168,10 +168,3 @@ argument_specs:
           services data dir, with the reason as the value. Read by goss-posture. An entry
           that outlives the ticket it names is indistinguishable from a blind spot — #272
           is what that costs, so the values are prose and are meant to be re-read.
-      credential_store_min_count:
-        type: int
-        required: true
-        description: >-
-          Floor on how many stores the derivation must find. A loop that iterates over
-          nothing returns true, which is the failure mode ADR-032 exists for; this is a
-          measurement (12 on 2026-08-24), not a target.
