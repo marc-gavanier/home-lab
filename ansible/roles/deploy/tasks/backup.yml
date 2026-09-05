@@ -82,6 +82,41 @@
   failed_when: false
   changed_when: "'created restic repository' in restic_init.stdout"
 
+# The assertion `restic init` cannot make, and its absence cost a working
+# backup on 2026-09-06. `failed_when: false` is correct for the init itself —
+# on an existing repository it says "already initialized" and that is not an
+# error — but it also swallows `Fatal: wrong password or no key found`. So a
+# deploy that installs a password the repository does not know reports
+# 379 ok / 0 failed, and the first sign is the nightly run failing at 03:00.
+#
+# That is exactly what happened: a rotation was carried out in the wrong order
+# (the new password reached local.yml before `restic key add` had taught the
+# repository about it), the deploy was green, and the repository was
+# unreadable for forty minutes.
+#
+# `cat config` is the cheapest read that requires the key. No `failed_when`
+# here on purpose: this one MUST stop the play.
+- name: backup | Assert the deployed password actually opens the repository
+  ansible.builtin.command:
+    cmd: restic --repo {{ backup_dir }}/restic-repo cat config
+  environment:
+    RESTIC_PASSWORD_FILE: /mnt/data/secrets/restic_password
+  register: restic_open
+  changed_when: false
+  check_mode: false
+
+- name: backup | Fail the deploy if the repository did not open
+  ansible.builtin.assert:
+    that:
+      - restic_open.rc == 0
+    fail_msg: >-
+      The password now deployed at /mnt/data/secrets/restic_password does NOT
+      open {{ backup_dir }}/restic-repo. The nightly backup would fail at 03:00
+      and nothing else would have said so. If you are rotating: run
+      `restic key add` against the repository FIRST, confirm `key list` shows
+      two keys, and only then change restic_password in the vaulted local.yml.
+    quiet: true
+
 # HOME is unset for systemd services, so restic can't locate its cache
 # ("neither $XDG_CACHE_HOME nor $HOME are defined") and runs cache-less — slower
 # and re-reads more from the repo. Set HOME so it caches under /root/.cache/restic.
