@@ -10,6 +10,28 @@
   ansible.builtin.set_fact:
     pihole_up: "{{ pihole_info.exists and (pihole_info.container.State.Running | default(false)) }}"
 
+# A skipped block that says nothing is the defect ADR-030 names, and it is the
+# same one `observability/tasks/main.yml` guards against with its "no silent
+# caps" report: the run is CORRECT — there is genuinely nothing to do against a
+# container that is not running — but its silence is not. `ok=0 changed=0` for
+# this whole section is what a healthy no-op and a missed configuration pass
+# look like from the outside, and `changed=0` is exactly what an idempotence
+# check is looking for, so a re-run confirms the wrong thing too.
+#
+# No count in the message on purpose: a hardcoded number is what went stale in
+# boot-and-unlock.md and in ADR-007. The message names the CONSEQUENCES, which
+# do not drift when a task is added.
+
+- name: pihole | Report that the admin password was NOT enforced
+  ansible.builtin.debug:
+    msg: >-
+      Pi-hole is NOT running, so its admin password was neither checked against
+      the auth API nor set. A rotation recorded in the vault has therefore NOT
+      reached the service, and this run reports success either way. Start the
+      container and re-run this play.
+  when: not pihole_up
+
+
 # Idempotence: try the v6 auth API with the vault password (JSON-encoded via
 # python so special characters survive). 200 = already set, anything else =
 # needs (re)setting. The throwaway session expires on its own.

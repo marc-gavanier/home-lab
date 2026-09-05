@@ -23,6 +23,31 @@
   ansible.builtin.set_fact:
     collabora_up: "{{ ['collabora', 'nextcloud'] | difference(collabora_running.stdout_lines) | length == 0 }}"
 
+# A skipped block that says nothing is the defect ADR-030 names, and it is the
+# same one `observability/tasks/main.yml` guards against with its "no silent
+# caps" report: the run is CORRECT — there is genuinely nothing to do against a
+# container that is not running — but its silence is not. `ok=0 changed=0` for
+# this whole section is what a healthy no-op and a missed configuration pass
+# look like from the outside, and `changed=0` is exactly what an idempotence
+# check is looking for, so a re-run confirms the wrong thing too.
+#
+# No count in the message on purpose: a hardcoded number is what went stale in
+# boot-and-unlock.md and in ADR-007. The message names the CONSEQUENCES, which
+# do not drift when a task is added.
+
+- name: collabora | Report that the Collabora wiring was NOT applied
+  ansible.builtin.debug:
+    msg: >-
+      Collabora and/or Nextcloud is NOT running, so the whole richdocuments
+      wiring was skipped: the connector install, the WOPI URL, the discovery
+      cache and — this is the part that matters — the three verifications that
+      FAIL the deploy when a document cannot be converted or the browser would
+      get an unreachable URL. Those guards did not pass, they did not run. Start
+      both containers and re-run this play before believing document editing
+      works.
+  when: not collabora_up
+
+
 # Collabora publishes no port to the host and its image ships no shell, so the
 # probe runs from the Nextcloud container — which is on the same proxy network
 # and carries curl for its own healthcheck. That is also the exact path

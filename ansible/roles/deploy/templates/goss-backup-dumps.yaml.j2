@@ -67,6 +67,35 @@ command:
   # SIGPIPE the tail feeding it, which under pipefail turns a SUCCESSFUL match
   # into status 141 — a race that reported a good dump as broken on some nights
   # and not others. A case statement has no pipe to break.
+  #
+  # --- ...and then assert that it contains something -------------------------
+  # The marker says the dump FINISHED. It says nothing about what is in it, and
+  # both tools write it on a database with no tables at all: a 670-byte
+  # miniflux.sql and a 1 353-byte nextcloud.sql carry their completion marker
+  # and pass every assertion above, against 38.9 MB and 26.9 MB of real dump.
+  # Since the three live datadirs left the source set on 2026-08-31, this dump
+  # is the ONLY copy — and Immich's keepLastAmount=7 rotates the last good one
+  # out after seven empty-but-valid nights.
+  #
+  # This is not the byte floor that was removed above, and the distinction is
+  # the point. A byte floor models expected SIZE, breaks on a quiet day, and
+  # passed a dump cut to one percent of itself (#127). A table floor models
+  # nothing: either the dump declares a schema or the dump went somewhere
+  # empty. The reachable failure it closes is one variable wide — a dump
+  # command that names a database which exists but is not ours (`postgres`,
+  # say), or a datadir that re-initialises — and in both cases the answer is
+  # zero tables, not few rows.
+  #
+  # `CREATE TABLE` rather than a per-tool data marker, so the assertion needs
+  # no third variable per dump and cannot drift when a tool changes how it
+  # writes rows. Measured on the live databases before being committed:
+  # pg_dump emits 14 for miniflux, mariadb-dump 177 for nextcloud, and Immich's
+  # own dump emits `CREATE TABLE public.activity` as its first.
+  #
+  # `grep -q` IS safe here, unlike above: it reads the file directly, so there
+  # is no pipe for it to SIGPIPE and no status to launder. It also stops at the
+  # first match, which is near the head of the file — this costs a fraction of
+  # what the tail read already costs.
 {% for d in backup_sql_dumps %}
   dump-{{ d.name }}-present:
     exec: test -f {{ backup_dir }}/dumps/{{ d.file }}
@@ -75,6 +104,9 @@ command:
     exec: |
       t=$(tail -c 4096 {{ backup_dir }}/dumps/{{ d.file }} 2>/dev/null)
       case "$t" in *'{{ d.marker }}'*) exit 0 ;; *) exit 1 ;; esac
+    exit-status: 0
+  dump-{{ d.name }}-content:
+    exec: grep -q '^CREATE TABLE' {{ backup_dir }}/dumps/{{ d.file }}
     exit-status: 0
 {% endfor %}
 
@@ -165,5 +197,27 @@ command:
       t=$( { zcat -- "${newest#* }" 2>/dev/null || echo '__ZCAT_FAILED__'; } | tail -c 4096 )
       case "$t" in *__ZCAT_FAILED__*) exit 1 ;; esac
       case "$t" in *'-- PostgreSQL database dump complete'*) exit 0 ;; *) exit 1 ;; esac
+    exit-status: 0
+    timeout: 120000
+
+  # The same content floor as the SQL dumps, and the "one pass, not two"
+  # argument above does NOT forbid it. That argument is about integrity and
+  # completeness, which both need the WHOLE stream — the CRC is only verified
+  # once zcat reaches the end, and the marker only exists there. A schema
+  # declaration is near the head, so `grep -q` stops within the first few
+  # hundred kilobytes and SIGPIPEs zcat rather than decompressing 89 MB.
+  # Measured: `CREATE TABLE public.activity` is the first of Immich's.
+  #
+  # No in-band sentinel here, unlike -usable, and for a reason rather than an
+  # omission: this assertion only asks whether the schema was seen. A zcat that
+  # dies for any cause produces no match, grep exits 1, and the check fails —
+  # which is the verdict wanted in that case anyway. There is no status to
+  # carry out of the pipe because there is no success it could hide.
+  dump-immich-content:
+    exec: |
+      docker inspect immich-server >/dev/null 2>&1 || exit 0
+      newest=$(find {{ immich_backup_dir }} -name 'immich-db-backup-*.sql.gz' -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1)
+      [ -n "$newest" ] || exit 1
+      zcat -- "${newest#* }" 2>/dev/null | grep -q '^CREATE TABLE'
     exit-status: 0
     timeout: 120000

@@ -48,12 +48,39 @@ fi
 
 cd "$COMPOSE_DIR" || { log "FATAL: $COMPOSE_DIR missing"; exit 1; }
 
-docker ps -a --filter "label=com.docker.compose.project" --filter "status=exited" --format '{{.Names}}' \
-| while read -r name; do
+# --- Say how many were LOOKED AT, not only what was healed -------------------
+# Every log line below sits inside the loop, so a run that heals nothing writes
+# nothing — and so does a run whose query is blind. The two were indistinguishable
+# for the whole of the 2026-08-26 outage described above: `journalctl -t
+# homelab-heal -b` returned "-- No entries --" while 15 containers sat stopped,
+# which is byte for byte what it returns on a healthy night.
+#
+# So the count leaves the loop. `checked 0` and `checked 29, 0 restarted` are
+# now different sentences, and homelab-health.sh asserts the first number is
+# above zero — the silence is no longer something a human has to interpret.
+#
+# The list is captured BEFORE the loop rather than piped into it: a piped
+# `while` runs in a subshell and the counter would not survive it. The existing
+# `[ -n "$name" ]` guard already absorbs the empty line a here-document makes
+# from an empty list.
+exited=$(docker ps -a --filter "label=com.docker.compose.project" --filter "status=exited" --format '{{.Names}}')
+checked=$(docker ps -a --filter "label=com.docker.compose.project" --format '{{.Names}}' | grep -c .)
+healed=0
+
+while read -r name; do
+    [ -n "$name" ] || continue
     code=$(docker inspect -f '{{.State.ExitCode}}' "$name" 2>/dev/null) || continue
     [ "$code" = "0" ] && continue
     svc=$(docker inspect -f '{{index .Config.Labels "com.docker.compose.service"}}' "$name" 2>/dev/null)
     [ -n "$svc" ] || continue
     log "container $name (service $svc) exited with code $code — restarting"
-    docker compose up -d "$svc" >/dev/null 2>&1 || log "ERROR: failed to restart $svc"
-done
+    if docker compose up -d "$svc" >/dev/null 2>&1; then
+        healed=$((healed + 1))
+    else
+        log "ERROR: failed to restart $svc"
+    fi
+done <<EOF
+$exited
+EOF
+
+log "checked $checked container(s), $healed restarted"

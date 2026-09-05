@@ -10,6 +10,31 @@
   ansible.builtin.set_fact:
     nextcloud_up: "{{ nextcloud_info.exists and (nextcloud_info.container.State.Running | default(false)) }}"
 
+# A skipped block that says nothing is the defect ADR-030 names, and it is the
+# same one `observability/tasks/main.yml` guards against with its "no silent
+# caps" report: the run is CORRECT — there is genuinely nothing to do against a
+# container that is not running — but its silence is not. `ok=0 changed=0` for
+# this whole section is what a healthy no-op and a missed configuration pass
+# look like from the outside, and `changed=0` is exactly what an idempotence
+# check is looking for, so a re-run confirms the wrong thing too.
+#
+# No count in the message on purpose: a hardcoded number is what went stale in
+# boot-and-unlock.md and in ADR-007. The message names the CONSEQUENCES, which
+# do not drift when a task is added.
+
+- name: nextcloud | Report that the Nextcloud configuration was NOT applied
+  ansible.builtin.debug:
+    msg: >-
+      Nextcloud is NOT running, so this deploy configured none of it: cron mode,
+      trusted domains, system settings, the files_lock expiry, the productivity
+      apps, notify_push and its self-test, and the media external storages
+      INCLUDING their read-only flag were all skipped. LibreSign, which gates on
+      the same fact, was skipped with them. Nothing failed and nothing changed —
+      start the container and re-run this play, or the settings you believe are
+      deployed are not.
+  when: not nextcloud_up
+
+
 - name: nextcloud | Wait for Nextcloud to be ready
   ansible.builtin.command:
     cmd: docker exec -u www-data nextcloud php occ status --output=json
