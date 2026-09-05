@@ -263,22 +263,22 @@ command:
     exec: docker inspect {{ cname }} | jq -r '[.[0].HostConfig.SecurityOpt[]?] | join(" ") | test("no-new-privileges")'
     exit-status: 0
     stdout: ["/^{{ nnp }}$/"]
-  {#- Emitted for EVERY service, not only those declaring `user:`. Gating it on
-      the declaration meant that dropping the declaration removed its own check:
-      measured 2026-09-05, 9 assertions against 11 running containers with a
-      non-empty Config.User, with socket-proxy (root) and collabora (1001)
-      unasserted. A gate that disappears with the thing it guards is not a gate.
-      The empty expectation is the real statement for a service that declares
-      nothing: acquiring a user silently is as much a change as losing one.
-      `apparmor` and `pinned-port-bindings` below stay conditional on purpose —
-      their complement would have to assert Docker's own default
-      (`docker-default (enforce)`, an unpinned IPv6 binding), which is not this
-      repo's statement to make. -#}
+  # Emitted for EVERY service, not only those declaring `user:`. Gating it on the
+  # declaration meant that dropping the declaration removed its own check:
+  # measured 2026-09-05, 9 assertions against 11 running containers with a
+  # non-empty Config.User, socket-proxy (root) and collabora (1001) unasserted.
+  # A gate that disappears with the thing it guards is not a gate. The empty
+  # expectation is the real statement for a service that declares nothing:
+  # acquiring a user silently is as much a change as losing one.
+  #
+  # `apparmor` and `pinned-port-bindings` below stay conditional on purpose —
+  # their complement would have to assert Docker's own defaults, which is not
+  # this repo's statement to make.
   {{ cname }}-user:
     exec: docker inspect {{ cname }} | jq -r '.[0].Config.User'
     exit-status: 0
     stdout: ["/^{{ usr }}$/"]
-{%- set pinned = [] %}
+{% set pinned = [] %}
 {%- for p in svc.ports | default([]) %}
 {%-   if (p | string).split(':') | length >= 3 %}{%- set _ = pinned.append((p | string).split(':')) %}{%- endif %}
 {%- endfor %}
