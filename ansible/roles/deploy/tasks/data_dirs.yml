@@ -61,6 +61,22 @@
   loop_control:
     label: "{{ item.path }} {{ item.mode }}"
 
+# Immich's Redis got a volume on 2026-09-05, because it is a job QUEUE and not a
+# cache: with no persistence every container stop discarded the jobs still to
+# run. It is pinned to `user: "999:999"` in compose and drops all capabilities,
+# so it cannot create or chown anything Docker hands it as root:root — and a
+# bind source that does not exist is created by the daemon as root:root. Without
+# this task the container starts, answers PING, reports healthy, and fails only
+# when it tries to append. Separate from the loop above because that one is
+# root-owned by design and this one must not be.
+- name: data_dirs | Own the Immich Redis append-only directory (uid 999, queue store)
+  ansible.builtin.file:
+    path: "{{ services_data_dir }}/immich/redis"
+    state: directory
+    owner: "999"
+    group: "999"
+    mode: "0700"
+
 # wg-easy writes its database with umask 022, so it lands 0644 — world-readable,
 # holding the interface private key, every client private key and pre-shared key,
 # and the admin bcrypt hash (#153). Its siblings in the same directory are 0600

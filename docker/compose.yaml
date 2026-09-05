@@ -1375,12 +1375,32 @@ services:
     # snapshot fails and redis then DISABLES ALL WRITES (stop-writes-on-bgsave-
     # error). Measured the hard way: both caches accepted reads and writes for
     # minutes, then the first background save failed and took the Nextcloud
-    # upgrade down with it. These caches hold nothing worth keeping across a
-    # restart — they never had a volume — so the honest fix is to stop saving
-    # rather than hand a cache a disk.
-    command: ["redis-server", "--save", ""]
-    # Same treatment as the databases, and even simpler here: no volume at all,
-    # so there is nothing for the entrypoint's root phase to chown (#28).
+    # upgrade down with it. `--save ""` therefore stays, and RDB stays off.
+    #
+    # What was WRONG until 2026-09-05 is the sentence that used to follow it —
+    # "these caches hold nothing worth keeping across a restart". True of the
+    # Nextcloud cache. FALSE of this one: this Redis is Immich's BullMQ store,
+    # so its keys are not a cache of results, they are the LIST OF JOBS STILL TO
+    # RUN. With no persistence, every stop silently discards whatever had not
+    # finished, and nothing re-queues it — thumbnails, smart search, video
+    # conversion, face detection. Measured that day: `immich_bull:*` keys across
+    # thumbnailGeneration, smartSearch, videoConversion, storageTemplateMigration
+    # and workflow; 220 SIGKILL-at-grace-expiry container stops since
+    # 2026-08-15; and 2 of 9 474 active assets with no thumbnail row to show for
+    # it. The same reasoning is written into the posture spec, which exempts
+    # Redis because it "has nothing to recover" — right for the sibling, wrong
+    # here.
+    #
+    # AOF rather than RDB: it is the correct durability model for a queue, and
+    # it is what keeps `--save ""` above intact. `everysec` bounds a loss at one
+    # second of enqueues, which is the cheapest honest answer.
+    command: ["redis-server", "--save", "", "--appendonly", "yes", "--appendfsync", "everysec"]
+    volumes:
+      # Needs a real directory now. It is pre-owned 999:999 by the deploy
+      # (data_dirs.yml) and NOT by the entrypoint: `user:` below pins the
+      # container to that uid, so its root phase never runs and cannot chown
+      # what it is given — the #28 hazard, inverted.
+      - ${SERVICES_DATA_DIR}/immich/redis:/data
     user: "999:999"
     networks:
       - internal
