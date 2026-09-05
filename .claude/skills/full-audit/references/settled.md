@@ -2366,3 +2366,31 @@ own `sudo` line — which proves the grep reaches the journal and the pattern
 compiles. That satisfies instrument trap #4 above at no cost. Note the price:
 an untagged `--grep` over the whole retained journal takes about half an hour on
 this host and must be run in the background.
+
+### An instrument trap paid during the deploy of the corrections, 2026-09-05
+
+**A healthcheck that answers before the configuration is read cannot report a
+configuration error.** Traefik's `/ping` entry point on :8082 comes up before
+the static configuration is parsed, so a fatal static-config error produces a
+container that restart-loops while `docker inspect` reports **healthy** and the
+health log shows an unbroken run of `OK: http://:8082/ping`. Nothing in the
+container's status distinguishes "serving" from "exiting every 60 seconds". What
+did distinguish them: `docker ps` showing `Restarting (1)`, and the Kuma
+monitors — which is the composition the register keeps crediting.
+
+**And the warning that caused it names the wrong level.** Traefik 3.7 says
+"Please set it to delete or reject **on the entry points** fronting such
+backends", and `aliasHeadersStrategy` lives one level below that, under the
+entry point's `http:`. Written where the sentence suggests, traefik exits with
+`command error: field not found, node: aliasHeadersStrategy`. Six minutes of
+reverse proxy.
+
+The general rule, and it is the cheap one: **when an upstream warning tells you
+to set an option, ask the BINARY where the option lives before believing the
+prose.** `traefik --help` lists the full flag path
+(`--entrypoints.<name>.http.aliasheadersstrategy`) and settles it in one
+command. Then parse-test the candidate file in a throwaway container
+(`docker run --rm --network none -v <candidate>:/etc/traefik/traefik.yml`):
+reaching provider startup — even with provider errors from the missing network
+and volumes — proves the static configuration loaded, which is exactly the stage
+that fails.

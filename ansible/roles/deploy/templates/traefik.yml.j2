@@ -24,19 +24,30 @@ api:
 # Scope, stated so nobody reads this as an emergency: ports 80 and 443 are not
 # forwarded from the internet, so reaching these entry points already requires
 # the LAN or the VPN.
+#
+# UNDER `http:`, not directly under the entry point — and the warning above is
+# what misleads: it says "set it on the entry points", which reads as the level
+# the entry point is defined at. It is one level down. Putting it at the level
+# the sentence suggests is not a warning, it is fatal: traefik exits with
+# "command error: field not found, node: aliasHeadersStrategy" and the container
+# restart-loops with a HEALTHY /ping, because :8082 answers before the static
+# configuration is read. That happened on 2026-09-05 and cost six minutes of
+# reverse proxy. The placement below was proven against the binary's own schema
+# (`traefik --help` lists `--entrypoints.<name>.http.aliasheadersstrategy`) and
+# then parse-tested in a throwaway container before being written here.
 entryPoints:
   web:
     address: ":80"
-    aliasHeadersStrategy: delete
     http:
+      aliasHeadersStrategy: delete
       redirections:
         entryPoint:
           to: websecure
           scheme: https
   websecure:
     address: ":443"
-    aliasHeadersStrategy: delete
     http:
+      aliasHeadersStrategy: delete
       middlewares:
         # Applied to EVERY HTTPS router (routers can still add their own):
         - vpn-only@file        # VPN/LAN access only (403 to the internet)
@@ -46,7 +57,8 @@ entryPoints:
         certResolver: letsencrypt
   ping:
     address: ":8082"      # internal only (not published) — for the container healthcheck
-    aliasHeadersStrategy: delete
+    http:
+      aliasHeadersStrategy: delete
 
 # Health endpoint used by the container healthcheck (`traefik healthcheck`).
 # Bound to the internal ping entryPoint above — no TLS, no vpn-only middleware.
