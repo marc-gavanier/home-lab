@@ -55,25 +55,65 @@ cd "$COMPOSE_DIR" || { log "FATAL: $COMPOSE_DIR missing"; exit 1; }
 # homelab-heal -b` returned "-- No entries --" while 15 containers sat stopped,
 # which is byte for byte what it returns on a healthy night.
 #
-# So the count leaves the loop. `checked 0` and `checked 29, 0 restarted` are
-# now different sentences, and homelab-health.sh asserts the first number is
-# above zero — the silence is no longer something a human has to interpret.
+# So the count leaves the loop. `checked 0` and `checked 29 of 29 declared, 0
+# restarted` are now different sentences, and homelab-health.sh asserts the run
+# saw every service compose declares — the silence is no longer something a
+# human has to interpret.
 #
 # The list is captured BEFORE the loop rather than piped into it: a piped
 # `while` runs in a subshell and the counter would not survive it. The existing
 # `[ -n "$name" ]` guard already absorbs the empty line a here-document makes
 # from an empty list.
-exited=$(docker ps -a --filter "label=com.docker.compose.project" --filter "status=exited" --format '{{.Names}}')
+# `status=exited` alone cannot see two of the three ways a service ends up not
+# running. A container that never started sits in `created`, and one whose
+# filesystem the daemon could not remove sits in `dead`; neither is `exited`,
+# and a service that was never created at all is invisible to any of the three.
+# The first two are cheap to add here. The third is what `checked ... of ...
+# declared` below is for.
+#
+# `created` and `dead` carry ExitCode 0, so the non-zero test that is right for
+# `exited` would skip exactly the containers this line was added to catch. The
+# state decides which question to ask.
+exited=$(docker ps -a --filter "label=com.docker.compose.project" \
+                      --filter "status=exited" \
+                      --filter "status=created" \
+                      --filter "status=dead" --format '{{.Names}}')
 checked=$(docker ps -a --filter "label=com.docker.compose.project" --format '{{.Names}}' | grep -c .)
+
+# --- The floor has to be the DECLARED count, not one -------------------------
+# `checked` counts what the daemon admits to knowing. On a daemon that has lost
+# its store, or one answering from a half-built state, that number is small and
+# truthful and useless: `checked 3, 0 restarted` passed the `>= 1` floor that
+# homelab-health.sh applied when this counter was first taken out of the loop.
+# Total blindness was caught; partial blindness was not.
+#
+# `docker compose config --services` is the only independent statement of how
+# many there should be, and it costs 0.51-0.69 s measured on this Pi against a
+# 120 s period. It is emitted even when it cannot be read, so a compose file
+# that has gone missing shows as `of ?` rather than as nothing at all.
+declared=$(docker compose config --services 2>/dev/null | grep -c .)
+[ "$declared" -gt 0 ] || declared='?'
 healed=0
 
 while read -r name; do
     [ -n "$name" ] || continue
-    code=$(docker inspect -f '{{.State.ExitCode}}' "$name" 2>/dev/null) || continue
-    [ "$code" = "0" ] && continue
+    state=$(docker inspect -f '{{.State.Status}}' "$name" 2>/dev/null) || continue
+    case "$state" in
+        exited)
+            code=$(docker inspect -f '{{.State.ExitCode}}' "$name" 2>/dev/null) || continue
+            [ "$code" = "0" ] && continue
+            why="exited with code $code"
+            ;;
+        created|dead)
+            why="is $state"
+            ;;
+        *)
+            continue
+            ;;
+    esac
     svc=$(docker inspect -f '{{index .Config.Labels "com.docker.compose.service"}}' "$name" 2>/dev/null)
     [ -n "$svc" ] || continue
-    log "container $name (service $svc) exited with code $code — restarting"
+    log "container $name (service $svc) $why — restarting"
     if docker compose up -d "$svc" >/dev/null 2>&1; then
         healed=$((healed + 1))
     else
@@ -83,4 +123,4 @@ done <<EOF
 $exited
 EOF
 
-log "checked $checked container(s), $healed restarted"
+log "checked $checked of $declared declared container(s), $healed restarted"

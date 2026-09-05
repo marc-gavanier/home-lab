@@ -43,11 +43,38 @@
 # mount's src into a bare `UUID=`, which no longer matches fstab, so a dry run
 # announced it would REMOUNT the backup disk on the host that only exists to
 # hold the last copy. Both probes only read.
+# The device has to exist before its filesystem type means anything. blkid
+# returns 2 both for "no filesystem here" and for "no such device", and the
+# guard below reads an empty stdout as the first — so a device that moved from
+# under us would have been read as a blank disk, and the format task after it
+# does not ask twice.
+- name: disk | The backup disk must be a block device before it is read
+  ansible.builtin.stat:
+    path: "{{ backup_disk_device }}"
+  register: backup_disk_stat
+  check_mode: false
+
+- name: disk | Refuse to reason about a device that is not there
+  ansible.builtin.assert:
+    that:
+      - backup_disk_stat.stat.exists
+      - backup_disk_stat.stat.isblk | default(false)
+    fail_msg: >-
+      {{ backup_disk_device }} is not a block device on this host. Nothing below
+      may run: the filesystem probe cannot tell that apart from an unformatted
+      disk, and the next task formats.
+    quiet: true
+
 - name: disk | Read current filesystem type on the backup disk
   ansible.builtin.command: blkid -o value -s TYPE {{ backup_disk_device }}
   register: backup_disk_fstype
   changed_when: false
-  failed_when: false # rc=2 when the partition has no filesystem yet
+  # rc=2 is "no filesystem yet", which is a real answer. `failed_when: false`
+  # accepted every OTHER rc as the same answer — blkid absent, permission
+  # refused, the device gone — and each of those yields an empty stdout, which
+  # the guard below has in its pass set. An instrument that could not look was
+  # indistinguishable from a disk with nothing on it, one task above a format.
+  failed_when: backup_disk_fstype.rc not in [0, 2]
   check_mode: false
 
 - name: disk | Refuse to overwrite an unexpected filesystem

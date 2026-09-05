@@ -287,6 +287,24 @@
 # Skipped rather than ignored when absent: a fresh host legitimately has none of
 # these yet. Any OTHER failure still fails the play. Two of the Kuma files also
 # carry a spurious executable bit, which 0600 removes.
+# The count is REPORTED rather than asserted, and the difference matters: a
+# fresh host legitimately has none of these, so a floor here would fail the
+# first deploy. What must not happen is the other silence — every file
+# disappearing at once, which is what a locked /mnt/data or a moved data root
+# looks like, and which the loop below would greet with `ok` and no output.
+# goss-posture.yaml.j2 floors the identical population at run time; this says
+# out loud what the deploy actually touched.
+- name: data_dirs | Report how many credential files were found
+  ansible.builtin.debug:
+    msg: >-
+      {{ credential_files.results | selectattr('stat.exists') | list | length }}
+      of {{ credential_files.results | length }} credential file(s) present and
+      being set to 0600.
+      {{ 'NONE were found — on anything but a fresh host that means the data root
+      is not where this play is looking.'
+         if (credential_files.results | selectattr('stat.exists') | list | length) == 0
+         else '' }}
+
 - name: data_dirs | Keep credential files unreadable to other local uids
   ansible.builtin.file:
     path: "{{ item.stat.path }}"

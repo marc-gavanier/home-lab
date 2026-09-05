@@ -198,6 +198,38 @@ command:
     exit-status: 0
     stdout: ["/^700$/"]
 
+  # --- Every per-container assertion below assumes the container EXISTS -------
+  # `docker inspect <gone> | jq -r '...'` exits 0 with an empty line, because a
+  # pipeline's status is jq's. Measured 2026-09-05 with a name that does not
+  # exist: the output is byte for byte what a healthy `socket-proxy` produces,
+  # so all sixteen `-cap-add` assertions whose expectation is `/^$/` pass on a
+  # container that has vanished. Sixteen greens for an absence.
+  #
+  # Fixing them one by one would mean a second `docker inspect` per service, and
+  # this spec already sits near its timeout budget under load (#C76). One
+  # derivation covers the family instead, and it is derived from compose rather
+  # than listed: a service added tomorrow is inside it without an edit here.
+  #
+  # `docker compose ps`/`config` rather than `docker ps --format`: goss renders
+  # this file as a Go template before parsing it, so a Go format string's own
+  # delimiters would be consumed rather than asserted — the same reason the
+  # dumps spec gives for using `docker inspect`.
+  #
+  # The three-way `sort | uniq -u` is how a set difference is taken in plain
+  # sh: a service in both lists appears three times, one only live appears
+  # twice, and one only declared appears once. No process substitution, which
+  # dash does not have.
+  every-declared-service-has-a-container:
+    exec: |
+      cd /opt/homelab || { echo "compose directory missing"; exit 1; }
+      declared=$(docker compose config --services 2>/dev/null | sort -u)
+      [ -n "$declared" ] || { echo "compose declares no service — the derivation asserted nothing"; exit 1; }
+      live=$(docker compose ps -a --services 2>/dev/null | sort -u)
+      [ -n "$live" ] || { echo "the daemon reports no container — the derivation asserted nothing"; exit 1; }
+      missing=$(printf '%s\n%s\n%s\n' "$declared" "$live" "$live" | sort | uniq -u)
+      [ -z "$missing" ] || { echo "declared with no container: $(echo $missing)"; exit 1; }
+    exit-status: 0
+
 {% set compose = lookup('file', playbook_dir + '/../../docker/compose.yaml') | from_yaml %}
 {% for name, svc in compose.services.items() %}
 {%- set cname = svc.container_name | default(name) %}
@@ -231,12 +263,21 @@ command:
     exec: docker inspect {{ cname }} | jq -r '[.[0].HostConfig.SecurityOpt[]?] | join(" ") | test("no-new-privileges")'
     exit-status: 0
     stdout: ["/^{{ nnp }}$/"]
-{% if usr %}
+  {#- Emitted for EVERY service, not only those declaring `user:`. Gating it on
+      the declaration meant that dropping the declaration removed its own check:
+      measured 2026-09-05, 9 assertions against 11 running containers with a
+      non-empty Config.User, with socket-proxy (root) and collabora (1001)
+      unasserted. A gate that disappears with the thing it guards is not a gate.
+      The empty expectation is the real statement for a service that declares
+      nothing: acquiring a user silently is as much a change as losing one.
+      `apparmor` and `pinned-port-bindings` below stay conditional on purpose —
+      their complement would have to assert Docker's own default
+      (`docker-default (enforce)`, an unpinned IPv6 binding), which is not this
+      repo's statement to make. -#}
   {{ cname }}-user:
     exec: docker inspect {{ cname }} | jq -r '.[0].Config.User'
     exit-status: 0
     stdout: ["/^{{ usr }}$/"]
-{% endif %}
 {%- set pinned = [] %}
 {%- for p in svc.ports | default([]) %}
 {%-   if (p | string).split(':') | length >= 3 %}{%- set _ = pinned.append((p | string).split(':')) %}{%- endif %}
@@ -304,6 +345,13 @@ command:
       live=$(docker inspect $(docker ps -q) \
                | jq -r '.[] | .NetworkSettings.Ports // {} | to_entries[] | select(.value != null) | .value[] | .HostPort' \
                | sort -u)
+      # An empty `live` skips the loop and exits 0, which is this assertion's
+      # pass — so "no container publishes anything" read exactly like "nothing
+      # undeclared is published". The comment above names the credential-store
+      # derivation as this check's model; that derivation carries a floor at
+      # `>= 12` and this one had none. Six ports are published today, and a
+      # stack with none is a stack that is not serving.
+      [ -n "$live" ] || { echo "no published host port was found at all — the derivation asserted nothing"; exit 1; }
       for p in $live; do
         case " $declared " in
           *" $p "*) ;;
@@ -929,8 +977,16 @@ command:
   #
   # `grep -c` prints 0 and exits 1 with no match; both are asserted, because an
   # unreadable file also exits non-zero and would otherwise pass.
+  # An EMPTY file also prints 0 and exits 1, which is this assertion's pass
+  # condition exactly — measured 2026-09-05. `grep -c` cannot tell "no IPv6 in a
+  # real config" from "no config". The content floor is checked first, and it is
+  # the section header rather than a byte count, because a one-byte file is
+  # non-empty and still not a configuration.
   wg-generated-config-carries-no-ipv6:
-    exec: grep -cE '([0-9a-f]{0,4}:){2,}' {{ services_data_dir }}/wireguard/wg0.conf
+    exec: |
+      f={{ services_data_dir }}/wireguard/wg0.conf
+      grep -q '^\[Interface\]' "$f" 2>/dev/null || { echo "wg0.conf carries no [Interface] section"; exit 2; }
+      grep -cE '([0-9a-f]{0,4}:){2,}' "$f"
     exit-status: 1
     stdout: ["/^0$/"]
 

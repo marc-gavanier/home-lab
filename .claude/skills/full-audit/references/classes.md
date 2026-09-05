@@ -119,6 +119,15 @@ named as unused — `identity` and `scale` — have since been spent, on 2026-08
 and 2026-08-31. There is no named unused dimension left; the next key must be
 invented.**
 
+**Four keys have since been invented rather than taken off a list —
+`authority` (2 mints), `representation` (4), `vacuity` (1) and, on 2026-09-05,
+`exclusivity` (ZERO).** The mint rate across the seven dimensions now reads
+5, 11, 12, 7, 2, 4, 1, 0, and the decay is monotonic over the last four keys.
+That is the first evidence this file has ever carried that the register may be
+approaching completeness rather than merely being sampled. **One zero-mint run
+is not the criterion; two consecutive ones, with different keys, are. 2026-09-05
+midday is the first.**
+
 One caution for whoever writes the `scale` key. `order` and `time` both had a
 property this file should not take for granted: every instance was observable
 on the machine tonight. `scale` mostly is not, and the mandate's rule 1 —
@@ -132,10 +141,18 @@ parts that need a thought experiment.
 # The register
 
 Runs of 2026-08-15 through 2026-09-05.
-**83 classes: 1 OPEN, 13 GATED, 64 ENUMERATED, 5 closed by decision, plus the
+**83 classes: 0 OPEN, 13 GATED, 65 ENUMERATED, 5 closed by decision, plus the
 DECLINED list.** (GATED = C07, C10, C11, C14-C19, C21, C41 and C81; closed by
 decision = C04, C08, C57, C66 and C77's non-secret half; everything else
 ENUMERATED.)
+
+**The midday run of 2026-09-05 closed C83 by unified sweep — 976/976 across
+eight slices — and minted NOTHING. The counter is 1 -> 0, and for the first
+time in this register's life a run satisfies BOTH halves of the termination
+criterion's first pass: no OPEN class remains, and the key was new.** That is
+one of the two consecutive zero-mint runs the criterion requires. The next run
+must invent another key and also come back empty; if it does, this is finished.
+The key spent here was `exclusivity` and it cannot be reused.
 
 **The run of 2026-09-05 closed C82 (308/308) and minted C83. The counter is
 therefore 1 -> 0 -> 1, and the termination clock RESETS.** That is the honest
@@ -207,14 +224,265 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
-## OPEN — 1
+## OPEN — 0
 
-C82 closed on 2026-09-05, 308/308. The column did not reach zero, because the
-same run minted C83 — see below for why that merge was the honest call.
+**The column is empty.** C83 closed 976/976 on 2026-09-05 (midday). It is the
+second time the column has reached zero — the first was 2026-09-03, and it
+lasted two days — but it is the FIRST time it reached zero on a run that minted
+nothing. Those are different facts and only the second one advances the
+termination criterion.
 
-| ID | Property | Space, and its cardinal | Why it is still open |
-|-----|--------------------------------------------|--------------------------------------------|----------------------------------------|
-| C83 | A mechanism that reports success, health or completion after producing or examining a set, WITHOUT bounding that set's cardinality from below — so "produced/examined nothing" and "produced/examined everything" are the same observable | Two faces, one property. **Producer face**: every artefact a periodic job produces and something certifies (dumps, snapshots, generated specs, rendered configs) — `backup` enumerated its slice at 9, of which 6 are unbound and 4 material. **Consumer face**: every mechanism that iterates a derived set and reports on the run rather than on the count (posture derivations, heal loops, report scripts, `when:`-gated task groups). Partially swept by five domains under this run's key with five different questions; **no unified sweep, so the cardinal is not stated** | Minted 2026-09-05 after arbitration of 3 proposals. Distinct from C22 (a healthcheck that cannot report the failure it NAMES — here the check reports exactly what it names, and what it names is insufficient), from C03 (an instrument answering a different question from its comment — here the comment is accurate), and from C29 (the CONSTRUCT exists — here the construct is correct and the runtime cardinal is unbounded). **The register's own evidence that this is real: the remedy is already written into the repo in at least six places**, each on the day a single instance was fixed, and never generalised — C10's `credential-stores-derivation-nonempty` floor at >=12, the SQLite dumps' `-content` floor with its reasoning stated verbatim, `homelab-posture.sh`'s absent-vs-unresolvable distinction for Vaultwarden, ADR-030's "no silent caps" else-branch in `observability/tasks/main.yml`, C41's starvation guard at `[ "$n" -ge 10 ]`, and the WireGuard peers assertion's `[ -n "$live" ]`. Six statements of one rule, six times not applied next door |
+## The run of 2026-09-05 (midday) — the key was `exclusivity`, and it minted nothing
+
+**For every mechanism that touches shared state — a file, a database, a
+repository, a lock, a container, a package database, an interface, a systemd
+unit, a git branch — what happens when a SECOND actor touches the same object
+while the first is still working? What makes that impossible, and does anything
+assert it?** `time` asked *when*, `order` *in what sequence*, `identity` *who*,
+`scale` *how much*, `authority` *on whose authority*, `representation` *in what
+encoding*, `vacuity` *what at zero*. **Nothing in 83 classes had ever asked what
+happens at TWO.** The register's previous header said the next key would have to
+be invented; this is the invention, and its yield is zero classes.
+
+**That zero is the run's result, and it is worth more than the 92 instances.**
+Eight domains swept eight independent concurrency spaces and every one of them
+dissolved on measurement rather than on argument:
+
+- **No timer can overlap itself.** All 13 homelab units measured against their
+  own periods; the worst ratio is `homelab-health` at 45-58 s of 300 s, taken
+  under load average 8.06 with eight agents on the machine. `homelab-stack-heal`
+  is `OnUnitActiveSec`, so overlap is unreachable by construction, and systemd
+  merges a tick that lands on an active oneshot. Nothing logs that merge, but
+  C41's derived dead-man catches the consequence, so the gap is already gated.
+- **The backup locks are real and taken.** `flock` has zero live invocations
+  anywhere in the estate except `resticprofile.yaml.j2`, where both profile
+  locks are declared and the `locks/` directory is empty. The one true collision
+  the journal still holds — 2026-08-17 03:12:53, the old `backup.sh` degrading a
+  lost lock to a WARNING and then printing "Backup completed" — is structurally
+  impossible under ADR-031. Weekly units carry `--lock-wait 2h` against a
+  measured 2m25s-21m37s backup and a 1h38m margin.
+- **`ufw reload` cannot eat a fail2ban ban.** `delete_chains` is a hardcoded
+  list, every restore is `-n`, `MANAGE_BUILTINS` is unset and `flush_builtins`
+  is unreachable from a reload. The two jails use distinct `f2b-*` chains.
+- **One writer per object, everywhere it mattered.** 15/15 Kuma push tokens have
+  exactly one producer; four state directories, one writer each; one Traefik,
+  one resolver, one `acme.json` writer, and a torn ACME read fails loudly and
+  self-heals; 60 bind sources yield exactly one two-writer path (`nextcloud` +
+  `nextcloud-cron`), which is guarded by `memcache.locking=\OC\Memcache\Redis`;
+  five internal-writer/external-dump pairs, all guarded by `--single-transaction`,
+  `pg_dump` MVCC or `sqlite3 .backup` — and Nextcloud is **177/177 InnoDB**, so
+  that guard is load-bearing rather than decorative.
+- **The apparent WireGuard address collision dissolved**: the homelab Pi is
+  itself one of wg-easy's four clients, so there is one allocator for the
+  subnet, not two.
+- **Two Ansible runs have no lock and need none here**: no fact cache, atomic
+  `rename(2)` writes, no `serial`/`throttle`, one host per play. The only shared
+  objects are four fixed-name temp paths, where run A's cleanup deletes run B's
+  probe input — and that fails loudly, which is below the mint bar.
+- **The heal-loop-versus-operator shape has no interlock**, only a convention.
+  It is documented in five places and settled via #126, and it belongs to C44
+  and C69. Refined, not minted.
+
+**Two near-mints were declined on the evidence, and recording why is the point.**
+The shared git worktree carries no `local.yml`, so a deploy launched from one
+would run against `local.example.yml` — real, but an operational note rather
+than a class, and the extra checkouts are clean and unmerged. And systemd's
+silent merge of a coalesced timer tick is a genuine unobserved event whose
+consequence is already caught elsewhere.
+
+### C83 — CLOSED, 976/976, and the sweep is worth more than the count
+
+**One question asked over the whole estate**: if the set this site iterates, or
+the output it consumes, or the artefact it certifies, had ZERO elements, would
+its report be distinguishable from the healthy one? Last night five domains
+asked five different questions and no cardinal could be stated; this is what
+changed.
+
+| Slice | N | How N was derived | Instances |
+|-----------------|-----|------------------------------------------------------------------|-----|
+| observability | 401 | 254 `exec:` blocks re-parsed off 4 deployed specs on both hosts (267 resources, +3 = a31b1d6's `-content` checks) + 147 verdict sites in 9 deployed shell artefacts | 36 + 1 susp |
+| system | 162 | 134 report/log/exit/marker sites in the 12 INSTALLED executables + 25 homelab unit artefacts + 3 offsite; derived from what is installed and executable, so the extensionless `homelab-luks-header-backup` is in it | 1 |
+| ansible-deploy | 124 | scripted: 90 task files, 568 tasks, derived-name set built per role to fixpoint -> 89 `when:` + 10 Jinja loops + 25 predicates | 5 |
+| project-manager | 113 | 82 files -> 228 fenced blocks -> 159 bash/sh -> 386 statements, plus 221 inline prose spans (89 in the 48 files with no code block at all) | 14 / 13 shapes |
+| services | 55 | 25 live healthcheck commands (4 of 29 containers run none) + 30 in-container self-reports, bounded three ways: cgroup-mapped process tables 29/29, crontabs 4/4, log streams 29/29 | 16 |
+| security | 48 | posture derivations + every fail2ban/UFW/lynis/apt reporting path over a derived set | 13 + 1 susp |
+| network | 38 | 7 deployed populations on both hosts; two spaces provably EMPTY of sites (nothing consumes the Traefik API, nothing asserts the split-DNS record set) | 4 + 1 susp |
+| backup | 35 | 48 periodic units forward, intersected with every automated certifier backward — the backward pass is what catches the 6 non-timer producers | 0 new |
+
+**976 sites, 92 instances, 884 refuted with reasons.** The 92 is a misleading
+number and the register should not carry it as one: **32 of them are two
+families of 16**, and 12 more are upstream scan lines nobody reads and for which
+`services` deliberately proposed nothing. The material count is closer to
+**thirty, in about a dozen shapes.**
+
+C83 is **ENUMERATED, not GATED.** No assertion derives the set of unbounded
+reporters, and nothing stops the next commit from adding one — the same C45
+problem that C82 carries. The gate, if one is ever written, is the floor
+assertion the repo has already written six times by hand.
+
+### Instances that matter, verified by the main session rather than relayed
+
+1. **Sixteen backup-dump assertions go green when their container disappears.**
+   `docker inspect <svc> >/dev/null 2>&1 || exit 0` opens all four assertions
+   for each of vaultwarden, forgejo, uptime-kuma and **immich-server**, and none
+   of the four carries a `stdout` matcher, so the early exit satisfies
+   `exit-status: 0` exactly. Read on the deployed spec, not the repo. The idiom
+   is deliberate — it lets one spec cover a host where a service is not deployed
+   — and its defect is that it cannot tell "not deployed" from "vanished". **The
+   severity is concentrated on one of the four**: Immich's datadir left the
+   backup source set on 2026-08-31, so its dump is the only copy, while the
+   other three still have their datadirs backed up. The SQL dumps (miniflux,
+   nextcloud) carry no such guard and fail loudly. Antidote: `homelab-posture.sh`'s
+   absent-vs-unresolvable distinction.
+2. **Sixteen `*-cap-add` posture checks pass on an absent container.** Control
+   taken by the main session: `docker inspect no-such-container | jq -r
+   '[.[0].HostConfig.CapAdd[]?] | sort | join(" ")'` prints an empty line and
+   exits 0 — byte for byte the healthy output of `socket-proxy`, because the
+   pipeline's status is `jq`'s. Rescued by composition: the 29 sibling
+   `cap-drop` checks fail on the same absence. Low severity, high count.
+3. **Three of five SMART early-warning counters are not on this drive.**
+   `homelab-disk.sh:109-115` loops over `5 184 187 198 199`; the drive's
+   attribute table holds `1 3 4 5 7 9 10 11 12 192 193 194 196 197 198 199 200`.
+   **184 and 187 are absent and their absence reads as zero** — `system`
+   reported four of five, and the main session's re-measurement makes it three
+   of five. The antidote (`ext4_seen`, a count carried into the message) is 200
+   lines below in the same file. `197` at 2 is NOT a finding: it is deliberately
+   excluded from that loop, reported always, and alarmed on a RISE (#207).
+4. **The Nextcloud background-jobs alarm names the one thing it cannot see.**
+   Verified at the source inside the running container:
+   `core/Service/CronService.php:113` sets `lastcron` AFTER `runCli()` returns,
+   unconditionally and outside every per-job loop. The script's own comment is
+   accurate — it does detect the documented #177 failure, crond dead — but its
+   DOWN text reads "background jobs have stopped", which a frozen queue behind a
+   living `cron.php` cannot trip. C83 and C22 both. 67 jobs, 0 reserved tonight.
+5. **The posture script's missing floor occurs five times; its misplaced
+   counter, once.** Confirmed at the code by the main session:
+   `homelab-posture.sh:140` `checked=$((checked + 1))` sits inside the
+   `docker ps` loop and outside the inner mount loop, so `checked` counts
+   containers, never (container, mount) pairs — 23 increments over 0 surviving
+   pairs. The same absent floor recurs in the rw-mount loop, the Vaultwarden env
+   loop, the Miniflux DSN gate and the final verdict. C10's `n >= 12` runs the
+   same `docker inspect` over the same set 200 lines away.
+6. **`no-undeclared-published-ports` exits 0 over an empty port list** — found
+   independently by `network`, `observability` and `security`, which is the
+   strongest form of evidence this register recognises. Its own comment names
+   C10's derivation as its model and omits C10's floor.
+7. **An empty `wg0.conf` passes `wg-generated-config-carries-no-ipv6`.**
+   `grep -cE ... ` with `exit-status: 1` and `stdout: /^0$/`: an empty file
+   prints `0` and exits 1, which is the pass condition exactly; a MISSING file
+   exits 2 and fails. Latent and low — the peers assertion carries `[ -n "$live" ]`
+   and is the real guard on that path.
+8. **`homelab-wg-easy-config.sh:179`**: an empty `/api/client` logs "per-client
+   values already match the repository" and exits 0, identical to four correct
+   clients. It is the guard against a recurrence of #125, and its antidote is
+   written over the same population in `posture.yaml`.
+9. **Two documented commands are wrong on the machines right now.**
+   `offsite-backup.md:28`, the command the page calls "the answer" for every
+   offsite DOWN condition, lists **30 of 35** units — its character class drops
+   `rest-server`, `wg-quick@wg0`, `ssh`, `fail2ban` and `/mnt/backup`, the five
+   whose own comments say every other assertion depends on them. And
+   `obsidian-claude-mobile-workflow.md:152`, the diagnostic the page says "makes
+   it obvious", returns nothing today: 126 journal lines, zero containing `env_`.
+10. **Five Ansible sites gate work on a derived fact with no else-branch** —
+    netdata's second alarm derivation, Nextcloud's external-storage read-only
+    loop, the credential-file 0600 loop (whose identical population IS floored
+    in `goss-posture.yaml.j2:141`), the offsite disk `failed_when: false` whose
+    `''` sits in the pass set of a refuse-to-format guard, and collabora's three
+    `.rc | default(0)` guards.
+
+### Broken gates — red tests, not audit results
+
+- **C16 still broken, unchanged**, and now with the sharper statement above: one
+  misplaced counter, five missing floors, in one script.
+- **C11 broken, now with a number**: 9 `-user` assertions deployed against **11**
+  running containers with a non-empty `Config.User`. `socket-proxy` (root) and
+  `collabora` (1001) sit unasserted. The same `{% if %}` defect repeats twice
+  more in that loop — `apparmor` (1 assertion) and `pinned-port` (1).
+- **C19 is one word sharper than recorded**: BOTH halves are vacuous at zero,
+  not just one. The goss half exits 0 with the binary absent (three controls).
+- **C18's derivation half is the defect, and its emptiness half is now FIXED** —
+  see the register correction below.
+
+### Register corrections
+
+- **C18's row no longer overstates itself.** Its property said "absent, stale or
+  **empty**" and the gate did not assert empty; as of 10:39:27 on 2026-09-05 all
+  six dumps carry an emptiness assertion, and `backup` verified the floor is
+  **derived** — generated inside `{% for d in backup_sql_dumps %}` and
+  `{% for d in backup_sqlite_dumps %}` over `group_vars/all.yml:114,125`, with
+  2x3 + 3x4 + 4 = 22 matching the host exactly. That is C10's shape, not C13's
+  hand-list, which is what keeps it in the GATED table. **What is defective is
+  its derivation half: the 16 `|| exit 0` above.**
+- **The `sshd` journalmatch entry is half REFUTED.** The `_SYSTEMD_UNIT=sshd.service`
+  half is confirmed dead on both hosts (0 matches). The `sshd-session` half is
+  wrong: both hosts run OpenSSH **9.6p1**, not 9.8, and `_COMM=sshd` returns
+  217 337 / 10 351 matches. The consequence is measured at **zero**, with a
+  positive control that the register's newest instrument trap demands: the same
+  failure patterns over the whole journal since 2026-08-16, grouped by `_COMM`,
+  return 7 real authentication failures elsewhere (2 polkit, 5 sudo) and 0 from
+  any sshd process. The zero is a true zero, not a failed grep.
+- **The `_up` gates protect ONE password enforcement, not two.** Transmission
+  only reads its secret for `TR_AUTH`, and wg-easy gates on
+  `wg_easy_db.stat.exists`. The four gates shipped as `debug`, so a PLAY RECAP
+  still reads `failed=0`; with all four containers up the reports never fire and
+  all 58 gated tasks run, so the change is inert today and its value is entirely
+  on the next deploy taken with a container down.
+- **The heal floor is `>= 1`, not `>= 29`.** Read by the main session at
+  `homelab-health.sh:634`. It catches total blindness and not partial
+  blindness, while `docker compose config --services` = 29 is available and
+  free. The filter is also still `status=exited`, which cannot see `created` or
+  `dead`.
+- **C53's row** was corrected last night and stands: two explicit flush points
+  plus the implicit end-of-play in each play.
+
+### Verified fixed, and not re-reported
+
+- **Both documentary fixes discriminate rather than reword**, re-run in both
+  directions: `lsblk /dev/sdaX` returns `not a block device`, exit 32, so a typo
+  can no longer produce the go-ahead `cryptsetup status` printed verbatim; and
+  the Tier 0 list run faithfully from `$HOME` lands the operator in
+  `/opt/homelab` and returns its six names. One cause is misattributed on that
+  page — a dangling `/opt/homelab/.env` while `/mnt/data` is locked also yields
+  zero names with exit 0 — but the decision rule is safe at zero regardless.
+- **The heal fix is real and both negative branches fire.** `journalctl -t
+  homelab-heal -b` returns 19 lines of `checked 29 container(s), 0 restarted`;
+  the count is outside the loop in the deployed file; the missing-report branch
+  and the `checked 0` branch were both exercised without creating or deleting
+  anything; `f8c547c`'s producer-mtime guard is armed.
+- **The dumps fix is deployed but has NOT executed yet.** The TAP on disk still
+  reads `1..19` from the 03:00 run that preceded the 10:31 deploy. First
+  execution 2026-09-06 03:00, and tonight's beat must read `dumps ok (22
+  checks)`. Nothing about it is proven by tonight.
+- **`/boot/firmware/config.txt` on the homelab still carries em-dash markers**
+  and is the ONLY one of the twenty corrections from 09-03/04/05 that is not
+  true on the machines. It self-converges: `base/tasks/attack-surface.yml:29-30`'s
+  repair regexp was tested against the real deployed bytes and matches both
+  lines without duplicating the block.
+
+### Rejected from the agents, and why
+
+- **`system`'s "four of five SMART counters"** was optimistic by one. The main
+  session read the drive's actual attribute table: 184 AND 187 are both absent.
+  The finding survives, its number did not.
+- **The main session's own near-miss**: `Current_Pending_Sector: 2` on the 5 TB
+  drive looked like a live untold fault and was checked before being reported.
+  It is deliberately excluded from the counter loop, always reported, and
+  alarmed on a rise (#207). Nothing to do. The repo was right before the audit
+  was.
+- **`network`'s Pi-hole healthcheck headline** was killed by its own control:
+  `@127.0.0.99` is not a dead DNS target, because `listeningMode: all` binds all
+  of 127/8. **New instrument trap.**
+- **`services`' twelve Jellyfin/Navidrome/calibre-web scan lines** are real
+  instances of the property and are excluded from the material count: upstream,
+  read by nothing, no action proposed. That restraint is correct.
+- **Three `ansible-deploy` refutations were taken with a positive control rather
+  than by reading**, including a Jinja sandbox showing that a `regex_search` miss
+  yields `['None']` and not `[]`, so the Tier 0 assert fails loudly and cannot go
+  vacuous.
+- **Two rule-5 deviations are disclosed rather than hidden**: two read-only
+  `restic dump` calls on the LOCAL repository, and three scratch files created
+  and removed on the homelab by a documentation sub-sweep. Nothing touched the
+  offsite repository.
 
 ## The run of 2026-09-05 — the key was `vacuity`, and it was invented
 
@@ -1167,15 +1435,15 @@ check, and it is stated as one.
 | ID | Property | Gate |
 |-----|------------------------------------------------------|--------------------------------------------------------|
 | C10 | A credential store readable beyond its service | goss posture, **derived** from the dump variables rather than listed, plus a named assertion for the Immich dumps (#217, #272) |
-| C11 | A container whose running `Config.User` differs from what compose declares | posture assertion, 9 services (#145) |
+| C11 | A container whose running `Config.User` differs from what compose declares | posture assertion, 9 services (#145). **BROKEN, measured 2026-09-05: 9 assertions against 11 running containers with a non-empty `Config.User`** — `socket-proxy` (root) and `collabora` (1001) unasserted, because the assertion is emitted per DECLARATION, so dropping a declaration removes its own check. Same `{% if %}` defect twice more in that loop: `apparmor` (1) and `pinned-port` (1) |
 | C12 | A rotated secret no consumer restarts to read | **Left this table on 2026-09-03 — downgraded to ENUMERATED.** There is no live assertion at all: nothing in the three deployed goss specs mentions handler coverage. The 51 notify sites and 0 orphans of #145 were a sweep, not a gate |
 | C13 | A declared environment value shadowed by a persisted config file | **Left this table on 2026-08-30 — see the downgrade above.** The assertion is hardcoded to vaultwarden (#124, #159); a list of one is not a gate |
 | C14 | A certificate with no expiry watch, or a silent ACME failure | `homelab-health.sh` parses `acme.json` directly, 21-day threshold, 18/18 (#157) |
 | C15 | The offsite repository losing the one property that makes it a backup | goss assertion on the live rest-server process, proven to fail in both modes (#278) |
 | C16 | A read-write bind mount its container cannot create files in | posture assertion, continuous since 2026-08-16 |
 | C17 | A filesystem never checked, and boot triggers reset every boot | `passno` plus the daily disk report's `ext4 clean` field (#254, #260) |
-| C18 | A database dump absent, stale, or empty | goss `backup-dumps`, 19 checks, generated from the dump variables so a database cannot get a dump without a check (#177, ADR-032) |
-| C19 | A failed systemd unit, or a timer whose service did not succeed | goss `units.yaml` plus the health script's last-run check — **homelab only; the offsite half is C02** |
+| C18 | A database dump absent, stale, or empty | goss `backup-dumps`, now **22** checks, generated from the dump variables so a database cannot get a dump without a check (#177, ADR-032). **The `empty` word is no longer an overstatement** — the derived `-content` floor shipped 2026-09-05 10:39 and 2x3+3x4+4 = 22 matches the host. **What IS defective is the derivation half**: `docker inspect <svc> ... || exit 0` opens all four assertions for vaultwarden, forgejo, uptime-kuma and immich-server when the container is absent |
+| C19 | A failed systemd unit, or a timer whose service did not succeed | goss `units.yaml` plus the health script's last-run check — **homelab only; the offsite half is C02**. **BOTH halves are vacuous at zero** (2026-09-05, three controls): the goss half exits 0 with the binary absent. Rescued by composition, not by assertion |
 | C20 | A secret that a deploy reports as rotated without rotating it | **Left this table on 2026-09-03 — downgraded to ENUMERATED.** 4 hand-written probes over a space of 16 secret files; a list of four is not a gate (#159 fixed the case-mismatch bug, which is a different question) |
 | C21 | A snapshot that missed its offsite copy and is never retried | retention monitor (#158, #168). **The "time-window filter" this row used to name no longer exists** — re-verified 2026-09-03: `copy:` carries no bound, every snapshot is re-offered nightly, 31 local / 81 offsite with no gaps. The class holds; the description was stale for the second time |
 | C81 | A byte written into a file whose consumer reads it back through a narrower encoding than the producer's | `ops/check-ascii-system-files.py` in pre-commit, proven to fail in both directions (2026-09-04) |
@@ -1203,7 +1471,7 @@ check, and it is stated as one.
   measured, and `/run/traefik/access.log` appears 99 s after its container starts
   while its healthcheck requires the file.
 
-## ENUMERATED — 27 here; the rest (C01, C03, C06, C09, C13, C27, C39, C43, C75) are recorded in their own sections above
+## ENUMERATED — 28 here; the rest (C01, C03, C06, C09, C13, C27, C39, C43, C75) are recorded in their own sections above
 
 Swept completely at least once. Re-check only after a change that could reopen
 them; do not re-derive without a new symptom.
@@ -1247,6 +1515,7 @@ them; do not re-derive without a new symptom.
 | C20 | A secret that a deploy reports as rotated without rotating it | 4 probes over 16 secret files — **downgraded from GATED 09-03** | 08-19, 09-03 |
 | C78 | A set of which two or more components each hold their own definition, in different grammars, with nothing comparing the definitions | 4/4 name grammars (18/18/18, Kuma 15/18) + 21/21 restore expressions against 13 exclude patterns | 09-03 |
 | C82 | A fault whose only detector runs earlier in the same sequence than the step that introduces it | 308/308 write-sites + 77/77 binary-use + 34/34 handlers; 12 pairs, 2 instances, 10 refuted | 09-05 |
+| C83 | A mechanism that reports success, health or completion after producing or examining a set, without bounding that set's cardinality from below | **976/976 across 8 slices**, each slice's N derived and stated; 92 instances of which 32 are two families of 16 and 12 are no-action upstream, 884 refuted. ENUMERATED, **not gated** — nothing derives the set of unbounded reporters | 09-05 |
 
 ## DECLINED
 

@@ -228,6 +228,28 @@
   check_mode: false
   when: nextcloud_up
 
+# The two loops below iterate `nc_ext_list2`, which is the SECOND listing —
+# taken after `files_external:create` has run. An empty stdout makes both loops
+# `[]`, so the read-only flags and the out-of-band-change option are skipped in
+# silence and the play reports ok. Measured 2026-09-05: three storages, all
+# `readonly=1`. If the listing is empty here, either the create above did
+# nothing or `occ` answered with nothing, and neither is a state in which the
+# enforcement below should be reported as done.
+- name: nextcloud | Refuse an empty external-storage listing
+  ansible.builtin.assert:
+    that:
+      - (nc_ext_list2.stdout | default('')) | length > 0
+      - (nc_ext_list2.stdout | from_json) | length > 0
+    fail_msg: >-
+      Nextcloud is running but `files_external:list` returned no storage, so the
+      read-only enforcement and the filesystem_check_changes option below would
+      silently apply to nothing.
+    success_msg: >-
+      {{ (nc_ext_list2.stdout | from_json) | length }} external storage(s) to
+      enforce.
+    quiet: true
+  when: nextcloud_up
+
 - name: nextcloud | Enforce read-only on media external storages
   ansible.builtin.command:
     cmd: >

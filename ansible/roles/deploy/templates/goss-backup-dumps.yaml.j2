@@ -129,7 +129,24 @@ command:
   # file as a valid empty database, and an empty file is exactly what a `.backup`
   # that failed at the first step leaves behind. Restoring an empty Vaultwarden
   # is not a lesser disaster than restoring a corrupt one.
+  #
+  # --- The absence has to have a NAME of its own -----------------------------
+  # `|| exit 0` above lets a service that is not deployed pass, which is the
+  # behaviour wanted. Its cost, measured 2026-09-05: a container that VANISHES
+  # turns all four of its assertions green at once, and a vanished container is
+  # not a lesser disaster than a corrupt dump — Immich's datadir left the restic
+  # source set on 2026-08-31, so its dump is the only copy of that database.
+  # "Not deployed" and "gone" were the same observable.
+  #
+  # So each service gets one assertion that says only "this container exists".
+  # It is generated from the same loop as everything else, so a service cannot
+  # acquire a dump without acquiring this check, and a service that is genuinely
+  # optional leaves by the variable list rather than by being silently excused.
+  # One named red beats four silent greens.
 {% for d in backup_sqlite_dumps %}
+  dump-{{ d.name }}-container-present:
+    exec: docker inspect {{ d.container }} >/dev/null 2>&1
+    exit-status: 0
   dump-{{ d.name }}-source:
     exec: docker inspect {{ d.container }} >/dev/null 2>&1 || exit 0; test -f {{ d.source }}
     exit-status: 0
@@ -176,6 +193,9 @@ command:
   # status is carried in-band instead: zcat's failure appends a sentinel, which
   # lands at the END of the stream and is therefore inside tail's window. Proven
   # both ways on a byte-flipped 89 MB fixture before being believed.
+  dump-immich-container-present:
+    exec: docker inspect immich-server >/dev/null 2>&1
+    exit-status: 0
   dump-immich-present:
     exec: |
       docker inspect immich-server >/dev/null 2>&1 || exit 0

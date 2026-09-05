@@ -81,6 +81,22 @@ fi
 # that adds a seventh check would otherwise read as a regression.
 passed=$(printf '%s\n' "$out" | grep -c '✓')
 
+# --- Counting the passes needs a floor, or zero of them reads as all of them --
+# The line above is right to count rather than to assert six — an app version
+# that adds a seventh check must not read as a regression. But with `rc` zero
+# and no `✗` anywhere, output carrying NEITHER glyph reaches here and pushes UP
+# as `self-test ok (0 checks)`: a self-test that examined nothing and one that
+# examined everything become the same green. The same event silences the
+# failure detector, because the absence of `✗` is what got us here.
+#
+# One is the floor, not six: it separates "this tool no longer prints what we
+# parse" from "a step failed", which is the distinction the rest of the block
+# already makes.
+if [ "$passed" -eq 0 ]; then
+    notify down "notify_push self-test produced no result line — the check parsed nothing"
+    exit 1
+fi
+
 # Context, never an alarm. Zero connections is the normal state when every
 # client is asleep, so it says something about usage, not about health.
 conns=$(docker exec -u www-data nextcloud php occ notify_push:metrics 2>/dev/null \
@@ -96,6 +112,20 @@ conns=$(docker exec -u www-data nextcloud php occ notify_push:metrics 2>/dev/nul
 # only on a real run. One hour is twelve missed five-minute runs, well clear of
 # a single slow one. Unreadable reports rather than passes, which is the rule
 # the rest of this stack follows.
+#
+# --- What this can see, and what it cannot ----------------------------------
+# Read at the source 2026-09-05: `core/Service/CronService.php:113` sets
+# `lastcron` AFTER `runCli()` returns, unconditionally and outside every
+# per-job loop. So the timestamp says "cron.php ran to completion", which is
+# exactly the #177 failure it was written for — crond dead, container Up, both
+# HTTP monitors green. It does NOT say "jobs were executed": a queue that
+# stalls behind a living runner moves this timestamp every five minutes.
+#
+# The message below used to read "background jobs have stopped", which is the
+# one thing this measurement cannot establish. Naming the runner instead of the
+# jobs costs nothing and stops the alert from asserting past its evidence. A
+# real starvation check — reserved jobs, or the oldest unexecuted job's age —
+# is a separate mechanism and is not pretended here.
 CRON_MAX_AGE=3600
 lastcron=$(docker exec -u www-data nextcloud php occ config:app:get core lastcron 2>/dev/null | tr -dc '0-9')
 if [ -z "$lastcron" ]; then
@@ -104,7 +134,7 @@ if [ -z "$lastcron" ]; then
 fi
 cron_age=$(( $(date +%s) - lastcron ))
 if [ "$cron_age" -gt "$CRON_MAX_AGE" ]; then
-    notify down "nextcloud cron last completed ${cron_age}s ago (> ${CRON_MAX_AGE}s) — background jobs have stopped"
+    notify down "nextcloud cron.php has not completed for ${cron_age}s (> ${CRON_MAX_AGE}s) — the job RUNNER is stopped"
     exit 1
 fi
 

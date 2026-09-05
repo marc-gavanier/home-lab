@@ -48,6 +48,23 @@ notify() {
 
 problems=()
 checked=0
+# --- What was COUNTED must be what was EXAMINED ------------------------------
+# `checked` is the number in "posture OK — N checks", and until 2026-09-05 it
+# was the only cardinal this script emitted. It is dominated by goss's own plan
+# line, and the derivation below added one per CONTAINER — so a run in which
+# every (container, mount) pair was filtered out still incremented it 23 times
+# and pushed the same sentence as a run that examined 14 mounts. Simulated live
+# on 2026-09-05: 23 containers reach the loop, 0 pairs survive, `checked` gains
+# 23.
+#
+# Each derivation now carries its own counter, the verdict prints them, and an
+# enumeration that visited nothing is a problem rather than a silence. This is
+# C10's floor — the one already deployed 200 lines from here, over this same
+# `docker inspect` population — applied where it was missing.
+goss_total=0
+containers_seen=0
+mounts_seen=0
+creds_probed=0
 
 # The operator's uid. A service data directory owned by it, under a container
 # that does not itself run as it, is the signature of #138/#144 — see the
@@ -97,6 +114,7 @@ else
     # The plan line is goss's own count. Its absence means goss failed to parse
     # the spec rather than found nothing wrong, and those must not read alike.
     goss_total=$(printf '%s\n' "$goss_out" | sed -n 's/^1\.\.\([0-9]*\)$/\1/p')
+    goss_total=${goss_total:-0}
     if [ -z "$goss_total" ] || [ "$goss_total" -eq 0 ]; then
         problems+=("goss produced no assertions — spec unreadable or empty")
     else
@@ -133,12 +151,23 @@ else
         [ "$ctr_uid" = "$OPERATOR_UID" ] && continue
         while read -r sdir; do
             [ -d "$sdir" ] || continue
+            mounts_seen=$((mounts_seen + 1))
             owner=$(stat -c %u "$sdir" 2>/dev/null) || continue
             [ "$owner" = "$OPERATOR_UID" ] || continue
             problems+=("$name: $sdir owned by uid $owner, container runs as $ctr_uid and cannot create files there")
         done < <(inspect "$name" '{% raw %}{{range .Mounts}}{{if and (eq .Type "bind") .RW}}{{.Source}}{{"\n"}}{{end}}{{end}}{% endraw %}')
+        containers_seen=$((containers_seen + 1))
         checked=$((checked + 1))
     done < <(docker ps --format '{% raw %}{{.Names}}{% endraw %}' 2>/dev/null)
+    # Two different empties, and neither may read as a pass. No container at all
+    # means the daemon did not answer; containers but no mount means every
+    # inspect returned nothing, which is what a template change or a socket-proxy
+    # narrowing would look like.
+    if [ "$containers_seen" -eq 0 ]; then
+        problems+=("writability: no container was enumerated — the derivation asserted nothing")
+    elif [ "$mounts_seen" -eq 0 ]; then
+        problems+=("writability: 0 read-write bind mounts over $containers_seen containers — the derivation asserted nothing")
+    fi
 fi
 
 # --- Vaultwarden: config.json must not contradict the compose environment ---
@@ -202,6 +231,12 @@ if [ "$(docker inspect -f '{% raw %}{{.State.Status}}{% endraw %}' vaultwarden 2
         case "$vw_env" in
             *UNREADABLE_*) problems+=("vaultwarden: a *_FILE secret could not be read — the config.json comparison is incomplete") ;;
         esac
+        # An empty environment compares clean against any config.json, and the
+        # python below prints OK for it. Zero keys and no conflict are the same
+        # observable otherwise.
+        if [ -z "$vw_env" ]; then
+            problems+=("vaultwarden: no environment was read — the config.json comparison asserted nothing")
+        fi
         # Prints OK when clean, so a check that cannot run is not read as a pass.
         conflicts=$(printf '%s\n' "$vw_env" | python3 -c '
 import json, sys
@@ -247,6 +282,7 @@ fi
 cred_probe() {
     local c="$1" engine="$2" secret="$3" out=""
     [ "$(inspect "$c" '{% raw %}{{.State.Status}}{% endraw %}')" = "running" ] || return 0
+    creds_probed=$((creds_probed + 1))
     case "$engine" in
         pg) out=$(docker exec "$c" sh -c \
               "PGPASSWORD=\$(cat /run/secrets/$secret) psql -h $c -U \$POSTGRES_USER -d \$POSTGRES_DB -tAc 'select 1'" 2>/dev/null) ;;
@@ -268,7 +304,13 @@ cred_probe nextcloud-db my nextcloud_db_password
 # restart, not at the deploy that caused it.
 MINIFLUX_DSN=/mnt/data/secrets/docker/miniflux_database_url
 MINIFLUX_PW=/mnt/data/secrets/docker/miniflux_db_password
-if [ -r "$MINIFLUX_DSN" ] && [ -r "$MINIFLUX_PW" ]; then
+# Unreadable is not agreeing. Both files are symlinks into the LUKS volume, so
+# the pair is unreadable exactly when /mnt/data is locked or a link dangles —
+# the two situations in which a drifted credential matters most — and the check
+# used to skip in silence.
+if [ ! -r "$MINIFLUX_DSN" ] || [ ! -r "$MINIFLUX_PW" ]; then
+    problems+=("miniflux: the connection string or the database password is unreadable — the comparison did not run")
+elif [ -r "$MINIFLUX_DSN" ] && [ -r "$MINIFLUX_PW" ]; then
     dsn_pw=$(sed -n 's/.*password=\([^ ]*\).*/\1/p' "$MINIFLUX_DSN")
     if [ -z "$dsn_pw" ]; then
         problems+=("miniflux: no password= field in the connection string")
@@ -285,4 +327,4 @@ if [ {% raw %}${#problems[@]}{% endraw %} -gt 0 ]; then
     exit 1
 fi
 
-notify up "posture OK — $checked checks"
+notify up "posture OK — $checked checks (goss $goss_total, ${containers_seen} containers/${mounts_seen} mounts, ${creds_probed} credential probes)"
