@@ -151,7 +151,22 @@
     # files across two roles write into the secret store; the gate added in the
     # same change derives them instead of listing them, which is the only
     # version of this check that survives the next writer.
-    mode: "0400"
+    # 0444 and NOT 0400, and the reason is a mechanism this repo got wrong on
+    # 2026-09-06 at the cost of every database going down. In SWARM, a
+    # `secrets:` entry is copied by the daemon and the host mode is irrelevant.
+    # In COMPOSE it is a BIND MOUNT of this very inode into /run/secrets/<name>,
+    # so the CONTAINER's uid reads this file directly — and postgres, mariadb and
+    # the rest run as non-root. 0400 root made three databases exit(1) in a
+    # restart loop within minutes of the deploy.
+    #
+    # The exposure this mode creates is real and is NOT closed here: any account
+    # able to traverse the parent directory can read these values. The parent is
+    # drwx--x--- root:docker and the operator is in `docker`. Closing it belongs
+    # on the DIRECTORY, not on these files — the daemon establishes the bind as
+    # root, so the container keeps working when the directory stops being
+    # traversable by the docker group. That change is not made here because it
+    # was not tested, and this file has been the wrong place to guess twice.
+    mode: "0444"
   notify: Restart searxng
 
 - name: configs | Drop the superseded SearXNG settings path and symlink dir
