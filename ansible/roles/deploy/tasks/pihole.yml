@@ -42,16 +42,35 @@
 # reset the Pi-hole admin password (#169). Of every probe in this role that is
 # the worst one to get wrong, because the task it guards is the one that changes
 # a credential.
+# Read from the FILE, not from `environment:`, since 2026-09-06. The single
+# letter `P` was chosen to keep the value out of the program's argv — correct
+# for that class, and it missed the channel that mattered: Ansible's become
+# wrapper renders `sudo sh -c 'P=<value> python3 ...'`, and sudo journals the
+# command line it is asked to run. So the secret left the argv of python3 and
+# landed in the argv of sh, in /var/log/auth.log and the systemd journal, both
+# readable without sudo by any account in `adm`.
+#
+# `no_log: true` did not help and was never going to: it suppresses Ansible's
+# own output, not the become wrapper. That was already measured and written
+# down on an earlier audit run; the note existed and had not been generalised
+# from `restic init` to this task.
+#
+# Measured 2026-09-05: 149 lines across auth.log and its four rotations. The
+# reason nine audits missed it is worth keeping: the variable name is chosen by
+# the AUTHOR, not by the secret, so no search for *PASSWORD*/*TOKEN*/*SECRET*
+# can find a leak called `P`. Only a search for the VALUE finds it.
+#
+# The file is the one secrets.yml already writes, and it is already mounted
+# into the container for `pihole setpassword` (#198) — this only stops the host
+# side from taking the long way round.
 - name: pihole | Check the admin password against the auth API
   ansible.builtin.shell:
     cmd: >-
       set -o pipefail;
-      python3 -c 'import json,os; print(json.dumps({"password": os.environ["P"]}))'
+      python3 -c 'import json; print(json.dumps({"password": open("/mnt/data/secrets/docker/pihole_password").read().rstrip("\\n")}))'
       | docker exec -i pihole curl -s -o /dev/null -w '%{http_code}'
       -X POST --data-binary @- http://localhost/api/auth
     executable: /bin/bash
-  environment:
-    P: "{{ pihole_password }}"
   register: pihole_pw_check
   changed_when: false
   check_mode: false

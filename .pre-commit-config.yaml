@@ -109,3 +109,32 @@ repos:
         language: system
         files: ^ops/check-empty-set-floors\.py$
         pass_filenames: false
+
+      # Ansible's become wrapper puts `environment:` on the command line it
+      # hands to sudo, and sudo journals that line. Three tasks had that shape
+      # on 2026-09-05 and had written two live secrets into /var/log/auth.log
+      # and the systemd journal several hundred times, both readable without
+      # sudo by the operator's own account. `no_log: true` does not mask it.
+      #
+      # Nine audits missed it because two of the three called their variable `P`
+      # and `T` — names chosen to keep the value out of argv, which was the
+      # PREVIOUS defect in the same class. The name is the author's choice, so
+      # searching for *PASSWORD* can never be complete; only searching for the
+      # value works, and this hook is what removes the need to.
+      #
+      # The secret set is derived from the deploy role's own assertions and from
+      # every file it writes under /mnt/data/secrets, so a new secret is covered
+      # the day it is added.
+      - id: secret-in-environment
+        name: no secret passed through an Ansible `environment:`
+        entry: ops/check-secret-in-environment.py
+        language: system
+        files: (^ansible/roles/.*/tasks/.*\.yml|^ansible/playbooks/.*\.yml)$
+        pass_filenames: false
+
+      - id: secret-in-environment-selftest
+        name: the secret-in-environment gate still fails when it should
+        entry: ops/check-secret-in-environment.py --selftest
+        language: system
+        files: ^ops/check-secret-in-environment\.py$
+        pass_filenames: false
