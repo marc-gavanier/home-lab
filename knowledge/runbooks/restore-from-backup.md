@@ -216,6 +216,26 @@ restic restore latest --target /mnt/data/tmp/restore \
 DUMP=$(sudo sh -c 'ls -t /mnt/data/services/immich/upload/backups/*.sql.gz' | head -1)
 # (or: DUMP=$(sudo sh -c 'ls -t /mnt/data/tmp/restore/mnt/data/services/immich/upload/backups/*.sql.gz' | head -1))
 
+# 1b. PROVE the dump is complete before anything is destroyed. This is not
+#     belt-and-braces: step 2 deletes the live database, the datadir is
+#     excluded from the restic set (the dump is the ONLY copy), and `ls -t`
+#     above deliberately picks the NEWEST file — which is exactly the one a
+#     restic restore or a dump job interrupted halfway would have left
+#     truncated. A truncated .gz costs nothing to detect and everything to miss.
+#
+#     `sudo`, for the same reason as the `ls` above: the file is root-owned
+#     under a root-only directory, so an unprivileged `gzip -t` fails with
+#     "permission denied" — which reads exactly like a corrupt dump and would
+#     stop a perfectly good restore.
+sudo gzip -t "$DUMP" && DUMP_OK=yes || DUMP_OK=no
+echo "dump integrity: $DUMP_OK  ($DUMP)"
+
+# Record what a complete restore must reproduce, while the old database is
+# still there. Compared again at step 6.
+BEFORE_ASSETS=$(docker exec immich-db psql -U immich -d immich -tAc \
+  'select count(*) from asset;' 2>/dev/null || echo unknown)
+echo "asset rows before restore: $BEFORE_ASSETS"
+
 cd /opt/homelab
 
 # 2. Remove Immich's containers and reset the DB dir so the container re-runs
@@ -227,15 +247,31 @@ cd /opt/homelab
 #    service" if you pass it. That matters more here than anywhere else in this
 #    file: the very next line deletes the database directory, so a command that
 #    removes nothing leaves you deleting a datadir under a running Postgres.
-docker compose down immich-server immich-machine-learning immich-db immich-redis
-rm -rf /mnt/data/services/immich/db/*
+#    Both lines are GATED on step 1b rather than sequenced after it. A runbook
+#    is pasted as a block, and "stop here if the check failed" is advice a
+#    pasted block does not follow. `exit` would be worse — in an interactive
+#    shell it closes the operator's session mid-restore.
+[ "$DUMP_OK" = yes ] && docker compose down immich-server immich-machine-learning immich-db immich-redis
+[ "$DUMP_OK" = yes ] && rm -rf /mnt/data/services/immich/db/*
 
 # 3. Bring the DB back up empty and wait until it is healthy:
 docker compose up -d immich-db
 until [ "$(docker inspect -f '{{.State.Health.Status}}' immich-db)" = healthy ]; do sleep 2; done
 
-# 4. Load the dump — search_path transform + atomic, abort-on-error import:
-gunzip --stdout "$DUMP" \
+# 4. Load the dump. `--single-transaction --set ON_ERROR_STOP=on` aborts on the
+#    first SQL ERROR and rolls back — it does NOT make the import atomic with
+#    respect to a TRUNCATED input, and the difference is the whole reason for
+#    step 1b. A pg_dump carries its rows inside `COPY … FROM stdin` blocks; a
+#    cut that lands on a record boundary reads as a clean end of input, so psql
+#    commits the partial table and exits 0 with an empty stderr. Measured over
+#    thirty truncation points on this exact pipeline: twelve committed
+#    silently, eighteen were caught. Note also that the pipeline's exit status
+#    is psql's, so the `gunzip` that failed upstream shows up only as one line
+#    on stderr — which is why step 1b tests the file instead of trusting this:
+#    Gated too, and this is the gate that matters most: if step 2 was skipped
+#    because the dump is bad, the LIVE database is still there — and an
+#    ungated load would pour a truncated dump straight into it.
+[ "$DUMP_OK" = yes ] && sudo gunzip --stdout "$DUMP" \
 | sed "s/SELECT pg_catalog.set_config('search_path', '', false);/SELECT pg_catalog.set_config('search_path', 'public, pg_catalog', true);/g" \
 | docker exec -i immich-db psql \
     --dbname=immich --username=immich \
@@ -245,9 +281,22 @@ gunzip --stdout "$DUMP" \
 docker compose up -d immich-server immich-machine-learning immich-redis
 ```
 
-Sanity-check: log in, confirm the timeline and search (VectorChord) work. The
-photo/video files themselves live in `services/immich/upload` and `media/photos`
-— restore those from a snapshot too if they were lost.
+```bash
+# 6. Sanity-check by COUNTING, not by looking. A database loaded from a
+#    truncated dump serves a working timeline and a working search — the
+#    2026-07-19 drill established the right shape ("verified by loading, never
+#    by listing") and its numbers: 66 tables, 9 283 `asset` rows, 9 247
+#    `smart_search` embeddings. Compare against $BEFORE_ASSETS from step 1b, or
+#    against the drill if the old database was already gone.
+docker exec immich-db psql -U immich -d immich -tAc 'select count(*) from asset;'
+docker exec immich-db psql -U immich -d immich -tAc \
+  "select count(*) from information_schema.tables where table_schema='public';"
+```
+
+Then log in and confirm the timeline and search (VectorChord) work — after the
+counts agree, not instead of them. The photo/video files themselves live in
+`services/immich/upload` and `media/photos` — restore those from a snapshot too
+if they were lost.
 
 ## Restore Miniflux (PostgreSQL)
 
@@ -278,7 +327,11 @@ rm -rf /mnt/data/services/miniflux/db/*
 docker compose up -d miniflux-db
 until [ "$(docker inspect -f '{{.State.Health.Status}}' miniflux-db)" = healthy ]; do sleep 2; done
 
-# 4. Load the dump — atomic, abort on first error:
+# 4. Load the dump. Same caveat as Immich's step 4 above: this aborts on the
+#    first SQL ERROR, not on an input that ends early. The dump is plain SQL
+#    here, so there is no `gzip -t` to run — check that it ends the way pg_dump
+#    ends before loading it, and count rows afterwards:
+#      tail -c 200 /mnt/data/tmp/restore/mnt/data/backups/dumps/miniflux.sql
 docker exec -i miniflux-db psql \
     --dbname=miniflux --username=miniflux \
     --single-transaction --set ON_ERROR_STOP=on \
@@ -291,8 +344,9 @@ docker compose up -d miniflux
 (Role and database are both `miniflux` unless `miniflux_db_user` /
 `miniflux_db_name` were overridden in `local.yml`.)
 
-Sanity-check: log in at `https://rss.<domain>` and confirm the feed list and the
-unread counts. Nothing else to restore — Miniflux keeps all of its state in
+Sanity-check by counting first — `docker exec miniflux-db psql -U miniflux
+-d miniflux -tAc 'select count(*) from entries;'` — then log in at
+`https://rss.<domain>` and confirm the feed list and the unread counts. Nothing else to restore — Miniflux keeps all of its state in
 Postgres, which is why its container needs no writable filesystem at all.
 
 ## Restore Forgejo (SQLite)
