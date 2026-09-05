@@ -2130,3 +2130,29 @@ same floor a script would.
   role's own measured argument and converges on the next `base` run.
 - `nextcloud-notify-push` now mounts `/var/www/html` read-only; C16's recorded
   live instance is gone even though C16's gate is still broken.
+
+### The deploy of 2026-09-05 — the fix reproduced the class it fixed
+
+The five corrections went to the homelab from the PR branch: `ok=197 changed=4`.
+One of them pushed a four-minute false DOWN, and it is the best single argument
+in this file for deploying before merging.
+
+The new health assertion reads a line the new heal script writes. `observability`
+is phase 1, `stack-startup` is phase 5, so the assertion is **always** installed
+about ten minutes before its producer. Nothing in the repository, on a dashboard
+or in any test could have shown that: it exists only in the interval between two
+roles of one play.
+
+**The rule, which generalises past this instance:** an assertion must never
+demand a window longer than the producer of its evidence has existed. Start the
+window at the later of `now - window` and `mtime(producer)`. Where the producer
+can also vanish, make the missing case fail OPEN — `stat … || echo 0` yields an
+age of decades, so a deleted producer alarms instead of being excused.
+
+**And the instrument note:** the same event wrote two heartbeats two seconds
+apart, the assertion's own DOWN at 08:41:08 UTC and Kuma's "No heartbeat in the
+time window" at 08:41:10. Reading only the newest would have blamed a starved
+push instead of the assertion that caused it. Kuma stores UTC; applying
+`datetime(…, 'localtime')` to a value that is already UTC is right, and doing it
+to one that is not shifts the answer two hours — always print `datetime('now')`
+from the same query as a control.
