@@ -198,6 +198,11 @@ command:
     exit-status: 0
     stdout: ["/^700$/"]
 
+{% set compose = lookup('file', playbook_dir + '/../../docker/compose.yaml') | from_yaml %}
+{%- set expected_containers = [] %}
+{%- for _n, _s in compose.services.items() %}
+{%-   set _ = expected_containers.append(_s.container_name | default(_n)) %}
+{%- endfor %}
   # --- Every per-container assertion below assumes the container EXISTS -------
   # `docker inspect <gone> | jq -r '...'` exits 0 with an empty line, because a
   # pipeline's status is jq's. Measured 2026-09-05 with a name that does not
@@ -210,27 +215,33 @@ command:
   # derivation covers the family instead, and it is derived from compose rather
   # than listed: a service added tomorrow is inside it without an edit here.
   #
-  # `docker compose ps`/`config` rather than `docker ps --format`: goss renders
-  # this file as a Go template before parsing it, so a Go format string's own
-  # delimiters would be consumed rather than asserted — the same reason the
-  # dumps spec gives for using `docker inspect`.
+  # The expected names are rendered in from compose.yaml at deploy time, exactly
+  # as `no-undeclared-published-ports` renders its port list — so this is still
+  # derived from compose and not a hand-kept list, and it costs ONE cheap docker
+  # call at run time. The first version asked the daemon twice through
+  # `docker compose`, and goss killed it at its 10 s timeout on the very first
+  # run: 0.08 s for `docker ps -a` against roughly a second for each compose
+  # invocation, measured on this Pi.
   #
-  # The three-way `sort | uniq -u` is how a set difference is taken in plain
-  # sh: a service in both lists appears three times, one only live appears
-  # twice, and one only declared appears once. No process substitution, which
-  # dash does not have.
+  # `awk` on the last column rather than `--format`: goss renders this file as a
+  # Go template before parsing it, so a Go format string's own delimiters would
+  # be consumed rather than asserted — the same reason the dumps spec gives for
+  # using `docker inspect`. NAMES is the last column and cannot contain a space.
   every-declared-service-has-a-container:
     exec: |
-      cd /opt/homelab || { echo "compose directory missing"; exit 1; }
-      declared=$(docker compose config --services 2>/dev/null | sort -u)
-      [ -n "$declared" ] || { echo "compose declares no service — the derivation asserted nothing"; exit 1; }
-      live=$(docker compose ps -a --services 2>/dev/null | sort -u)
-      [ -n "$live" ] || { echo "the daemon reports no container — the derivation asserted nothing"; exit 1; }
-      missing=$(printf '%s\n%s\n%s\n' "$declared" "$live" "$live" | sort | uniq -u)
-      [ -z "$missing" ] || { echo "declared with no container: $(echo $missing)"; exit 1; }
+      declared="{{ expected_containers | join(' ') }}"
+      live=$(docker ps -a --no-trunc 2>/dev/null | awk 'NR > 1 { print $NF }' | tr '\n' ' ')
+      [ -n "$live" ] || { echo "the daemon reports no container at all — the derivation asserted nothing"; exit 1; }
+      missing=""
+      for c in $declared; do
+        case " $live " in
+          *" $c "*) ;;
+          *) missing="$missing $c" ;;
+        esac
+      done
+      [ -z "$missing" ] || { echo "declared in compose.yaml with no container:$missing"; exit 1; }
     exit-status: 0
 
-{% set compose = lookup('file', playbook_dir + '/../../docker/compose.yaml') | from_yaml %}
 {% for name, svc in compose.services.items() %}
 {%- set cname = svc.container_name | default(name) %}
 {#- plain Jinja on purpose, as in homelab-posture.sh: `regex_replace` and
@@ -263,22 +274,26 @@ command:
     exec: docker inspect {{ cname }} | jq -r '[.[0].HostConfig.SecurityOpt[]?] | join(" ") | test("no-new-privileges")'
     exit-status: 0
     stdout: ["/^{{ nnp }}$/"]
-  # Emitted for EVERY service, not only those declaring `user:`. Gating it on the
-  # declaration meant that dropping the declaration removed its own check:
-  # measured 2026-09-05, 9 assertions against 11 running containers with a
-  # non-empty Config.User, socket-proxy (root) and collabora (1001) unasserted.
-  # A gate that disappears with the thing it guards is not a gate. The empty
-  # expectation is the real statement for a service that declares nothing:
-  # acquiring a user silently is as much a change as losing one.
+  # Conditional on purpose, and the reason was learned the hard way on
+  # 2026-09-05. This assertion was briefly emitted for EVERY service, asserting
+  # `/^$/` for those declaring no `user:`, to close the gap where dropping a
+  # declaration removes its own check. It is wrong: `Config.User` carries the
+  # IMAGE's user when compose declares none, and two of ours do — socket-proxy
+  # returns `root`, collabora returns `1001`. Asserting the complement would
+  # mean writing upstream's values into this repo, which is the same objection
+  # this file already makes for `apparmor` and `pinned-port-bindings` below.
   #
-  # `apparmor` and `pinned-port-bindings` below stay conditional on purpose —
-  # their complement would have to assert Docker's own defaults, which is not
-  # this repo's statement to make.
+  # And the gap does not close by assertion anyway: a service that loses its
+  # `user:` falls back to the image's user, so the running system is telling the
+  # truth and there is nothing for a check to disagree with. What catches that
+  # is the review of compose.yaml, not a probe of the result.
+{% if usr %}
   {{ cname }}-user:
     exec: docker inspect {{ cname }} | jq -r '.[0].Config.User'
     exit-status: 0
     stdout: ["/^{{ usr }}$/"]
-{% set pinned = [] %}
+{% endif %}
+{%- set pinned = [] %}
 {%- for p in svc.ports | default([]) %}
 {%-   if (p | string).split(':') | length >= 3 %}{%- set _ = pinned.append((p | string).split(':')) %}{%- endif %}
 {%- endfor %}
