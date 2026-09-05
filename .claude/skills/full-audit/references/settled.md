@@ -2235,3 +2235,34 @@ Every instance the main session confirmed this run was confirmed by reading
 `/etc/goss/*.yaml` and `/usr/local/bin/*` on the host, and two of them were
 sharpened in the process. The repo is where a fix is written; the host is where
 it is true.
+
+### New instrument traps — two more, both the main session's, both from one afternoon
+
+Added after the corrections of 2026-09-05 were deployed. They are recorded
+together because they only bite as a pair, and because each one alone would have
+been caught by the other.
+
+6. **Ansible renders Jinja with `trim_blocks=True`; a bare
+   `jinja2.Environment()` does not.** So `{%- set x = 1 %}` eats the newline
+   BEFORE it (the hyphen) and the newline AFTER it (trim_blocks) on the host,
+   while the same bytes rendered on the workstation keep the second one. A
+   template verified locally glued a mapping key onto the comment above it on
+   the Pi, from one file and one commit. Any local render test must pass
+   `trim_blocks=True, lstrip_blocks=False, keep_trailing_newline=True`, and must
+   hand Jinja nothing Ansible would not — an earlier version of the same test
+   supplied a `len` global that Ansible's Jinja does not have, and the template
+   that depended on it would have failed at deploy.
+7. **PyYAML accepts duplicate mapping keys and keeps the last; goss's Go parser
+   refuses them.** `yaml.safe_load` therefore reports a glued spec as healthy,
+   which is exactly what a glued key produces — a second `exec` in the block
+   above. Loading with a duplicate-rejecting constructor reproduces goss's own
+   message and rendered line number.
+
+Both are closed by `ops/check-goss-specs-render.py` in pre-commit, whose
+positive control was the working tree at the moment it was written.
+
+**The general lesson, and it cost two deploys to learn twice:** parsing a
+template is not rendering it, and rendering it is not loading it the way the
+consumer loads it. `check-jinja-templates.py` states in its own docstring that
+"a parse is enough for the whole class". That was true for the class it was
+written for and false for this one.
