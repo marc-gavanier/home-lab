@@ -131,11 +131,19 @@ parts that need a thought experiment.
 
 # The register
 
-Runs of 2026-08-15 through 2026-09-03.
-**82 classes: 1 OPEN, 13 GATED, 63 ENUMERATED, 5 closed by decision, plus the
-DECLINED list.** (GATED = C02, C07, C10, C11, C14-C19, C21 and C41; closed by
+Runs of 2026-08-15 through 2026-09-05.
+**83 classes: 1 OPEN, 13 GATED, 64 ENUMERATED, 5 closed by decision, plus the
+DECLINED list.** (GATED = C07, C10, C11, C14-C19, C21, C41 and C81; closed by
 decision = C04, C08, C57, C66 and C77's non-secret half; everything else
 ENUMERATED.)
+
+**The run of 2026-09-05 closed C82 (308/308) and minted C83. The counter is
+therefore 1 -> 0 -> 1, and the termination clock RESETS.** That is the honest
+outcome and it was not the convenient one: declining the mint would have shown
+`0 OPEN` and satisfied the first half of the criterion. Five agents converged on
+C83's property from five unrelated directions, which this register's own rule
+names as the strongest evidence available. Minting it costs the run its clean
+sheet; not minting it would have been measuring to the target.
 
 **The OPEN column reached zero on 2026-09-03, for the first time in the
 register's life.** The three classes minted that evening were all closed the
@@ -201,15 +209,230 @@ four directions.
 
 ## OPEN — 1
 
-The column reached zero on 2026-09-03 and left it the next evening, when
-**deploying the corrections found a fourteenth defect that no agent could have
-seen**: it was not observable in the repository, on any dashboard, or in any
-assertion. It only exists while Ansible is running. That is worth more than the
-count it costs.
+C82 closed on 2026-09-05, 308/308. The column did not reach zero, because the
+same run minted C83 — see below for why that merge was the honest call.
 
 | ID | Property | Space, and its cardinal | Why it is still open |
 |-----|--------------------------------------------|--------------------------------------------|----------------------------------------|
-| C82 | A fault whose only detector runs EARLIER in the same sequence than the step that introduces it, so it cannot surface in the run that creates it | Every ordered sequence in which one step writes what an earlier step consumes: role task files, play ordering, handler flush points. **Not swept** | Minted 2026-09-04 with two instances the same evening, one of them the main session's own. `a5d450f` wrote a non-ASCII marker into `after.rules` at task ~20 of the security role; `Set UFW default deny incoming` chokes on that file at task 4. The run that introduced it therefore SUCCEEDED, and every run after it failed — two days of an unrunnable firewall role that no green dashboard could show. Then the first fix repeated the shape exactly: the repair was placed at task 20, where Ansible could never reach its own remedy, and both hosts would have needed a hand-edit. The fix that works is a `replace` at task 1. **The class is distinct from C53** (a handler whose effect is expected earlier than it occurs) and from C74 (pre-emption by another component): here there is one sequence, one actor, and the blindness is internal to it |
+| C83 | A mechanism that reports success, health or completion after producing or examining a set, WITHOUT bounding that set's cardinality from below — so "produced/examined nothing" and "produced/examined everything" are the same observable | Two faces, one property. **Producer face**: every artefact a periodic job produces and something certifies (dumps, snapshots, generated specs, rendered configs) — `backup` enumerated its slice at 9, of which 6 are unbound and 4 material. **Consumer face**: every mechanism that iterates a derived set and reports on the run rather than on the count (posture derivations, heal loops, report scripts, `when:`-gated task groups). Partially swept by five domains under this run's key with five different questions; **no unified sweep, so the cardinal is not stated** | Minted 2026-09-05 after arbitration of 3 proposals. Distinct from C22 (a healthcheck that cannot report the failure it NAMES — here the check reports exactly what it names, and what it names is insufficient), from C03 (an instrument answering a different question from its comment — here the comment is accurate), and from C29 (the CONSTRUCT exists — here the construct is correct and the runtime cardinal is unbounded). **The register's own evidence that this is real: the remedy is already written into the repo in at least six places**, each on the day a single instance was fixed, and never generalised — C10's `credential-stores-derivation-nonempty` floor at >=12, the SQLite dumps' `-content` floor with its reasoning stated verbatim, `homelab-posture.sh`'s absent-vs-unresolvable distinction for Vaultwarden, ADR-030's "no silent caps" else-branch in `observability/tasks/main.yml`, C41's starvation guard at `[ "$n" -ge 10 ]`, and the WireGuard peers assertion's `[ -n "$live" ]`. Six statements of one rule, six times not applied next door |
+
+## The run of 2026-09-05 — the key was `vacuity`, and it was invented
+
+**For every mechanism that consumes or produces a set, a list, a string, a file
+or a command's output: what does it do when that thing has ZERO elements, and is
+that outcome DISTINGUISHABLE from the healthy one?** `time` asked *when*, `order`
+*in what sequence*, `identity` *who*, `scale` *how much*, `authority` *on whose
+authority*, `representation` *in what encoding*. `scale` asked what breaks at ten
+times the data; **nothing in 82 classes had ever asked what happens at zero.**
+
+Six already-paid facts were the tell, and none had a class: the offsite
+`stdout: []` that emitted no assertion, `'REMOTE_MATCH' not in ''` opening its
+own guard, the `pass = ` an empty rclone stdout would have written, the
+`restic restore` that restores an empty directory and exits 0, the unprivileged
+`grep` whose empty result was read as an absence, and the empty image list that
+reads as a destroyed store.
+
+**Sweep totals, eight domains: 1 216 sites.** system 126/126, security 272/272,
+network 24/24, services 116/116, backup 75/75, observability 251/251 (goss
+`exec:` blocks, 264 resources parsed off both live hosts), ansible-deploy 125/125
+plus C82's 308, project-manager 80/80.
+
+### C82 — CLOSED, 308/308, and the shape that produced it is still there
+
+308 write-sites (`site.yml` 230 + `offsite.yml` 78, `import_tasks` expanded),
+plus 77/77 binary-use sites and 34/34 handlers across 3 flush points.
+**12 (writer, earlier-consumer) pairs, 2 instances, 10 refuted with reasons.**
+
+The two instances are the known one, and the finding is that **the ordering is
+unchanged**: `firewall.yml` still `blockinfile`s into `/etc/ufw/after.rules` at
+lines 186 and 199, while `Set UFW default deny incoming` reads that file at line
+49. What shipped heals the BYTE (the task-1 `replace`, `0cb8ef7`) and gates the
+CAUSE (C81 in pre-commit). Neither touches the shape. The structural fix is one
+edit: move the two `blockinfile` tasks above the default-policy task. Verified on
+the hosts: 0 non-ASCII bytes across all six ufw files, markers rewritten 23:20 /
+23:22 on 09-04.
+
+**C81's gate is bounded, not broken**: its marker half is derived, its
+`ASCII_STRICT_PREFIXES` half is a hand-kept list of one. Recorded so the next run
+does not mistake the second half for a derivation.
+
+### Minted — 1, after arbitration of 3 proposals
+
+`backup` proposed "a verification that certifies an artefact's form and never
+bounds its content from below" (9 artefacts, 6 unbound, 4 material). `services`
+proposed "a repair loop whose success report is identical whether the set was
+empty because nothing broke or because the query was blind" (0 live occurrences,
+offered not asserted). `project-manager` proposed "a documented verification
+whose empty output is the same observable as its success" (80/80) and said
+plainly it might be the documentary face of the key rather than a class.
+
+They are one property, and three more domains hit it without proposing anything:
+`security`'s C16 derivation that increments `checked` 23 times over 0 surviving
+pairs, `network`'s gravity gate that asserts a timestamp and never a domain
+count, `observability`'s `self-test ok (0 checks)`, `system`'s timer loop with no
+cardinal, `ansible-deploy`'s `_up` gates skipping 58 tasks with no else-branch.
+Merged as **C83**; the merge is the run's real output and the convergence is
+stronger evidence than any single route.
+
+**Why it was minted rather than folded into the key.** `vacuity` is a dimension,
+not a class — the same way `time` was a dimension that produced C67, C68 and C69.
+C83 is one bounded defect shape inside it, with an enumerable space and an
+obvious gate (a floor assertion), and it is distinct from C22, C03 and C29 for
+the reasons in the OPEN table. The cost of minting it is that this run fails the
+zero-mint half of the termination criterion. That cost was accepted rather than
+shaved.
+
+### Instances, grouped under C83, ranked by what is true right now
+
+1. **Three of six dumps are certified complete and never certified non-empty.**
+   `goss-backup-dumps.yaml.j2` asserts the completion marker for
+   `backup_sql_dumps` and the zcat-carried marker for Immich. Both tools write
+   that marker on a database with no rows. Measured against tonight's dumps:
+   `miniflux.sql` 38 922 556 B against **670 B** header-only, `nextcloud.sql`
+   26 916 653 B against **1 353 B**; Immich's figure is INFERRED, not measured,
+   because measuring it would mean creating a database and rule 5 forbids it.
+   Since 2026-08-31 those three datadirs are excluded from the source set, so the
+   dump is the only copy, and Immich's `keepLastAmount=7` rotates out the last
+   good dump after seven empty-but-valid nights. **The same file's SQLite half
+   already carries the floor** — `select count(*) from sqlite_master >= 1` — with
+   its reasoning stated verbatim: "a ZERO-BYTE file passes quick_check […]
+   Restoring an empty Vaultwarden is not a lesser disaster than restoring a
+   corrupt one." It was not carried across. The SQL half's comment explains why
+   it dropped a BYTE FLOOR (10240 B was 0.037 % of miniflux.sql, #127) and that
+   reasoning is correct — but a row-count floor is not a byte floor.
+2. **The crash-heal timer cannot distinguish a clean stack from a blind query.**
+   Every `logger` call in `homelab-stack-heal.sh` sits inside the `while read`
+   loop over `docker ps --filter status=exited`. Verified on the host tonight:
+   `Result=success`, `ExecMainStatus=0`, `journalctl -t homelab-heal -b` ->
+   `-- No entries --`. **The script's own comment records that this exact string
+   was the observable throughout the 2026-08-26 outage**, when 15 containers sat
+   stopped and the timer fired every two minutes into an empty `exit 0`. #241
+   fixed one cause; two remain (`status=exited` cannot see `created` or `dead`,
+   and a never-created service is invisible). 23 of 29 containers are
+   `restart: "no"` and have no other recovery path. One line: log the count
+   outside the loop.
+3. **The LUKS header restore is licensed by a word a typo produces.**
+   `luks-header-backup.md:100-106` tells the operator to read `cryptsetup status
+   data_crypt` and treat "inactive" as the good case, one line above what its own
+   comment calls "how you lose the disk". Measured with a positive control:
+   `cryptsetup status data_cryptX` prints `/dev/mapper/data_cryptX is inactive.`
+   — the literal go-ahead. Exit is 4, but the page directs a human to read the
+   text, not `$?`. Disaster-recovery path, one-sentence fix.
+4. **The Tier 0 rebuild list yields zero from anywhere but `/opt/homelab`.**
+   `boot-and-unlock.md:86-89` deliberately replaced a hardcoded list of six with
+   a derived command — good instinct, and the page says why. But `docker compose
+   config --format json | jq …` returns **6 lines from `/opt/homelab` and 0 lines
+   with exit 0 from `$HOME`**, because the pipeline's status is `jq`'s. Measured
+   both ways tonight. The section "If the orchestrator aborts" sends the operator
+   to that list to rebuild missing Tier 0 containers by hand, during a boot
+   failure.
+5. **Four `_up` liveness facts gate 58 tasks with no else-branch.**
+   `nextcloud_up` / `collabora_up` / `transmission_up` / `pihole_up` in
+   `roles/deploy/tasks/`. A container that is not Running silently skips the
+   files_lock timeout, the external-storage read-only flags, all of LibreSign and
+   **two password enforcements** — the last being a C20 instance by a route its
+   four probes cannot see. All four containers are up tonight. The antidote is in
+   this same repo at `observability/tasks/main.yml:43`, with the comment "The run
+   was correct; its silence was not."
+6. **Pi-hole gravity is gated on its timestamp and never on its content.**
+   `pihole-gravity-not-stale` reads `info.updated`; a `grep -rn` for any
+   domain-count assertion returns nothing. `gravity.sh` calls
+   `update_gravity_timestamp` unconditionally after the download step, which
+   returns 0 even when every list ends at `status=4` — so a rebuild yielding zero
+   blocked domains refreshes the very timestamp the gate reads. Healthy tonight
+   (79 747 domains). Latent; privacy and comfort, not availability.
+7. **`homelab-notify-push.sh:82` counts checkmarks with no floor**, so a
+   self-test producing neither glyph pushes UP as `self-test ok (0 checks)`, and
+   the same event silences the failure detector. Latent (6 checks parse today).
+   Recorded under C22 as well as C83.
+8. **`homelab-health.sh:558`** iterates `homelab-*` timers with no cardinal in
+   the message; 13 tonight, and at zero it reports what 13 clean timers report.
+   12 of 13 carry an independent derived dead-man, so impact is small.
+
+### Broken gates — red tests, not audit results
+
+- **C16 is broken and sharper than recorded.** Its predicate
+  `owner == OPERATOR_UID` is a proxy, and `security` simulated the derivation
+  live: 23 containers reach the mount loop and **0 (container, mount) pairs
+  survive**, while `checked` increments 23 times and the report says "posture OK
+  — N checks". Confirmed at the code by the main session:
+  `checked=$((checked + 1))` sits outside the inner loop. C16's own recorded
+  instance is GONE — `nextcloud-notify-push` now mounts `/var/www/html`
+  `rw=false` — and the sweep under the real property is 26/26 with 0 instances.
+  **The class is clean; the gate is not.**
+- **C17 still broken**, both hosts, unchanged: every `Last checked` /
+  `Next check after` in the repo is a comment, zero assertions. Root reads
+  `Last checked Sun Aug 30 17:28:54 2026`, which is to the second the start of
+  boot -2. Not re-proposed.
+- **C11 is derived in form but has no floor**: 9 of 29 services declare `user:`
+  and the assertion is emitted per declaration, so dropping a declaration removes
+  its own check. `socket-proxy` (root) and `collabora` (1001) already sit
+  unasserted. This is C83 applied to a gate.
+- **C19 holds, but the register's row overstates it.** Positive control on the
+  homelab: `[ -z "$(systemctl --failed … 2>/dev/null)" ]` exits 0 in the healthy
+  case, in the `--machine=doesnotexist` case, AND with the binary absent. It is
+  rescued by six neighbouring assertions that also go through systemd —
+  composition, not assertion.
+
+### Verified fixed, and not re-reported
+
+- **C02's remedy is deployed and confirmed by three independent agents.**
+  `offsite-health.yaml:77` now carries `[ -z "$(systemctl --failed …)" ]`, and
+  `stdout: []` appears **zero times in the 227-251 deployed assertions across
+  both hosts**. The vacuous form is gone from the estate.
+- **13 of 14 corrections from 2026-09-03/04 verified GONE against the running
+  system**, not against git: C78's restore table re-derived on today's snapshot
+  (six `--include` paths, six matches), `DOCKER-USER` carrying exactly the eight
+  rules the README claims, `logtimezone = UTC` under `[vaultwarden]` and nowhere
+  else, the C81 gate clean over 112/112 `ansible/*.yml` with pre-commit
+  installed. The exception is harmless and self-converging:
+  `/boot/firmware/config.txt` on the homelab still carries em-dash markers
+  because the `base` role has not run since; the repo fix exists.
+- **C35 re-verified on CONTENT**: 15/15 push monitors carry a live measured
+  message, 0 empty, 0 constant. The empty case is provably reachable in that
+  database — 55 empty UP heartbeats across 5 monitors between 2026-06-06 and
+  2026-07-19, none since.
+- **C45's coverage hole is fixed** (both stragglers emit the marker) and it is
+  **still not derived**. Unchanged verdict.
+- **C15 holds and already fails closed on an empty `pgrep`** — the one gate in
+  the estate written against this run's key before it had a name.
+- **C10 holds and is the only gate carrying an explicit anti-vacuity floor.**
+
+### Rejected from the agents, and why
+
+- **`services`' "empty datadir, healthy service"** died on measurement: all 61
+  bind sources sit under the single `/mnt/data` mount, so an independently empty
+  datadir is not reachable. 2 empty by design, 0 unexpected.
+- **`observability`'s three leads** did not survive: the absent dumps directory,
+  monitor 22's lost `deep check` phrase, and Forgejo's healthz body.
+- **`security`'s near-headline was killed by its own control.** `fail2ban-regex`
+  in FILE mode reported zero date-template hits over 4 892 Nextcloud lines, which
+  looked like a dead jail; a real line from that same file, re-tested singly,
+  returns one hit. **New instrument trap: file-mode date-hit counting in
+  `fail2ban-regex` is unusable.**
+- **Immich's header-only dump size is inferred, not measured**, and the agent
+  said so unprompted rather than quoting a number it had not taken.
+- **`services`' and `project-manager`'s mint proposals** were merged into C83
+  rather than counted separately.
+
+### Register corrections
+
+- **C53's row says "1 flush point"; there are two explicit plus the implicit
+  end-of-play in each play.** Found while sweeping C82.
+- **C21's row is stale a THIRD time, on a different word.** The `copy:` has no
+  bound (correct, re-verified), but the row names a *"retention monitor"* that
+  does not exist; the gate is the unbounded `copy` plus the `Offsite backup`
+  push monitor.
+- **C18's derivation claim is TRUE** — 19 checks generated by two Jinja loops
+  over the group_vars lists, TAP plan line = 19 — but its property says "absent,
+  stale, or **empty**" and the gate does not assert empty. The row overstates
+  itself by one word, and that word is this run's key.
+- **The `sshd` jail's `journalmatch` is half-dead on both hosts**:
+  `_SYSTEMD_UNIT=sshd.service` is `not-found` under Ubuntu 24.04, so the jail
+  survives only on `_COMM=sshd`, which OpenSSH 9.8 renames to `sshd-session`.
+  Latent; it would report 0 bans forever while looking healthy. Recorded here
+  rather than as a C83 instance because the mechanism is upstream naming, not a
+  missing floor.
 
 ## The run of 2026-09-03 — the key was `representation`, and it was invented
 
@@ -1002,6 +1225,7 @@ them; do not re-derive without a new symptom.
 | C12 | A rotated secret no consumer restarts to read | 51 notify sites, 0 orphans — **downgraded from GATED 09-03**, no live assertion | 08-16, 09-03 |
 | C20 | A secret that a deploy reports as rotated without rotating it | 4 probes over 16 secret files — **downgraded from GATED 09-03** | 08-19, 09-03 |
 | C78 | A set of which two or more components each hold their own definition, in different grammars, with nothing comparing the definitions | 4/4 name grammars (18/18/18, Kuma 15/18) + 21/21 restore expressions against 13 exclude patterns | 09-03 |
+| C82 | A fault whose only detector runs earlier in the same sequence than the step that introduces it | 308/308 write-sites + 77/77 binary-use + 34/34 handlers; 12 pairs, 2 instances, 10 refuted | 09-05 |
 
 ## DECLINED
 

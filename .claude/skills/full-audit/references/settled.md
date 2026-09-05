@@ -2069,3 +2069,64 @@ rclone.conf — well-formed INI, silently wrong, and the vault mount would have
 stopped working with nothing to explain it. **A fix that replaces a loud failure
 mode with a quiet one is not an improvement**, and the guard went in before the
 merge.
+
+## The run of 2026-09-05 — the key was `vacuity`, and the remedy was already written six times
+
+The key: **for every mechanism that consumes or produces a set, a list, a
+string, a file or a command's output, what does it do at ZERO elements, and is
+that outcome distinguishable from the healthy one?** `scale` had asked what
+breaks at ten times the data; nothing had ever asked what happens at none.
+
+### The finding that generalises, and it is about this repo's habits
+
+Eight domains swept 1 216 sites and the instances matter less than their shape:
+**the remedy for this entire class is already written into the repository in at
+least six places, each on the day one instance was fixed, and it has never been
+turned into a rule.** C10's derivation floor, the SQLite dumps' row-count floor,
+`homelab-posture.sh`'s absent-vs-unresolvable distinction, ADR-030's "no silent
+caps" else-branch, C41's starvation guard, the WireGuard peers' `[ -n "$live" ]`.
+
+Twice the remedy and the gap sit in the SAME FILE: the dump spec asserts
+`count(*) from sqlite_master >= 1` for SQLite and asserts only a completion
+marker for the three SQL dumps; `homelab-posture.sh` distinguishes an absent
+config from an unresolvable mount for Vaultwarden thirty lines below a loop whose
+`checked` counter increments over a set that may be empty. This is the
+sampling-versus-enumeration pathology the register's preamble describes, applied
+to a property instead of to findings.
+
+**The rule worth carrying into new code**: when a mechanism reports on a set, the
+report carries the set's cardinal. `checked 0` and `checked 29, healed 0` must
+not be the same sentence.
+
+### New instrument traps — two
+
+- **`fail2ban-regex` in FILE mode cannot be used to count date-template hits.**
+  It reported zero hits over 4 892 Nextcloud lines, which reads exactly like a
+  dead jail and nearly became a headline; a real line from that same file,
+  re-tested singly, returns one hit. The negative result did not survive its own
+  positive control.
+- **A pipeline's exit status is its last command's, and `| jq` launders a failed
+  producer into a clean empty answer.** `docker compose config --format json |
+  jq …` returns 6 lines from `/opt/homelab` and 0 lines with exit 0 from
+  anywhere else. This is the same trap the dump spec's own comment records for
+  `zcat | tail`, met again in a runbook rather than in a spec.
+
+### Read the text, not the exit code — where a human is the parser
+
+`cryptsetup status <typo'd-mapper>` prints `is inactive.`, which is the exact
+word `luks-header-backup.md` licenses a `luksHeaderRestore` on. The exit code
+(4) carries the truth and the page never mentions it. **Wherever a runbook tells
+an operator to read output and decide, the empty or not-found case must be
+spelled out on the page** — the operator is the parser, and the parser needs the
+same floor a script would.
+
+### Confirmed settled, so a later run does not re-derive them
+
+- The vacuous `stdout: []` form is **gone from both hosts**, verified
+  independently by three agents across 227-251 deployed assertions.
+- 13 of the 14 corrections of 2026-09-03/04 are verified gone **against the
+  running systems**, not against git. The fourteenth
+  (`/boot/firmware/config.txt` em-dash markers on the homelab) is harmless by the
+  role's own measured argument and converges on the next `base` run.
+- `nextcloud-notify-push` now mounts `/var/www/html` read-only; C16's recorded
+  live instance is gone even though C16's gate is still broken.
