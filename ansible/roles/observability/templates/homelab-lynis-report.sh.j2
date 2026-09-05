@@ -42,6 +42,19 @@ notify() {
             echo "kuma-push-failed: this report reached nobody — $2" >&2
 }
 
+# Read the version BEFORE the audit, and never after it. ANY lynis invocation
+# truncates $REPORT and starts writing a fresh one — including a non-audit one
+# like `show version`. This used to sit further down, between the parse and the
+# `cp` that preserves the report, so every green run saved a 24-line stub with
+# no `hardening_index` and no `warning[]=` line as $LAST_REPORT. The effect was
+# invisible because the parse had already happened and the Kuma message was
+# correct; only the archived evidence was destroyed. The cost lands on the next
+# REGRESSION, which is the one moment the archive is read: with an empty
+# baseline the "new since last run" clause names EVERY warning as new, which is
+# exactly the failure the comment below says it exists to prevent. Measured
+# 2026-09-05 — last-green-report.dat was 695 bytes, 0 warnings, no index.
+lynis_ver=$(lynis show version 2>/dev/null | tr -cd '0-9.'); lynis_ver=${lynis_ver:-unknown}
+
 # The report's own timestamp, taken BEFORE the run. Everything below used to
 # rest on `[ ! -r "$REPORT" ]`, which could never fire: the distribution ships
 # its own lynis.timer, it is enabled, and it runs DAILY — so this file is
@@ -50,6 +63,11 @@ notify() {
 # the previous run's numbers, in green. The absence of a FRESH artefact is the
 # signal, not the absence of an artefact — the same reasoning the backup script
 # applies to the Immich dump.
+#
+# And it is taken AFTER the version call above, not before it. `show
+# version` truncates $REPORT like any other invocation, so it bumps the mtime:
+# stamping first would make `after != before` true even on a run whose audit
+# failed outright, which is precisely the vacuity this stamp exists to catch.
 before=$(stat -c %Y "$REPORT" 2>/dev/null || echo 0)
 
 lynis audit system --quick --no-colors >/dev/null 2>&1 || true
@@ -97,8 +115,8 @@ mkdir -p "$STATE_DIR"
 # So the baseline is tied to the version that produced it. A new lynis version
 # resets it and SAYS SO rather than alarming; a regression under the same
 # version is a real regression. To accept a drop deliberately under the same
-# version, remove $BEST_FILE.
-lynis_ver=$(lynis show version 2>/dev/null | tr -cd '0-9.'); lynis_ver=${lynis_ver:-unknown}
+# version, remove $BEST_FILE. ($lynis_ver is captured before the audit, above —
+# reading it here would truncate the report this script is about to archive.)
 best=$(cat "$BEST_FILE" 2>/dev/null); best=${best//[^0-9]/}; best=${best:-0}
 best_ver=$(cat "$BEST_VER_FILE" 2>/dev/null); best_ver=${best_ver:-unknown}
 
