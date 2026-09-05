@@ -7,9 +7,27 @@ api:
   dashboard: true
   insecure: false
 
+# `aliasHeadersStrategy: delete` on every entry point that fronts a backend
+# deriving variable names from header names. Traefik 3.7 warns about this on
+# startup, on all three entry points, and the warning is not decorative: a
+# header named `X_Auth_User` (or `X.Auth.User`) reaches CGI/WSGI/PHP as
+# HTTP_X_AUTH_USER — the same variable as `X-Auth-User`, which Traefik believes
+# it controls. So a client can supply the alias form of a header the proxy
+# manages, and the backend cannot tell the two apart.
+#
+# It applies here because this lab really does run those backends: Nextcloud and
+# the Pi-hole admin are PHP, SearXNG and Calibre-Web are WSGI, it-tools sits
+# behind nginx. `delete` rather than `reject` deliberately — dropping the alias
+# is invisible to every legitimate client, while rejecting turns any client that
+# happens to send an underscore header into a 400.
+#
+# Scope, stated so nobody reads this as an emergency: ports 80 and 443 are not
+# forwarded from the internet, so reaching these entry points already requires
+# the LAN or the VPN.
 entryPoints:
   web:
     address: ":80"
+    aliasHeadersStrategy: delete
     http:
       redirections:
         entryPoint:
@@ -17,6 +35,7 @@ entryPoints:
           scheme: https
   websecure:
     address: ":443"
+    aliasHeadersStrategy: delete
     http:
       middlewares:
         # Applied to EVERY HTTPS router (routers can still add their own):
@@ -27,6 +46,7 @@ entryPoints:
         certResolver: letsencrypt
   ping:
     address: ":8082"      # internal only (not published) — for the container healthcheck
+    aliasHeadersStrategy: delete
 
 # Health endpoint used by the container healthcheck (`traefik healthcheck`).
 # Bound to the internal ping entryPoint above — no TLS, no vpn-only middleware.
