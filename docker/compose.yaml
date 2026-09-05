@@ -259,7 +259,7 @@ services:
 
   # --- Traefik (Reverse Proxy) ---
   traefik:
-    image: traefik:v3.7.12
+    image: traefik:v3.7.13
     container_name: traefik
     restart: unless-stopped   # Tier 0: auto-start at boot (see stack-startup role)
     security_opt: *no-new-privs
@@ -570,7 +570,7 @@ services:
   # image exits at once with "dns-proxy feature is no longer supported", so the
   # container this stack depended on stopped existing rather than breaking.
   dnsproxy:
-    image: adguard/dnsproxy:v0.84.1
+    image: adguard/dnsproxy:v0.84.2
     container_name: dnsproxy
     restart: unless-stopped   # Tier 0: Pi-hole's only upstream — must stay up
     security_opt: *no-new-privs
@@ -1837,7 +1837,7 @@ services:
   # without SSH, logs were not. Reads the daemon through the same read-only
   # socket-proxy as Traefik and Netdata — never the raw docker.sock.
   dozzle:
-    image: amir20/dozzle:v10.8.0
+    image: amir20/dozzle:v10.9.2
     container_name: dozzle
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
