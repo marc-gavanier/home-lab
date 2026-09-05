@@ -18,14 +18,29 @@
     name: python3-argon2
     state: present
 
+# The token arrives on STDIN, not through `environment:`, since 2026-09-06 —
+# same defect and same reasoning as the Pi-hole task in pihole.yml, and it was
+# found the same way: by searching the logs for the VALUE rather than for a
+# variable name. `T` is not greppable as a secret, which is precisely why it
+# survived nine audits.
+#
+# `stdin:` is a module PARAMETER: it travels in the AnsiballZ payload that
+# Ansible writes to a temp file, never on the command line sudo journals. The
+# salt stays in `environment:` on purpose — a salt is not a secret, and the
+# gate in ops/check-secret-in-environment.py derives its secret set from the
+# variables this role asserts, so it does not flag it.
+#
+# This task runs BEFORE secrets.yml, so unlike Pi-hole it cannot read the value
+# from a file: none exists yet at this point in the play.
 - name: hashes | Generate Vaultwarden Argon2 hash (deterministic)
   ansible.builtin.command:
     cmd: >-
       python3 -c "import os,sys; from argon2.low_level import hash_secret, Type;
-      print(hash_secret(os.environ['T'].encode(), bytes.fromhex(os.environ['S']),
+      print(hash_secret(sys.stdin.buffer.read(), bytes.fromhex(os.environ['S']),
       time_cost=3, memory_cost=65540, parallelism=4, hash_len=32, type=Type.ID).decode())"
+    stdin: "{{ vaultwarden_admin_token }}"
+    stdin_add_newline: false
   environment:
-    T: "{{ vaultwarden_admin_token }}"
     S: "{{ vaultwarden_admin_salt }}"
   register: vw_hash
   no_log: true
