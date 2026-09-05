@@ -38,6 +38,7 @@
 # write Go template delimiters anywhere in this file, prose included.
 # =============================================================================
 
+{% set compose = lookup('file', playbook_dir + '/../../docker/compose.yaml') | from_yaml %}
 file:
   /mnt/data/secrets:
     exists: true
@@ -125,6 +126,43 @@ command:
   # The floor is a measurement (12 on 2026-08-24), not a target. It fails if a
   # store stops being derivable — a container removed, a mount moved, a jq
   # expression that quietly stops matching.
+  # --- The floor is DERIVED from compose.yaml, not carried in a variable ------
+  # It was `credential_store_min_count`, a number kept by hand in group_vars,
+  # and on 2026-09-05 it read 11 against a live population of 12: one credential
+  # store could have disappeared and this check would still have passed. That is
+  # the failure mode of every hand-kept cardinal, and this file already knows it
+  # — it is why C13 and C20 were taken out of the register's gated list.
+  #
+  # The same set the runtime derivation below builds, built here instead: bind
+  # sources under the services data directory, kept only when exactly ONE
+  # service declares them (a shared source is not a credential store — today
+  # that is `nextcloud/data`), minus the declared exemptions. Verified against
+  # the machine on 2026-09-05: the twelve names this produces are the twelve the
+  # host reports, in the same order.
+  #
+  # A last segment carrying a dot is read as a file and dropped, because the
+  # runtime side keeps directories only. The heuristic errs LOW by construction
+  # — a mis-dropped entry weakens the floor by one rather than raising a false
+  # alarm — and the direction of that error is the reason it is acceptable.
+{%- set _cred_all = [] %}
+{%- for _n, _s in compose.services.items() %}
+{%-   for _v in _s.volumes | default([]) %}
+{%-     if (_v | string).startswith('${SERVICES_DATA_DIR}/') %}
+{#- `replace` rather than a slice: Ansible's Jinja has no `len`, so an
+    offset computed from the prefix would render here and fail on the host. -#}
+{%-       set _ = _cred_all.append((_v | string).split(':')[0] | replace('${SERVICES_DATA_DIR}/', '')) %}
+{%-     endif %}
+{%-   endfor %}
+{%- endfor %}
+{%- set _cred_stores = [] %}
+{%- for _src in _cred_all | unique %}
+{%-   if (_cred_all | select('equalto', _src) | list | length) == 1
+        and _src not in credential_store_exemptions
+        and '.' not in _src.split('/')[-1] %}
+{%-     set _ = _cred_stores.append(_src) %}
+{%-   endif %}
+{%- endfor %}
+{%- set _cred_min = _cred_stores | length %}
   credential-stores-derivation-nonempty:
     exec: |
       base={{ services_data_dir }}
@@ -138,7 +176,7 @@ command:
         case " $exempt " in *" $rel "*) continue ;; esac
         n=$((n + 1))
       done
-      [ "$n" -ge {{ credential_store_min_count }} ] || { echo "derivation returned $n stores"; exit 1; }
+      [ "$n" -ge {{ _cred_min }} ] || { echo "derivation returned $n stores, compose.yaml declares {{ _cred_min }}"; exit 1; }
     exit-status: 0
 
   # The dump directory is EPHEMERAL: the backup creates it, the snapshot takes
@@ -198,7 +236,6 @@ command:
     exit-status: 0
     stdout: ["/^700$/"]
 
-{% set compose = lookup('file', playbook_dir + '/../../docker/compose.yaml') | from_yaml %}
 {%- set expected_containers = [] %}
 {%- for _n, _s in compose.services.items() %}
 {%-   set _ = expected_containers.append(_s.container_name | default(_n)) %}

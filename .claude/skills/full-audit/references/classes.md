@@ -459,6 +459,68 @@ assertion the repo has already written six times by hand.
   repair regexp was tested against the real deployed bytes and matches both
   lines without duplicating the block.
 
+### The gate, built the same day — and what it does NOT cover
+
+`ops/check-empty-set-floors.py`, in pre-commit, refuses an iteration over a
+run-time-derived set that carries no floor: `for x in $(...)`, `for x in $VAR`,
+`while read` fed by a pipe, a process substitution or a here-document. It is
+**derived, not listed** — it walks every goss spec template and every shell
+artefact rather than naming the instances found on 2026-09-05, so a new one
+written tomorrow is inside it without an edit.
+
+Where a floor legitimately lives elsewhere, the loop declares it:
+
+    # floor: credential-stores-derivation-nonempty
+
+and in a goss spec **the named assertion must exist in the same file**, which
+the script checks. Deleting a floor therefore breaks the commit that deletes it
+— the property a comment alone would not have. That annotation is the answer to
+the objection this register raises against every lint: an opt-out that only has
+to be typed is a blind spot with a name.
+
+**Made to fail on purpose, which is what this register requires before the word
+GATED is used.** Six controls ship inside the script and run as their own
+pre-commit hook; three must FLAG, and two of those three are real defects taken
+off the machine — the published-port derivation exactly as it stood that
+morning, and the crash-heal loop exactly as it stood through the 2026-08-26
+outage. The sixth control is the script's own first false positive: prose
+containing "... is read once a night", which matched `while ... read` before it
+learned to strip comments.
+
+**Now the part that must not be glossed.** The gate covers TWO of C83's three
+faces — goss specs and shell artefacts. **The Ansible face is not covered at
+all**: a `when:` gating a task group on a derived fact with no else-branch is
+invisible to it, and that face carried five of this run's instances. C26 sat in
+the GATED table for a week on the strength of one axis out of four and cost this
+register a broken gate; C83 is therefore recorded as PARTIALLY GATED, in those
+words, and the missing axis is named rather than left to be discovered.
+
+### The floor that had been one below the truth since 2026-08-25
+
+Applying the second half of the same decision — derive the floors where the
+spec is already generated — retired `credential_store_min_count`, a cardinal
+kept by hand in group_vars. Its own comment carried the evidence: "measured at
+12 on 2026-08-24, then 11 on 2026-08-25 when pihole/etc moved to the
+exemptions". The population before that exemption was **13**, not 12. The number
+was decremented from a base that was already stale, so the floor has sat one
+below the live population for eleven days: a credential store could have stopped
+being derivable and `credential-stores-derivation-nonempty` would still have
+passed. The assertion that exists to make a vacuous pass impossible was itself
+one store away from one.
+
+`goss-posture.yaml.j2` now derives it from `compose.yaml` over the same set the
+runtime side builds — bind sources under the services data directory, kept when
+exactly one service declares them, minus the declared exemptions. Verified
+against the host: it produces **the twelve names the machine reports, name for
+name**, and renders `-ge 12`. The exemptions stay in group_vars, because a
+reason cannot be derived.
+
+One instrument note, caught before it shipped rather than after: the first
+version computed a prefix offset with `len()`, which python's Jinja has and
+**Ansible's does not**. It rendered perfectly in the local test because the test
+had handed Jinja a `len` it would not have on the host. The test now renders
+with no globals beyond what Ansible provides, and the template uses `replace`.
+
 ### Rejected from the agents, and why
 
 - **`system`'s "four of five SMART counters"** was optimistic by one. The main
@@ -1515,7 +1577,7 @@ them; do not re-derive without a new symptom.
 | C20 | A secret that a deploy reports as rotated without rotating it | 4 probes over 16 secret files — **downgraded from GATED 09-03** | 08-19, 09-03 |
 | C78 | A set of which two or more components each hold their own definition, in different grammars, with nothing comparing the definitions | 4/4 name grammars (18/18/18, Kuma 15/18) + 21/21 restore expressions against 13 exclude patterns | 09-03 |
 | C82 | A fault whose only detector runs earlier in the same sequence than the step that introduces it | 308/308 write-sites + 77/77 binary-use + 34/34 handlers; 12 pairs, 2 instances, 10 refuted | 09-05 |
-| C83 | A mechanism that reports success, health or completion after producing or examining a set, without bounding that set's cardinality from below | **976/976 across 8 slices**, each slice's N derived and stated; 92 instances of which 32 are two families of 16 and 12 are no-action upstream, 884 refuted. ENUMERATED, **not gated** — nothing derives the set of unbounded reporters | 09-05 |
+| C83 | A mechanism that reports success, health or completion after producing or examining a set, without bounding that set's cardinality from below | **976/976 across 8 slices**, each slice's N derived and stated; 92 instances of which 32 are two families of 16 and 12 are no-action upstream, 884 refuted. **PARTIALLY GATED 09-05** — `ops/check-empty-set-floors.py` in pre-commit derives the space rather than listing it, and its six controls run beside it, three of which must FLAG. **The Ansible face is NOT gated** — see the note below before writing GATED anywhere | 09-05 |
 
 ## DECLINED
 
