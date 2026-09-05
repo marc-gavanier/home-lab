@@ -2394,3 +2394,32 @@ command. Then parse-test the candidate file in a throwaway container
 reaching provider startup — even with provider errors from the missing network
 and volumes — proves the static configuration loaded, which is exactly the stage
 that fails.
+
+### The C26 leak: closed the same evening, and one artefact worth not re-discovering
+
+Fixed at the source (`RESTIC_PASSWORD_FILE`, verified by a deploy that wrote zero
+lines against 374 `BECOME-SUCCESS` lines in the same window), then purged from
+both stores on 2026-09-05.
+
+- `auth.log` and its four rotations were **redacted in place, not deleted** — the
+  lines stay, the value becomes a token. An authentication log with holes in it
+  is worth less than one with the secret struck out.
+- The rewrite was done with **rsyslog stopped**. Reading a live log and writing
+  the result back loses whatever arrived in between (measured: 17 lines), and
+  `sed -i` on a file rsyslog holds open changes the inode and stops logging
+  SILENTLY. Nothing is lost by the stop itself, because journald holds the same
+  events.
+- Every affected **journal** file was a `user-1000` journal; not one system file
+  carried the value. So the fix was to delete 27 archived user journals — whose
+  content is the `sudo` session trail that `auth.log` now keeps in redacted form
+  — and the system journal's history survived intact.
+- **The offsite host never had it**, and the reason is structural rather than
+  lucky: it does not run `restic init` under `become`.
+
+**The artefact, and it fooled the first pass twice:** `sudo` journals the
+`COMMAND=` of the command being run, so **a grep for a secret's NAME adds a
+matching line to the very log it searches**. A count taken twice grows between
+the two readings, and every residual match after a purge is likely to be the
+purge's own verification. Always inspect the residue before believing it, and
+require a value (`BECOME-SUCCESS` is the discriminator for this leak) rather
+than a name.
