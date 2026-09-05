@@ -2266,3 +2266,103 @@ template is not rendering it, and rendering it is not loading it the way the
 consumer loads it. `check-jinja-templates.py` states in its own docstring that
 "a parse is enough for the whole class". That was true for the class it was
 written for and false for this one.
+
+---
+
+## The run of 2026-09-05 (evening) — the key was `interruption`, and it reset the clock twice in one day
+
+The second invented key of the same day, and the first one this skill has run
+whose stated result was *"come back empty"*. It did not: it kept two mints and
+reopened two classes. Counts and class states live in `classes.md`; what follows
+is what a later run must not re-derive, and what it must not be caught by.
+
+### Settled, so a later run does not re-derive them
+
+- **Ansible does not leave half-written files.** `atomic_move` covers all but
+  three of the module write sites in the installed ansible-core, `unsafe_writes`
+  appears nowhere in the repo, and the corresponding residue is absent from both
+  hosts. The dangerous shape — new file, old service, after an aborted play —
+  was measured pair by pair against `StartedAt` / `ActiveEnterTimestamp` on both
+  machines and every pair was consistent. Do not re-open this without a new
+  symptom.
+- **An interrupted `pihole -g` cannot poison the gravity guard.** `gravity.sh`
+  writes `info.updated` into the TEMPORARY database and the swap is a `mv`, so a
+  build that stops halfway neither refreshes the timestamp the guard reads nor
+  leaves a half-built list in service.
+- **A truncated dump can neither survive nor be certified.** The dumps write in
+  place, but the C18 floor is a completion marker rather than a size, and it runs
+  after every dump and before the snapshot.
+- **An interrupted offsite copy has been caught and retried, twice, in the
+  historical record.** The retry is not theoretical.
+- **`dpkg` is not in a half-configured state on either host**, `copytruncate`
+  loses nothing measurable on the Traefik access log, and no `TimeoutStopSec`
+  has ever been reached on a `.service`.
+- **No reporting chain pushes "up" for its own first half.** They all push once,
+  on their last line.
+- **The staged startup writes no progress marker**, so there is no resume that
+  can skip a step.
+- **The restic `locks/` directory is not reliably empty.** Stale locks appear
+  when a tool timeout kills a restic command; restic expires them at 30 minutes
+  and they mean nothing. Do not report one as a finding. And `--lock-wait` in
+  the weekly units is *resticprofile*'s lock, not the repository's — the two
+  were conflated once already.
+
+### New instrument traps — three, and the first one nearly cost a correct finding
+
+1. **Check the boot id before reasoning about any timestamp on this host.**
+   `fake-hwclock` makes consecutive boots OVERLAP in wall-clock time: boot -1
+   here begins twenty-eight minutes *before* boot -2 ends, because its early
+   clock is restored from the saved file and corrected later. A merged
+   `journalctl` therefore prints a line from the new boot in the middle of the
+   old boot's shutdown, and the natural reading — "this condition check
+   preceded those refusals, so the mechanism was disarmed" — is exactly wrong.
+   The main session reached that wrong conclusion and only a per-boot
+   `journalctl -b <id>` overturned it. Related to but distinct from C42: that
+   class is about ranking BY a bad timestamp, this is about reading a merged
+   journal AS IF timestamps ordered it.
+2. **`ON_ERROR_STOP=on` plus `--single-transaction` does not make a `psql` load
+   atomic against a TRUNCATED input, but it does not fail to either — it depends
+   on where the cut falls.** A cut inside a `COPY` block's data that happens to
+   end at a record boundary is read as a clean end of input: psql commits the
+   partial table and exits 0 with an empty stderr. A cut that leaves a partial
+   record errors and rolls back. Measured over thirty truncation points on the
+   runbook's exact pipeline: twelve committed silently, eighteen were caught.
+   **So never report this shape as "always silent" or as "guarded" — report the
+   proportion, and say the guard answers "did a SQL statement fail", not "did
+   the input end early".**
+3. **A pipeline that ends in `psql` reports `psql`'s status, so the `gunzip`
+   that failed upstream is visible only as a line on stderr.** Same family as
+   the `jq` trap recorded that morning. The antidote for a restore is not
+   `pipefail` in a runbook nobody will paste correctly — it is a `gzip -t`
+   before the step that destroys the live data.
+
+### One method note, and it is the reason two proposals became reopenings
+
+Four mints were proposed and two were kept. The two that were refused were
+refused by the same sentence, applied symmetrically: *define the class by its
+property, not by the directory you happen to be reading.* A USB tamper response
+refused by systemd is C74's property in a slice C74's sweep never covered; a
+script that destroys its own artefact after parsing it is C82's property in a
+slice C82's sweep never covered. **An agent had already applied that argument
+against its own second proposal before the main session saw it, which is what
+made the symmetry obvious.** Reopening a class with a restated space is a
+better outcome than minting a near-duplicate: it says the cardinal was wrong,
+not that a new dimension exists.
+
+### The keys are now nine, and `interruption` is spent
+
+`time`, `order`, `identity`, `scale`, `authority`, `representation`, `vacuity`,
+`exclusivity`, `interruption`. A run that reuses one proves nothing. The two
+that paid best were both found the same way: look for an instrument trap in this
+file that no class has adopted, or a pair of narrow classes in `classes.md` that
+are obviously two faces of a dimension nobody named.
+
+### One more instrument trap, from the same evening, and it is free
+
+**A journal grep meant to return zero can be controlled by the audit line of its
+own invocation.** `sudo` journals the `COMMAND=` of the command being run, so a
+`journalctl --grep=<pattern>` run under `sudo` will always match at least its
+own `sudo` line — which proves the grep reaches the journal and the pattern
+compiles. That satisfies instrument trap #4 above at no cost. Note the price:
+an untagged `--grep` over the whole retained journal takes about half an hour on
+this host and must be run in the background.
