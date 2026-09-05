@@ -39,6 +39,33 @@
 # =============================================================================
 
 {% set compose = lookup('file', playbook_dir + '/../../docker/compose.yaml') | from_yaml %}
+{#- The credential-store floor, derived here rather than kept by hand in
+    group_vars. It lives at the top of the file, away from every mapping key,
+    and that placement is not cosmetic: Ansible renders with `trim_blocks`, so a
+    `{%- set %}` eats the newline before it AND the newline after it. Placed
+    next to the assertion that uses it, this block swallowed the line break in
+    front of `credential-stores-derivation-nonempty:` and goss refused the whole
+    spec with "mapping key exec already defined". Set tags belong where there is
+    no key for them to absorb. -#}
+{%- set _cred_all = [] %}
+{%- for _n, _s in compose.services.items() %}
+{%-   for _v in _s.volumes | default([]) %}
+{%-     if (_v | string).startswith('${SERVICES_DATA_DIR}/') %}
+{#- `replace` rather than a slice: Ansible's Jinja has no `len`, so an
+    offset computed from the prefix would render here and fail on the host. -#}
+{%-       set _ = _cred_all.append((_v | string).split(':')[0] | replace('${SERVICES_DATA_DIR}/', '')) %}
+{%-     endif %}
+{%-   endfor %}
+{%- endfor %}
+{%- set _cred_stores = [] %}
+{%- for _src in _cred_all | unique %}
+{%-   if (_cred_all | select('equalto', _src) | list | length) == 1
+        and _src not in credential_store_exemptions
+        and '.' not in _src.split('/')[-1] %}
+{%-     set _ = _cred_stores.append(_src) %}
+{%-   endif %}
+{%- endfor %}
+{%- set _cred_min = _cred_stores | length %}
 file:
   /mnt/data/secrets:
     exists: true
@@ -144,25 +171,6 @@ command:
   # runtime side keeps directories only. The heuristic errs LOW by construction
   # — a mis-dropped entry weakens the floor by one rather than raising a false
   # alarm — and the direction of that error is the reason it is acceptable.
-{%- set _cred_all = [] %}
-{%- for _n, _s in compose.services.items() %}
-{%-   for _v in _s.volumes | default([]) %}
-{%-     if (_v | string).startswith('${SERVICES_DATA_DIR}/') %}
-{#- `replace` rather than a slice: Ansible's Jinja has no `len`, so an
-    offset computed from the prefix would render here and fail on the host. -#}
-{%-       set _ = _cred_all.append((_v | string).split(':')[0] | replace('${SERVICES_DATA_DIR}/', '')) %}
-{%-     endif %}
-{%-   endfor %}
-{%- endfor %}
-{%- set _cred_stores = [] %}
-{%- for _src in _cred_all | unique %}
-{%-   if (_cred_all | select('equalto', _src) | list | length) == 1
-        and _src not in credential_store_exemptions
-        and '.' not in _src.split('/')[-1] %}
-{%-     set _ = _cred_stores.append(_src) %}
-{%-   endif %}
-{%- endfor %}
-{%- set _cred_min = _cred_stores | length %}
   credential-stores-derivation-nonempty:
     exec: |
       base={{ services_data_dir }}

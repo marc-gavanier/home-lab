@@ -87,6 +87,22 @@ repos:
         files: (goss-.*\.ya?ml\.j2|\.sh(\.j2)?)$
         pass_filenames: false
 
+      # Parsing a template is not rendering it, and the deploys of 2026-09-05
+      # proved the difference twice in one afternoon: both shipped a spec that
+      # parsed perfectly and that goss then refused, because whitespace control
+      # around a tag swallowed the newline in front of a mapping key. Two
+      # instrument traps let them through, and this hook exists for both —
+      # Ansible renders with `trim_blocks` where a bare Environment() does not,
+      # so the same bytes render clean on the workstation and glued on the Pi;
+      # and PyYAML accepts duplicate keys where goss's Go parser refuses them,
+      # so the local check could not tell a broken spec from a good one.
+      - id: goss-specs-render
+        name: goss specs render and load the way the host loads them
+        entry: ops/check-goss-specs-render.py
+        language: system
+        files: (goss-.*\.ya?ml\.j2|^docker/compose\.yaml|^ansible/inventory/)
+        pass_filenames: false
+
       - id: empty-set-floors-selftest
         name: the floor gate still fails when it should
         entry: ops/check-empty-set-floors.py --selftest
