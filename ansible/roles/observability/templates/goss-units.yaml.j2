@@ -52,6 +52,19 @@ service:
 
 command:
 
+  # The property `ssh.socket: running` cannot carry (#332): a socket that accepts
+  # is not a daemon that can start. Socket activation defers every configuration
+  # error to the first inbound connection, so a broken sshd_config sits invisible
+  # until the moment somebody needs to get in — on the offsite host, potentially
+  # for a week.
+  #
+  # `sshd -t` is the exact gate `ssh.service` already runs as its ExecStartPre, so
+  # this asserts what the activation itself would hit, without needing a
+  # connection to trigger it. Measured on both hosts 2026-09-06: rc=0.
+  sshd-config-is-loadable:
+    exec: /usr/sbin/sshd -t
+    exit-status: 0
+
   # ufw is NOT in the list above, and the reason is a trap worth recording: it is
   # a oneshot and sits in `active (exited)` on a correct machine, so a
   # `running: true` resource would be asserting the wrong thing about the one

@@ -39,6 +39,12 @@
 # `running` and not `enabled`, for the same reason as the homelab's units spec:
 # these are RemainAfterExit oneshots or socket-activated, and asserting `enabled`
 # would fail forever on a correct machine.
+#
+# That sentence is where #332 went wrong, so read the rest of it: identifying a
+# unit as socket-activated rules out `enabled` on the SERVICE, and it rules out
+# `running` on the service just as hard — the service does not exist until the
+# first connection triggers it. The socket is the unit that is both enabled and
+# running from boot, and it is the one asserted below.
 service:
   rest-server.service:
     # The reason this host exists. It answered on every probe anyway, which is
@@ -48,8 +54,19 @@ service:
     # The only route in. If this is down, every other assertion here is
     # unreachable and the silence reads as health.
     running: true
-  ssh.service:
+  ssh.socket:
+    # The socket, not the service (#332). sshd is socket-activated: `ssh.service`
+    # is started by the first inbound connection and does not exist before it, so
+    # `ssh.service: running` was false on a correct machine and could only pass
+    # once somebody had logged in — which is what this weekly, unattended check
+    # can never rely on. It went red on 2026-09-06 at 08:06, four hours after an
+    # unattended-upgrades reboot, on a host that was entirely healthy.
     running: true
+    # The one `enabled` in this file, on the argument that gave wg-quick@wg0 the
+    # same flag in the homelab's register: this socket is the SOLE activation path
+    # of the only remote access to a host nobody can walk up to. `running` reports
+    # its loss only after the reboot that has already cost the access.
+    enabled: true
   fail2ban.service:
     running: true
 
@@ -62,6 +79,19 @@ mount:
       - rw
 
 command:
+
+  # The property `ssh.socket: running` cannot carry (#332): a socket that accepts
+  # is not a daemon that can start. Socket activation defers every configuration
+  # error to the first inbound connection, so a broken sshd_config sits invisible
+  # until the moment somebody needs to get in — on the offsite host, potentially
+  # for a week.
+  #
+  # `sshd -t` is the exact gate `ssh.service` already runs as its ExecStartPre, so
+  # this asserts what the activation itself would hit, without needing a
+  # connection to trigger it. Measured on both hosts 2026-09-06: rc=0.
+  sshd-config-is-loadable:
+    exec: /usr/sbin/sshd -t
+    exit-status: 0
 
   # The catch-all the four named units cannot provide: a unit NOBODY listed.
   # `systemctl --failed` is one command and the same one the operator would run.
