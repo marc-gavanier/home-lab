@@ -190,3 +190,56 @@ command:
       [ -L /etc/systemd/system/mnt-data.mount.wants/homelab-ddns.service ] ||
         { echo "nothing pulls the DDNS boot run when /mnt/data mounts"; exit 1; }
     exit-status: 0
+
+  # --- The lock nothing removes (#331) ---------------------------------------
+  # Two locks left by an interrupted session on 2026-09-05 at 11:28 outlived the
+  # deploy, outlived a reboot, and were still there the next morning. The 03:00
+  # backup SUCCEEDED — `snapshot d79ddcc5 saved`, 350 GiB — and then failed on
+  # the lock while applying retention, which also meant the offsite `copy` that
+  # runs after it was never reached. Three monitors went red saying "backup
+  # command failed" about the one step that had worked, and the offsite
+  # repository spent a night a snapshot behind with nothing saying so.
+  #
+  # Nothing in this repo removes such a lock: `force-inactive-lock` is not set,
+  # deliberately — it authorises a run to break a lock it did not create, and it
+  # repairs without ever reporting, which is how eight and a half hours went
+  # unnoticed. Detection first, so the day a repair is added its effect is
+  # visible.
+  #
+  # HERE, and not in the posture spec, and the cadence IS the fix: posture runs
+  # once a day at 11:00, so a lock appearing after 11:00 would first be reported
+  # after the 03:00 run it breaks. This spec runs every five minutes.
+  #
+  # `pgrep` FIRST, so the test never has to reason about restic's lock refresh: a
+  # live operation owns its locks whatever their age, and the only question asked
+  # here is about locks nobody is holding. Residual, stated rather than hidden: an
+  # operation against the OFFSITE repository suppresses a judgement about this one
+  # too. It lasts minutes, once a night.
+  #
+  # 3600 s is not a preference, it is resticprofile's own threshold quoted back
+  # from the failure it produced: "possible stale lock detected (lock age
+  # 15h44m49.728s >= 1h0m0s)".
+  #
+  # The directory is the floor, and this loop is the INVERSE of the usual
+  # empty-set trap: an empty locks/ is the healthy state, so what has to be
+  # proven is that the place being scanned is real rather than that the set is
+  # non-empty. A repository whose locks/ is gone fails instead of passing.
+  #
+  # Five controls on the host before this was written, 2026-09-06: empty dir ->
+  # 0, fresh lock -> 0, two-hour lock -> 1, absent dir -> 1, fresh+stale -> 1
+  # naming the stale one. The message is for the journal, not the dashboard --
+  # goss streams stdout and never materialises it, so the NAME carries the
+  # diagnosis, as everywhere else in this file.
+  restic-repo-has-no-stale-lock:
+    exec: |
+      d={{ backup_dir }}/restic-repo/locks
+      [ -d "$d" ] || { echo "$d absent - this is no longer a restic repository"; exit 1; }
+      pgrep -x restic >/dev/null 2>&1 && exit 0
+      now=$(date +%s); stale=""
+      for f in "$d"/*; do
+        [ -f "$f" ] || continue
+        age=$(( now - $(stat -c %Y "$f") ))
+        [ "$age" -gt 3600 ] && stale="$stale ${f##*/} (${age}s)"
+      done
+      [ -z "$stale" ] || { echo "stale lock(s), no restic running:$stale"; exit 1; }
+    exit-status: 0
