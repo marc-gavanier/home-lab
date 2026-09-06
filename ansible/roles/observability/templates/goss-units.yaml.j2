@@ -43,9 +43,10 @@ service:
   {{ u.unit }}:
     running: true
 {% if u.enabled | default(false) %}
-    # Opt-in per unit, never blanket: docker and ssh are socket-activated and
-    # report `disabled` on a correct machine. See the flag's comment in
-    # group_vars for why exactly one unit carries it.
+    # Opt-in per unit, never blanket: `docker.service` and `ssh.service` are
+    # socket-activated and report `disabled` on a correct machine. The SOCKET
+    # units are enabled, which is what lets ssh.socket carry this since #332.
+    # See the flag's comment in group_vars for why only two entries do.
     enabled: true
 {% endif %}
 {% endfor %}
