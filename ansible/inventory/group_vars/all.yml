@@ -455,10 +455,11 @@ health_watched_units:
     why: looped 1112 times over 5h47 on 2026-07-27 without ever reaching failed
   - unit: wg-quick@wg0.service
     why: the only route to this host, and to the offsite one
-    # The ONLY entry carrying this flag, and it is opt-in for a measured reason:
+    # One of only TWO entries carrying this flag, and it is opt-in for a measured
+    # reason:
     # `systemctl is-enabled` on 2026-09-03 returns enabled for containerd,
     # fail2ban, claude-remote-control and this unit, but DISABLED for docker and
-    # ssh, which are socket-activated. A blanket assertion would fail forever on
+    # `ssh.service`, which are socket-activated. A blanket assertion would fail forever on
     # a correct machine, which is what the units template's comment warns about.
     #
     # Why this unit and not the others: `systemctl show` gives it
@@ -470,11 +471,24 @@ health_watched_units:
     # and `is-enabled` reads that symlink directly. The precedent is on file:
     # `enabled: false` erased it on 2026-07-13.
     enabled: true
-  - unit: ssh.service
+  - unit: ssh.socket
     why: >-
       the only way in, and nothing asserted it — the 2026-08-29 audit found it
       absent from every spec on both hosts. Not covered by the catch-all either:
-      a socket-activated sshd that fails to start leaves no failed unit
+      a socket-activated sshd that fails to start leaves no failed unit. The
+      SOCKET and not the service, since #332: sshd is socket-activated, so
+      `ssh.service` does not exist between a reboot and the first connection —
+      asserting it running was false on a correct machine, and could only ever
+      pass once somebody had logged in. `ssh.socket` holds the port from boot,
+      which is where "this host is reachable" actually lives. What the socket
+      cannot carry is asserted separately by `sshd-config-is-loadable`.
+    # The second entry to carry this flag, on the argument of wg-quick@wg0 above,
+    # word for word: this unit is the SOLE activation path of the only remote
+    # access to these hosts, `running: true` would only report its loss after the
+    # reboot that has already cost the access, and `is-enabled` reads the
+    # precondition while the machine is still reachable. Measured 2026-09-06:
+    # enabled and active on both hosts.
+    enabled: true
 
 goss_version: "0.4.10"
 goss_sha256: "90a59612b4d67d9f1a9038634c000790136bb82526a69de1e81ac075c2f6d2c6"
