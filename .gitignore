@@ -12,6 +12,13 @@ ansible/inventory/host_vars/*/local.yml
 ansible/inventory/host_vars/*/private.yml
 ansible/inventory/host_vars/*/vault.yml
 
+# Python — bytecode caches, written by the pre-commit hooks that run the
+# ops/*.py gates. Two of them were committed on 2026-09-06 and tripped a
+# GitGuardian scan: a .pyc packs the source's string constants end to end,
+# so `password` lands next to unrelated bytes and reads as a credential.
+__pycache__/
+*.pyc
+
 # OS
 .DS_Store
 Thumbs.db
