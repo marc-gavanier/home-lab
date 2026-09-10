@@ -65,9 +65,45 @@
 # homelab_container_unhealthy, which is derived from it rather than written
 # twice — see netdata_docker_update_every in group_vars for why the two cannot
 # be separated, and what it cost that they were.
+#
+# --- One failed check used to be final, and 60 is not the default (#329) ----
+# On 2026-09-05 the initial check exceeded its deadline while the host was still
+# settling after a deploy, go.d marked the job failed, and NOTHING ever retried.
+# No chart for forty minutes — and because homelab_container_down and
+# homelab_container_unhealthy are `template:` alarms on
+# docker.container_health_status, an alarm with no chart is never instantiated.
+# The whole container-health path was off while every status stayed green; only
+# the Netdata-to-Kuma adapter noticed, because it checks alarms by NAME.
+#
+# The trap worth writing down, because reading the documentation alone gets it
+# backwards: the collector's config_schema.json advertises `"default": 60` for
+# this key. That default fills the DASHBOARD FORM. It never reaches a job
+# configured from a YAML file — the docker module registers no default of its
+# own, the framework's Default struct leaves the field at Go's zero value, and
+# the retry scheduler returns immediately on `after <= 0`. So the shipped
+# behaviour of this collector is no retry at all, which is the opposite of what
+# its own schema suggests.
+#
+# Measured on 2026-09-11 rather than reasoned, on a throwaway agent — same
+# image, isolated network, nothing in production touched — running two jobs
+# identical except for this key. Both failed their first check; then the cause
+# was lifted WITHOUT touching the configuration, so a recovery could only come
+# from the retry mechanism itself:
+#
+#   with autodetection_retry: 60   retried at 60 s and again at 120 s, then
+#                                  `check success` 28 s after the cause lifted,
+#                                  unattended — followed by 30 live instances
+#                                  of docker.container_health_status, which is
+#                                  exactly what the two alarms attach to.
+#   without it                     one failure line, and never anything again.
+#
+# `timeout` is a different lever and does not replace this one. It is already 5
+# against the stock 2, and the check on 2026-09-05 still exceeded it. The
+# timeout governs the first attempt; this key governs whether there is a second.
 jobs:
   - name: local
     address: 'tcp://socket-proxy:2375'
     timeout: 5
+    autodetection_retry: 60
     update_every: {{ netdata_docker_update_every }}
     collect_container_size: no
