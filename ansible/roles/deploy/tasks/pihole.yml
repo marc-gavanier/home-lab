@@ -1,6 +1,29 @@
 ---
 # Pi-hole password (v6 ignores the env var after first start).
 
+# Everything below reads the password THROUGH the container, at
+# /run/secrets/pihole_password. That path is a bind mount of a host inode, and
+# secrets.yml writes its files with `copy`, which renames a temporary file into
+# place and therefore replaces the inode. Until the consumer is restarted, the
+# container is still attached to the previous one — so on the deploy that
+# rotates the password, the probe below would read the new value from the host,
+# get 401, and `pihole setpassword` would then write the OLD value back over
+# itself from the stale mount. That is not a hypothesis: it happened on
+# 2026-09-06 and cost #333's finding A.
+#
+# Handlers run at the END of the play and this file runs in the middle of it, so
+# the `Restart pihole` that secrets.yml queues would arrive too late — the
+# rotation would only converge on a SECOND deploy. Flushing here makes one
+# deploy enough, which is what the issue's "done when" asks for.
+#
+# The caveat main.yml already records for its own flush applies here as well: a
+# flush runs EVERY handler pending in the play, not only this file's. That is
+# acceptable at this point — the handlers pending here are container restarts
+# whose configuration has already been written, and running them earlier than
+# planned is the same work in a different minute.
+- name: pihole | Flush handlers so the container holds the CURRENT secret, not the one it started with
+  ansible.builtin.meta: flush_handlers
+
 - name: pihole | Inspect the Pi-hole container
   community.docker.docker_container_info:
     name: pihole
@@ -97,3 +120,24 @@
   when:
     - pihole_up
     - pihole_pw_check.stdout | default('') != '200'
+
+# `pihole setpassword` rewrites pihole.toml — which carries
+# `webserver.api.pwhash` — as 0644, undoing the 0640 the container's own start
+# script sets. Measured 2026-09-06: the posture check
+# `pihole-credential-files-not-world-readable` went red at 13:11, minutes after
+# the #327 deploy, and nothing in this file restored the mode.
+#
+# Exposure was nil and that was verified rather than assumed: the directory gate
+# /mnt/data/services/pihole is 0750 marc-gavanier:gpio, and the negative control
+# `sudo -u nobody head -c 1` on the file is refused. But the defence-in-depth
+# layer was genuinely off, and it recurs on EVERY rotation.
+#
+# Enforced unconditionally rather than only after the task above: the mode is
+# the property, and a run that finds it already correct reports ok, which is
+# what an idempotence check should see. Owner and group are deliberately not
+# set — the file belongs to the uid the container runs as.
+- name: pihole | Restore pihole.toml's mode after setpassword widened it
+  ansible.builtin.file:
+    path: "{{ services_data_dir }}/pihole/etc/pihole.toml"
+    mode: "0640"
+  when: pihole_up
