@@ -70,9 +70,13 @@ file:
   /mnt/data/secrets:
     exists: true
     mode: "0711"
+  # 0700 root:root since 2026-09-11, and the mode IS the control (#333 B).
+  # 0710 root:docker looked like one and was not: `--x` hides the names, the
+  # names are published in compose.yaml, and the operator is in `docker` — 13
+  # of 13 files were readable by name from an unprivileged shell on 2026-09-05.
   /mnt/data/secrets/docker:
     exists: true
-    mode: "0710"
+    mode: "0700"
 
 command:
 
@@ -185,6 +189,91 @@ command:
         n=$((n + 1))
       done
       [ "$n" -ge {{ _cred_min }} ] || { echo "derivation returned $n stores, compose.yaml declares {{ _cred_min }}"; exit 1; }
+    exit-status: 0
+
+{%- set _secret_pairs = [] %}
+{%- for _sn, _sv in compose.services.items() %}
+{%-   for _sec in _sv.secrets | default([]) %}
+{%-     set _ = _secret_pairs.append((_sv.container_name | default(_sn)) ~ ' ' ~ _sec) %}
+{%-   endfor %}
+{%- endfor %}
+  # --- A rotated secret has to reach the PROCESS, not just the disk (#333 A) --
+  # In Compose a `secrets:` entry is a bind mount of a host INODE, and Ansible
+  # writes these files with `copy`, which renames a temporary file into place and
+  # therefore makes a new inode. A running container stays attached to the old
+  # one — unlinked from the directory, still alive because the mount holds it —
+  # so a rotation lands on disk, reports `changed`, and never reaches the
+  # process. Measured 2026-09-06 on pihole_password: host inode dated 12:06,
+  # container inode dated 22 August, and the deploy task that was supposed to
+  # notice instead wrote the leaked password back over itself.
+  #
+  # Every consumer is restarted by a handler, which re-resolves the bind — that
+  # is the fix, and this is the assertion that outlives it. A handler removed, a
+  # new secret added without one, or some future mechanism nobody has thought of
+  # yet all show up here as the same divergence, which is the point: the property
+  # is asserted, not the remedy.
+  #
+  # Read entirely from the host. /proc/<pid>/root is the container's filesystem
+  # as seen from outside, so this needs no `docker exec` and works against
+  # images that carry no shell at all.
+  #
+  # A stopped container is SKIPPED, not failed: it holds no stale mount, and its
+  # absence is `homelab_container_down`'s to report. Which is why `compared` has
+  # its own floor — skipping every pair would otherwise pass silently.
+  secret-mounts-carry-the-current-value:
+    exec: |
+      read_pairs=0
+      compared=0
+      stale=""
+      while read -r cname sname; do
+        [ -n "$cname" ] || continue
+        read_pairs=$((read_pairs + 1))
+        pid=$(docker inspect "$cname" 2>/dev/null | jq -r '.[0].State.Pid // 0')
+        case "$pid" in ''|0|null) continue ;; esac
+        host=$(sha256sum "/mnt/data/secrets/docker/$sname" 2>/dev/null | cut -c1-64)
+        seen=$(sha256sum "/proc/$pid/root/run/secrets/$sname" 2>/dev/null | cut -c1-64)
+        [ -n "$host" ] && [ -n "$seen" ] || continue
+        compared=$((compared + 1))
+        [ "$host" = "$seen" ] || stale="$stale $cname:$sname"
+      done <<'PAIRS'
+{% for _pair in _secret_pairs %}
+      {{ _pair }}
+{% endfor %}
+      PAIRS
+      [ "$read_pairs" -eq {{ _secret_pairs | length }} ] || { echo "read $read_pairs secret mounts, compose.yaml declares {{ _secret_pairs | length }} — the derivation stopped matching, so this check proves nothing"; exit 1; }
+      [ "$compared" -gt 0 ] || { echo "not one of the {{ _secret_pairs | length }} secret mounts could be compared — every consumer is down, or /proc is not readable here"; exit 1; }
+      [ -z "$stale" ] || { echo "container still holds the PREVIOUS value of:$stale — the deploy that rotated it did not restart the consumer, and the old credential is still live"; exit 1; }
+    exit-status: 0
+
+  # --- dnsproxy lives in Pi-hole's namespace, and only the CURRENT one --------
+  # `network_mode: "service:pihole"` is what makes dnsproxy reachable at
+  # 127.0.0.1#5053, which is where FTLCONF_dns_upstreams points. RECREATING
+  # pihole destroys that namespace: dnsproxy keeps running, keeps reporting
+  # healthy, and is attached to a container id that no longer exists. Pi-hole
+  # then has no upstream at all.
+  #
+  # The failure is partial in the most misleading way — local records and
+  # blocklist replies still answer correctly, so any probe that does not CROSS
+  # the upstream says the resolver is fine. Six minutes of dead external
+  # resolution on 2026-09-06, every status green throughout.
+  #
+  # compose.yml repairs this inside a deploy and verifies the repair. What it
+  # cannot see is a recreate typed at the console, which is exactly how the
+  # 2026-09-06 outage started. Hence an assertion that runs on its own schedule.
+  #
+  # Compared through /proc, never through `.HostConfig.NetworkMode`: docker
+  # stores the RUNTIME form there, `container:<id>`, so matching on
+  # `service:pihole` finds nothing and the guard silently never fires.
+  dnsproxy-shares-the-current-pihole-namespace:
+    exec: |
+      pp=$(docker inspect pihole 2>/dev/null | jq -r '.[0].State.Pid // 0')
+      dp=$(docker inspect dnsproxy 2>/dev/null | jq -r '.[0].State.Pid // 0')
+      case "$pp" in ''|0|null) echo "pihole is not running — external DNS is down for a reason this check cannot name"; exit 1 ;; esac
+      case "$dp" in ''|0|null) echo "dnsproxy is not running — Pi-hole has no upstream and every uncached query times out"; exit 1 ;; esac
+      ns_pihole=$(readlink "/proc/$pp/ns/net")
+      ns_dnsproxy=$(readlink "/proc/$dp/ns/net")
+      [ -n "$ns_pihole" ] && [ -n "$ns_dnsproxy" ] || { echo "cannot read the network namespaces (needs root) — two empty strings would have compared EQUAL and passed"; exit 1; }
+      [ "$ns_pihole" = "$ns_dnsproxy" ] || { echo "dnsproxy is in $ns_dnsproxy, pihole is in $ns_pihole — dnsproxy was orphaned by a pihole recreate, so nothing listens on 127.0.0.1#5053 and external resolution is dead while both containers report healthy"; exit 1; }
     exit-status: 0
 
   # The dump directory is EPHEMERAL: the backup creates it, the snapshot takes
