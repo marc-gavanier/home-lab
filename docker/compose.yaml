@@ -467,11 +467,37 @@ services:
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     cap_add:
-      # FTL binds :53 (and :80/:443 for the UI), sets its own scheduling
-      # priority, chowns its logs/database when started as pihole rather
-      # than root, and switches to uid 1000 to run. NET_ADMIN/SYS_TIME are
-      # deliberately absent: the docs tie both to DHCP and embedded NTP,
-      # and pihole.toml has dhcp.active = false.
+      # DO NOT REMOVE THESE THREE, and the reason is not the one written here
+      # until 2026-09-11. That comment said FTL binds :53 and sets its own
+      # scheduling priority, which reads as "the grants are functional". Measured
+      # on the running container, both halves are false:
+      #
+      #   - FTL asks for priority -10 and runs at 0. It logs the refusal once per
+      #     boot at WARNING ("Insufficient permissions to set process priority to
+      #     -10 (CAP_SYS_NICE required)"), `ps` shows NI=0, and /proc/<ftl>/status
+      #     shows CapPrm and CapEff both EMPTY. The image setcaps the binary, FTL
+      #     is exec'd as root, receives the three, then drops to uid 1000 — which
+      #     clears permitted and effective, because Docker cannot express an
+      #     ambient set. setpriority() happens after the drop, so it can never
+      #     succeed.
+      #   - :53 is bound as uid 1000 with that empty set, because Docker sets
+      #     ip_unprivileged_port_start=0 inside the container. NET_BIND_SERVICE
+      #     is not what allows it.
+      #
+      # They must stay all the same, for a different reason: the binary carries
+      # them as FILE capabilities with the effective bit set, and the kernel
+      # refuses to exec such a binary when any of them is outside the bounding
+      # set. Remove one and the container dies at exec, not at runtime. That is
+      # the same interlock this file already documents for dnsproxy (ADR-017),
+      # two services down — an exec-legality requirement, not a functional grant.
+      #
+      # The practical consequence of the SYS_NICE half is worth knowing: FTL asks
+      # for -10 precisely so DNS stays responsive under load, and it is running
+      # at 0. Docker exposes no lever that fixes it (no ambient capabilities, no
+      # `nice:`); cpu_shares is the only compose-expressible substitute.
+      #
+      # NET_ADMIN/SYS_TIME are deliberately absent: the docs tie both to DHCP and
+      # embedded NTP, and pihole.toml has dhcp.active = false.
       - NET_BIND_SERVICE
       - CHOWN
       - SETUID
