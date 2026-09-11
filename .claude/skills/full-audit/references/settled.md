@@ -2269,6 +2269,97 @@ written for and false for this one.
 
 ---
 
+## The run of 2026-09-11 — the key was `succession`, and the correct gate had lived for one day
+
+The question no previous key had asked: **against WHICH VERSION of its
+counterpart** was this written, and what does that counterpart now IGNORE rather
+than refuse? Three admissible shapes — an ignored input, a parse that decays to
+empty rather than to an error, a constraint that stopped constraining —
+everything else refuted with a number.
+
+### The instrument traps paid, and they are the reusable part
+
+- **An un-`sudo`'d recursive `grep` silently skips root-only files.** It cost the
+  `system` sweep three of five output parsers on its first pass and `grep` said
+  nothing at all. Any sweep of `/usr/local/bin` on these hosts runs as root or
+  states that it did not.
+- **The two-control method for any regex written against another component's
+  human-readable output**, and it is cheap: (1) extract the PRODUCER's own format
+  string from the running artefact — `grep -a` the binary, or the deployed
+  source; (2) run the CONSUMER's own engine over a synthetic line in the real
+  format *and* one in the format the regex was written for. If the second matches
+  and the first misses, the finding is proven rather than argued. That is how the
+  Vaultwarden TOTP jail line was settled in one command.
+- **How to tell an IDLE detector from a DEAD one, and it is one measurement.**
+  A jail reporting `Total failed: 0` proves nothing on its own — the Vaultwarden
+  TOTP line reported exactly that while being structurally unable to match. The
+  discriminator is to count what the SOURCE carries over a real window and ask
+  whether any line of the shape exists at all. Done on the `sshd` jail over 30
+  days: `_COMM=sshd` carries 103 681 messages, of which **2** are auth-shaped —
+  both the operator's own aborted LAN connections — and the filter declines them
+  correctly in `normal` mode. That zero is honest. A zero with thousands of
+  candidate lines behind it is not, and that is the test to run before believing
+  any "no bans" figure.
+- **`jq -r` appends a trailing newline**, which reads as "the values differ" when
+  comparing an environment variable against a config file. It produced a false
+  positive in the `services` sweep and was caught by the agent itself.
+- **A `ConditionPathExists` that fails records `Result=success`.** "All timers
+  green" therefore cannot distinguish *ran* from *skipped* — on this estate that
+  is `homelab-ddns` and `homelab-offsite-check`, both of which skip silently when
+  `/mnt/data` is locked. Not a defect; a limit on what the baseline proves.
+- **`docker exec … sqlite3 "file:…?mode=ro"`** on the live Kuma database remains
+  the only correct read; a `cp` misses the WAL.
+
+### What was measured and needs no re-deriving
+
+- **`immich-redis` is durable now**: `--appendonly yes --appendfsync everysec`,
+  live AOF growing. The goss exemption that still calls both Redis instances
+  persistence-free is prose, not behaviour.
+- **`/mnt/data/secrets/docker` is genuinely 0700** and the Compose secrets inside
+  it are correctly protected by the parent — proven with a refused read as a
+  control. The 0444 problem is confined to the two files that live one level up.
+- **Pi-hole FTL binds `:53` as uid 1000 with an EMPTY capability set**, because
+  Docker sets `ip_unprivileged_port_start=0` inside the container.
+  `NET_BIND_SERVICE` is not what lets it bind. And `CHOWN`/`NET_BIND_SERVICE`/
+  `SYS_NICE` must stay in `cap_add` anyway: the binary carries them as file
+  capabilities with the effective bit set, and the kernel refuses to `exec` such
+  a binary when any is outside the bounding set. **Removing them kills the
+  container at exec** — the same mechanism this repo already documented for
+  dnsproxy in ADR-017.
+- **lynis PKGS-7388 is permanent and means nothing here.** lynis 3.0.9 greps only
+  the legacy one-line sources format; `noble-security` is configured in deb822.
+  The warning count therefore has a floor of 1. No action — the ratchet compares
+  warning IDs, so a real second warning still appears as a new ID.
+- **fail2ban has never banned anything on this host** — `bans` and `bips` are
+  both empty in `/var/lib/fail2ban/fail2ban.sqlite3`. That is context for any
+  future jail claim, not a defect.
+- **`restic snapshots --json` at 0.16.4** still carries `short_id`; the one parse
+  of restic output in the estate is sound and degrades to a quieter success
+  rather than to a failure.
+- **All 83 compose-injected environment variables are read** by the versions now
+  running, and **26/26 image pins still bind** to the digest the container runs.
+- **`sshd -T` accepts all 22 keys** the repo sets on OpenSSH 9.6p1. The
+  `_COMM=sshd` → `sshd-session` rename that will break the sshd jail's
+  `journalmatch` arrives at OpenSSH 9.8 and has not landed.
+
+### The lesson the register took from it
+
+The scope trap was paid for a sixth time, and its shape has changed. The bound
+that failed was no longer a directory someone happened to be reading — **it was
+a correct, DERIVED gate whose derivation keys on the wrong axis.** C10 derives
+its set from container bind mounts, so a credential file no container mounts
+cannot enter it for any value of the data. A derived gate reads as the strongest
+kind there is, and that is exactly why its blind spot is invisible from inside
+it. The question to ask of a derived gate is no longer "is it derived?" but
+**"derived along which axis, and what does that axis structurally exclude?"**
+
+And one detail worth keeping for its own sake: the gate that would have caught
+the 0444 secrets — `world_readable_secret_writes()`, which derived its
+population from the `dest:` of every task writing under the secrets directory —
+was written one day and deleted the next, bundled into the revert that created
+the defect it was written for.
+
+
 ## The run of 2026-09-05 (evening) — the key was `interruption`, and it reset the clock twice in one day
 
 The second invented key of the same day, and the first one this skill has run
