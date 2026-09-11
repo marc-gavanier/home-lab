@@ -149,6 +149,28 @@ backup_sqlite_dumps:
     container: uptime-kuma
     source: "{{ services_data_dir }}/uptime-kuma/kuma.db"
     file: uptime-kuma.sqlite3
+  # Added 2026-09-11. The file was already IN the restic set — services/ is a
+  # source and wireguard/ is not excluded — so this is not a missing copy, it is
+  # a missing ASSERTION. And the spec that now carries it names this very file
+  # as its founding disaster: "a bump renamed wg-easy's store from wg0.json to
+  # wg-easy.db and nothing noticed for weeks". The rename happened; the store
+  # that replaced it never entered this list, and the stale wg0.json is still
+  # sitting beside it.
+  #
+  # The consistency argument that justifies the .backup for Vaultwarden and Kuma
+  # barely applies here — #138 means wg-easy cannot write its own database, and
+  # the file has not changed since 2026-08-26. The argument is the named failure,
+  # not the torn copy: one entry generates -container-present, -source, -present,
+  # -integrity and -content with no new code, and wg-easy-source going red is the
+  # alarm that did not exist when wg0.json became wg-easy.db.
+  #
+  # 98 KB and 21 objects, holding every WireGuard peer — and the tunnel is the
+  # only route to this Pi, to the offsite Pi, and (wg0.conf symlinking into LUKS)
+  # to the unlock itself. The consequence is out of all proportion to the size.
+  - name: wg-easy
+    container: wg-easy
+    source: "{{ services_data_dir }}/wireguard/wg-easy.db"
+    file: wg-easy.sqlite3
 
 # Immich dumps itself on its own schedule, into the restic set. Only asserted.
 immich_backup_dir: "{{ services_data_dir }}/immich/upload/backups"
