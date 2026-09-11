@@ -6,6 +6,28 @@
 # with sane ciphers; pinning them makes the posture explicit and immune to a
 # future default change. cipherSuites apply to TLS 1.2 only (Go fixes the
 # TLS 1.3 suites). All access is by hostname, so sniStrict is safe here.
+#
+# "Immune to a future default change" is the point AND the trap, and this file
+# fell into it. A restated default freezes what upstream had on the day it was
+# written and silently excludes whatever the default GAINS afterwards. Nothing
+# can see that happen: the key is valid, Traefik parses it without a warning,
+# the API reports it applied, and every monitor stays green. The only observable
+# is a capability the server would have had.
+#
+# It happened here. curvePreferences listed three curves and Traefik 3.7.13 runs
+# on go1.26.8, whose default key-exchange list includes X25519MLKEM768 —
+# post-quantum hybrid key agreement. Measured from inside the network on
+# 2026-09-11, with three controls: X25519, P-256 and P-384 all completed a
+# TLS 1.3 handshake, and a client forcing X25519MLKEM768 got `alert handshake
+# failure`. Adding it restores the key exchange without loosening anything: the
+# three classical curves stay, and the order below is a preference order, so a
+# client that cannot do MLKEM still gets X25519.
+#
+# The lesson for the rest of this file: a restated default needs a reason to
+# exist beyond "explicitness". minVersion and cipherSuites have one — they
+# TIGHTEN what Go would otherwise accept. curvePreferences did not; it only
+# narrowed. Re-check this list against the running Go whenever Traefik is
+# bumped, or drop it and let Go's default lead.
 
 tls:
   options:
@@ -20,6 +42,7 @@ tls:
         - TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305
         - TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305
       curvePreferences:
+        - X25519MLKEM768
         - X25519
         - CurveP256
         - CurveP384

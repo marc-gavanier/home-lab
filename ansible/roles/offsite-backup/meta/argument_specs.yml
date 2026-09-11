@@ -32,6 +32,10 @@ argument_specs:
         type: str
         required: true
         description: rest-server release to install (github release, no v prefix).
+      rest_server_sha256:
+        type: str
+        required: true
+        description: SHA256 of the rest-server arm64 release tarball, taken from upstream's published SHA256SUMS.
       rest_server_port:
         type: int
         required: true

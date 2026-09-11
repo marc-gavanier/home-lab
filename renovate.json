@@ -35,8 +35,9 @@
       "dependencyDashboardApproval": true
     },
     {
-      "description": "Pinned binaries downloaded with a checksum the deploy verifies (get_url checksum:). Renovate can see a new release but cannot compute the new SHA256, so an auto-merged bump would produce a green PR that fails the deploy on a mismatch. Detection is still worth having — before this they were invisible, and 'they happen to be current' is luck rather than a control. So: Renovate NOTICES, a human does the work, which means bumping the version AND its *_sha256 together.",
-      "matchPackageNames": ["creativeprojects/resticprofile", "goss-org/goss"],
+      "description": "Pinned binaries downloaded with a checksum the deploy verifies (get_url checksum:). Renovate can see a new release but cannot compute the new SHA256, so an auto-merged bump would produce a green PR that fails the deploy on a mismatch. Detection is still worth having — before this they were invisible, and 'they happen to be current' is luck rather than a control. So: Renovate NOTICES, a human does the work, which means bumping the version AND its *_sha256 together. groupName null for the same reason it is on the uptime-kuma rule one entry up, and this rule had the defect that comment describes: it matches ALL update types, so a minor or patch bump was swept into the 'minor & patch updates' group by the first rule, where dependencyDashboardApproval no longer applies and the batch can be merged blind. The approval was decorative for exactly the update types that actually happen. Found 2026-09-11. restic/rest-server joins the list: it was the one pinned binary downloaded with NO checksum at all, onto the host that holds the append-only offsite repository.",
+      "matchPackageNames": ["creativeprojects/resticprofile", "goss-org/goss", "restic/rest-server"],
+      "groupName": null,
       "dependencyDashboardApproval": true
     },
     {

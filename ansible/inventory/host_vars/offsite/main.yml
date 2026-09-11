@@ -83,6 +83,12 @@ offsite_disk_force_format: false # Set true (once) to format a non-ext4 disk
 
 # --- rest-server ---
 rest_server_version: "0.14.0"
+# Upstream's own published SHA256SUMS for the arm64 tarball, not a hash computed
+# from the same unverified download. Without it the unarchive below trusts
+# whatever the network returns — on the host that holds the OFFSITE backups,
+# which is the stronger case of the sentence the resticprofile task already
+# carries. Update both lines together; Renovate proposes the pair.
+rest_server_sha256: "cef139cbe8b27b16bda731d17f093b0aa466b8c60b136c12d78b6f2bff3daf22"
 rest_server_port: 8000
 rest_server_data_dir: "{{ backup_mount_point }}/restic"
 rest_server_auth_user: homelab
