@@ -56,7 +56,26 @@ restic snapshots          # list snapshots
 restic restore latest --target /mnt/data/tmp/restore --include /mnt/data/services/vaultwarden
 
 # Or restore in place (OVERWRITES existing files)
-restic restore latest --target / --include /mnt/data/media/photos/2019
+restic restore latest --target / --include "/mnt/data/media/photos/2019-08-15 - Bretagne"
+```
+
+**`--include` that matches nothing is SILENT.** restic restores zero files and
+exits 0, and the only difference from a successful restore is the absence of
+output you were not reading anyway. The example above used to say
+`/mnt/data/media/photos/2019`, which cannot match: the library is laid out as
+`YYYY-MM-DD - Title`, sixty-four of them, with no year directories at all. It
+was the only in-place example in this file, i.e. the line an operator copies and
+edits under pressure, and the conclusion you draw from a silent zero is that the
+photos are gone.
+
+So check the path exists in the snapshot BEFORE restoring, and do it with a
+listing rather than by eye:
+
+```bash
+# the path filter is NOT recursive without --recursive: this lists the immediate
+# contents of the photos directory, which is what you want here — one line per
+# album, so you can see the exact directory name to pass to --include.
+restic ls latest /mnt/data/media/photos | grep -F 2019-08-15
 ```
 
 ## Restore one service
@@ -302,10 +321,14 @@ if they were lost.
 
 The nightly backup writes a plain-SQL `pg_dump` to
 `/mnt/data/backups/dumps/miniflux.sql` (captured in the snapshot). Restore that,
-**not** the datadir under `services/miniflux/db`: the datadir is in the restic
-set, but restic walks it file by file while Postgres writes, so the copy in a
-snapshot can be a torn cluster. The dump carries no `--clean`, so it has to be
-loaded into a freshly-initialised database.
+**not** the datadir under `services/miniflux/db` — which is not there to restore
+in any case: it is in the profile's `exclude:` list, alongside `nextcloud/db`
+and `immich/db`, for the reason this file gives above. restic would walk it file
+by file while Postgres writes, so a snapshot copy would be a torn cluster, and
+excluding it is what stops anyone reaching for one. This paragraph said the
+datadir was in the restic set; it has not been since the exclusion shipped. The
+dump carries no `--clean`, so it has to be loaded into a freshly-initialised
+database.
 
 > `down`, not `stop`: the crash-heal timer brings back containers it finds
 > exited, so a merely stopped service can return mid-restore
