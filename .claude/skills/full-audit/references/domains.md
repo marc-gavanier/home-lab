@@ -15,35 +15,45 @@ earlier — which would have sent eight agents to re-derive settled work. Rebuil
 it from `classes.md`'s OPEN table at the start of every run; if the two
 disagree, `classes.md` wins.
 
-As of the run of 2026-09-05 (evening). **Rebuilt from `classes.md`'s OPEN
-table — do not trust this copy if the two disagree.**
+As of the run of 2026-09-11. **Rebuilt from `classes.md`'s OPEN table — do not
+trust this copy if the two disagree.**
 
-**Two OPEN classes, and neither is a hunt.** Both were ENUMERATED that morning
-and both were reopened for the same reason: an instance of the class's own
-property was found OUTSIDE the space its sweep had been bounded to. Each has a
-restated space and needs one sweep, not another sample.
+**Three OPEN classes. C74 and C82 are CLOSED and must not be re-swept.**
 
-- **C74 — `security`, with `system` on the systemd half.** Property unchanged:
-  a rule whose decision is pre-empted by another component acting earlier on the
-  same object. It was swept over 7 UFW inbound rules; the space is every
-  DELEGATED decision an arbiter can refuse. The systemd slice was bounded at 5
-  delegating sites with 1 material instance; the union has never been swept as
-  one. Close it by deriving the full set of sites that ask another component to
-  act on their behalf, on both hosts.
-- **C82 — `observability`, with `ansible-deploy` on the handler half.** Property
-  unchanged: a fault whose only detector runs earlier in the same sequence than
-  the step that introduces it. Its 308/308 sweep covered write-sites, binary-use
-  sites and handlers — but not the INTERNAL statement sequences of the deployed
-  executables under `/usr/local/bin`, which is where its live instance sits.
+- **C01 — `project-manager`, with every domain feeding it.** REOPENED with a
+  restated space. Property unchanged: a documentary statement whose content
+  contradicts the deployed artefact. It was enumerated over 218 referents of
+  five machine-checkable kinds — paths, containers, thresholds, units,
+  goss/alarm names. The sixth kind is **a claim about a THIRD PARTY'S
+  CAPABILITY**: "X cannot do Y", "X provides no Y", "X requires Y", checkable
+  against that component's own JSON schema, `--help`, startup log or binary.
+  Three instances were found on 2026-09-11 by three domains with three different
+  instruments. Close it by deriving the set of such claims across `docs/`,
+  `knowledge/`, the ADRs and the code comments, and checking each against its
+  own component.
+- **C10 — `security`, with `ansible-deploy` on the write-site half.** REOPENED
+  with a restated space. Property unchanged: a credential store readable beyond
+  its service. Its gate derives the set from `docker inspect` — container bind
+  mounts — so a credential file **no container mounts** is outside it by
+  construction. The restated space is every credential file this repo writes,
+  whatever reads it. The derivation already exists in git history:
+  `world_readable_secret_writes()`, deleted by `23fab2e`.
+- **C86 — `network` minted it; the sweep belongs to whoever owns each list.**
+  A configuration value written to RESTATE an upstream default in order to
+  freeze it, which therefore silently excludes what that default has GAINED.
+  5/5 swept in the network domain. Unswept elsewhere: image tags, sysctl lists,
+  sshd cipher/kex/MAC lists, apt holds, `ExecStart` flag lists. It defeats every
+  detector in the register — valid key, no warning, API reports it applied,
+  every monitor green.
 
-**C84 and C85 were minted the same evening and both arrived ENUMERATED**, so
-neither is a mandate. Do not re-derive them; note only that C84's instance
-(`immich-redis` holding Immich's queues with persistence off) and C85's
-(`homelab-unlock`'s `e2fsck` logged on the SKIP branch and not on the RUN
-branch) are both one-line fixes that had not shipped when this was written.
+**C74 and C82 are CLOSED** — 48/48 and 71/71 for C74 by two independent
+derivations, 25/25 + 39/39 for C82. Do not re-derive either. C84 and C85 are
+both **verified fixed** on the machine; C84's false rationale in the goss
+posture spec is a C01 instance, not a reopening of C84.
 
-**Nine keys are now spent**: `time`, `order`, `identity`, `scale`, `authority`,
-`representation`, `vacuity`, `exclusivity`, `interruption`. A run that reuses one
+**Ten keys are now spent**: `time`, `order`, `identity`, `scale`, `authority`,
+`representation`, `vacuity`, `exclusivity`, `interruption`, `succession`. The
+mint rate across them reads 5, 11, 12, 7, 2, 4, 1, 0, 2, 1. A run that reuses one
 proves nothing. The keys that paid best were found the same way: look for an
 instrument trap in `settled.md` that no class has adopted, or a pair of narrow
 classes in `classes.md` that are obviously two faces of a dimension nobody named.
