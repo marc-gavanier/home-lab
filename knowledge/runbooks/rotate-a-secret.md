@@ -14,20 +14,56 @@ stronger while the operation stayed impossible (#159).
 
 ## Which is which
 
-| Secret | Consumer | Does a deploy rotate it? |
-|--------|----------|--------------------------|
-| `cf_dns_api_token` | traefik | **yes** — lego re-reads the file on every ACME operation |
-| `transmission_password` | transmission | **yes** — read at start, but a second copy lives in Kuma; see the warning below |
-| `dozzle_users.yml` | dozzle | **yes** — read at start |
-| `forgejo_secret_key` | forgejo | **yes**, but see the warning below |
-| `miniflux_database_url` | miniflux | **yes** — but on its own it breaks the app; see the database procedure |
-| `vaultwarden_admin_token_hash` | vaultwarden | **no** — `config.json` overrides the environment |
-| `nextcloud_db_password` | nextcloud-db + config.php | **no** — `initdb` only |
-| `nextcloud_db_root_password` | nextcloud-db | **no** — `initdb` only |
-| `immich_db_password` | immich-db + immich-server | **no** — `initdb` only |
-| `miniflux_db_password` | miniflux-db | **no** — `initdb` only |
-| `miniflux_admin_password` | miniflux | **no** — `CREATE_ADMIN` runs once |
-| `forgejo_admin_password` | forgejo CLI | **no** — first deploy only, and it has no handler for that reason |
+| Secret                         | Consumer                     | Does a deploy rotate it?                                                                            |
+|--------------------------------|------------------------------|-----------------------------------------------------------------------------------------------------|
+| `cf_dns_api_token`             | traefik                      | **yes** — lego re-reads the file on every ACME operation                                            |
+| `transmission_password`        | transmission                 | **yes** — read at start, but a second copy lives in Kuma; see the warning below                     |
+| `dozzle_users.yml`             | dozzle                       | **yes** — read at start                                                                             |
+| `forgejo_secret_key`           | forgejo                      | **yes**, but see the warning below                                                                  |
+| `miniflux_database_url`        | miniflux                     | **yes** — but on its own it breaks the app; see the database procedure                              |
+| `pihole_password`              | pihole                       | **yes** — a single task sets it and flushes the handler, so the container sees it (`d3ba112`, #333) |
+| `restic_password`              | resticprofile, `restic init` | **no, and never rotate it alone** — see the restic procedure below                                  |
+| `offsite_restic_password`      | resticprofile (offsite)      | **no, and never rotate it alone** — see the restic procedure below                                  |
+| `vaultwarden_admin_token_hash` | vaultwarden                  | **no** — `config.json` overrides the environment                                                    |
+| `nextcloud_db_password`        | nextcloud-db + config.php    | **no** — `initdb` only                                                                              |
+| `nextcloud_db_root_password`   | nextcloud-db                 | **no** — `initdb` only                                                                              |
+| `immich_db_password`           | immich-db + immich-server    | **no** — `initdb` only                                                                              |
+| `miniflux_db_password`         | miniflux-db                  | **no** — `initdb` only                                                                              |
+| `miniflux_admin_password`      | miniflux                     | **no** — `CREATE_ADMIN` runs once                                                                   |
+| `forgejo_admin_password`       | forgejo CLI                  | **no** — first deploy only, and it has no handler for that reason                                   |
+
+### The restic passwords: `key add` FIRST, always
+
+`restic_password` and `offsite_restic_password` are **not** application
+credentials. They are the encryption keys of the repositories, and a repository
+does not "re-read" a rotated key — it simply stops opening. Deploying a new
+value on its own turns both backups into ciphertext nobody can read, and nothing
+goes red until the next run.
+
+The order is the whole procedure, and it is the opposite of every other row in
+the table above: add the new key to the repository first, verify it opens, and
+only then change the value the deploy writes.
+
+```bash
+# 1. add the new key WHILE the old one still works
+restic -r /mnt/data/backups/restic-repo key add
+
+# 2. prove the new one opens the repository, before anything is changed
+RESTIC_PASSWORD='<new>' restic -r /mnt/data/backups/restic-repo snapshots | tail -3
+
+# 3. only now put the new value in the vault and deploy
+# 4. and only after a successful nightly run, remove the old key
+restic -r /mnt/data/backups/restic-repo key list
+restic -r /mnt/data/backups/restic-repo key remove <old-id>
+```
+
+The offsite repository is append-only, so step 4 there is not a cleanup you can
+redo casually — leave the old key in place unless there is a reason to remove
+it.
+
+This rule lived only inside an Ansible `fail_msg` (`d6d602e`) until 2026-09-11,
+which is to say it existed everywhere except the page that teaches secret
+rotation.
 
 ### Why the database ones cannot work
 

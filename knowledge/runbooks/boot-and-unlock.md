@@ -32,17 +32,33 @@ What to expect and do when the Pi comes back up. Design rationale in
 
    ```bash
    systemctl is-active docker.service   # inactive
-   systemctl is-active docker.socket    # ACTIVE — see below, this is correct
+   systemctl is-active docker.socket    # inactive — see below
+   systemctl is-enabled docker.socket   # disabled — this is the deliberate part
    docker ps                            # MUST fail
    swapon --show                        # empty
    ```
 
-   > This block used to say "both: inactive", and that was wrong — measured on
-   > 2026-08-26. `docker.socket` is active before the unlock and is supposed to
-   > be: it is how Docker gets activated at all. What holds Docker back is a
-   > drop-in on the SERVICE, `RequiresMountsFor=/mnt/data`, so an activation
-   > attempt cannot succeed while the volume is locked. Reading the socket as a
-   > regression would send you looking for a fault that is not there.
+   > **Corrected 2026-09-11.** This block said `docker.socket` is ACTIVE before
+   > the unlock and branded `inactive` a past error. The opposite is true, and
+   > the previous correction of 2026-08-26 must have been measured after an
+   > unlock rather than before one.
+   >
+   > `docker.socket` is **disabled**, deliberately and by this repo
+   > (`roles/docker/tasks/unlock-integration.yml`, ADR-007). Socket activation
+   > would start dockerd on the first `docker` CLI call — including before the
+   > unlock, which is exactly how the ghost store got initialised on 2026-07-04,
+   > where a single `docker ps` was enough. So nothing starts the socket at boot;
+   > `docker.service` pulls it in itself when `homelab-services.target` starts it
+   > after the unlock.
+   >
+   > Measured over the last three boots: the socket went active 249 s, 117 s and
+   > 1467 s after boot — in each case when the unlock ran, not before. So at the
+   > moment you are reading this page, it is inactive, and that is correct.
+   > Reading it as a regression is what the old note would have made you do.
+   >
+   > The second guard is still there and still matters: a drop-in on the SERVICE
+   > carries `RequiresMountsFor=/mnt/data`, so even an activation attempt cannot
+   > succeed while the volume is locked.
 
    > A **responding** `docker ps` before the unlock means the guards have
    > regressed — do NOT unlock; investigate first (see ghost store below).

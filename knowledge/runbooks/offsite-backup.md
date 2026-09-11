@@ -11,9 +11,20 @@ append-only mode. The repo password is deliberately NOT stored on it.
   "offsite copy").
   It is a retry window, not a single `restic copy latest`: a night that failed its copy
   is picked up by the following nights instead of being lost (#158). Re-offering
-  snapshots already present creates no duplicates — the message reads e.g.
-  `1 new, 7 already there`. So a red copy monitor that goes green the next night has
-  **self-healed**, and needs no manual copy.
+  snapshots already present creates no duplicates. So a red copy monitor that goes
+  green the next night has **self-healed**, and needs no manual copy.
+
+  The beat reads `offsite copy completed`, and that is all it reads. This page
+  used to quote `1 new, 7 already there` as the message to look for — that was
+  `backup.sh`'s wording, built from restic's `--json` summary, and it died with
+  the move to resticprofile (ADR-031), whose hooks are not given the summary.
+  Counting what a night actually copied means comparing snapshot counts, not
+  reading the beat:
+
+  ```bash
+  ls /mnt/data/backups/restic-repo/snapshots | wc -l       # local
+  ssh offsite 'ls /mnt/backup/restic/snapshots | wc -l'    # offsite, filesystem only
+  ```
 - Sunday 06:00 — homelab `homelab-offsite-check.timer`: `restic check` of the
   offsite repo through the tunnel (Kuma push monitor "offsite check").
 - Sunday 08:00 — offsite `offsite-health.timer`: disk/SMART/power self-report
