@@ -124,12 +124,15 @@ repos:
       #
       # The secret set is derived from the deploy role's own assertions and from
       # every file it writes under /mnt/data/secrets, so a new secret is covered
-      # the day it is added.
+      # the day it is added. The MODE half also derives its exemption from
+      # compose.yaml's `secrets:` block — which is why compose.yaml is in the
+      # trigger below: removing a `secrets:` entry changes which files a
+      # container still mounts, and the check has to be re-run when it does.
       - id: secret-in-environment
-        name: no secret passed through an Ansible `environment:`
+        name: no secret in an `environment:`, and no secret file misfiled either way
         entry: ops/check-secret-in-environment.py
         language: system
-        files: (^ansible/roles/.*/tasks/.*\.yml|^ansible/playbooks/.*\.yml)$
+        files: (^ansible/roles/.*/tasks/.*\.yml|^ansible/playbooks/.*\.yml|^docker/compose\.yaml)$
         pass_filenames: false
 
       - id: secret-in-environment-selftest
