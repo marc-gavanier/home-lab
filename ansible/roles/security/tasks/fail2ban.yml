@@ -57,9 +57,35 @@
       # Vaultwarden logs to LOG_FILE with its own prefix:
       #   [2026-07-27 12:00:00.000][vaultwarden::api::identity][ERROR] Username or
       #   password is incorrect. Try again. IP: 1.2.3.4. Username: user@example.com.
+      #
+      # The TOTP line below was WRONG from the day it was written and could never
+      # have matched anything (2026-09-11). It demanded the module tag
+      # `vaultwarden::api::identity` and a trailing period. Vaultwarden 1.37.2
+      # emits that message from `vaultwarden::api::core::two_factor::authenticator`
+      # — read out of the running binary, not inferred — and the format string is
+      # `Invalid TOTP code! Server time: {} IP: {}` with no period after the IP.
+      # Proven through fail2ban's own engine with both controls: the real format
+      # gave 0 matched / 1 missed, a line in the fictional format gave 1 matched.
+      # Password guessing WAS throttled the whole time by the first line; what
+      # was unthrottled is the second factor for someone who already has the
+      # password.
+      #
+      # Two deliberate choices in the replacement. The module is matched as a
+      # pattern because the same message shape exists under duo, email, webauthn
+      # and yubikey, all of which are real 2FA paths. And the end is NOT anchored:
+      # the binary's string table shows other messages packed immediately after
+      # this format string, so whether anything trails the IP on the same line
+      # could not be settled from the binary, and no real occurrence exists in
+      # any generation of the log to settle it from. An anchor here would be the
+      # same bet that produced the bug, placed the other way round.
+      #
+      # VALIDATE AGAINST A REAL LINE before believing this. One deliberate failed
+      # TOTP against the UI, then:
+      #   fail2ban-regex {{ services_data_dir }}/vaultwarden/logs/vaultwarden.log \
+      #     /etc/fail2ban/filter.d/vaultwarden.conf
       [Definition]
       failregex = ^.*\[vaultwarden::api::identity\]\[ERROR\] Username or password is incorrect\. Try again\. IP: <HOST>\.
-                  ^.*\[vaultwarden::api::identity\]\[ERROR\] Invalid TOTP code.*IP: <HOST>\.
+                  ^.*\[vaultwarden::api::core::two_factor::[a-z_]+\]\[ERROR\] Invalid TOTP code.*IP: <HOST>
                   ^.*\[vaultwarden::api::admin\]\[ERROR\] Invalid admin token\. IP: <HOST>
       ignoreregex =
       journalmatch =
@@ -133,11 +159,18 @@
       {% endif %}
       ignoreip = 127.0.0.1/8 ::1 172.16.0.0/12
 
+      # No `logpath` here, deliberately. [DEFAULT] sets `backend = systemd` and
+      # the systemd backend ignores logpath entirely — `fail2ban-client status
+      # sshd` prints `Journal matches:` where a file-reading jail prints
+      # `File list:`. The line that used to sit here named a source this jail
+      # does not read, which matters the day someone debugs it: the obvious fix
+      # for a silent jail looks like "point it at the file", and the file was
+      # never being read. The two jails below DO read files and override the
+      # backend for that reason.
       [sshd]
       enabled = true
       port = {{ ssh_port_hardened }}
       filter = sshd
-      logpath = /var/log/auth.log
       maxretry = {{ fail2ban_max_retry }}
       {% if fail2ban_service_jails | default(true) %}
 
