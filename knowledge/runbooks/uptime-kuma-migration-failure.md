@@ -79,7 +79,15 @@ sleep 75 && docker ps -a | grep kuma-trial      # expect: Up … (healthy)
 docker logs kuma-trial 2>&1 | grep -iE 'migrat|error|Listening'
 ```
 
-Check the trial database kept everything, and that `ops/kuma-dump.sh` still reads the schema:
+Check the trial database kept everything, and that `ops/kuma-dump.sh` still reads the schema.
+
+The script prints the column count it derived — `→ 34 monitors, 114 columns
+each, derived from the live schema`. **That line is the check.** Compare it with
+the pre-upgrade dump: a column count that went UP is the new version's own
+additions and is expected; one that went DOWN means the upgrade dropped columns,
+and you want to know which before you trust the trial. Until 2026-09-11 the
+script named 21 columns by hand out of 114, so this step could not check
+anything — it read 19 % of the schema and reported success on that.
 
 ```bash
 KUMA_CONTAINER=kuma-trial ops/kuma-dump.sh /tmp/kuma-trial.json

@@ -111,6 +111,18 @@
 # while it runs. The check asserts container CONFIGURATION (user, read-only
 # rootfs, capabilities), which is readable the moment a container exists, not
 # health, which is not.
+#
+# UPDATE 2026-09-11: this flush can no longer have anything pending, and the
+# paragraph above now describes an ordering that does not occur here. A second
+# flush was added at deploy/tasks/pihole.yml:25 on 2026-09-06 (#333), and all 21
+# `notify:` sites in this role sit in apparmor.yml, secrets.yml and configs.yml —
+# every one of them imported BEFORE pihole.yml. The earlier flush drains them.
+#
+# Nothing is broken: the restarts still happen before the posture check, about
+# 180 tasks earlier than they used to. The statement is kept rather than deleted
+# because the reasoning is what makes the pihole.yml flush safe to keep, and
+# because a future task that notifies AFTER pihole.yml would make this flush live
+# again — at which point this paragraph is correct once more.
 - name: Flush handlers so the posture check below sees the restarts, not the state before them
   ansible.builtin.meta: flush_handlers
 
