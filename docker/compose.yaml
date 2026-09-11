@@ -1925,7 +1925,7 @@ services:
   # without SSH, logs were not. Reads the daemon through the same read-only
   # socket-proxy as Traefik and Netdata — never the raw docker.sock.
   dozzle:
-    image: amir20/dozzle:v10.9.2
+    image: amir20/dozzle:v11.0.0
     container_name: dozzle
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
