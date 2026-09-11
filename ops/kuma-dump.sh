@@ -30,6 +30,14 @@ CONTAINER="${KUMA_CONTAINER:-uptime-kuma}"
 DB="${KUMA_DB:-/app/data/kuma.db}"
 OUT="${1:-.secrets/kuma-dump.json}"
 
+# 0077 BEFORE the mkdir, so a freshly created .secrets/ is 0700 rather than
+# whatever the invoking shell's umask allows. Added 2026-09-11 with the schema
+# derivation, and BECAUSE of it: exporting every column means the snapshot now
+# carries basic_auth_pass, bearer_token, the oauth and mqtt and radius
+# passwords — seventeen credential-bearing columns where the hand-kept list of
+# 21 carried one. The file got strictly more sensitive in the same change that
+# made it correct, and it was still landing at 0664 in a 0775 directory.
+umask 077
 mkdir -p "$(dirname "$OUT")"
 
 # The `monitor` columns are DERIVED from the schema, not listed here, and that
@@ -150,7 +158,11 @@ with open(sys.argv[1], "w", encoding="utf-8") as fh:
     fh.write("\n")
 PYEOF
 
-echo "✓ Snapshot written to ${OUT} ($(wc -c <"$OUT") bytes)" >&2
+# umask governs CREATION only: rewriting a snapshot that already exists keeps
+# whatever mode it had, so the mode is asserted here rather than assumed.
+chmod 600 "$OUT"
+
+echo "✓ Snapshot written to ${OUT} ($(wc -c <"$OUT") bytes, mode $(stat -c %a "$OUT"))" >&2
 
 # Optional human summary (secrets masked), only if python3 is available.
 if command -v python3 >/dev/null 2>&1; then
