@@ -17,6 +17,15 @@
 # =============================================================================
 set -uo pipefail
 
+# A running container is restarted only after this long CONTINUOUSLY unhealthy.
+# 900 s is deliberately generous: calibre-web's s6 init takes ~90 s, collabora
+# ~80 s, and a saturated startup wave stretches both. The point is to catch a
+# service that is broken, not one that is slow.
+UNHEALTHY_SECONDS=${UNHEALTHY_SECONDS:-900}
+# At most one restart per container per hour — see the latch below.
+UNHEALTHY_LATCH=${UNHEALTHY_LATCH:-3600}
+STAMP_DIR=${STAMP_DIR:-/run/homelab/heal}
+
 COMPOSE_DIR=/opt/homelab
 
 log() { logger -t homelab-heal "$*"; }
@@ -78,6 +87,15 @@ exited=$(docker ps -a --filter "label=com.docker.compose.project" \
                       --filter "status=exited" \
                       --filter "status=created" \
                       --filter "status=dead" --format '{{.Names}}')
+
+# Running-but-broken containers, asked of the DAEMON rather than by inspecting
+# all twenty-nine. `health=unhealthy` is a Docker-side filter, so the normal case
+# — nothing unhealthy — costs one command and returns nothing, and no container
+# without a declared healthcheck can appear here at all. Measured 2026-09-12:
+# 0.086 s against twenty-nine `docker inspect` calls the naive version would have
+# made every two minutes.
+unhealthy=$(docker ps -a --filter "label=com.docker.compose.project" \
+                         --filter "health=unhealthy" --format '{{.Names}}')
 checked=$(docker ps -a --filter "label=com.docker.compose.project" --format '{{.Names}}' | grep -c .)
 
 # --- The floor has to be the DECLARED count, not one -------------------------
@@ -107,6 +125,47 @@ while read -r name; do
         created|dead)
             why="is $state"
             ;;
+        running)
+            # A container that RUNS and does not work was invisible here until
+            # 2026-09-12. netdata spent thirty-five minutes up, answering its
+            # API, with its go.d plugin killed and DISABLED — no docker charts,
+            # no container alarms, and nothing in this loop to notice, because
+            # `running` fell through to `continue`.
+            #
+            # Only a DECLARED healthcheck can say a running container is broken,
+            # so a container without one is skipped rather than guessed at.
+            h=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' "$name" 2>/dev/null)
+            [ "$h" = "unhealthy" ] || continue
+
+            # How LONG it has been unhealthy, derived from the container's own
+            # cadence rather than from a number written here: Docker counts
+            # consecutive failures, and the container declares its interval.
+            # A fixed streak threshold would mean 15 min for a 60 s interval and
+            # 2.5 min for a 10 s one, which is how an eager restart gets shipped.
+            streak=$(docker inspect -f '{{if .State.Health}}{{.State.Health.FailingStreak}}{{end}}' "$name" 2>/dev/null)
+            iv=$(docker inspect -f '{{if .Config.Healthcheck}}{{.Config.Healthcheck.Interval.Seconds}}{{end}}' "$name" 2>/dev/null)
+            iv=${iv%%.*}
+            case "${streak:-x}" in ''|*[!0-9]*) continue ;; esac
+            case "${iv:-x}" in ''|*[!0-9]*) continue ;; esac
+            [ "$iv" -gt 0 ] || continue
+            [ $(( streak * iv )) -ge "$UNHEALTHY_SECONDS" ] || continue
+
+            # One restart per container per hour. Without the latch a container
+            # that comes back unhealthy is restarted every two minutes forever,
+            # which turns a degraded service into a flapping one and buries the
+            # cause under its own recovery attempts.
+            stamp="$STAMP_DIR/unhealthy-$name"
+            if [ -f "$stamp" ]; then
+                last=$(stat -c %Y "$stamp" 2>/dev/null || echo 0)
+                if [ $(( $(date +%s) - last )) -lt "$UNHEALTHY_LATCH" ]; then
+                    log "container $name unhealthy for $(( streak * iv ))s — already restarted within the last $((UNHEALTHY_LATCH / 60)) min, leaving it alone"
+                    continue
+                fi
+            fi
+            mkdir -p "$STAMP_DIR" 2>/dev/null
+            : > "$stamp"
+            why="has been unhealthy for $(( streak * iv ))s ($streak failed probes at ${iv}s)"
+            ;;
         *)
             continue
             ;;
@@ -114,13 +173,24 @@ while read -r name; do
     svc=$(docker inspect -f '{{index .Config.Labels "com.docker.compose.service"}}' "$name" 2>/dev/null)
     [ -n "$svc" ] || continue
     log "container $name (service $svc) $why — restarting"
-    if docker compose up -d "$svc" >/dev/null 2>&1; then
+    # `compose up -d` is a NO-OP on a container that is already running with the
+    # declared configuration, so the unhealthy branch has to restart the
+    # container itself. The exited branches keep `compose up` because there the
+    # container has to be created.
+    rc=0
+    if [ "$state" = running ]; then
+        docker restart "$name" >/dev/null 2>&1 || rc=1
+    else
+        docker compose up -d "$svc" >/dev/null 2>&1 || rc=1
+    fi
+    if [ "$rc" = 0 ]; then
         healed=$((healed + 1))
     else
         log "ERROR: failed to restart $svc"
     fi
 done <<EOF
 $exited
+$unhealthy
 EOF
 
 log "checked $checked of $declared declared container(s), $healed restarted"

@@ -1903,8 +1903,52 @@ services:
     # disk (%util 98 %), i.e. the worst case this host produces. start_interval
     # probes every 10 s while inside start_period only — the steady-state
     # cadence stays the image's 60 s.
+    # The test also asserts go.d is ALIVE, added 2026-09-12 after the reboot of
+    # the night before. netdata answered /api/v1/info perfectly while running
+    # without its go.d plugin, which it had killed with SIGKILL and then
+    # DISABLED — "exited abnormally. Disabling it." Nothing re-spawns a disabled
+    # plugin: `check for new plugins every = 1m` rescans for NEW ones only, and
+    # the agent has no setting that reverses the decision. It stayed dead for
+    # thirty-five minutes and the API stayed 200 the whole time.
+    #
+    # go.d is not one collector among many here: it carries the docker collector,
+    # so without it there are no docker_local charts, and without those the three
+    # homelab_container_* alarms cannot instantiate at all. Which is also why
+    # netdata cannot report this about itself — the alarm that would say a
+    # container is unhealthy is hosted by the plugin that is missing. The
+    # non-circular detector is homelab-netdata-kuma.sh asserting the alarms are
+    # LOADED, it already exists, it fired in five minutes, and it is untouched.
+    #
+    # What this adds is the half that was missing: a signal the heal timer can
+    # act on. The timer now restarts a container that stays unhealthy, and a
+    # restart is the whole remedy — it re-spawns the plugin.
+    #
+    # `pidof`, NOT `pgrep -f`. The first version used `pgrep -f go.d.plugin` and
+    # its negative control caught it: the healthcheck's own `sh -c` carries that
+    # string in its argv, so pgrep matched ITSELF and the test passed with the
+    # plugin absent. That is C29's recorded trap — the redactor's liveness check
+    # failed the same way — reproduced here by writing the same line. `pidof`
+    # matches the program name and cannot see the shell.
+    #
+    # The 900 s grace is not decoration. On the reboot of 2026-09-11 go.d took
+    # 347 s to appear, against a 300 s start_period, because the disk was
+    # saturated by the startup wave. Asserting it any earlier would publish a
+    # container as unhealthy while it is merely starting slowly — the false alarm
+    # #250 fixed for the databases, re-introduced. Inside 900 s the API answering
+    # is the whole test; after it, the plugin must be there. The container's own
+    # age comes from `ps -o etimes= -p 1`, which is the container's PID 1 and not
+    # the host's uptime.
+    #
+    # Four controls, run in the live container before this was written: plugin
+    # alive passes, plugin name absent fails, API unreachable fails, and a
+    # container inside its grace passes with the plugin name absent.
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:19999/api/v1/info"]
+      test:
+        - CMD-SHELL
+        - >-
+          curl -fsS -o /dev/null http://127.0.0.1:19999/api/v1/info || exit 1;
+          [ "$$(ps -o etimes= -p 1 | tr -d ' ')" -lt 900 ] && exit 0;
+          pidof go.d.plugin >/dev/null || exit 1
       interval: 60s
       timeout: 10s
       retries: 3
