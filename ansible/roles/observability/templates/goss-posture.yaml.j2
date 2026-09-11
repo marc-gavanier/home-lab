@@ -1647,14 +1647,20 @@ command:
         echo "the sed is losing lines — the sweep would be narrower than the file"
         exit 1
       }
+      # Builtins only inside the loops. The first version used basename, dirname
+      # and cat per iteration — roughly 250 forks over 3 knobs x 41 interfaces,
+      # which blew through goss's 10 s default on a loaded Pi and reported a
+      # TIMEOUT rather than a verdict. Parameter expansion and `read` fork
+      # nothing, so the only processes left are one sysctl per knob.
       bad=0; seen=0
       for k in $knobs; do
         want=$(sysctl -n "net.ipv6.conf.all.$k" 2>/dev/null) || continue
         for path in /proc/sys/net/ipv6/conf/*/"$k"; do
           [ -r "$path" ] || continue
-          iface=$(basename "$(dirname "$path")")
+          iface=${path#/proc/sys/net/ipv6/conf/}
+          iface=${iface%/$k}
           case "$iface" in all|default|lo) continue ;; esac
-          have=$(cat "$path" 2>/dev/null) || continue
+          read -r have < "$path" 2>/dev/null || continue
           seen=$((seen + 1))
           [ "$have" = "-1" ] && continue
           if [ "$have" != "$want" ]; then
@@ -1665,6 +1671,7 @@ command:
       done
       [ "$seen" -gt 0 ] || { echo "swept ZERO interface/knob pairs — vacuous"; exit 1; }
       [ "$bad" -eq 0 ] || { echo "$bad declared knob(s) never reached the interface they name"; exit 1; }
+    timeout: 20000
     exit-status: 0
 
   # The property that makes #288 hard to see: a container killed mid-shutdown

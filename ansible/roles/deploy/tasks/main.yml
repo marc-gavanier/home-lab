@@ -12,9 +12,20 @@
 
 - name: Compute WireGuard bcrypt and Vaultwarden Argon2 facts
   ansible.builtin.import_tasks: hashes.yml
+  # Tagged with secrets.yml below, and NOT separable from it: hashes.yml ends in
+  # a set_fact that secrets.yml consumes (vaultwarden_admin_token_hash, from
+  # hashes.yml:52 to secrets.yml:576). Tagging only the secrets import leaves
+  # that variable undefined — the dependency is one level indirect, so it does
+  # not show up in a search for a registered variable.
+  tags: [secrets]
 
+# The `secrets` tag exists so a secret can be written, rotated or re-moded
+# WITHOUT dragging in compose.yml, whose `compose up` copies the whole stack
+# definition and arms every pending image pin for the heal timer. It changes
+# nothing on a full run — tags only filter when --tags is passed.
 - name: Deploy secrets on the encrypted volume (ADR-011)
   ansible.builtin.import_tasks: secrets.yml
+  tags: [secrets]
 
 - name: Deploy traefik/pihole/searxng configurations
   ansible.builtin.import_tasks: configs.yml
@@ -63,8 +74,14 @@
 # The staging is kept in this sentence because it is the reusable part: install,
 # exercise by hand against the real repository including a RESTORE, then move
 # the timers.
+# Tagged for the same reason as `secrets` above: the profile, the dump
+# assertions and the notification adapter can all be corrected without a
+# `compose up`. Verified independent — nothing in resticprofile.yml or its
+# templates consumes a set_fact produced by another file in this role, so the
+# tag does not run it amputated the way `secrets` would have without hashes.yml.
 - name: "Install resticprofile and its profile (ADR-031)"
   ansible.builtin.import_tasks: resticprofile.yml
+  tags: [backup]
 
 - name: Set up the host tunnel to the offsite Pi (ADR-010)
   ansible.builtin.import_tasks: wireguard.yml
