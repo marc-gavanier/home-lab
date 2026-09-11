@@ -1552,6 +1552,70 @@ command:
       }
     exit-status: 0
 
+  # C74, and it is the assertion the repo did not have on 2026-09-11: the only
+  # sysctl guard in the estate compares DECLARATIONS against DECLARATIONS, and
+  # this spec carried zero sysctl assertions at all. So a knob declared at
+  # `.all.` and `.default.`, reading 0 at both, had never reached eth0 on either
+  # host — and could not have been seen.
+  #
+  # Derived from the declared file rather than from a list of knobs: add a
+  # net.ipv6.conf.{all,default}.X line to 99-homelab.conf and it is swept the
+  # same night, with no edit here.
+  #
+  # IPv6 only, and that is a reasoned narrowing rather than a shortcut. IPv4 ANDs
+  # the per-device value with `.all.` at use time, so an eth0 that kept the
+  # kernel default is genuinely inert there — which is exactly why the IPv4 twin
+  # of the live instance reads 0 and the IPv6 one reads 1. IPv6 has no such
+  # aggregation for these knobs: the ICMPv6 path reads the receiving device's
+  # own inet6_dev copy, taken at NETDEV_REGISTER before systemd-sysctl runs.
+  #
+  # `lo` and -1 are skipped on the kernel's own terms, not as exceptions: -1 is
+  # what a device that never autoconfigures reports, and loopback receives no
+  # redirect from a third party.
+  #
+  # Scope, stated rather than left implicit: it sweeps what THIS REPO declares,
+  # in 99-homelab.conf. Distribution files are out — 10-ipv6-privacy.conf sets
+  # use_tempaddr, whose eth0 copy diverges for the same NETDEV_REGISTER reason
+  # and is immaterial here (no global IPv6 address, no SLAAC, accept_ra=0), and
+  # asserting it would be a permanent red for a value nothing acts on. Measured
+  # 2026-09-11: 3 knobs x 41 interfaces = 123 pairs, 1 divergence.
+  sysctl-declared-knobs-reach-every-interface:
+    exec: |
+      decl=/etc/sysctl.d/99-homelab.conf
+      [ -r "$decl" ] || { echo "$decl unreadable — the derivation has no source"; exit 1; }
+      knobs=$(sed -n 's/^net\.ipv6\.conf\.all\.\([a-z_]*\) *=.*/\1/p' "$decl" | sort -u)
+      [ -n "$knobs" ] || { echo "derived ZERO ipv6 knobs from $decl — the sed no longer matches"; exit 1; }
+      # The floor that matters is not "more than zero" but "as many as the file
+      # declares": a sed that silently stops matching some lines shrinks the
+      # sweep without emptying it, which is the failure this spec keeps finding
+      # elsewhere. Both counts come from the same file, so they move together.
+      declared=$(grep -c '^net\.ipv6\.conf\.all\.' "$decl")
+      found=$(printf '%s\n' $knobs | wc -l)
+      [ "$found" -eq "$declared" ] || {
+        echo "derived $found ipv6 knob(s) from $declared declaration(s) in $decl"
+        echo "the sed is losing lines — the sweep would be narrower than the file"
+        exit 1
+      }
+      bad=0; seen=0
+      for k in $knobs; do
+        want=$(sysctl -n "net.ipv6.conf.all.$k" 2>/dev/null) || continue
+        for path in /proc/sys/net/ipv6/conf/*/"$k"; do
+          [ -r "$path" ] || continue
+          iface=$(basename "$(dirname "$path")")
+          case "$iface" in all|default|lo) continue ;; esac
+          have=$(cat "$path" 2>/dev/null) || continue
+          seen=$((seen + 1))
+          [ "$have" = "-1" ] && continue
+          if [ "$have" != "$want" ]; then
+            echo "net.ipv6.conf.$iface.$k=$have but the declaration says $want"
+            bad=$((bad + 1))
+          fi
+        done
+      done
+      [ "$seen" -gt 0 ] || { echo "swept ZERO interface/knob pairs — vacuous"; exit 1; }
+      [ "$bad" -eq 0 ] || { echo "$bad declared knob(s) never reached the interface they name"; exit 1; }
+    exit-status: 0
+
   # The property that makes #288 hard to see: a container killed mid-shutdown
   # says nothing about it. The evidence is in the log of the NEXT start, and by
   # then everything is green — 28 containers up, no failed unit, no red monitor.
@@ -1561,8 +1625,14 @@ command:
   # container has ever done, forever, and the assertion could never go green.
   #
   # Three markers for three engines, taken from the real logs of 2026-08-29.
-  # Redis is absent on purpose: both instances run with persistence off, so they
-  # have nothing to recover and never will.
+  # Redis is absent for nextcloud-redis only, which runs with `--save ""` and
+  # no appendonly and therefore has nothing to recover. immich-redis does NOT:
+  # it holds Immich's immich_bull:* job queues and was given
+  # `--appendonly yes --appendfsync everysec` for that reason, so it has a real
+  # AOF and a real recovery. The sentence this comment replaces said both
+  # instances ran with persistence off "and never will", which stopped being
+  # true the day the queues were made durable and was still here on 2026-09-11.
+  # Adding a marker for it is a separate question from correcting the claim.
   no-container-came-back-recovering:
     exec: |
       bad=""

@@ -130,6 +130,20 @@
     - { key: "net.ipv4.conf.default.secure_redirects", value: "0" }
     - { key: "net.ipv6.conf.all.accept_redirects", value: "0" }
     - { key: "net.ipv6.conf.default.accept_redirects", value: "0" }
+    # And on the DEVICE, which neither of the two above reaches. An interface's
+    # inet6_dev is a COPY of the compile-time default, taken at NETDEV_REGISTER
+    # when the driver probes — before systemd-sysctl runs. The later write to
+    # `.all.` lands in a different struct and does not retro-apply, and
+    # `.default.` governs only devices created afterwards. Measured on both
+    # hosts 2026-09-11: all=0, default=0, eth0=1, while every docker bridge —
+    # created after the write — correctly read 0. The IPv4 twin reached eth0
+    # because IPv4 ANDs the per-device value with `.all.` at use time; IPv6 has
+    # no such aggregation for this knob and reads the receiving device's copy.
+    # So CIS 3.3.2 was recorded as enforced and was not, on the one interface
+    # where redirects actually arrive. The class, rather than this instance, is
+    # closed by `sysctl-declared-knobs-reach-every-interface` in the posture
+    # spec, which compares the declaration against every live interface.
+    - { key: "net.ipv6.conf.{{ ansible_default_ipv4.interface | mandatory }}.accept_redirects", value: "0" }
     # No source-routed packets (3.3.8)
     - { key: "net.ipv4.conf.all.accept_source_route", value: "0" }
     - { key: "net.ipv4.conf.default.accept_source_route", value: "0" }
@@ -196,6 +210,11 @@
           {
               key = $1; gsub(/[[:space:]]/, "", key)
               val = $2; gsub(/[[:space:]]/, "", val)
+              # ufw writes net/ipv4/conf/all/log_martians where /etc/sysctl.d
+              # writes net.ipv4.conf.all.log_martians. To sysctl(8) these are
+              # one key; to an awk keyed on the literal string they were two,
+              # so appending ufw's file without this line still returned zero.
+              gsub(/\//, ".", key)
               if (key == "") next
               if ((key in seen) && seen[key] != val)
                   printf "%s: %s=%s overridden by %s=%s\n",
@@ -203,7 +222,8 @@
               seen[key] = val; where[key] = FILENAME
           }
       ' $(ls /usr/lib/sysctl.d/*.conf /run/sysctl.d/*.conf \
-             /etc/sysctl.d/*.conf /etc/sysctl.conf 2>/dev/null)
+             /etc/sysctl.d/*.conf /etc/sysctl.conf 2>/dev/null) \
+        $(ls /etc/ufw/sysctl.conf 2>/dev/null)
     executable: /bin/bash
   register: sysctl_collisions
   changed_when: false
@@ -226,6 +246,15 @@
       files (procps ships 10-network-security.conf) must not be edited — a
       package update restores them; set the intended value in 99-homelab.conf,
       which sorts last, and say there that it overrides.
+
+      /etc/ufw/sysctl.conf is the exception to "sorts last": it is not read by
+      systemd-sysctl at all. ufw applies it itself (IPT_SYSCTL in
+      /etc/default/ufw) on EVERY reload, i.e. after everything in /etc/sysctl.d
+      and again each time the Reload UFW handler fires. A key it declares wins
+      regardless of file order, so aligning 99-homelab.conf to it is not enough
+      — the value has to be set where ufw will not overwrite it, or set the
+      same in both. The nine keys it declares were 9/9 in agreement on
+      2026-09-11; this check exists so the tenth is not silent.
   when: sysctl_collisions.stdout | length > 0
 
 # CIS 1.5.5 — apport phones crash dumps home and has no use on a headless
