@@ -200,6 +200,16 @@
 # Read-only, and `check_mode: false` so a dry run reports the truth: a command
 # task skipped under --check still registers stdout, as an empty string, which
 # would turn this control into one that always passes.
+# The key normalisation inside the awk matters as much as the file list. ufw
+# writes net/ipv4/conf/all/log_martians in SLASH notation while /etc/sysctl.d
+# writes net.ipv4.conf.all.log_martians in dots. To sysctl(8) these are one key;
+# to an awk keyed on the literal string they were two, so adding the ufw file to
+# the list without normalising still returned zero collisions.
+#
+# That explanation lives here rather than inside the awk program, and the reason
+# is worth keeping: it once sat in a comment INSIDE the single-quoted program,
+# where the apostrophe in "ufw's" closed the quote and broke the whole command at
+# deploy time. Nothing in the awk program may contain an apostrophe.
 - name: system | Look for sysctl keys declared twice with different values
   ansible.builtin.shell:
     cmd: |
@@ -210,10 +220,6 @@
           {
               key = $1; gsub(/[[:space:]]/, "", key)
               val = $2; gsub(/[[:space:]]/, "", val)
-              # ufw writes net/ipv4/conf/all/log_martians where /etc/sysctl.d
-              # writes net.ipv4.conf.all.log_martians. To sysctl(8) these are
-              # one key; to an awk keyed on the literal string they were two,
-              # so appending ufw's file without this line still returned zero.
               gsub(/\//, ".", key)
               if (key == "") next
               if ((key in seen) && seen[key] != val)

@@ -135,6 +135,24 @@ repos:
         files: (^ansible/roles/.*/tasks/.*\.yml|^ansible/playbooks/.*\.yml|^docker/compose\.yaml)$
         pass_filenames: false
 
+      # yamllint parses the YAML and ansible-lint parses the task; neither hands
+      # the program INSIDE the string to a shell. On 2026-09-11 an apostrophe in
+      # a comment inside a single-quoted awk program closed the quote, and the
+      # first thing to notice was the deploy dying on the host, mid-run.
+      - id: shell-cmds-parse
+        name: every embedded shell program parses as shell
+        entry: ops/check-shell-cmds-parse.py
+        language: system
+        files: (^ansible/roles/.*/(tasks|handlers)/.*\.yml|^ansible/playbooks/.*\.yml)$
+        pass_filenames: false
+
+      - id: shell-cmds-parse-selftest
+        name: the embedded-shell gate still fails when it should
+        entry: ops/check-shell-cmds-parse.py --selftest
+        language: system
+        files: ^ops/check-shell-cmds-parse\.py$
+        pass_filenames: false
+
       - id: secret-in-environment-selftest
         name: the secret-in-environment gate still fails when it should
         entry: ops/check-secret-in-environment.py --selftest
