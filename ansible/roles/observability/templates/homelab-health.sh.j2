@@ -114,16 +114,67 @@ done
 # indicator: it is true from the first second of a bad boot, whether or not the
 # vacuum has run yet. The banner is the trailing one: by the time it fires, the
 # records are already gone.
+#
+# WHICH CHANNEL, and this changed on 2026-09-12. The skew was in `pending`, and
+# on this hardware that makes it permanent: there is no RTC, fake-hwclock
+# restores the clock AFTER journald has already imported the kernel ring buffer,
+# so every boot begins with a few hundred kernel lines carrying the wrong wall
+# time. The condition is therefore true from the first second of EVERY boot and
+# stays true until the next one. A monitor that is red for the life of every
+# boot is not a warning, it is furniture, and the operator learns to scroll past
+# it — which is the failure mode this whole reporting chain exists to avoid.
+#
+# Measured on the reboot of 2026-09-11: 569 kernel lines stamped 2026-09-05
+# 22:56:10, all at the same second, which is the signature of a ring-buffer
+# import done before the clock was fixed. fake-hwclock itself was fine — it set
+# the clock correctly at 23:35:30, and NTP synchronised at 23:38:43.
+#
+# So the skew now reports, and only ALARMS when the risk it warns about is live.
+# The risk is the vacuum reaching this boot's mis-dated head, and the vacuum only
+# runs as the journal approaches its cap. The threshold is derived from the
+# DEPLOYED cap rather than written here, so changing journald_system_max_use
+# moves it. Unreadable headroom alarms rather than staying quiet: not being able
+# to size the risk is not the same as the risk being absent.
+#
+# The trailing check below is NOT gated. By the time it fires the records are
+# already gone, and that is worth saying whatever the disk says.
+JOURNAL_PRESSURE_PCT=80
+
+journal_cap_mb=$(sed -n 's/^SystemMaxUse=\([0-9]\{1,\}\)M$/\1/p' \
+                 /etc/systemd/journald.conf.d/99-homelab.conf 2>/dev/null | head -1)
+journal_pct=""
+if [ -n "$journal_cap_mb" ] && [ "$journal_cap_mb" -gt 0 ] 2>/dev/null; then
+    journal_pct=$(journalctl --disk-usage 2>/dev/null | awk -v cap="$journal_cap_mb" '
+        match($0, /take up [0-9.]+[KMGT]/) {
+            v = substr($0, RSTART + 8, RLENGTH - 8)
+            unit = substr(v, length(v))
+            n = substr(v, 1, length(v) - 1) + 0
+            if (unit == "K") n /= 1024
+            else if (unit == "G") n *= 1024
+            else if (unit == "T") n *= 1048576
+            printf "%d", (n / cap) * 100
+        }')
+fi
+
 boot_journal=$(journalctl -b -o short-unix 2>/dev/null | head -1 | cut -d. -f1)
 boot_real=$(date -d "$(uptime -s)" +%s 2>/dev/null)
 case "${boot_journal:-x}${boot_real:-x}" in
     *[!0-9]*) ;;   # either unreadable: say nothing rather than guess
     *)
         skew=$(( boot_real - boot_journal ))
-        if [ "$skew" -ge 86400 ]; then
-            pending+=("this boot's journal starts $(( skew / 86400 )) days before the machine did — the pre-NTP segment sorts oldest and the vacuum deletes it first (#292)")
-        elif [ "$skew" -gt 600 ]; then
-            pending+=("this boot's journal starts ${skew}s before the machine did — pre-NTP clock skew (#292)")
+        if [ "$skew" -gt 600 ]; then
+            if [ "$skew" -ge 86400 ]; then
+                how="$(( skew / 86400 ))d"
+            else
+                how="${skew}s"
+            fi
+            if [ -z "$journal_pct" ]; then
+                pending+=("this boot's journal starts $how before the machine did, and the journal's headroom could not be read to size the risk (#292)")
+            elif [ "$journal_pct" -ge "$JOURNAL_PRESSURE_PCT" ]; then
+                pending+=("this boot's journal starts $how before the machine did and the journal is at ${journal_pct}% of its ${journal_cap_mb}M cap — the pre-NTP segment sorts oldest and the vacuum takes it first (#292)")
+            else
+                report+=("boot journal skew $how, journal ${journal_pct}%")
+            fi
         fi
         ;;
 esac
