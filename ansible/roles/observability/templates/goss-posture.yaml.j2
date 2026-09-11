@@ -219,7 +219,7 @@ command:
   # exec into.
   #
   # ONE `docker inspect` for the whole table, and that is not a micro-optimisation
-  # — it is what keeps this check inside goss's 10 s command timeout. The first
+  # — it is what brings the check's own cost down to about a second. The first
   # version called `docker inspect` once per pair: 1.4 s idle, which passed every
   # rehearsal and then timed out on the very first real run, because the posture
   # evaluates its ~385 assertions concurrently and the Pi is saturated while it
@@ -261,6 +261,23 @@ command:
       [ "$compared" -gt 0 ] || { echo "not one of the {{ _secret_pairs | length }} secret mounts could be compared — every consumer is down, or /proc is not readable here"; exit 1; }
       [ -z "$stale" ] || { echo "container still holds the PREVIOUS value of:$stale — the deploy that rotated it did not restart the consumer, and the old credential is still live"; exit 1; }
     exit-status: 0
+    # 30 s rather than goss's 10 s default, and the number is not about what this
+    # check costs. Measured on the live host on 2026-09-11 at load 9: ~1 s —
+    # 0.34 s for the single inspect, 0.6 s to digest the whole store. The budget
+    # is spent by its NEIGHBOURS. The spec evaluates its assertions concurrently
+    # and saturates the four cores while it does (1 min 7 s of CPU in a 48 s run,
+    # load average 18.4 during that run), so a command costing a second can wait
+    # ten for a core.
+    #
+    # It lost that race twice, and both times on the run the DEPLOY triggers:
+    # 01:45 with the per-pair inspect, 18:15 with this version — the second
+    # alongside the Traefik access-log check, which expired in the same second on
+    # a 30 s budget of its own. A manual run 36 s later passed with nothing
+    # changed. The deploy itself does not fail on the result (`failed_when:
+    # false`, deliberately), so the whole visible effect is a red push to Kuma
+    # minutes after an ordinary deploy, reporting a stale secret where there is
+    # none — the false alarm this check exists to make credible.
+    timeout: 30000
 
   # --- dnsproxy lives in Pi-hole's namespace, and only the CURRENT one --------
   # `network_mode: "service:pihole"` is what makes dnsproxy reachable at
