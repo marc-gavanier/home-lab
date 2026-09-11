@@ -2290,6 +2290,25 @@ everything else refuted with a number.
   format *and* one in the format the regex was written for. If the second matches
   and the first misses, the finding is proven rather than argued. That is how the
   Vaultwarden TOTP jail line was settled in one command.
+- **Verify a program in the context that will RUN it, not the one that is handy.**
+  Paid twice in one evening, both times on the same branch, and it is the most
+  expensive trap on this list because the verification LOOKED rigorous each time.
+  (1) An awk program was tested over SSH with a positive and a negative control —
+  as a program. Ansible renders it through YAML into a shell, where an apostrophe
+  inside a comment closed the quote; the deploy died on the host mid-run.
+  (2) A goss assertion was tested with `sudo bash -s` and passed in 0.156 s.
+  **goss runs its commands with sh**, and dash's `read` builtin returns non-zero
+  on a `/proc/sys` file, so every iteration fell through, the counter stayed at
+  zero and the anti-vacuity floor fired. Under bash it was green.
+  The rule: an Ansible `shell:` cmd is verified by extracting it from the PARSED
+  YAML and running that; a goss `exec:` body is verified under **sh**, on the
+  host, and preferably under both shells so the difference is visible.
+  `ops/check-shell-cmds-parse.py` gates the syntax half of both. It cannot gate
+  the runtime half — `read` on /proc is not a syntax error, and dash parses
+  `[[ ]]` happily as a command name — so the exercise is not optional.
+- **A local `/bin/sh` is not evidence about the target's.** Both are dash here,
+  checked with `readlink -f` on both machines rather than assumed; on a host
+  where they differ, a static check run locally proves nothing about the deploy.
 - **How to tell an IDLE detector from a DEAD one, and it is one measurement.**
   A jail reporting `Total failed: 0` proves nothing on its own — the Vaultwarden
   TOTP line reported exactly that while being structurally unable to match. The
