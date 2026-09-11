@@ -1647,20 +1647,31 @@ command:
         echo "the sed is losing lines — the sweep would be narrower than the file"
         exit 1
       }
-      # Builtins only inside the loops. The first version used basename, dirname
-      # and cat per iteration — roughly 250 forks over 3 knobs x 41 interfaces,
-      # which blew through goss's 10 s default on a loaded Pi and reported a
-      # TIMEOUT rather than a verdict. Parameter expansion and `read` fork
-      # nothing, so the only processes left are one sysctl per knob.
+      # One grep per knob, and both halves of that matter.
+      #
+      # Speed: the first version forked basename, dirname and cat per iteration —
+      # about 250 processes over 3 knobs x 41 interfaces — and blew through
+      # goss's 10 s default, reporting a TIMEOUT instead of a verdict.
+      #
+      # Portability: the second version replaced those with `read -r have <
+      # "$path"`, which forks nothing and works under bash. GOSS RUNS sh. dash's
+      # `read` returns non-zero on a /proc/sys file, so every iteration took the
+      # `|| continue`, `seen` stayed 0 and the anti-vacuity floor fired — the
+      # floor did its job, and the assertion reported vacuous rather than
+      # passing. Verified under bash AND sh this time, which is the actual
+      # lesson: it had been verified under bash only.
+      #
+      # `grep -H .` reads every interface's copy in one call and prints
+      # path:value, so this is 3 greps and 3 sysctls in total.
       bad=0; seen=0
       for k in $knobs; do
         want=$(sysctl -n "net.ipv6.conf.all.$k" 2>/dev/null) || continue
-        for path in /proc/sys/net/ipv6/conf/*/"$k"; do
-          [ -r "$path" ] || continue
+        for line in $(grep -H . /proc/sys/net/ipv6/conf/*/"$k" 2>/dev/null); do
+          path=${line%%:*}
+          have=${line##*:}
           iface=${path#/proc/sys/net/ipv6/conf/}
           iface=${iface%/$k}
           case "$iface" in all|default|lo) continue ;; esac
-          read -r have < "$path" 2>/dev/null || continue
           seen=$((seen + 1))
           [ "$have" = "-1" ] && continue
           if [ "$have" != "$want" ]; then

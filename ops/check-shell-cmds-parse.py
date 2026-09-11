@@ -24,6 +24,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 GLOBS = ("ansible/roles/*/tasks/*.yml", "ansible/roles/*/handlers/*.yml",
          "ansible/playbooks/*.yml")
+GOSS_GLOBS = ("ansible/roles/*/templates/goss-*.yaml.j2",)
 
 try:
     import yaml
@@ -55,11 +56,36 @@ def shell_cmds(root):
     return out
 
 
-def parses(program):
+def goss_execs(root):
+    """(file, assertion name, program) for every goss `exec:` body.
+
+    Checked with `sh -n`, NOT bash, and the distinction is the whole reason this
+    half exists: goss runs its commands with sh. On 2026-09-11 an assertion that
+    passed under bash failed under dash, because dash's `read` builtin returns
+    non-zero on a /proc/sys file. A static check cannot catch that one — it is a
+    runtime difference, not a syntax error — but it catches every bashism that
+    IS a syntax error, and it is the cheap half of the same lesson: exercise a
+    goss body under sh before believing it.
+    """
+    out = []
+    pat = re.compile(r"^(\s*)([a-z0-9-]+):\n\1  exec: \|\n((?:\1    .*\n|\n)+)", re.M)
+    for glob in GOSS_GLOBS:
+        for path in sorted(root.glob(glob)):
+            text = path.read_text(encoding="utf-8")
+            for m in pat.finditer(text):
+                indent, name, body = m.group(1), m.group(2), m.group(3)
+                strip = len(indent) + 4
+                body = "\n".join(l[strip:] if l.startswith(" " * strip) else l
+                                  for l in body.split("\n"))
+                out.append((path.relative_to(root), name, body))
+    return out
+
+
+def parses(program, shell="bash"):
     with tempfile.NamedTemporaryFile("w", suffix=".sh", delete=False) as fh:
         fh.write(program)
         path = fh.name
-    r = subprocess.run(["bash", "-n", path], capture_output=True, text=True)
+    r = subprocess.run([shell, "-n", path], capture_output=True, text=True)
     Path(path).unlink(missing_ok=True)
     return r.returncode == 0, (r.stderr or "").strip()
 
@@ -81,11 +107,31 @@ def selftest():
         if ok != should_parse:
             failures.append("%s: parsed=%s expected=%s" % (label, ok, should_parse))
 
+    # What `sh -n` can and cannot see, stated rather than assumed. It catches
+    # bashisms that are SYNTAX errors for dash. It does NOT catch `[[ ]]`, which
+    # dash parses happily as a command name and only fails on at runtime, and it
+    # does not catch a builtin that behaves differently — dash's `read` returning
+    # non-zero on a /proc/sys file is the one that cost a deploy on 2026-09-11.
+    # The gate is the cheap half; exercising the body under sh is the other half
+    # and no static check replaces it.
+    sh_cases = [
+        ("MUST FLAG under sh - a bash array",
+         "a=(one two)\necho ${a}\n", False),
+        ("MUST FLAG under sh - process substitution",
+         "diff <(echo a) <(echo b)\n", False),
+        ("must pass under sh - the portable equivalents",
+         "[ -f /etc/hosts ] && echo yes\nv=$(cat /etc/hostname)\n", True),
+    ]
+    for label, program, should_parse in sh_cases:
+        ok, _ = parses(program, shell="sh")
+        if ok != should_parse:
+            failures.append("%s: parsed=%s expected=%s" % (label, ok, should_parse))
+
     for f in failures:
         print("SELFTEST FAILED: %s" % f, file=sys.stderr)
     if failures:
         return 1
-    print("selftest: %d controls, all as expected" % len(cases))
+    print("selftest: %d controls, all as expected" % (len(cases) + len(sh_cases)))
     return 0
 
 
@@ -116,8 +162,28 @@ def main():
               "host, mid-run." % len(bad), file=sys.stderr)
         return 1
 
-    print("%d embedded shell programs parse (%d skipped for Jinja)"
-          % (len(cmds) - skipped, skipped))
+    execs = goss_execs(ROOT)
+    if not execs:
+        print("found ZERO goss exec bodies — the extraction is broken, not the repo",
+              file=sys.stderr)
+        return 1
+    gbad, gskipped = [], 0
+    for path, name, body in execs:
+        if "{{" in body or "{%" in body:
+            gskipped += 1
+            continue
+        ok, err = parses(body, shell="sh")
+        if not ok:
+            gbad.append((path, name, err))
+    for path, name, err in gbad:
+        print("%s: goss assertion `%s` does not parse under SH, which is what "
+              "goss runs it with\n    %s" % (path, name, err), file=sys.stderr)
+    if gbad:
+        return 1
+
+    print("%d embedded shell programs parse under bash (%d skipped for Jinja), "
+          "%d goss exec bodies parse under sh (%d skipped)"
+          % (len(cmds) - skipped, skipped, len(execs) - gskipped, gskipped))
     return 0
 
 
