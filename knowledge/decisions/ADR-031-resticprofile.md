@@ -152,9 +152,14 @@ reviewed by Renovate would be a hole in that process, not a convenience.
 
   Measured after the fact, across the whole repository: **3348 shell lines in 22
   files → 3061 in 20** (3050 when this was written, before two later fixes). Less than the 420 predicted here, and the gap is the
-  adapter: resticprofile's hooks receive `PROFILE_NAME` and `PROFILE_COMMAND` and
-  nothing else — no snapshot id, no summary, no status file — so every message
-  worth reading has to be rebuilt outside the tool. That is the honest price of
+  adapter: resticprofile's success hooks receive `PROFILE_NAME` and
+  `PROFILE_COMMAND` and nothing else — no snapshot id, no summary — so every
+  message worth reading has to be rebuilt outside the tool. **Correction of
+  2026-09-11**: this sentence also said "no status file", and that was wrong.
+  `status-file` is in the installed binary's own JSON schema and the profile now
+  sets it; it carries no snapshot id, so the adapter stands, but it carries the
+  duration, which is what lets the posture spec assert that a deep check was
+  observed rather than claimed. That is the honest price of
   this migration, and it is recorded rather than rounded away.
 - **The assertions were kept deliberately**, and this ADR is where that was
   recorded, so a later reader would not mistake them for glue that was missed.

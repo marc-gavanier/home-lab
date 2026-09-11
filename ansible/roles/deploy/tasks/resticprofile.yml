@@ -91,6 +91,14 @@
     group: root
     mode: "0400"
 
+- name: resticprofile | Create the state directory for the status file
+  ansible.builtin.file:
+    path: /var/lib/homelab-backup
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
 - name: resticprofile | Install the profile
   ansible.builtin.template:
     src: resticprofile.yaml.j2

@@ -964,6 +964,57 @@ command:
     timeout: 20000
     exit-status: 0
 
+  # The assertion above believes the beat, and the beat believes the calendar.
+  # `read-data-subset` and the words "deep check" come out of the SAME Jinja
+  # branch in resticprofile.yaml.j2, so nothing in the chain observes that restic
+  # read a single byte. Its own comment names the failure it cannot catch — "the
+  # branch is edited, or read-data-subset stops being understood by a future
+  # restic, and the run keeps succeeding on metadata" — and the mechanism for
+  # that is live: `restic-arguments-filter: true` drops unsupported restic flags
+  # SILENTLY, which is precisely how the flag stops being passed while the run
+  # still exits 0.
+  #
+  # So this one measures instead. resticprofile's own status-file records the
+  # duration of the last restic command, and the two modes are not close:
+  # 25 min 40 s for the deep run of 2026-09-06 (`read group #9 of 1821 data
+  # packs`) against 30 s for the metadata run of 2026-08-30. A factor of 51. The
+  # floor below sits 5x above metadata and 5x below deep, so it cannot be reached
+  # by a slow metadata run nor missed by a fast deep one.
+  #
+  # The check runs weekly and only the first-week run is deep, so the status file
+  # holds whichever ran last. That is enough: the DATE in the file says which
+  # mode the branch would have chosen, and the duration says which one happened.
+  # A deep date with a metadata duration is the defect, and nothing else is.
+  restic-deep-check-was-observed-not-claimed:
+    exec: |
+      sf=/var/lib/homelab-backup/status.json
+      if [ ! -f "$sf" ]; then
+        # The repo's settle idiom: a producer installed by this same deploy has
+        # not necessarily run yet. resticprofile writes this file on its first
+        # invocation, and the nightly backup is the soonest one.
+        dir=/var/lib/homelab-backup
+        age=$(( $(date +%s) - $(stat -c %Y "$dir" 2>/dev/null || echo 0) ))
+        [ "$age" -lt 93600 ] && exit 0
+        echo "$sf absent more than 26 h after its directory was created — resticprofile is not writing it"
+        exit 1
+      fi
+      t=$(jq -r '.profiles.homelab.check.time // empty' "$sf")
+      d=$(jq -r '.profiles.homelab.check.duration // empty' "$sf")
+      [ -n "$t" ] && [ -n "$d" ] || { echo "no check section in $sf — the status file shape moved"; exit 1; }
+      day=$(date -d "$t" +%-d 2>/dev/null) || { echo "cannot parse check time '$t'"; exit 1; }
+      secs=${d%%.*}
+      case "$secs" in ''|*[!0-9]*) echo "duration '$d' is not a number"; exit 1 ;; esac
+      if [ "$day" -le 7 ]; then
+        [ "$secs" -ge 300 ] || {
+          echo "the check of $t fell in the deep window (day $day) but took ${secs}s"
+          echo "a deep read-data-subset takes ~1540s here; metadata takes ~30s"
+          echo "the subset flag was almost certainly dropped — restic-arguments-filter is on"
+          exit 1
+        }
+      fi
+    timeout: 20000
+    exit-status: 0
+
   # --- Offsite parity, and the gate that makes it one (#291, class C02) ------
   # C02's property is "a control on the homelab with no counterpart on the
   # offsite host". #285 closed it with seven assertions on the offsite, one per

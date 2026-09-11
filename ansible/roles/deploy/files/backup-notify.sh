@@ -2,14 +2,31 @@
 # =============================================================================
 # Home Lab — backup notification (ADR-031)
 # =============================================================================
-# resticprofile's hooks receive PROFILE_NAME and PROFILE_COMMAND, and nothing
-# else — no snapshot id, no sizes, no restic summary. Verified by dumping the
-# hook environment, and there is no status file either: `status-file` is not an
-# option, and `resticprofile status` reports on SCHEDULES, not on runs.
+# resticprofile's SUCCESS hooks receive PROFILE_NAME and PROFILE_COMMAND, and
+# nothing else — no snapshot id, no sizes, no restic summary. Verified by
+# dumping the hook environment. `resticprofile status` reports on SCHEDULES,
+# not on runs, so it is no help either.
 #
-# So the message backup.sh used to build from restic's --json summary cannot be
-# reproduced by configuration alone. This is the adapter that keeps the
-# notification worth reading.
+# Two claims that used to stand here were WRONG, corrected 2026-09-11, and both
+# were load-bearing enough to be worth naming:
+#
+#   - "`status-file` is not an option" — it is. The installed binary's own
+#     schema documents it (`resticprofile generate --json-schema v1`), and the
+#     profile now sets it. It carries the result and the DURATION of the last
+#     restic command, which is what lets the posture spec assert an OBSERVED
+#     deep check instead of a self-reported one.
+#   - "a hook sees none of restic's output", which sent the DOWN path to
+#     `journalctl`. The binary carries ERROR_STDERR, ERROR_EXIT_CODE,
+#     ERROR_COMMANDLINE and RESTICPROFILE_COMMAND_OUTPUT alongside PROFILE_NAME
+#     and PROFILE_COMMAND. What is verified is that those names exist in
+#     resticprofile 0.33.1; whether they are populated in OUR run-after-fail
+#     environment has not been observed, because that needs a real failure. The
+#     cost of the old belief is on record: the copy failure of 2026-08-23 14:37
+#     pointed the operator at a file holding one line and no cause.
+#
+# The adapter still earns its place — the rich message backup.sh built from
+# restic's --json summary is not reproducible by configuration alone — but it
+# is now a choice rather than the only option.
 #
 # WHAT IT KEEPS, and what it drops:
 #   kept    which snapshot, and whether the dumps passed — the two things that

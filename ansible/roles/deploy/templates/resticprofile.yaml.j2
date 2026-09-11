@@ -18,6 +18,25 @@ version: "1"
 homelab:
   repository: '{{ "{{ .Env.RESTIC_REPOSITORY }}" }}'
   password-file: /mnt/data/secrets/restic_password
+  # resticprofile writes the result AND the duration of the last restic command
+  # here. It exists so that `restic-deep-check-not-stale` can assert an OBSERVED
+  # deep check rather than a self-reported one: the Kuma message saying "deep
+  # check re-read data subset 9/12" is produced by the Jinja branch below, in the
+  # same expression that sets read-data-subset, so nothing in the chain observes
+  # that restic read any data. A 25-minute run and a 30-second one are separated
+  # by a factor of 51 and by nothing else.
+  #
+  # The path that makes this matter: `restic-arguments-filter: true` is live, and
+  # its entire job is to drop restic flags the detected version does not support,
+  # SILENTLY. That is exactly how --read-data-subset can stop being passed while
+  # the run still exits 0 and the beat still claims the subset was re-read.
+  #
+  # Three sentences in this repo said this file could not exist — here, in
+  # backup-notify.sh and in ADR-031 — and the installed resticprofile's own JSON
+  # schema says otherwise: `resticprofile generate --json-schema v1` documents
+  # status-file, its description, and its type. The claim was recorded as
+  # impossible rather than as declined.
+  status-file: /var/lib/homelab-backup/status.json
   # Concurrency protection, and it replaces something specific: backup.sh wrapped
   # its copy step in `flock /var/lock/offsite-copy.lock` after a collision
   # between the 2026-07-12 seed and the nightly copy put ~100 GB of duplicates
@@ -147,10 +166,13 @@ homelab:
         goss -g /etc/goss/backup-dumps.yaml validate --format tap
         > {{ dump_tap }} 2>&1 || true
 
-    # resticprofile hooks receive PROFILE_NAME and PROFILE_COMMAND and nothing
-    # else — no snapshot id, no summary, and there is no run status file either.
-    # So the notification is built by a small adapter rather than reproduced
-    # from configuration, which cannot see any of it.
+    # resticprofile SUCCESS hooks receive PROFILE_NAME and PROFILE_COMMAND and
+    # nothing else — no snapshot id, no summary. So the notification is built by
+    # a small adapter rather than reproduced from configuration.
+    # There IS a run status file, contrary to what this comment said until
+    # 2026-09-11: see `status-file` on the profile above. It does not carry a
+    # snapshot id, so it does not replace the adapter — it carries the duration,
+    # which is what the deep-check assertion needed.
     run-after:
       - /opt/homelab/scripts/backup-notify.sh up backup
       # backup.sh removed the dumps once the snapshot held them, and so does
