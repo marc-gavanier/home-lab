@@ -27,3 +27,6 @@
 
 - name: Free port 53 for Pi-hole (opt-out via free_port_53)
   ansible.builtin.import_tasks: port53.yml
+
+- name: Remove artefacts whose producing task no longer exists
+  ansible.builtin.import_tasks: retired.yml
