@@ -113,7 +113,7 @@ log:
 # and what Dozzle serves to every account authorised for it, so the raw line
 # must not go there.
 #
-# Traefik cannot mask part of a field. Measured on 3.7.11, both formats:
+# Traefik cannot mask a NAMED part of a field. Measured on 3.7.11, both formats:
 # `fields.names.RequestPath: redact` is a NO-OP — the value passes through
 # verbatim — and `drop` blanks the whole path for every line, which would leave
 # vaultwarden, whose own log carries no request line at all, with no HTTP
