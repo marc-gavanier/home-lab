@@ -1687,8 +1687,15 @@ services:
   # read_only is NOT set here, and that is also not a measurement: it was not
   # attempted. calibre-web documents an image that genuinely cannot run
   # read-only; these three have not been tried, and the honest state is
-  # "unknown". Same for start_period — 300 s is a guess to be replaced by what
-  # the first cold boot actually shows.
+  # "unknown".
+  #
+  # start_period is 600 s and that IS measured now. First start on an IDLE
+  # machine, 2026-09-12: prowlarr 246 s, radarr 248 s, sonarr 262 s to first
+  # healthy. The 300 s this shipped with would have held — by 15 % — and that
+  # margin is worthless, because the number that decides it is a COLD boot with
+  # eleven containers in wave 3 contending for one disk. calibre-web is the
+  # precedent and it is brutal: 90 s warm, 7 min 49 s cold, unhealthy on two
+  # consecutive boots before its own budget went to 600 s.
   prowlarr:
     image: lscr.io/linuxserver/prowlarr:2.5.2
     container_name: prowlarr
@@ -1717,7 +1724,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 300s
+      start_period: 600s
       start_interval: 15s
     labels:
       - "traefik.enable=true"
@@ -1752,7 +1759,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 300s
+      start_period: 600s
       start_interval: 15s
     labels:
       - "traefik.enable=true"
@@ -1782,7 +1789,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 300s
+      start_period: 600s
       start_interval: 15s
     labels:
       - "traefik.enable=true"
