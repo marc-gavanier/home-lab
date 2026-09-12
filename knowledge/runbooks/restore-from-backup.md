@@ -446,6 +446,58 @@ their own. That only holds because both halves ride the same snapshot: if you
 ever restore the database from an *older* snapshot than the configuration, the
 tokens diverge and every push monitor stays silently DOWN.
 
+## Restore wg-easy (SQLite)
+
+Read this one before you need it. wg-easy holds every WireGuard peer, and the
+tunnel is the only route to this Pi, to the offsite Pi, and — because
+`/etc/wireguard/wg0.conf` is a symlink to `/mnt/data/secrets/wg0.conf` on the
+encrypted volume — to the unlock itself. A restore you get wrong here is not a
+service outage; it is the loss of the way back in. Do it with someone able to
+reach the machine physically, or do it knowing that is the fallback.
+
+It joined the dump set on 2026-09-11 and had no procedure here until
+2026-09-12, which is the gap this section closes.
+
+```bash
+restic restore latest --target /mnt/data/tmp/restore \
+  --include /mnt/data/backups/dumps
+
+cd /opt/homelab
+docker compose down wg-easy    # `down`, never `stop`: the heal timer brings a
+                               # stopped container back within 2 min (ADR-007)
+
+# The store is `wg-easy.db`, NOT the `wg0.json` sitting beside it. That file is
+# the pre-v15 peer store, kept deliberately as a rollback (ADR-020); copying it
+# over the database, or leaving the database missing so wg-easy finds only it,
+# is how a restore silently rebuilds the wrong generation of peers.
+cp /mnt/data/tmp/restore/mnt/data/backups/dumps/wg-easy.sqlite3 \
+   /mnt/data/services/wireguard/wg-easy.db
+
+chown root:root /mnt/data/services/wireguard/wg-easy.db   # the image runs as uid 0
+chmod 600 /mnt/data/services/wireguard/wg-easy.db
+
+docker compose up -d wg-easy
+```
+
+Two traps that are documented elsewhere and were not here, which is where they
+are needed:
+
+- **wg-easy cannot write its own database (#138).** That is why the copy above
+  is enough and why no `-wal`/`-shm` cleanup is needed — unlike Forgejo or Kuma,
+  there is no live writer to have left a torn journal. It also means the
+  restored file is what the container will use unchanged: if you restore the
+  wrong one, nothing overwrites your mistake.
+- **The host's own admin tunnel is not in this file.** `wg-easy.db` holds the
+  peers wg-easy serves. The interface configuration the Pi itself brings up
+  lives at `/mnt/data/secrets/wg0.conf` on the encrypted volume and comes back
+  with the secrets, not with this database. Restoring one without the other
+  leaves a working peer list nobody can connect to.
+
+Sanity-check, and check it before you close the session you still have:
+`docker exec wg-easy wg show wg0 peers | wc -l` against the number of clients
+the UI lists, and one actual handshake from a client — a peer list that loads is
+not a tunnel that works.
+
 ## Full disaster recovery
 
 1. **Re-provision the OS** with Ansible (the OS isn't backed up — it's reproducible): flash

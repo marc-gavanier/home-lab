@@ -44,6 +44,26 @@ Vaultwarden logs no request line of its own and Jellyfin logged four in a day,
 so Traefik is the only HTTP visibility either service has. Dropping the path
 would have blinded us to the two services the finding is about.
 
+> **Correction, 2026-09-12.** That measurement is right and the alternative it
+> rejected was the wrong one. This section examined `fields.names` — the
+> per-field grammar — and never looked at `fields.queryparameters`, although
+> this ADR says twice, above, that the credential arrives in the **query
+> string**. Traefik 3.7.13's own `--help` carries
+> `--accesslog.fields.queryparameters.defaultmode`, default `keep`, which
+> governs exactly where the credential is.
+>
+> What it does NOT carry is a per-name form: there is
+> `--accesslog.fields.headers.names.<name>` and there is no
+> `queryparameters.names.<name>`. So Traefik can keep, drop or redact query
+> parameters **as a block**, and cannot express the named parameter class this
+> ADR is built on. The decision to ship the redactor therefore still stands on
+> its selectivity argument — but it no longer stands on "Traefik cannot", which
+> was never measured and is false.
+>
+> Whether blanket query-parameter redaction is good enough to retire the
+> redactor is an open question, and answering it means measuring what is lost
+> from the logs, on a branch, before anything is removed.
+
 ## Decision
 
 Mask the value between Traefik and the durable store, keeping everything else
@@ -68,9 +88,11 @@ in the line.
 
 ADR-030 says: configure the tools, do not write the glue. This is glue — an awk
 program in the request path of every logged line. It ships because the premise
-of that rule fails here: **no installed tool does this job.** Traefik cannot;
-Docker's log driver cannot; the alternatives that could (a log shipper as the
-log driver) take `docker logs` away and blind Dozzle, which is a worse trade.
+of that rule fails here: **no installed tool does this job selectively.**
+Traefik can redact query parameters as a block but not by name (see the
+correction above); Docker's log driver cannot; the alternatives that could (a
+log shipper as the log driver) take `docker logs` away and blind Dozzle, which
+is a worse trade.
 
 Four things keep the glue small enough to be worth it:
 

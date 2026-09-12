@@ -332,10 +332,14 @@ services:
       start_period: 240s
 
   # --- Traefik access-log redactor (#287, ADR-034) --------------------------
-  # Traefik has no way to mask part of a logged field. Measured on 3.7.11, in
-  # both `common` and `json`: `fields.names.RequestPath: redact` is a NO-OP, the
-  # value passes through verbatim, and `drop` blanks the whole path for every
-  # line. Dropping was the cheap fix and it was rejected on a measurement —
+  # Traefik has no way to mask a NAMED part of a logged field. Measured on
+  # 3.7.11, in both `common` and `json`: `fields.names.RequestPath: redact` is a
+  # NO-OP, the value passes through verbatim, and `drop` blanks the whole path
+  # for every line. It does carry
+  # `accesslog.fields.queryparameters.defaultmode`, which governs the query
+  # string where these credentials arrive — but as a block, with no
+  # `queryparameters.names.<name>` to match the parameter class this redacts.
+  # Corrected 2026-09-12; the old wording said Traefik could not do it at all. Dropping was the cheap fix and it was rejected on a measurement —
   # vaultwarden logs no request line of its own and jellyfin logged four in a
   # day, so Traefik is the only HTTP visibility either service has.
   #

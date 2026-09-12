@@ -50,7 +50,21 @@ Jellyfin scans libraries periodically or you can trigger a manual scan from the 
 
 ## Performance Note
 
-The Pi 4 has no hardware transcoding support. Use direct play whenever possible (clients that support your video formats natively). If transcoding is needed, limit to 720p.
+Jellyfin transcodes in software here, and that is a configuration choice rather
+than a hardware limit — the sentence that used to stand here said the Pi 4 has
+no hardware transcoding support, and that is not what the board reports.
+Measured on 2026-09-12: the host exposes `/dev/video19`, `bcm2835_codec` and
+`rpivid_hevc` are loaded in the running kernel, and Jellyfin's own ffmpeg
+carries the `h264_v4l2m2m` and `hevc_v4l2m2m` encoder and decoder wrappers. What
+is missing is the device: the container is passed none, so ffmpeg has nothing to
+open.
+
+The practical advice is unchanged. Use direct play whenever possible (clients
+that support your video formats natively), and limit to 720p when transcoding is
+needed — the Pi 4's hardware H.264 encoder is quality-limited and its HEVC block
+decodes only, so passing the device through would not make 1080p transcoding a
+solved problem. It would be an experiment worth measuring, not a fix worth
+assuming.
 
 ## Restore
 
