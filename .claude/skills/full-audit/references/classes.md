@@ -540,6 +540,34 @@ space for a secret in a PUBLIC repository. The rule the briefs carry as rule 7
 applies to this register too, and it was broken by the session that wrote the
 rule into eight briefs that morning.
 
+### C76, observed rather than estimated — a fact for the next run, not a proposal
+
+C76 was enumerated 2026-09-02 as "197 + 43 assertions; 15 within 2x of budget",
+and no action was requested on it. The remediation of 2026-09-12 produced the
+observed figure that the proximity measure was standing in for, and it belongs
+here so that nobody re-derives it: **183 of the 201 posture assertions run on
+goss's 10 s default**, and over the seven days to 2026-09-12 six timeouts were
+journalled across roughly twenty service runs.
+
+The important half is the breakdown, because the raw count misleads. Only ONE
+was a genuine growing cost — `traefik-access-log-carries-no-credential`, which
+re-read the whole rotation window nightly (323 071 lines, 9.12 s isolated) and
+is now bounded and measured at 4.87 s. The others cluster in periods when
+somebody was working on the machine: two during the previous session's evening,
+one caused by the audit's own new assertion, and one caused by the main session
+running goss three times back-to-back to measure concurrency, which put the Pi
+at load 5.8 — a check costing 0.32 s isolated then exceeded 10 s.
+
+So the shape is not "183 fragile assertions". It is that the posture check is
+load-sensitive and the operator's own work is the load. `--max-concurrent` is
+not the lever: measured at 50, 8 and 4 on an idle machine, wall time was 28.0 s,
+27.3 s and 27.8 s with zero failures at every setting.
+
+**Nothing is proposed.** The main session's first reading — "a shape problem,
+not instances" — was stated to the operator on the strength of three timeouts in
+three runs, one of which it had caused itself, and it is corrected here rather
+than left in the record.
+
 ### Disclosures — four agents wrote, all four said so unprompted
 
 `system` wrote `/tmp/.k1` and `/tmp/.k2` (a public key) and removed them in the
