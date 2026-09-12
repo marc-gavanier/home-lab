@@ -728,7 +728,7 @@ services:
 
   # --- Nextcloud ---
   nextcloud:
-    image: nextcloud:34.0.3-apache
+    image: nextcloud:34.0.4-apache
     container_name: nextcloud
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     # NO read_only (#32): the entrypoint writes redis-session.ini into
@@ -971,7 +971,7 @@ services:
   # Companion container running Nextcloud background jobs every 5 min
   # (system cron, more reliable than AJAX). Shares the data volume.
   nextcloud-cron:
-    image: nextcloud:34.0.3-apache
+    image: nextcloud:34.0.4-apache
     container_name: nextcloud-cron
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
@@ -1017,7 +1017,7 @@ services:
   # NEXTCLOUD_URL and never resolves a public one. Verified rather than assumed
   # while fixing #114 — seven days of logs, zero resolution failures.
   nextcloud-notify-push:
-    image: nextcloud:34.0.3-apache
+    image: nextcloud:34.0.4-apache
     container_name: nextcloud-notify-push
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
@@ -1275,7 +1275,7 @@ services:
 
   # --- Navidrome (Music) ---
   navidrome:
-    image: deluan/navidrome:0.63.2
+    image: deluan/navidrome:0.64.0
     container_name: navidrome
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
@@ -2122,7 +2122,7 @@ services:
   # without SSH, logs were not. Reads the daemon through the same read-only
   # socket-proxy as Traefik and Netdata — never the raw docker.sock.
   dozzle:
-    image: amir20/dozzle:v11.0.0
+    image: amir20/dozzle:v11.0.1
     container_name: dozzle
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
