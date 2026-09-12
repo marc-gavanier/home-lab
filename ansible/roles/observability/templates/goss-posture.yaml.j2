@@ -565,6 +565,44 @@ command:
       n=$(docker exec netdata curl -s --max-time 10 http://127.0.0.1:19999/api/v3/contexts | jq -r '.contexts | length')
       test "${n:-0}" -ge {{ netdata_min_contexts }}
     exit-status: 0
+  netdata-apparmor-matches-dockerd:
+    # This container runs a scoped replacement for docker-default rather than
+    # `apparmor:unconfined`, and that replacement is a COPY of the daemon's own
+    # policy. A copy is correct the day it is taken and silently wrong
+    # afterwards: the profile loads, aa-status reports it enforcing, and the
+    # only observable is a denial the container would otherwise have had. On
+    # 2026-09-12 it was four rules behind — `deny network alg`, `deny network
+    # vsock`, the powercap read-denial Docker added for RAPL/PLATYPUS, and the
+    # `/` upstream added inside the @{PROC} character classes.
+    #
+    # So the difference is DERIVED from the running daemon's binary on every
+    # run rather than reviewed by eye. dockerd holds the template as a string
+    # constant, and the deny rules are the half that is textually stable enough
+    # to compare — the grant rules carry interpolations that are not.
+    #
+    # Direction matters: this fails when dockerd has a rule we lack, and stays
+    # silent when we deny something extra, because denying MORE than
+    # docker-default is exactly what a scoped replacement is for.
+    #
+    # Costs 2.4 s, which is most of it `strings` over a 100 MB binary.
+    exec: |
+      strings /usr/bin/dockerd | awk '
+        { sub(/^[ \t]+/, ""); sub(/[ \t]*#.*$/, "") }
+        /^deny / { if (FILENAME == "-") upstream[$0] = 1; else ours[$0] = 1 }
+        END {
+          missing = 0
+          for (rule in upstream) if (!(rule in ours)) {
+            printf "docker-default has a rule this profile lacks: %s\n", rule
+            missing++
+          }
+          if (missing > 0) exit 1
+          if (length(upstream) < 10) {
+            print "parsed fewer than 10 deny rules out of dockerd — the binary "
+            print "moved and this assertion is comparing against nothing"
+            exit 1
+          }
+        }' /etc/apparmor.d/homelab-netdata -
+    exit-status: 0
 
   # --- The hole the adapter's startup grace leaves, closed here (#289) --------
   # homelab-netdata-kuma.sh reports UP rather than DOWN while netdata has been

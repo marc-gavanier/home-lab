@@ -28,24 +28,43 @@
     - { regexp: '^#?IgnoreRhosts', line: 'IgnoreRhosts yes' }
     - { regexp: '^#?HostbasedAuthentication', line: 'HostbasedAuthentication no' }
     - { regexp: '^#?GSSAPIAuthentication', line: 'GSSAPIAuthentication no' }
+    # SUBTRACTIVE, not absolute. An absolute list freezes the set at the day it
+    # was written: it is a valid key, sshd parses it without a warning, `sshd -T`
+    # reports it applied, and the only observable is an algorithm the daemon
+    # would otherwise have gained. Measured on 2026-09-12 against OpenSSH
+    # 9.6p1's own defaults, read with `sshd -T -f /dev/null`:
+    #
+    #   Ciphers        the absolute list was SET-IDENTICAL to the default. Six
+    #                  names, zero policy content — it existed only to freeze.
+    #   MACs           removed 6 of the default 10.
+    #   KexAlgorithms  removed 4 of the default 10.
+    #
+    # Each `-` form below was verified to produce a set byte-identical to what
+    # the host serves today, and the verification was itself controlled: a
+    # deliberate typo in the MACs list leaves `hmac-sha1-etm@openssh.com` in the
+    # result, so the comparison detects one. Note that `sshd -T` ACCEPTS an
+    # unknown name in a `-` list without complaint — only comparing the
+    # resulting set catches a mistake here.
+    #
+    # Why this matters beyond tidiness: `ssh -Q kex` on 9.6 contains no
+    # `mlkem768x25519-sha256`. When OpenSSH 9.9 adds it, the absolute list would
+    # have excluded the post-quantum exchange silently, on the only path into
+    # this machine, with every check green.
     - regexp: '^#?Ciphers'
       line: >-
         Ciphers
-        {{ ['chacha20-poly1305@openssh.com', 'aes256-gcm@openssh.com',
-            'aes128-gcm@openssh.com', 'aes256-ctr', 'aes192-ctr',
-            'aes128-ctr'] | join(',') }}
+        {{ ['-*-cbc', '3des*', 'arcfour*', 'rijndael*'] | join(',') }}
     - regexp: '^#?MACs'
       line: >-
         MACs
-        {{ ['hmac-sha2-512-etm@openssh.com', 'hmac-sha2-256-etm@openssh.com',
-            'hmac-sha2-512', 'hmac-sha2-256'] | join(',') }}
+        {{ ['-umac-64-etm@openssh.com', 'umac-128-etm@openssh.com',
+            'hmac-sha1-etm@openssh.com', 'umac-64@openssh.com',
+            'umac-128@openssh.com', 'hmac-sha1'] | join(',') }}
     - regexp: '^#?KexAlgorithms'
       line: >-
         KexAlgorithms
-        {{ ['sntrup761x25519-sha512@openssh.com', 'curve25519-sha256',
-            'curve25519-sha256@libssh.org', 'diffie-hellman-group16-sha512',
-            'diffie-hellman-group18-sha512', 'diffie-hellman-group14-sha256']
-           | join(',') }}
+        {{ ['-ecdh-sha2-nistp256', 'ecdh-sha2-nistp384', 'ecdh-sha2-nistp521',
+            'diffie-hellman-group-exchange-sha256'] | join(',') }}
   notify: Restart SSH
 
 # SSH is key-only and sudo is NOPASSWD, so the account password's only reachable
