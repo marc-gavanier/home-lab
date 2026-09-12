@@ -82,7 +82,7 @@
     group: root
     mode: "0644"
     content: |
-      # {{ ansible_managed }}
+      # Managed by Ansible — do not edit on the host.
       /var/log/sudo.log {
           weekly
           rotate 4
