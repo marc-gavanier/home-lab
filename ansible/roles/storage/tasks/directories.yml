@@ -28,6 +28,15 @@
     - "{{ library_dir }}/downloads"
     - "{{ library_dir }}/downloads/complete"
     - "{{ library_dir }}/downloads/incomplete"
+    # The per-importer category directories. Transmission creates these itself
+    # on the first download of each category, but Sonarr and Radarr check for
+    # them at startup and raise a health warning when they are missing — which
+    # reads like a broken path mapping and is not one. Creating them here makes
+    # a fresh provision quiet, and the names are not free choices: they are the
+    # `tvCategory` and `movieCategory` fields configured on the download client,
+    # so changing one here without changing it there re-creates the warning.
+    - "{{ library_dir }}/downloads/complete/tv-sonarr"
+    - "{{ library_dir }}/downloads/complete/radarr"
     - "{{ media_dir }}/photos"
     - "{{ backup_dir }}"
     # Parents of the database datadirs below: without them Ansible (or Docker)
