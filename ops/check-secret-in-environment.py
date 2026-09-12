@@ -27,11 +27,26 @@ search for the VALUE finds these, and this gate exists so that nobody has to.
 
 WHAT IT CHECKS
 --------------
-The secret set is DERIVED, not listed: it is the set of variables this repo
-already treats as secrets, read out of the deploy role's own assertions and out
-of every file it writes under /mnt/data/secrets. A new secret is therefore
-covered the day it is added, without editing this file — which is the property
-that C13 and C20 lacked when they were demoted from the register's gated list.
+The secret set is DERIVED, not listed, from THREE independent sources unioned:
+the deploy role's own empty-secret assertions, every variable interpolated into
+a file written under /mnt/data/secrets by ANY role, and every secret-shaped
+variable the operator is asked to supply in the example inventories.
+
+The third source was added on 2026-09-12 and the reason is worth keeping. This
+file used to claim that a new secret was "covered the day it is added, without
+editing this file". That was false, and a fourth instance of the very defect
+described above had been writing a live Nextcloud app-password into auth.log
+for twenty-four days while this gate exited 0. It escaped twice over: the
+derivation read one file, `roles/deploy/tasks/secrets.yml`, while the leaking
+task was in `roles/claude-code`; and the variable ended in `_pass`, which the
+suffix tuple did not carry.
+
+Neither was a logic error. The derivation was sound and keyed on the wrong
+axis — on where a secret is WRITTEN rather than on where it is DECLARED — which
+is the same failure the register records for C10 (keyed on container mounts) and
+C16 (keyed on an owner uid). A derived gate reads as the strongest kind and its
+blind spot is invisible from inside it, so the defence is not a better
+derivation but a SECOND axis that fails differently.
 """
 import re
 import sys
@@ -40,8 +55,19 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 SECRETS_TASKS = ROOT / "ansible/roles/deploy/tasks/secrets.yml"
 TASK_GLOBS = ("ansible/roles/*/tasks/*.yml", "ansible/playbooks/*.yml")
+EXAMPLE_GLOBS = ("ansible/inventory/host_vars/*/*.example.yml",
+                 "ansible/inventory/group_vars/*/*.example.yml")
 COMPOSE = ROOT / "docker" / "compose.yaml"
 SECRET_STORE = "/mnt/data/secrets"
+
+# A suffix set is a LIST living inside a derivation, which is the shape this
+# repo's register keeps demoting gates for. It is kept because the alternative
+# — every variable named in a block that mentions the secret store — pulls in
+# `domain` and `services_data_dir`. It is no longer the ONLY source: the
+# operator's own declarations are unioned in below, so a secret whose name this
+# tuple does not anticipate still enters the set.
+SECRET_SUFFIXES = ("_password", "_pass", "_token", "_key", "_secret",
+                   "_hash", "_url", "_keyword")
 
 VAR_RE = re.compile(r"\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)")
 
@@ -63,9 +89,51 @@ def derive_secret_vars(text):
             n = m.group(1)
             if n in ("item", "ansible_managed"):
                 continue
-            if n.endswith(("_password", "_token", "_key", "_secret", "_hash",
-                           "_url", "_keyword")):
+            if n.endswith(SECRET_SUFFIXES):
                 names.add(n)
+    return names
+
+
+def derive_secret_vars_all(root):
+    """Union `derive_secret_vars` over EVERY task file, not one of them.
+
+    The audit of 2026-09-12 found a fourth instance of the defect this gate was
+    written for, and it escaped for two independent reasons. Both are fixed
+    here, and neither was a mistake in the gate's logic:
+
+      1. the derivation read ONE file, `roles/deploy/tasks/secrets.yml`, while
+         the leaking task lived in `roles/claude-code/tasks/vault.yml`. A role
+         other than `deploy` may write under the secret store, and one does.
+      2. the variable was `rclone_webdav_pass`; `_pass` was absent from the
+         suffix set, so even reading the right file would have missed it.
+
+    The lesson is the one the register records for C10 and C16: the derivation
+    was sound and it keyed on the wrong axis — on where a secret is WRITTEN,
+    rather than on where it is DECLARED. `declared_secret_vars` supplies that
+    second axis.
+    """
+    names = set()
+    for pattern in TASK_GLOBS:
+        for path in sorted(root.glob(pattern)):
+            names |= derive_secret_vars(path.read_text(encoding="utf-8"))
+    return names
+
+
+def declared_secret_vars(root):
+    """Secret-shaped variables the OPERATOR declares in the example files.
+
+    A third independent source, unioned with the other two so that dropping any
+    one of them cannot silently shrink the set. This is the axis the gate
+    lacked: a secret exists from the moment the operator is asked to supply it,
+    not from the moment a task writes it somewhere this file knows to look.
+    """
+    names = set()
+    for pattern in EXAMPLE_GLOBS:
+        for path in sorted(root.glob(pattern)):
+            for m in re.finditer(r"^([a-z0-9_]+)\s*:",
+                                 path.read_text(encoding="utf-8"), re.M):
+                if m.group(1).endswith(SECRET_SUFFIXES):
+                    names.add(m.group(1))
     return names
 
 
@@ -223,15 +291,27 @@ def selftest():
   ansible.builtin.copy:
     dest: /mnt/data/secrets/docker/pihole_password
     content: "{{ pihole_password }}"
+- name: secrets | Write a remote credential whose name ends in _pass
+  ansible.builtin.copy:
+    dest: /mnt/data/secrets/claude/rclone.conf
+    content: "{{ some_webdav_pass }}"
 """
     secret_vars = derive_secret_vars(secrets_src)
     failures = []
     if "pihole_password" not in secret_vars or "restic_password" not in secret_vars:
         failures.append("derivation did not find the asserted secrets")
 
+    # The 2026-09-12 control: a `_pass` suffix, which the old set did not carry.
+    # Without this the widening is asserted rather than proven.
+    if "some_webdav_pass" not in secret_vars:
+        failures.append("a `_pass` variable does not enter the derived set — "
+                        "this is the 2026-09-12 defect")
+
     cases = [
         ("MUST FLAG - the real defect",
          '  environment:\n    P: "{{ pihole_password }}"\n', True),
+        ("MUST FLAG - the 2026-09-12 defect, a `_pass` suffix",
+         '  environment:\n    P: "{{ some_webdav_pass }}"\n', True),
         ("MUST FLAG - descriptive name",
          '  environment:\n    RESTIC_PASSWORD: "{{ restic_password }}"\n', True),
         ("must pass - a non-secret variable",
@@ -323,10 +403,17 @@ networks:
 def main():
     if "--selftest" in sys.argv:
         return selftest()
-    secret_vars = derive_secret_vars(SECRETS_TASKS.read_text(encoding="utf-8"))
-    if not secret_vars:
-        print("the secret set derived to ZERO names — the derivation is broken, "
-              "not the repo", file=sys.stderr)
+    written = derive_secret_vars_all(ROOT)
+    declared = declared_secret_vars(ROOT)
+    secret_vars = written | declared
+    if not written:
+        print("the write-site secret set derived to ZERO names — the derivation "
+              "is broken, not the repo", file=sys.stderr)
+        return 1
+    if not declared:
+        print("the operator-declared secret set derived to ZERO names — the "
+              "example files moved and the second axis is blind. Fix the "
+              "derivation, do not list the names.", file=sys.stderr)
         return 1
     bad = scan(ROOT, secret_vars)
     for path, lineno, key, var in bad:
@@ -360,9 +447,10 @@ def main():
 
     if bad or modes or stripped:
         return 1
-    print("no secret in `environment:` (%d secret variables derived), "
-          "no world-readable write outside the %d mounted secret director(ies)"
-          % (len(secret_vars), len(mounted)))
+    print("no secret in `environment:` (%d secret variables derived: %d from "
+          "write sites, %d declared by the operator), no world-readable write "
+          "outside the %d mounted secret director(ies)"
+          % (len(secret_vars), len(written), len(declared), len(mounted)))
     return 0
 
 
