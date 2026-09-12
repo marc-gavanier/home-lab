@@ -141,8 +141,9 @@ parts that need a thought experiment.
 # The register
 
 Runs of 2026-08-15 through 2026-09-12.
-**88 classes: 3 OPEN, 9 GATED, 71 ENUMERATED, 5 closed by decision, plus the
-DECLINED list.** (OPEN = C01, still open with its space bounded at 87 for the
+**89 classes: 3 OPEN, 9 GATED, 72 ENUMERATED, 5 closed by decision, plus the
+DECLINED list.** (C89 was minted by the dedicated secret audit of the afternoon
+of 2026-09-12 and arrives ENUMERATED over the surfaces it swept.) (OPEN = C01, still open with its space bounded at 87 for the
 first time; C26, REOPENED on its trace axis; and C87, minted 2026-09-12 and
 partially swept. GATED = C07, C11, C14, C15, C18, C19, C21, C41 and C81 —
 **C17 left the table on 2026-09-05 evening, C10 and C16 on 2026-09-11**;
@@ -292,6 +293,105 @@ The honest state is therefore: the property is named, the derivation
 (`zero occurrences in the entire git history` ∩ `present on the host`) is sound
 and reusable, one slice is swept 16/16 with a working control, and the service
 data slice is unswept.
+
+## The dedicated secret audit of 2026-09-12 (afternoon) — swept by VALUE, and it is why the earlier sweeps kept missing
+
+The operator asked for this one explicitly, and the reason is in the record:
+secrets in cleartext had resurfaced in run after run, and every sweep that went
+looking for them had been bounded by a MECHANISM — container mounts (C10), then
+`environment:` blocks (C26), then Ansible write sites, then a suffix tuple
+inside a derivation. Each mechanism was a real bound and each had a blind spot,
+because the class is not defined by a mechanism. **It is defined by a value.**
+
+So the space was inverted: enumerate the secret VALUES the system holds, then
+search every surface an octet can rest or transit on. Both factors are
+enumerable, and a value-keyed sweep cannot key on the wrong axis — that is the
+whole argument for it, and it is the only bound this register has found that
+closes rather than samples.
+
+### V — the value set, and the three iterations it took to get right
+
+| Iteration | Cardinal | What was wrong |
+|-----------|----------|----------------|
+| V_broad | 63 | A YAML branch captured EVERY `key: value` in a structured secrets file, so option names and URLs entered the set. `searxng-settings.yml.j2` matched 11 "secrets" |
+| V_strict | 51 | Better — keyed on the NAME of the key — but a file with no extension (`docker/searxng_settings`, 658 B) still fell through to the whole-file branch, so its comment header entered the set and hit four unrelated Ansible task files |
+| **V_final** | **36** | A file counts as one value only if it is ONE LINE. Otherwise the key-name filter applies. Noise gone, and six completeness controls pass |
+
+**The lesson is not the numbers.** It is that two of the three iterations looked
+correct and produced a sweep whose output was mostly noise — 58 "hits" that
+collapsed to 7 once V was clean. A value-first sweep is only as good as V, and V
+has to be derived and then CONTROLLED: six known secrets (WireGuard server key,
+Vaultwarden admin token, both restic passwords, the Cloudflare token, the
+Pi-hole password) were asserted present before the sweep was believed.
+
+### The surfaces, each with its own positive control
+
+| Surface | Result |
+|---------|--------|
+| `/etc` `/root` `/home` `/opt` `/usr/local` `/srv` `/boot` `/run` `/tmp` `/var/tmp` `/var/lib` `/var/spool` `/var/backups` | **7 files, all in `/root`** — control: 26/26 secret files re-found |
+| `/var/log` (text and compressed) | **1 file: `sudo.log`** |
+| systemd journal, all boots | 0 |
+| Container JSON logs (140 MB) | **0** |
+| `/mnt/data/services` | 6 files, **all legitimate homes on the encrypted volume** (Miniflux's postgres, Vaultwarden's config, the three WireGuard stores) |
+| Databases — Kuma, Forgejo, Vaultwarden, Immich, Nextcloud, Miniflux | 1 line in `kuma.db`, its own push tokens |
+| `/proc/*/cmdline`, 360 processes | **0** |
+| `/proc/*/environ` | 14 processes, structural — see below |
+| **Git history, 6 919 objects, every branch** | **0** — control: a planted value is found |
+| Shared worktrees, session scratchpad | 0 |
+| Offsite host: `/etc` `/root` `/home` `/opt` `/usr/local` `/var/log` `/var/lib` `/var/tmp` `/tmp` `/boot`, journal, argv | **0 outside its own `wg0.conf`** — control: the rest-server htpasswd is re-found |
+
+**The git result is the one that mattered most** and it is clean: nothing in the
+public repository's history has ever carried a live secret value.
+
+### What it found — 2, both fixed the same afternoon
+
+- **Three hand-made WireGuard stores in `/root`, on the unencrypted card**, each
+  holding the server private key that is still live (derived and matched against
+  the running interface), four client private keys and four pre-shared keys.
+  Root-only, so never an open door — but on the medium ADR-011 and
+  `sd-theft-response.md` both describe as carrying none. C87 instances the
+  morning's retirement list had not covered.
+- **`sudo.log` had no rotation and never had.** `Defaults logfile` ships for
+  CIS 5.2.3; Ubuntu provides no logrotate stanza and the sudoers drop-in creates
+  none. 14 MB, 241 043 lines, 250 kB/day, oldest entry 18 July, on the card. The
+  same command lines go to `auth.log`, which rsyslog expires in about five
+  weeks — so **a hardening control had created a permanent copy of what another
+  control forgets**, and nine audits had looked at `auth.log` because that is the
+  file everyone knows. Six credential values were in it, 12 August to
+  6 September, from the `environment:` defect fixed that morning; all six were
+  checked against the live set and none is still in use, which is luck and not
+  design.
+
+### Minted — C89, and it supersedes the mechanism-bounded sweeps
+
+| ID | Property | Space | State |
+|----|----------|-------|-------|
+| C89 | **A live secret VALUE present anywhere outside the store meant to hold it** | V × S: 36 derived values against the surfaces tabulated above, each swept with a positive control | ENUMERATED over the swept surfaces; see the unswept slice below |
+
+C89 is not a competitor to C10 and C26 — it is the form they should have taken.
+C10 asks where a credential FILE is readable, C26 where a credential REACHES a
+channel; both are mechanisms, and a mechanism-bounded sweep re-opens the moment
+a new mechanism appears. C89 asks where a VALUE IS, which is the question the
+operator was actually asking all along.
+
+**What is NOT swept, stated rather than glossed:**
+
+- **Restic snapshots.** 376 GB across 33 local and 90 offsite snapshots were not
+  searched. A secret that was on disk when a snapshot was taken is in that
+  snapshot, and the `/var/tmp` credential stores removed this morning had been
+  in the backup source since 2026-08-16.
+- **Depth-limited subtrees.** Immich, Jellyfin, Navidrome, Transmission and
+  Nextcloud were swept to depth 2 and files under 2 MB only.
+- **Application passwords are covered by SHAPE, not by value** — the plaintext
+  is not recoverable without putting it in an argv, so a generic
+  `xxxxx-xxxxx-xxxxx-xxxxx-xxxxx` detector was used. That is stronger for
+  finding unknown ones and weaker for proving a specific one absent.
+- **`/proc/*/environ` carries secrets by construction.** 14 processes hold one:
+  the `_FILE` pattern keeps a value out of `docker inspect`, and the image's
+  entrypoint then exports it into the process environment because the
+  application needs it. `environ` is readable only by root and the process
+  owner. This is structural, it is not a defect, and it should not be
+  re-reported.
 
 ## The run of 2026-09-12 — the key was `residue`, and it found the worst live defect since the founding one
 
