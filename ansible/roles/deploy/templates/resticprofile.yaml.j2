@@ -190,6 +190,19 @@ homelab:
     source:
       - /mnt/data/services
       - /mnt/data/media
+      # library/ is listed SUBDIRECTORY BY SUBDIRECTORY, deliberately, and the
+      # parent is never named. `downloads/` is therefore outside the backup
+      # STRUCTURALLY rather than by an `exclude:` — an exclusion is a filter
+      # that can be mistyped, forgotten, or defeated by a later change to the
+      # source, and a path that was never in the source cannot be any of those.
+      #
+      # The symmetric failure is real and is gated rather than trusted: a new
+      # category directory created here and not added below would go unbacked in
+      # silence. `library-categories-are-all-in-the-backup-source` in the
+      # posture spec derives the check from the directory listing and fails the
+      # day that happens.
+      - /mnt/data/library/movies
+      - /mnt/data/library/shows
       - /mnt/data/backups/dumps
       - /mnt/data/secrets
       - /opt/homelab

@@ -71,7 +71,7 @@ Transmission writes back to `settings.json` on shutdown, so **stop the daemon be
 |----------------------------------------------|-------------------------------------------|
 | `/mnt/data/services/transmission/config/`    | `settings.json`, resume state, torrent DB |
 | `/mnt/data/services/transmission/watch/`     | Drop zone for `.torrent` files (auto-add) |
-| `/mnt/data/services/transmission/downloads/` | Actual data files being seeded            |
+| `/mnt/data/library/downloads/`               | Actual data files being seeded (ADR-035)  |
 
 ## Tracker Notes
 

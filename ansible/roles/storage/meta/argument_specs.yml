@@ -46,7 +46,14 @@ argument_specs:
       media_dir:
         type: path
         required: true
-        description: Root of the media tree.
+        description: Root of the media tree (operator-written content only).
+      library_dir:
+        type: path
+        required: true
+        description: >-
+          Root of the tree an automated importer may write into. Holds the
+          download directory and the categories fed by it, so that an import is
+          a hard link rather than a copy.
       backup_dir:
         type: path
         required: true

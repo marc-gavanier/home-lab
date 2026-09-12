@@ -79,7 +79,13 @@ The media folders are mounted **read-only** into the container and exposed as Ex
 |-------------|----------------|----------------|
 | `/Photos` | `/mnt/data/media/photos` | `/external/photos` |
 | `/Music`  | `/mnt/data/media/music`  | `/external/music`  |
-| `/Videos` | `/mnt/data/media/videos` | `/external/videos` |
+| `/Videos` | four sources, see below  | `/external/videos` |
+
+`/Videos` is assembled from four host directories mounted into one container
+tree (ADR-035): `library/movies` and `library/shows`, which an importer writes,
+plus `media/videos/home-videos` and `media/videos/music-videos`, which only the
+operator writes. The External Storage entry still points at `/external/videos`
+and needed no change.
 
 Music reaches that folder by a different route: the workstation mounts
 `/mnt/data/media/music` read-write over sshfs (ADR-033). Nextcloud stays a

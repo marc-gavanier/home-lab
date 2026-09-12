@@ -13,10 +13,21 @@
     - "{{ media_dir }}"
     - "{{ media_dir }}/music"
     - "{{ media_dir }}/videos"
-    - "{{ media_dir }}/videos/movies"
-    - "{{ media_dir }}/videos/shows"
     - "{{ media_dir }}/videos/home-videos"
     - "{{ media_dir }}/videos/music-videos"
+    # movies/ and shows/ moved to library_dir on 2026-09-12: they are the two
+    # categories an importer writes into, and home-videos/ and music-videos/ are
+    # not. Splitting on ORIGIN rather than on media type is what keeps 20 GB of
+    # personal footage out of a directory a robot can write to.
+    - "{{ library_dir }}"
+    - "{{ library_dir }}/movies"
+    - "{{ library_dir }}/shows"
+    # Both halves of the download path. `incomplete/` matters as much as
+    # `complete/`: a partial file that lands outside this tree is a partial file
+    # the importer cannot hard-link from.
+    - "{{ library_dir }}/downloads"
+    - "{{ library_dir }}/downloads/complete"
+    - "{{ library_dir }}/downloads/incomplete"
     - "{{ media_dir }}/photos"
     - "{{ backup_dir }}"
     # Parents of the database datadirs below: without them Ansible (or Docker)
