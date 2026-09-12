@@ -1,0 +1,94 @@
+---
+# =============================================================================
+# Artefacts this repository has retired, and that Ansible does not remove
+# =============================================================================
+# Ansible creates; it does not clean up after itself. When a task, a template or
+# a loop entry is deleted, whatever it last rendered stays on the host forever:
+# still readable, sometimes still executable, and invisible to every check this
+# repository has. The repo-to-deployed comparison walks the repo and cannot see
+# a file the repo no longer mentions, and the container-mount derivations cannot
+# see a file no container mounts.
+#
+# The audit of 2026-09-12 swept every deletion of a deployable artefact in the
+# history of `ansible/` and `docker/`: eight on this host, of which five had been
+# given a removal task and three had not. The offsite host was clean on all
+# eight, which is what bounds the problem rather than a guess.
+#
+# THIS FILE IS A LIST, NOT A DERIVATION, and that is a known weakness rather
+# than an oversight: nothing here fails when a NEW artefact is orphaned. What it
+# buys is that the list is in one place and can be counted, instead of being
+# scattered across the role that happened to create each file. A derivation
+# would have to compare every path this repo has ever written against the paths
+# it writes today, which is the reverse of the comparison the drift check makes.
+#
+# Adding an entry: give the commit that retired the artefact, so that a future
+# reader can tell a deliberate retirement from a path that was simply mistyped.
+
+- name: retired | Remove artefacts whose producing task no longer exists
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop:
+    # Retired by the wg-easy v15 migration; the migration itself completed on
+    # 2026-07-28 and its task was deleted on 2026-08-22. The script rewrites the
+    # WireGuard data directory and still announces itself as "Ansible managed".
+    - path: /usr/local/sbin/homelab-wg-easy-migrate.sh
+      retired_by: "2026-08-22"
+
+    # The go.d `sensors` collector was removed as redundant on 2026-08-23, 108
+    # minutes after it was first rendered. The file stayed bind-mounted into
+    # netdata; it is inert, because the image registers no `sensors` module, but
+    # its text still points at a check that no longer watches undervoltage.
+    # Only this file goes: the mount is the go.d DIRECTORY, and docker.conf
+    # beside it is live.
+    - path: /mnt/data/services/netdata/go.d/sensors.conf
+      retired_by: "2026-08-23"
+
+    # A measurement tool written during the #241 investigation. It appears in no
+    # commit at all, on any branch — it was never part of this repository.
+    - path: /usr/local/bin/homelab-iosample
+      retired_by: "never committed"
+
+    # An empty directory left where a secret file used to be written.
+    - path: /mnt/data/secrets/docker/netdata_health_alarm_notify.conf
+      retired_by: "6fabf33"
+
+    # Copies taken by hand during the DNS-01 migration of July. Each holds
+    # certificate and private-key pairs, three of them for names retired since
+    # (an ACME test host, a capability test host, and the notes service). They
+    # are root-only on the encrypted volume, so they are a housekeeping matter
+    # rather than an exposure — but the certificate watch reads one hardcoded
+    # path and cannot see any of them.
+    - path: /mnt/data/services/traefik/acme/acme.json.bak
+      retired_by: "2026-07-19"
+    - path: /mnt/data/services/traefik/acme/acme.json.bak-20260727
+      retired_by: "2026-07-26"
+    - path: /mnt/data/services/traefik/acme/acme.json.bak-dns01
+      retired_by: "2026-07-19"
+
+    # Working copies from the repairs of 2026-08-16. These three held LIVE
+    # credentials — the WireGuard server key, the Vaultwarden admin token and
+    # Forgejo's OAuth2 client secrets — at mode 0644 in a world-traversable
+    # directory on the unencrypted card, for twenty-seven days. They were
+    # removed by hand on 2026-09-12; the entries are here so that they stay
+    # removed and so that the episode is recorded where it will be read.
+    - path: /var/tmp/wg-easy-dns-20260816
+      retired_by: "2026-08-16"
+    - path: /var/tmp/forgejo-repair-20260816
+      retired_by: "2026-08-16"
+    - path: /var/tmp/vaultwarden-config.json.bak-20260816
+      retired_by: "2026-08-16"
+
+    # Scratch output from measurements taken in August. Harmless, listed because
+    # a scratch directory that is never emptied is how the three above survived.
+    - path: /var/tmp/util_new.txt
+      retired_by: "never committed"
+    - path: /var/tmp/wave-measure.csv
+      retired_by: "never committed"
+
+    # Superseded by the branding overlay; reported on 2026-08-21 and still
+    # present three weeks later.
+    - path: /opt/homelab/compose.yaml.pre-branding
+      retired_by: "2026-08-21"
+  loop_control:
+    label: "{{ item.path }}"
