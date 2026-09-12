@@ -15,48 +15,57 @@ earlier — which would have sent eight agents to re-derive settled work. Rebuil
 it from `classes.md`'s OPEN table at the start of every run; if the two
 disagree, `classes.md` wins.
 
-As of the run of 2026-09-11. **Rebuilt from `classes.md`'s OPEN table — do not
+As of the run of 2026-09-12. **Rebuilt from `classes.md`'s OPEN table — do not
 trust this copy if the two disagree.**
 
-**Three OPEN classes. C74 and C82 are CLOSED and must not be re-swept.**
+**Three OPEN classes. C10 and C86 are CLOSED and must not be re-swept.**
 
-- **C01 — `project-manager`, with every domain feeding it.** REOPENED with a
-  restated space. Property unchanged: a documentary statement whose content
-  contradicts the deployed artefact. It was enumerated over 218 referents of
-  five machine-checkable kinds — paths, containers, thresholds, units,
-  goss/alarm names. The sixth kind is **a claim about a THIRD PARTY'S
-  CAPABILITY**: "X cannot do Y", "X provides no Y", "X requires Y", checkable
-  against that component's own JSON schema, `--help`, startup log or binary.
-  Three instances were found on 2026-09-11 by three domains with three different
-  instruments. Close it by deriving the set of such claims across `docs/`,
-  `knowledge/`, the ADRs and the code comments, and checking each against its
-  own component.
-- **C10 — `security`, with `ansible-deploy` on the write-site half.** REOPENED
-  with a restated space. Property unchanged: a credential store readable beyond
-  its service. Its gate derives the set from `docker inspect` — container bind
-  mounts — so a credential file **no container mounts** is outside it by
-  construction. The restated space is every credential file this repo writes,
-  whatever reads it. The derivation already exists in git history:
-  `world_readable_secret_writes()`, deleted by `23fab2e`.
-- **C86 — `network` minted it; the sweep belongs to whoever owns each list.**
-  A configuration value written to RESTATE an upstream default in order to
-  freeze it, which therefore silently excludes what that default has GAINED.
-  5/5 swept in the network domain. Unswept elsewhere: image tags, sysctl lists,
-  sshd cipher/kex/MAC lists, apt holds, `ExecStart` flag lists. It defeats every
-  detector in the register — valid key, no warning, API reports it applied,
-  every monitor green.
+- **C01 — `project-manager`, with every domain feeding it.** Property unchanged:
+  a documentary statement whose content contradicts the deployed artefact. The
+  restated space — a claim about a THIRD PARTY'S CAPABILITY — is now **bounded
+  at N = 87** (141 occurrences), derived by a tier-A modal grep over prose
+  surfaces and reproducible from the repo alone. **39 are swept; 48 remain**, and
+  the run report lists each with the exact instrument it needs. The reason it did
+  not close is structural and worth carrying: **this class has no shared
+  instrument** — every claim needs a different authority (`man`, `--help`, a JSON
+  schema, a container entrypoint, `strings`), so 39 claims cost ~20 host
+  round-trips. Group the 48 by instrument and one dense session finishes them.
+  The highest-yield stratum is the 27 "Alternatives considered" sections across
+  24 of 34 ADRs: a rejection written from memory rather than from the tool's
+  option surface is a C01 instance, and 1 of 1 examined failed.
+- **C26 — `ansible-deploy` and `security`.** REOPENED on its TRACE axis. The
+  live assertion, `ops/check-secret-in-environment.py`, derives 16 secret names
+  from `ansible/roles/deploy/tasks/secrets.yml`; the operator declares 22
+  secret-shaped variables in the example files. Close it by re-deriving over the
+  declared set with a floor, and by sweeping the trace axis — `auth.log`,
+  journald, `/proc`, shell history — for the names the old derivation could not
+  see.
+- **C87 — `system` minted it; the unswept slice belongs to `services` and
+  `backup`.** A hand-made artefact that outlives its operation. **16/16 swept in
+  the hosts' admin and scratch directories, 0/16 on offsite as the control.**
+  Unswept: every service DATA directory — two instances already sit there
+  (`acme.json.bak*`, `wg0.json`). The derivation is reusable as it stands:
+  `zero occurrences in the entire git history` ∩ `present on the host`.
 
-**C74 and C82 are CLOSED** — 48/48 and 71/71 for C74 by two independent
-derivations, 25/25 + 39/39 for C82. Do not re-derive either. C84 and C85 are
-both **verified fixed** on the machine; C84's false rationale in the goss
-posture spec is a C01 instance, not a reopening of C84.
+**C10 and C86 are CLOSED** — 29/29 + 32/32 and 363/363 over five domains. Do not
+re-derive either. **C88** (a file rendered into a host directory by a loop over a
+shrinking register) is ENUMERATED at 4/4.
 
-**Ten keys are now spent**: `time`, `order`, `identity`, `scale`, `authority`,
-`representation`, `vacuity`, `exclusivity`, `interruption`, `succession`. The
-mint rate across them reads 5, 11, 12, 7, 2, 4, 1, 0, 2, 1. A run that reuses one
-proves nothing. The keys that paid best were found the same way: look for an
-instrument trap in `settled.md` that no class has adopted, or a pair of narrow
-classes in `classes.md` that are obviously two faces of a dimension nobody named.
+**Eleven keys are now spent**: `time`, `order`, `identity`, `scale`, `authority`,
+`representation`, `vacuity`, `exclusivity`, `interruption`, `succession`,
+`residue`. The mint rate reads 5, 11, 12, 7, 2, 4, 1, 0, 2, 1, 2. A run that
+reuses one proves nothing. The keys that paid best were found the same way: look
+for an instrument trap in `settled.md` that no class has adopted, or a pair of
+narrow classes in `classes.md` that are obviously two faces of a dimension
+nobody named.
+
+**What `residue` proved, for whoever writes key twelve.** It minted two and
+found the worst live defect since the founding one, from a register that had
+just been worked down. The reason is the same one `time` and `order` exposed:
+all 86 classes asked about objects that are supposed to exist. None asked about
+objects that are not. **The dimension that pays is the one the register has no
+vocabulary for, and the test for it is whether you can state the question in six
+words that no existing class answers.**
 
 **Invent the key first, write it into the brief, and send the agents after it.**
 
@@ -120,7 +129,9 @@ later is worth raising; a theoretical one that costs a weekend is not.
 **Already established** — see `references/settled.md` for the container-layer
 work that is closed and the hardening proposals that have been declined.
 
-**The argv class is ENUMERATED and closed** as of 2026-08-22, on four axes: a
+**The argv class (C26) was ENUMERATED on 2026-08-22 and REOPENED on 2026-09-12
+on its TRACE axis — see `classes.md`'s OPEN table before reading the rest of this
+paragraph as settled.** Its four axes were: a
 YAML parse of all 28 services in `compose.yaml`, the child processes those
 command lines spawn, the in-container scheduled jobs no sweep window catches, and
 an empirical 140 s `/proc` sweep against 35 real secret values with a positive
@@ -138,6 +149,18 @@ continuously, so do not redo the sweep by hand — read what the assertion repor
 Two instruments lied while it was being built and will lie again: `docker top -o
 uid` returns nothing, and busybox `test -w` answers "writable" for uid 0
 regardless of capabilities. Use `Config.User` and `access(2)`.
+
+**Two traps the 2026-09-12 run paid for, both worth carrying.** First, an
+un-`sudo`'d shell **glob** over a root-only directory does not fail — it expands
+to nothing, or to the literal pattern, and every downstream count reads zero. It
+cost the main session a false "0 domains" on the Traefik ACME backups; the fix
+is `sudo sh -c '...'` so the glob expands as root. This is the same family as the
+un-`sudo`'d recursive `grep` recorded on 2026-09-11. Second, **comparing two
+secrets by hash requires both sides stripped identically**: `jq -r` appends a
+newline, `cat` of a file may not, and hashing one of each compares different
+strings. The main session reported a Vaultwarden token as "different" on that
+basis before re-measuring it as byte-identical. Always include a control that
+hashes one known string twice.
 
 ---
 

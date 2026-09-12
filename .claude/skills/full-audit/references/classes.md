@@ -140,13 +140,26 @@ parts that need a thought experiment.
 
 # The register
 
-Runs of 2026-08-15 through 2026-09-11.
-**86 classes: 3 OPEN, 9 GATED, 69 ENUMERATED, 5 closed by decision, plus the
-DECLINED list.** (OPEN = C01 and C10, both REOPENED with restated spaces, and
-C86, minted 2026-09-11; GATED = C07, C11, C14, C15, C18, C19, C21, C41 and C81
-— **C17 left the table on 2026-09-05 evening, C10 and C16 on 2026-09-11**;
+Runs of 2026-08-15 through 2026-09-12.
+**88 classes: 3 OPEN, 9 GATED, 71 ENUMERATED, 5 closed by decision, plus the
+DECLINED list.** (OPEN = C01, still open with its space bounded at 87 for the
+first time; C26, REOPENED on its trace axis; and C87, minted 2026-09-12 and
+partially swept. GATED = C07, C11, C14, C15, C18, C19, C21, C41 and C81 —
+**C17 left the table on 2026-09-05 evening, C10 and C16 on 2026-09-11**;
 closed by decision = C04, C08, C57, C66 and C77's non-secret half; everything
 else ENUMERATED.)
+
+**The run of 2026-09-12 used `residue` — what survived a removal, and does it
+still act? — and the counter did not move: 3 OPEN in, 3 OPEN out.** C10 and C86
+both CLOSED by exhaustive sweep (29/29 + 32/32, and 363/363 over five domains).
+Against that, C26 REOPENED and C87 was minted OPEN rather than ENUMERATED
+because the sweep that produced it was bounded by directories while its property
+is not. The run found the worst live defect since this skill's founding one: a
+Nextcloud app-password written in cleartext into `/var/log/auth.log` 27 times
+over 24 days, readable without sudo, behind a pre-commit gate that passes
+because its derivation keys on where a secret is *written* rather than where it
+is *declared*. **That is the seventh payment of the same trap**, and the shape
+is now unmistakable — the derivation is sound, and it keys on the wrong axis.
 
 **The run of 2026-09-11 used `succession` — against WHICH VERSION of its
 counterpart — and it closed both OPEN classes and opened three.** The counter
@@ -249,35 +262,297 @@ four directions.
 
 ## OPEN — 3
 
-One is minted; two are reopened, and they are reopened for the reason this file
-has now paid for a **sixth** time: an instance of the class's own PROPERTY was
-found sitting outside the space its sweep had been bounded to. In both cases the
-bound was not a directory but a DERIVATION — which is the sharper form of the
-same trap, because a derived gate reads as the strongest kind and its blind spot
-is invisible from inside it.
+**The counter did not move — 3 in, 3 out — and the composition changed
+completely.** Two of the three that were open are CLOSED by exhaustive sweep.
+One stays open, but its space is BOUNDED for the first time in its life. One
+class is REOPENED, and one of the two mints arrives OPEN rather than ENUMERATED.
 
-| ID | Property | Space it WAS swept over | Space it must be swept over | Opened by |
-|-----|--------------------------------------------------|-----------------------------|----------------------------------|-------------|
-| C01 | A documentary statement whose content contradicts the deployed artefact | 472 claim occurrences / **218 machine-checkable referents** — 121 paths, 29 containers, 26 thresholds, 23 units, 19 goss/alarm names | **Plus every claim whose referent is a THIRD PARTY'S CAPABILITY** — "X cannot do Y", "X provides no Y", "X requires Y" — checkable against that component's own schema, `--help`, startup log or binary. None of the 218 referents is of this kind | Three instances, three domains, three different instruments: `status-file is not an option` (resticprofile 0.33.1's own JSON schema says it is), `SYS_NICE` justified by a priority FTL logs that it cannot set, `occ user:delete-app-password` (not defined at Nextcloud 34) |
-| C10 | A credential store readable beyond its service | The runtime set derived from `docker inspect` — bind sources under `services_data_dir` that exactly one service declares — plus a floor derived from `compose.yaml` | **Every credential file this repo WRITES, whatever reads it.** A secret no container mounts is invisible to a derivation keyed on container mounts, by construction | `/mnt/data/secrets/{restic,offsite_restic}_password` at 0444 under a 0711 parent, readable by `nobody` and by the `claude` uid, with `/etc/shadow` and a `docker/` secret refused as controls |
-| C86 | A configuration value written to RESTATE an upstream default in order to freeze it, which therefore silently excludes every element that default has GAINED since | — (minted 2026-09-11) | Every list, version floor or allowed-value set this repo enumerates that upstream ALSO supplies as a default. **5/5 swept in the network domain**; the rest of the estate — image tags, sysctl lists, cipher lists in sshd, apt holds, `ExecStart` flag lists — is unswept | `curvePreferences: [X25519, CurveP256, CurveP384]` on a go1.26.8 Traefik, which excludes `X25519MLKEM768`; measured with a forced-MLKEM handshake failure against an X25519 control |
+Declining the reopening and refusing to widen the mint's space would have shown
+`1 OPEN` and something close to a clean sheet. That is the number this register
+exists to stop anyone from manufacturing.
 
-**None of the three is a hunt.** C01 and C10 each have a restated space whose
-cardinal is derivable — for C10 it is literally already written: the
-`world_readable_secret_writes()` helper deleted by `23fab2e` derived its
-population from the `dest:` of every task writing under the secrets directory,
-which is exactly the space C10 must now be swept over. C86's space is bounded
-per-domain the way `network` bounded its own at 5.
+| ID | Property | Space it WAS swept over | Space it must be swept over | State |
+|-----|------------------------------------------|---------------------------------|------------------------------------|-----------------|
+| C01 | A documentary statement whose content contradicts the deployed artefact | 218 machine-checkable referents of five kinds, plus **39 of 87** third-party capability claims | The remaining **48**, each listed in the run report with the exact instrument it needs. **N = 87 is derived and reproducible from the repo alone**: a tier-A modal grep over prose surfaces, 1 446 occurrences narrowed to 773 tier A, anchored on a component subject and deduplicated by claim | OPEN, 39/87 |
+| C26 | A credential reaching a command line, a child process, a scheduled job or a **trace** | 4 axes (2026-08-22), plus the trace axis re-swept and re-gated 2026-09-12: 38 names from 3 unioned sources against 16 from 1 | **The ARGV axis, which has had no live assertion since 2026-08-30 and still has none.** The trace axis is closed and gated; recording the CLASS as GATED on one axis of four is the disguise that cost C02, C13, C20 and C17 | REOPENED — trace axis closed, argv axis open |
+| C87 | **A hand-made artefact that outlives its operation** — created outside Ansible by a repair, a migration or a measurement, maintained by nothing, and invisible to C27 (repo→deployed sha256), C10 and C16 (`docker inspect`) BY CONSTRUCTION | **16/16** in the hosts' admin and scratch directories on homelab, with **0/16** on offsite as the control that makes the number believable | **Plus every service DATA directory.** The admin/scratch bound is a DIRECTORY bound, and two instances already sit outside it: `acme.json.bak*` and `wg0.json`, both under `/mnt/data/services/` | MINTED, partially swept |
 
-### Why C86 is not C29, and not shape 3
+### Why C87 arrives OPEN, and not ENUMERATED
 
-C29 is *a construct whose PURPOSE is to suppress* — `failed_when: false`,
-`default()`, `creates:`. C86's construct exists to ASSERT, and the suppression
-is a side effect of upstream moving underneath it. And it is not "a pin that
-stopped binding": the pin still binds perfectly. What changed is that binding it
-became the WEAKER choice. It defeats every detector this register has: the key
-is valid, the daemon parses it without a warning, the API reports it applied,
-and the only observable is a capability the system would otherwise have had.
+Because the sweep that produced it was bounded by directories — `/var/tmp`,
+`/root`, `/usr/local`, `/opt` — and the class is defined by a PROPERTY that does
+not respect them. The register has paid for this exact confusion six times
+(C03, C29, C01, C10 twice, C16) and the file's own rule says it in one line:
+**define the class by its property, not by the directory you happen to be
+reading.** Recording C87 as ENUMERATED on the strength of a 16/16 over admin
+directories, on the same night two instances were found under
+`/mnt/data/services/`, would have been the seventh.
+
+The honest state is therefore: the property is named, the derivation
+(`zero occurrences in the entire git history` ∩ `present on the host`) is sound
+and reusable, one slice is swept 16/16 with a working control, and the service
+data slice is unswept.
+
+## The run of 2026-09-12 — the key was `residue`, and it found the worst live defect since the founding one
+
+**What survived a removal, and does it still act?** `time` asked *when*, `order`
+*in what sequence*, `identity` *who*, `scale` *how much*, `authority` *on whose
+authority*, `representation` *in what encoding*, `vacuity` *what at zero*,
+`exclusivity` *what at two*, `interruption` *what at half*, `succession`
+*against which version*. **Nothing in 86 classes had asked what happens to a
+thing that should no longer exist.** Every one of them asked whether a live
+object was correctly configured; not one asked whether a dead object was still
+there and still acting.
+
+The key was given three admissible shapes so that agents would return
+measurements rather than tidiness: (R1) a live object with **no declaring
+source**; (R2) a leftover that **still grants** — a rule, a capability, a
+credential, a name, a certificate; (R3) a replacement that **left its
+predecessor running**. Everything else had to be refuted with a number. The
+precedent that showed the key was not theoretical came from the register itself:
+C27 sweeps repo→deployed by sha256, so an artefact Ansible USED to deploy and no
+longer does is outside its space by construction — the same shape that had just
+reopened C10.
+
+### The two OPEN classes that CLOSED
+
+| Class | Owners | N, and how it was derived | Result |
+|-------|--------|---------------------------|--------|
+| **C10** | `security` + `ansible-deploy` | **29** declared credential stores (runtime) and **32** write sites (26 module writes + 6 `environment:` blocks, swept across all of `ansible/` rather than one glob) | 29/29 and 32/32, **0 instances**. The two restic passwords that reopened it are `0400` today. All 17 world-readable secrets are Compose bind mounts under a `0700` parent; both `0440` groups are empty |
+| **C86** | `security`, `system`, `services`, `ansible-deploy` (+ `network` 5/5 on 09-11) | **12 + 172 + 138 + 36 + 5 = 363** elements over five domains, each domain deriving its own slice | 363/363. **3 confirmed, all with measured impact; 0 of them exploitable today** |
+
+**C86's three instances are worth keeping because each fails differently.**
+`sshd`'s `Ciphers` is a *pure* restatement of OpenSSH 9.6p1's default six — zero
+policy content, existing only to freeze — proven with
+`sshd -T -o "Ciphers=-3des-cbc"`; it excludes nothing today because
+`ssh -Q kex | grep mlkem` is empty on 9.6, and it goes wrong silently on the
+first upgrade to ≥ 9.9. The netdata AppArmor profile claims of itself
+"docker-default, **verbatim**"; read out of the running dockerd 29.8.0 binary,
+the frozen block is missing `deny /sys/devices/virtual/powercap/** rwklx,`, the
+RAPL/PLATYPUS mitigation — impact **zero**, because `/sys/devices/virtual/powercap`
+does not exist on a Pi 4, verified host-side and inside the container.
+`ansible.cfg`'s `ssh_args` restates ansible-core 2.21.2's default minus `-C`,
+costing 33.7 % on every module payload. **The positive control that makes the
+sweep credible: the repo does NOT restate `Unattended-Upgrade::Allowed-Origins`.**
+
+The note this section replaces is still true and still worth carrying: C86 is
+not C29, whose construct exists to *suppress*; C86's construct exists to
+ASSERT, and the suppression is upstream moving underneath it. Nor is it "a pin
+that stopped binding" — the pin binds perfectly; binding it merely became the
+weaker choice.
+
+### The run's headline — a credential in the system authentication log, for 24 days, behind a gate that passes
+
+`ansible/roles/claude-code/tasks/vault.yml:57` passes the Nextcloud WebDAV
+admin app-password through `environment: P:`. Verified independently by the main
+session, value never printed:
+
+```
+length 29, 4 dashes, 5 groups of 5   <- Nextcloud's app-password format
+27 occurrences, 2026-08-13 22:57:59 -> 2026-09-06 02:26:26
+/var/log/auth.log  mode 640  syslog:adm   operator is in adm
+readable WITHOUT sudo: YES        /etc/shadow, same user: refused   <- the control
+```
+
+Three things make it the worst live defect since the founding one.
+
+1. **The last write is 34 minutes after `23fab2e`**, a commit made that night
+   while this very defect was being closed for three other tasks.
+2. **The task carries `no_log: true`.** That suppresses Ansible's own output and
+   does nothing whatever about sudo's, so the protection is apparent rather than
+   real. Eleven lines below sits a comment recording that `rclone config create`
+   used to leak the same secret through argv — that half was fixed, this one was
+   not, in the same file.
+3. **The gate runs, and passes.** `ops/check-secret-in-environment.py` is in
+   pre-commit and exits 0, because `derive_secret_vars()` reads
+   `ansible/roles/deploy/tasks/secrets.yml` and nothing else: **16 names**,
+   against **22** secret-shaped variables the operator declares in the example
+   files. `rclone_webdav_pass` is declared at `local.example.yml:152` with the
+   comment "A Nextcloud app-password for rclone WebDAV access", and cannot enter
+   that set at any point in the future, for any value of the data.
+
+That last point is the **seventh** payment of the same trap, and its shape is now
+unmistakable: *the derivation is sound, and it keys on the wrong axis.* C10 keyed
+on container mounts, C16 on an owner uid, C01 on five kinds of referent, and this
+one keys on where a secret is *written* rather than where it is *declared*.
+
+### The residue population — one class, five domains, one shape
+
+**Three credential stores at mode 0644 in `/var/tmp`, on the SD card, outside
+LUKS, readable by every local uid — residue of the repairs of 2026-08-16, 27
+days old.** Reached independently by `security`, `observability` and `system`,
+which this register's own rule names as the strongest evidence available. All
+three verified by the main session with `/etc/shadow` refused as the control:
+
+| File | Holds | Still current? |
+|------|-------|----------------|
+| `wg-easy-dns-20260816/wg-easy.db.consistent` | WireGuard **server** private key, 4 client private keys, 4 pre-shared keys | **Yes** — the stored server key still derives the live wg-easy server public key, and 4/4 stored client public keys match the 4 live peers |
+| `vaultwarden-config.json.bak-20260816` | Vaultwarden `admin_token` | **Yes** — byte-identical to the live secret, 97 chars, same hash |
+| `forgejo-repair-20260816/forgejo.db.consistent` | 3 OAuth2 client secrets, user password hashes | **Yes** — both byte-identical to the live database |
+
+The originals are `0600` under `0700` parents on the encrypted volume. ADR-011
+and `sd-theft-response.md` both state that the card carries no secrets; it has
+carried the whole VPN for 27 days.
+
+**Inert residues, confirmed and ranked below the above because they grant
+nothing:** `/usr/local/sbin/homelab-wg-easy-migrate.sh` (0700 root, 12 KB,
+survived the deletion of its task by three weeks, still claims "Ansible
+managed", no caller anywhere); `/mnt/data/services/netdata/go.d/sensors.conf`
+(bind-mounted into netdata 20 days after its template was deleted, **inert** —
+go.d v2.11.0 registers no `sensors` module, measured); `/usr/local/bin/homelab-iosample`
+(a prior audit's own scratch script, in no commit); an empty directory left by
+`6fabf33`; three `acme.json.bak*` files holding 37 certificate+key pairs
+including three retired names (`acmetest`, `capdroptest`, `notes`) — but `0600`
+root-only on LUKS, so no open door.
+
+### Minted — 2, after arbitration of 3 proposals
+
+- **C87** — see the OPEN table. Proposed by `system`, and it is the run's real
+  output: three agents found the instance, one abstracted it into a property
+  with a derivation and a control.
+- **C88** — *a file rendered into a host DIRECTORY by a loop over a register
+  that can shrink, with no counterpart removing what the register no longer
+  names.* Space = looped render tasks ∩ directory bind mounts; **cardinal 4**,
+  swept 4/4, one carrying residue. It is NOT C87: C87's artefacts are made
+  outside Ansible, C88's are made BY Ansible and then orphaned by it. The
+  cleanup today is 20 hand-written `state: absent` tasks — 5 removals got one,
+  3 did not. **A list, not a derivation**, which is exactly why the class is
+  worth having. ENUMERATED.
+- **DECLINED — `project-manager`'s "rejection list drawn from memory rather than
+  from the tool's option surface"** (27 "Alternatives considered" sections across
+  24 of 34 ADRs, 1 of 1 examined failed). The agent argued against filing it
+  itself, and the main session agrees: an ADR rejecting an alternative because
+  "X cannot do Y" *is* C01's restated property applied to a new stratum. It is
+  folded into C01's 87 as a **high-yield stratum to sample first**, not minted.
+  The discipline is worth naming for the second run running: the agent that
+  found the property argued against minting it.
+
+### Rejected from the agents, and why
+
+- **`network`'s `wg0.json` finding.** Verified: it does hold the live server
+  private key and 4 client private keys. Downgraded anyway — it is `0640` under
+  a `0700` parent on LUKS, and it is documented in **14 places**, including
+  `knowledge/runbooks/wireguard-peer-revocation.md:34` ("Do not read
+  `wg0.json`") and `docs/05-services/wireguard.md:102`, which records the
+  rollback copy deliberately. A known, documented, root-only artefact is not
+  residue nobody knows about.
+- **`security`'s peer-match evidence, corrected not rejected.** It reported the
+  4 stored public keys matching "the peers on the live interface". They match
+  **wg-easy's own container interface**; the host's `wg0` is the offsite tunnel
+  and carries 1 peer. The conclusion stands and is in fact stronger than
+  reported — the stored *server* key still derives the live server identity —
+  but the instrument as worded would have failed a re-run.
+- **The main session's own first Vaultwarden measurement**, which said the
+  backup token *differed* from the live one. It did not. `jq -r` appends a
+  newline and the other side of the comparison had been stripped, so two hashes
+  of different strings were compared. Re-measured with both sides stripped and a
+  control: byte-identical. **Recorded because this is the second run in a row
+  where the main session's own instrument was the weakest one used.**
+- **`ansible-deploy`'s count of 24 declared secret variables** — the main
+  session measures 22 by its own regex. The direction, the mechanism and the
+  remedy are identical, and neither figure is load-bearing; the load-bearing
+  number is 16, which both agree on.
+- **`ansible-deploy`'s proposal to reopen C27 instead of minting.** Rejected:
+  C27's property is *a deployed artefact differing from the repo*, which
+  presumes a repo counterpart. An artefact with no declaring source has none.
+  C87 is the correct home and its space is larger than C27's in the one
+  direction that matters.
+
+### Register corrections — 3, and one had already propagated into eight briefs
+
+- **`world_readable_secret_writes()` is NOT deleted.** This file recorded it as
+  removed by `23fab2e` with `grep -c` returning 0, and that sentence was written
+  into this run's `security` and `ansible-deploy` briefs. It was **restored by
+  `b761450`** ("two repository passwords world-readable, and the gate that left
+  with them"); `grep -c` returns 3, and the two passwords are `0400`. The
+  register was one commit behind the repo, for the fourth time.
+- **C18's cardinal is 31, not 26.** `wg-easy` joined `backup_sqlite_dumps` on
+  09-11 and acquired all five checks with no spec edit — visible in the log as
+  `dumps ok (26 checks)` → `dumps ok (31 checks)` one night apart, and confirmed
+  verbatim by the main session. That is not a stale number so much as **positive
+  evidence that C18's generator genuinely derives**, which is worth more than
+  the correction.
+- **C14 is derived but ONE-DIRECTIONAL.** Its only reconciliation, `cert_high`,
+  is a high-water ratchet that fires solely when the certificate count *drops*.
+  A residue raises the count invisibly *and* raises the mark, arming a permanent
+  false alarm on the day a name is legitimately retired. Measured clean today
+  (18 certificates = 18 live `Host()` = 18 split-DNS records, three-way set
+  equality), so this is a shape note, not a finding.
+
+### Gates re-read — C15, C18, C21, C41, C07 DERIVED; C19 still half vacuous; C30 and C31 have none
+
+`C15` sound but all three recorded residues hold: the assertion is **syntactic**
+(it greps `/proc/<pid>/cmdline`, it never sees a delete refused), it takes
+`head -1` of `pgrep`, and it runs **weekly** — `OnCalendar` confirmed against the
+live timer, last run 2026-09-06, next 09-13, so append-only has been unasserted
+for **6 days** on the single property that makes the offsite a backup rather
+than a mirror. `C41` derived over Kuma's own monitor table, 15/15 live, 0 silent.
+`C07` derived, character-identical Jinja on both sides. `C19`'s goss half is
+**still byte-identical and still exits 0 with the binary absent** (positive
+control `PATH=/nonexistent`) — a red test, not a discovery, and the script half
+is now derived. `C45` holds at 10/10 push sites with no new site since 08-30.
+**`C30` and `C31` have no live assertion at all** — consistent with their
+ENUMERATED state, recorded so nobody reads them as gated.
+
+### What the remediation of 2026-09-12 changed, and what it deliberately did not
+
+Shipped the same day on `fix/secret-in-sudo-log-and-residue`, deployed from the
+branch before merge.
+
+**C26's trace axis now carries a derived gate, proven in both directions — and
+the class is recorded ENUMERATED, not GATED.** The widening is real: the secret
+set went from 16 names to 38, and it is unioned from three independent sources
+rather than one, the third being every secret-shaped variable the operator is
+asked to supply in the example inventories. That third source is the axis the
+old derivation lacked, and it is what makes a secret covered from the moment it
+is *declared* rather than from the moment a task writes it somewhere the gate
+knew to look. Run against the repo before the fix it flagged exactly one site —
+the defect — and nothing else; after, it is green; and the selftest gained a
+MUST-FLAG control carrying a `_pass` suffix, which fails if the widening is
+reverted.
+
+It is **not** recorded GATED, and the reason is the one that cost C02, C13, C20
+and C17: C26 has four axes and this gates one. The argv axis has had no live
+assertion since 2026-08-30 and still has none. A table that said GATED here
+would be the same disguise, one run after this file described it.
+
+**C86 closes with one of its three instances gated.** `netdata-apparmor-matches-dockerd`
+re-derives the difference between the deployed profile and the running daemon's
+own binary on every posture run, is directional on purpose (it fails when
+dockerd has a rule the profile lacks, and stays silent when the profile denies
+more), and carries a floor that fires if fewer than ten deny rules parse out of
+the binary. Proven in three directions before shipping: the old profile fails
+naming its four missing rules, the synced profile passes, the floor fires on an
+empty input. The sshd and `ansible.cfg` instances are corrected but ungated —
+nothing derives "this value restates a default" in general, and nothing here
+claims otherwise.
+
+**C87 stays OPEN, and the shipped work does not close it.** The three credential
+stores were removed by hand the same morning, and thirteen paths now ship as a
+retirement list. The list is explicitly a LIST: nothing in it fails when a new
+artefact is orphaned tomorrow. What would close the class is a sweep of the
+service data directories — the slice the mint's own bound excluded — and that is
+not done.
+
+**One correction was made to this file before it was committed.** It recorded
+the character-class shape of the live app-password, which narrows the search
+space for a secret in a PUBLIC repository. The rule the briefs carry as rule 7
+applies to this register too, and it was broken by the session that wrote the
+rule into eight briefs that morning.
+
+### Disclosures — four agents wrote, all four said so unprompted
+
+`system` wrote `/tmp/.k1` and `/tmp/.k2` (a public key) and removed them in the
+same command, verified absent. `observability` wrote a 6-line throwaway goss
+spec to `/run/goss-c01-probe.yaml` (tmpfs), `rm -f` in the same command, twice.
+`project-manager` wrote `/tmp/rp-schema.json` (resticprofile's own schema, no
+secret). `security`'s `sqlite3` read created two zero-content sidecars beside the
+Forgejo copy. **`services` wrote `/tmp/insp.json` and did NOT remove it** — 412 KB
+of `docker inspect`, mode 0664, world-readable, still on the host. Its 13
+secret-shaped matches are `*_FILE=` **paths** and public GPG key ids, no values,
+so nothing leaked. It is nonetheless a fresh C87 instance created by the audit
+that minted C87, and it is left in place because the run is read-only.
+
 
 ## The run of 2026-09-11 — the key was `succession`, and it cost the clean sheet again
 
@@ -2086,7 +2361,7 @@ them; do not re-derive without a new symptom.
 | C23 | A kernel parameter differing between hot and boot path, or between hosts | 30/30 both hosts | 08-19 |
 | C24 | An image that is not genuinely arm64 | 28/28 | 08-21 |
 | C25 | A bind mount whose inode differs from what the container sees | 19/19 against `/proc/<pid>/root`; 62 mounts re-checked 08-29 | 08-19 |
-| C26 | **REOPENED 2026-08-29 evening** — a credential reaching a command line, a child process, a scheduled job or a trace | 4 axes, incl. 3 457 `/proc` sweeps over 140 s with a positive control | 08-22 |
+| C26 | **REOPENED AGAIN 2026-09-12 — see the OPEN table** — a credential reaching a command line, a child process, a scheduled job or a trace | 4 axes, incl. 3 457 `/proc` sweeps over 140 s with a positive control. The TRACE axis's live assertion derives 16 secret names from `secrets.yml` against 22 the operator declares; what the two sets do not share is outside the gate by construction | 08-22, 09-12 |
 | C27 | **REOPENED 2026-08-29 evening** — a deployed artefact differing from the repo | 12/12 by sha256, 25/25 templates, both hosts | 08-29 |
 | C28 | An operator key no role reads, or a role key the example omits | 123 keys, both directions, 0 and 0 | 08-29 |
 | C29 | A construct that disables a feature silently | 81 read one by one; 08-29: 80 `default()`, 22 `failed_when: false`, 5 `creates:`, 3 absent-var gates | 08-19, 08-29 |
@@ -2124,6 +2399,9 @@ them; do not re-derive without a new symptom.
 | C84 | A work queue whose only record of what REMAINS to do is destroyed by the same interruption that leaves the work unfinished | 8/8 stores — 7 durable, verified on disk; 1 volatile (`immich-redis`, `--save ""`, `appendonly no`, holding Immich's `immich_bull:*` queues). 1 instance, 2 of 9 474 assets with no thumbnail row | 09-05 |
 | C85 | A verification whose verdict is delivered only to an EPHEMERAL channel, so that afterwards nothing distinguishes "ran and passed", "ran and repaired" and "did not run" | 6/6 operator-launched system verifications; 2 produce an INTEGRITY verdict; 1 instance (`homelab-unlock`'s `e2fsck -p`, logged on the SKIP branch and not on the RUN branch) | 09-05 |
 | C16 | A read-write bind mount its container cannot create files in | **Downgraded from GATED 09-11** — the enumeration is derived, the PREDICATE is a proxy (`owner == OPERATOR_UID`): 11 of 27 mounts skipped for `CAP_DAC_OVERRIDE`, 1 for a matching uid, **15 reach the test and 0 of the 15 can ever fail it**. The CLASS is clean — 27/27 swept under the real property (uid/gid/caps against owner/group/mode, no `test -w`) | 08-16, 09-11 |
+| C10 | A credential store readable beyond its service | **CLOSED 2026-09-12** — 29/29 declared runtime stores (`security`) and 32/32 write sites, 26 module writes + 6 `environment:` blocks swept across all of `ansible/` (`ansible-deploy`). 0 instances; the two restic passwords that reopened it are `0400`, all 17 world-readable secrets are Compose bind mounts under a `0700` parent, both `0440` groups empty. Its gate is restored (`b761450`), not deleted as this file once recorded | 08-16, 09-05, 09-12 |
+| C86 | A configuration value written to RESTATE an upstream default in order to freeze it, which therefore silently excludes every element that default has GAINED since | **CLOSED 2026-09-12** — 363/363 over five domains, each deriving its own slice: 5 `network` (09-11) + 12 `security` + 172 `system` + 138 `services` + 36 `ansible-deploy`. 3 confirmed, 0 exploitable today: sshd `Ciphers` (pure restatement, latent until OpenSSH ≥ 9.9), the netdata AppArmor profile (missing dockerd 29.8.0's powercap denial; `/sys/devices/virtual/powercap` does not exist on a Pi 4), `ansible.cfg` `ssh_args` (33.7 % payload cost). Positive control: the repo does NOT restate `Unattended-Upgrade::Allowed-Origins` | 09-11, 09-12 |
+| C88 | A file rendered into a host DIRECTORY by a loop over a register that can shrink, with no counterpart removing what the register no longer names | 4/4 (looped render tasks ∩ directory bind mounts), 1 carrying residue. **NOT C87** — C88's artefacts are made BY Ansible and orphaned by it; C87's are made outside it. The cleanup today is 20 hand-written `state: absent` tasks, 5 removals of 8 got one: a list, not a derivation | 09-12 |
 
 ## DECLINED
 

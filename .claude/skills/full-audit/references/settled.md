@@ -24,6 +24,76 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Instrument traps paid for on 2026-09-12 — carry these, they cost a false verdict each
+
+**An un-`sudo`'d shell GLOB over a root-only directory does not fail.** It
+expands to nothing (or to the literal pattern) and every count downstream reads
+zero, silently. It cost the main session a false "0 domains" when reading
+Traefik's ACME backups under a `0700` directory; re-run as `sudo sh -c '...'` so
+the glob expands with the privilege. This is the same family as the un-`sudo`'d
+recursive `grep` recorded on 2026-09-11, and it will recur under a different
+shell construct — the general rule is that **privilege must be acquired before
+the shell resolves names, not after.**
+
+**Comparing two secrets by hash requires both sides stripped identically.**
+`jq -r` appends a newline; `cat` of a file may not; hashing one of each compares
+two different strings and returns a confident "they differ". The main session
+reported a Vaultwarden admin token as changed on exactly that basis, then
+re-measured it as byte-identical. **Always include a control that hashes one
+known string twice**, in the same command, with the same pipeline.
+
+**A WireGuard key set must be matched against the right interface.** wg-easy
+runs its tunnel inside its own container; the host's `wg0` is a different
+tunnel (the offsite link, 1 peer). An agent compared stored client keys against
+the host interface, got 0/4, and read it as "not current" — the correct
+comparison against the container's interface returns 4/4, and the stored
+*server* key still derives the live server identity. State which interface a
+peer count came from.
+
+**`docker inspect` output is not secret-free by default, and it is not secret-
+bearing either.** The 2026-09-12 run left a 412 KB dump world-readable in `/tmp`;
+its 13 secret-shaped matches were all `*_FILE=` **paths** and public GPG key ids.
+Check before alarming — and before dismissing.
+
+## Closed by the run of 2026-09-12
+
+- **C10 — a credential store readable beyond its service.** CLOSED, 29/29
+  runtime stores and 32/32 write sites, 0 instances. The two restic repository
+  passwords that reopened it on 09-11 are `0400` today, and the derived gate
+  `world_readable_secret_writes()` was **restored by `b761450`** — the register's
+  claim that it had been deleted with the defect was one commit out of date.
+- **C86 — a value restating an upstream default in order to freeze it.** CLOSED,
+  363/363 over five domains. Three confirmed instances, none exploitable today,
+  and all three are worth remembering as shapes rather than as defects: a *pure*
+  restatement with zero policy content (sshd `Ciphers`), a block copied
+  "verbatim" from a binary that has since moved (the netdata AppArmor profile),
+  and a default restated minus one element (`ansible.cfg` `ssh_args`, minus
+  `-C`, costing 33.7 % on every module payload).
+
+## Measured and rejected — added 2026-09-12
+
+- **`/mnt/data/services/wireguard/wg0.json` as a finding.** It does hold the live
+  WireGuard server private key and four client private keys — verified. It is
+  also `0640` under a `0700` parent on the encrypted volume, and documented in
+  **14 places**, including a runbook that instructs the reader not to open it and
+  a service page recording the rollback copy deliberately. A known, documented,
+  root-only artefact is not an audit finding. Do not re-report it.
+- **The three `acme.json.bak*` files as an exposure.** 37 certificate+private-key
+  pairs, three of them for names retired long ago (`acmetest`, `capdroptest`,
+  `notes`), and no reference anywhere in the repo — but `0600` root-only on LUKS.
+  Worth one `state: absent` when something else touches that role; not worth a
+  cycle of its own.
+- **Reopening C27 instead of minting C87.** Proposed by `ansible-deploy` on the
+  reasonable ground that "a live object with no declaring source" is C27 read
+  backwards. Rejected: C27's property presumes a repo counterpart to differ
+  from, and these artefacts have none.
+- **Minting "a rejection list drawn from memory rather than from the tool's
+  option surface"** (27 "Alternatives considered" sections across 24 of 34 ADRs).
+  The agent that found it argued against minting it, and the main session
+  agrees — an ADR rejecting an alternative because "X cannot do Y" is C01's
+  property on a new stratum, not a new property. It is recorded in C01's space
+  as the stratum to sample first.
+
 ## Declined — hardening
 
 Live kernel patching, an IPS/reputation layer, a forward-auth SSO portal, user
