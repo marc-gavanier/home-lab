@@ -37,10 +37,24 @@
 # Idempotence: `rclone config create` re-obscures the password with a fresh
 # nonce on every run (file changes even when nothing did). Reveal the deployed
 # password and compare before recreating.
+# The password arrives on STDIN, not through `environment:`. Ansible renders a
+# task's environment as an assignment on the command line it hands to sudo, and
+# sudo journals that line: this very task wrote the app-password into
+# /var/log/auth.log 27 times between 2026-08-13 and 2026-09-06, where the `adm`
+# group reads it without sudo. `no_log: true` never covered that — it suppresses
+# Ansible's output, not the wrapper's. `stdin:` is a module parameter and
+# travels inside the AnsiballZ payload, which is the same reason the obscure
+# task below uses it.
+#
+# `read` is the first statement so that the value is consumed before any
+# command runs, and an empty read falls through to REMOTE_DIFF — which merely
+# recreates a config that is already correct, and is the safe direction.
 - name: vault | Check the deployed rclone remote against the vault
   ansible.builtin.shell:
     cmd: >-
       set -o pipefail;
+      IFS= read -r P || true;
+      [ -n "$P" ] || { echo REMOTE_DIFF; exit 0; };
       cur=$(rclone config dump 2>/dev/null | python3 -c
       'import json,sys; r=json.load(sys.stdin).get("nextcloud",{});
       print(r.get("url","")); print(r.get("pass",""))');
@@ -49,12 +63,12 @@
       [ -n "$obscured" ] && [ "$(rclone reveal "$obscured" 2>/dev/null)" = "$P" ]
       && echo REMOTE_MATCH || echo REMOTE_DIFF
     executable: /bin/bash
+    stdin: "{{ rclone_webdav_pass }}"
   become: true
   become_user: claude
   environment:
     RCLONE_CONFIG: /mnt/data/secrets/claude/rclone.conf
     U: "https://drive.{{ domain }}/remote.php/dav/files/admin/"
-    P: "{{ rclone_webdav_pass }}"
   register: rclone_remote_check
   changed_when: false
   check_mode: false
@@ -62,10 +76,12 @@
   no_log: true
 
 # `rclone config create` put the cleartext app-password in the argv of a process
-# on a /proc with no hidepid — while the probe ELEVEN LINES ABOVE passes the same
-# value through `environment:`, which is the form the rest of this repository
-# settled on in #177 and #188. `no_log: true` hides it from Ansible's output and
-# not from /proc, which is exactly what made this read as safe.
+# on a /proc with no hidepid. The probe above used to pass the same value through
+# `environment:` — the form #177 and #188 settled on — which turned out to be
+# WORSE than argv rather than narrower: argv on a /proc without hidepid is
+# readable by a local uid while the process lives, and sudo's journal of the same
+# value is readable by the `adm` group for five weeks. Both are now closed, the
+# probe by `stdin:` above and this task by `stdin:` below.
 #
 # The guard made it worse rather than narrower: the probe carries
 # `failed_when: false`, so a probe that fails registers rc != 0 with an empty
