@@ -33,8 +33,15 @@
 - name: Build the SearXNG Gerbier assets (before compose up)
   ansible.builtin.import_tasks: branding.yml
 
+# Tagged for the same reason `secrets` is, and stated here so the next reader
+# does not have to re-derive it: the profile is a copy of the daemon's own
+# policy and therefore needs shipping whenever the daemon moves, which has
+# nothing to do with the stack definition. Without a tag, correcting one
+# AppArmor rule drags in compose.yml, whose `compose up` copies the whole stack
+# and arms every pending image pin for the heal timer.
 - name: Install the netdata AppArmor profile (before compose up — see file)
   ansible.builtin.import_tasks: apparmor.yml
+  tags: [apparmor]
 
 - name: Own the data directories hardened containers must be able to write (#144)
   ansible.builtin.import_tasks: data_dirs.yml
