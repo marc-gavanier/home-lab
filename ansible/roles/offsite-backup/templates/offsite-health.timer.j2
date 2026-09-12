@@ -1,9 +1,24 @@
 # {{ ansible_managed }}
 [Unit]
-Description=Weekly offsite backup disk health report
+Description=Daily offsite backup disk health report
 
+# Weekly until 2026-09-12, and the cadence was chosen when this unit only
+# reported disk space and SMART — things that move slowly enough for a week to
+# be a reasonable sampling interval.
+#
+# It no longer only reports those. `offsite-restserver-append-only` asserts the
+# single property that makes this host a BACKUP rather than a mirror: that the
+# rest-server refuses deletes, so a homelab that is compromised or simply wrong
+# cannot erase what is here. A weekly timer gives that property a seven-day
+# detection window, which was measured at six days and four hours of silence on
+# 2026-09-12. For comparison, the restic lock detector runs every five minutes
+# for a strictly less consequential question.
+#
+# The run costs 7 seconds, measured over its last four executions, and the
+# backup disk is already mounted and written to nightly by the copy — so daily
+# adds no spin-up and no meaningful load to a host idling at 0.00.
 [Timer]
-OnCalendar=Sun 08:00
+OnCalendar=*-*-* 08:00
 Persistent=true
 RandomizedDelaySec=15m
 

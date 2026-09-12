@@ -25,6 +25,8 @@ offsite_wg_conf: |
   ...
 
 # --- Monitoring ---
-# Uptime Kuma "Push" monitor URL for the weekly disk-health report
-# (df + SMART). Empty = disabled.
+# Uptime Kuma "Push" monitor URL for the daily disk-health report
+# (df + SMART + the append-only assertion). Empty = disabled.
+# The monitor's heartbeat interval must be 90000 s (25 h), not the 700000 s it
+# carried while this ran weekly.
 offsite_health_kuma_push_url: ""

@@ -85,7 +85,7 @@ Three more push monitors follow the same pattern:
 |----------------|------------------------------------------------|----------------|----------------------------------------------------|
 | Offsite backup | resticprofile `copy` (homelab, nightly)        | 90000 s (25 h) | `offsite_copy_kuma_push_url` (homelab local.yml)   |
 | Offsite check  | `resticprofile -n offsite check` (Sun 06:00)   | 700000 s (8 d) | `offsite_check_kuma_push_url` (homelab local.yml)  |
-| Offsite health | `offsite-health.sh` (offsite Pi, Sunday 08:00) | 700000 s (8 d) | `offsite_health_kuma_push_url` (offsite local.yml) |
+| Offsite health | `offsite-health.sh` (offsite Pi, daily 08:00)  | 90000 s (25 h) | `offsite_health_kuma_push_url` (offsite local.yml) |
 
 Deploy after filling the vault variables: same `--start-at-task "backup | Template
 backup environment file (encrypted volume)"` command for the homelab ones; for the

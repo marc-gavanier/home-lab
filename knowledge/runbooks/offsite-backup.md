@@ -27,8 +27,10 @@ append-only mode. The repo password is deliberately NOT stored on it.
   ```
 - Sunday 06:00 — homelab `homelab-offsite-check.timer`: `restic check` of the
   offsite repo through the tunnel (Kuma push monitor "offsite check").
-- Sunday 08:00 — offsite `offsite-health.timer`: disk/SMART/power self-report
-  (Kuma push monitor "offsite health").
+- Daily 08:00 — offsite `offsite-health.timer`: disk/SMART/power self-report,
+  and the assertion that the rest-server still refuses deletes (Kuma push
+  monitor "offsite health"). Daily since 2026-09-12: it was weekly, which gave
+  the append-only property a seven-day detection window.
 
   **Do not maintain the DOWN conditions by hand — read them.** This list drifted
   8 assertions behind the spec between 2026-08-21 and 2026-08-29, while

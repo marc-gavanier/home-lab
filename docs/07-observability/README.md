@@ -214,7 +214,7 @@ with nothing to look it up in.
 | `/etc/goss/posture.yaml` | homelab | `homelab-posture.sh` | daily, 11:00 + up to 10 min jitter |
 | `/etc/goss/units.yaml` | homelab | `homelab-health.sh` | every 5 min |
 | `/etc/goss/backup-dumps.yaml` | homelab | a resticprofile hook, result read by `backup-notify.sh` | nightly, inside the 03:00 backup |
-| `/etc/goss/offsite-health.yaml` | offsite | `offsite-health.sh` | Sunday, 08:00 + jitter |
+| `/etc/goss/offsite-health.yaml` | offsite | `offsite-health.sh` | daily, 08:00 + jitter |
 
 **There is deliberately no check count in that table, and there must not be
 one.** It has been written down three times — 376, then 387 — and been wrong
