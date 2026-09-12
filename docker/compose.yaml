@@ -2334,7 +2334,7 @@ services:
     # It pays for that with a different data path: /var/lib/gitea, NOT the /data
     # that every tutorial mounts, which would store every repository in a layer
     # the next `compose up` discards (ADR-028).
-    image: codeberg.org/forgejo/forgejo:16.0.3-rootless
+    image: codeberg.org/forgejo/forgejo:16.0.4-rootless
     container_name: forgejo
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
