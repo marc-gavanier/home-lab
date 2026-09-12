@@ -122,6 +122,20 @@ never been reviewed. Each new service is a chance for the established posture to
 erode quietly. Also read the posture-check script for what it does **not**
 assert: the gaps in an automated check are where drift accumulates.
 
+**The secret class is swept by VALUE, not by mechanism — C89, 2026-09-12.**
+Every earlier sweep of it was bounded by a mechanism (container mounts, then
+`environment:` blocks, then write sites) and every one had a blind spot, because
+the class is defined by a value and not by a mechanism. The method that closes
+it: derive the live secret VALUES, control that derivation against known
+secrets, then search each enumerated surface with a positive control. Do not
+re-derive the swept surfaces without a new symptom — and read
+`settled.md`'s "Handling secrets DURING an audit" FIRST, because that sweep
+caused five exposures of its own and each one is a repeatable mistake.
+
+The unswept slice, if this is ever picked up again: restic snapshots (376 GB,
+123 snapshots), and the depth-limited subtrees of Immich, Jellyfin, Navidrome,
+Transmission and Nextcloud.
+
 **Calibration** — this is a home lab, not a bank. Rank by realistic attack
 scenario. A latent weakness that costs one line now and a full re-enrolment
 later is worth raising; a theoretical one that costs a weekend is not.

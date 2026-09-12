@@ -24,6 +24,77 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Handling secrets DURING an audit — seven traps, five of them paid on 2026-09-12
+
+The dedicated secret audit of 2026-09-12 found two real defects and caused five
+exposures of its own. The exposures were not bad luck; each is a specific,
+repeatable mistake, and any future value-first sweep will hit them again unless
+these rules are followed literally.
+
+**1. Never let a secret reach an argv.** `sudo grep "$secret" file` puts the
+value on sudo's command line, which sudo journals — so searching for a leak
+creates one. The main session added four fresh copies of a live app-password to
+`auth.log` while investigating that password's presence in `auth.log`. The only
+correct form is patterns on STDIN: `printf '%s' "$v" | sudo grep -F -f - file`.
+
+**2. NEVER pipe data into `ssh host 'sudo sh -s'` that is also fed a heredoc.**
+Both go to the same stdin, the pipe wins, and `sh` reads the SECRETS AS ITS
+SCRIPT and echoes each one in a `not found` error. This printed roughly forty
+live secret values in cleartext into a session transcript. It is the single most
+damaging mistake in this file. Choose one channel: either the script comes from
+the heredoc and the data from a file descriptor, or the data comes from the pipe
+and the script is a quoted argument.
+
+**3. Never print a grep match from a file that may hold secrets.** `grep -n
+"P=" file` prints the value. Every display must be masked, and the masking must
+run BEFORE the output is produced, not after it is read.
+
+**4. `umask 077` before creating any pattern file**, and shred it in a trap on
+EXIT/INT/TERM. A default umask writes 0644, which is the exact class under
+audit. Prefer `/dev/shm`, never a disk path.
+
+**5. Run as root, and let root expand the globs.** An un-`sudo`'d recursive grep
+skips root-only files silently, and an un-`sudo`'d SHELL GLOB over a 0700
+directory expands to nothing — which reads as "clean" and is not. Use
+`sudo sh -c '...'` so the glob resolves with the privilege.
+
+**6. Compare secrets by hash only, with both sides stripped identically.**
+`jq -r` appends a newline and `cat` may not; hashing one of each compares
+different strings and returns a confident "they differ". Always include a
+control that hashes one known string twice in the same pipeline.
+
+**7. Derive the value set, then CONTROL it before believing any sweep.** V took
+three iterations (63 → 51 → 36) and two of them looked right while producing
+mostly noise. Assert that a handful of known secrets are present in V before the
+sweep runs; a sweep over a bad V is worse than no sweep, because it looks
+thorough.
+
+## The exposure of 2026-09-12, and the operator's arbitration
+
+Trap 2 above put roughly forty live secret values into a session transcript —
+not a public place, but off the machines: the terminal, the conversation's
+storage at the vendor, and the local transcript under `~/.claude/projects/`.
+Nothing reached GitHub, no commit, no issue, no PR; that was verified against the
+full 6 919-object history before and after.
+
+**The operator declined a general rotation, and that decision stands.** The
+reasoning recorded with it: everything exposed is reachable only from inside the
+LAN or through the WireGuard tunnel, with one exception — the **Cloudflare API
+token**, which works from anywhere on the internet with no VPN and no LAN, and
+which is therefore the only one where "not public" does not change the exposure.
+Two further judgements were made and should not be re-litigated:
+
+- **The restic repository passwords are NOT to be rotated.** A botched key
+  rotation locks the operator out of their own backups, and that risk is larger
+  than the one it would address.
+- **The WireGuard key set is NOT to be rotated** for this reason. Revocation is
+  still impossible (#138), and an attacker would already need to reach the
+  endpoint.
+
+Do not re-propose any of this. If a NEW fact appears — the transcript becoming
+public, or one of these credentials being used — that is a new decision, not a
+re-argument of this one.
+
 ## Instrument traps paid for on 2026-09-12 — carry these, they cost a false verdict each
 
 **An un-`sudo`'d shell GLOB over a root-only directory does not fail.** It
@@ -49,6 +120,24 @@ the host interface, got 0/4, and read it as "not current" — the correct
 comparison against the container's interface returns 4/4, and the stored
 *server* key still derives the live server identity. State which interface a
 peer count came from.
+
+**`logrotate -d /etc/logrotate.d/<file>` is not how logrotate runs.** Tested
+standalone it bypasses `/etc/logrotate.conf`, whose global `su root adm` is what
+makes rotation legal in a `775 root:syslog` `/var/log` — so it reports
+`parent directory has insecure permissions` for a stanza that is perfectly
+correct. The proof that the test and not the configuration is wrong: the SAME
+error appears for rsyslog's stanza, whose rotation demonstrably works. Verify
+with `logrotate -d /etc/logrotate.conf` and look for the file by name.
+
+**`ansible_managed` is undefined inside `copy: content:`** — the variable is
+supplied by the `template` module. The three logrotate and sudoers files this
+repo writes with `copy` all use the literal
+`# Managed by Ansible — do not edit on the host.`; follow them.
+
+**`stat -c %a` on a symlink reports 777**, which is the link's own mode and is
+always 777. `/opt/homelab/.env` looks world-writable and is a link to a 0600
+file. Resolve the target, and test with `sudo -u nobody test -r/-w` plus a
+control.
 
 **`docker inspect` output is not secret-free by default, and it is not secret-
 bearing either.** The 2026-09-12 run left a 412 KB dump world-readable in `/tmp`;
