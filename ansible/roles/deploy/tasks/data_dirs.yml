@@ -276,6 +276,30 @@
     # traversal, and unlike pihole/etc the application does not reset it.
     - immich/upload/backups
 
+    # The tenth, eleventh and twelfth (2026-09-13), and the first to arrive as a
+    # CLASS rather than as a discovery. Every LinuxServer image creates /config
+    # at 755 and only ever `lsiown`s it afterwards: there is no chmod anywhere in
+    # their init beyond `g+rw` on device nodes, checked in all three images. So a
+    # service of that family lands open, STAYS open across restarts, and the next
+    # one added to this lab will do the same unless it is listed here on the day
+    # it is deployed. That is the sentence this entry exists to leave behind.
+    #
+    # What stood open for three hours on the night of the deploy: the three API
+    # keys — full API control of Prowlarr, Sonarr and Radarr, and with them the
+    # download-client credentials those hold — plus prowlarr.db and its indexer
+    # account. Proven readable from an unprivileged account with
+    # vaultwarden/db.sqlite3 refused in the same call, so the instrument was not
+    # simply blind.
+    #
+    # Safe, but NOT for the reason the entries above are safe: these containers
+    # run as uid 1000 rather than root, so they never had DAC_OVERRIDE to lose.
+    # They OWN the directory, which is what makes 0700 cost them nothing. All of
+    # it verified on the running host before being written here — mode set, the
+    # three APIs answered, and Radarr still created a file under /config.
+    - prowlarr
+    - sonarr
+    - radarr
+
 # Belt as well as braces, on the files an application does NOT recreate: if a
 # directory mode ever regresses, these do not hand the contents over with it.
 # Deliberately not listing `-wal`/`-shm` — see the umask note above; the
@@ -299,6 +323,9 @@
     - calibre-web/gdrive.db
     - calibre-web/client_secrets.json
     - transmission/config/settings.json
+    - prowlarr/config.xml
+    - sonarr/config.xml
+    - radarr/config.xml
 
 # Skipped rather than ignored when absent: a fresh host legitimately has none of
 # these yet. Any OTHER failure still fails the play. Two of the Kuma files also
