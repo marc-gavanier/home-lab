@@ -35,18 +35,21 @@ Jellyfin apps are available for Android TV, Fire TV, Roku, etc.
 
 Place video files on the Pi:
 ```bash
-scp movie.mkv homelab:/mnt/data/media/videos/movies/
+scp movie.mkv homelab:/mnt/data/library/movies/
 ```
 
 Jellyfin scans libraries periodically or you can trigger a manual scan from the dashboard.
 
 ## Data
 
-| Path                                  | Content                               |
-|---------------------------------------|---------------------------------------|
-| `/mnt/data/services/jellyfin/config/` | Jellyfin configuration and metadata   |
-| `/mnt/data/services/jellyfin/cache/`  | Transcoding cache                     |
-| `/mnt/data/media/videos/`             | Video files (not managed by Jellyfin) |
+| Path                                   | Content                              |
+|----------------------------------------|--------------------------------------|
+| `/mnt/data/services/jellyfin/config/`  | Jellyfin configuration and metadata  |
+| `/mnt/data/services/jellyfin/cache/`   | Transcoding cache                    |
+| `/mnt/data/library/movies/`            | Films — importer-writable (ADR-035)  |
+| `/mnt/data/library/shows/`             | Series — importer-writable (ADR-035) |
+| `/mnt/data/media/videos/home-videos/`  | Personal footage — operator only     |
+| `/mnt/data/media/videos/music-videos/` | Music videos — operator only         |
 
 ## Performance Note
 
@@ -76,4 +79,11 @@ restic restore latest --target / --include /mnt/data/services/jellyfin
 docker compose up -d jellyfin
 ```
 
-Media files in `/mnt/data/media/videos/` are backed up daily with the rest of `/mnt/data/media`.
+Films and series live under `/mnt/data/library/` and are backed up daily, listed
+subdirectory by subdirectory in the restic source so that `library/downloads/`
+stays out of the backup structurally (ADR-035). Home videos and music videos are
+backed up with the rest of `/mnt/data/media`.
+
+The four libraries Jellyfin was configured with are unchanged: it mounts four
+host sources into the same `/media/videos/...` container tree, so nothing inside
+Jellyfin had to be re-pointed.

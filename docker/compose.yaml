@@ -816,7 +816,14 @@ services:
       # (no copy, no sync — Immich/Jellyfin/Navidrome stay the players)
       - ${MEDIA_DIR}/photos:/external/photos:ro
       - ${MEDIA_DIR}/music:/external/music:ro
-      - ${MEDIA_DIR}/videos:/external/videos:ro
+      # Same nesting as Jellyfin, and for the same reason: the External Storage
+      # entries keep pointing at /external/videos and nothing is reconfigured.
+      # This deliberately preserves the CURRENT view — movies and shows included.
+      # Dropping the 255 GB from Nextcloud is a separate decision (ADR-035).
+      - ${LIBRARY_DIR}/movies:/external/videos/movies:ro
+      - ${LIBRARY_DIR}/shows:/external/videos/shows:ro
+      - ${MEDIA_DIR}/videos/home-videos:/external/videos/home-videos:ro
+      - ${MEDIA_DIR}/videos/music-videos:/external/videos/music-videos:ro
     extra_hosts: *nextcloud-hosts    # see x-nextcloud-hosts
     networks:
       - proxy
@@ -1217,7 +1224,14 @@ services:
     volumes:
       - ${SERVICES_DATA_DIR}/jellyfin/config:/config
       - ${SERVICES_DATA_DIR}/jellyfin/cache:/cache
-      - ${MEDIA_DIR}/videos:/media/videos:ro
+      # Four sources into ONE container tree, so Jellyfin's four libraries keep
+      # the paths they were configured with and need no change at all. It can
+      # do this because it only ever READS: nested read-only bind mounts are
+      # free here, where an importer would need a single mount to hard-link.
+      - ${LIBRARY_DIR}/movies:/media/videos/movies:ro
+      - ${LIBRARY_DIR}/shows:/media/videos/shows:ro
+      - ${MEDIA_DIR}/videos/home-videos:/media/videos/home-videos:ro
+      - ${MEDIA_DIR}/videos/music-videos:/media/videos/music-videos:ro
     networks:
       - proxy
     labels:
@@ -1603,7 +1617,13 @@ services:
       - transmission_password
     volumes:
       - ${SERVICES_DATA_DIR}/transmission/config:/config
-      - ${SERVICES_DATA_DIR}/transmission/downloads:/downloads
+      # Moved out of the service directory and into library_dir so that the
+      # importer, which mounts library_dir whole, can hard-link from here into
+      # movies/ and shows/. Transmission itself still mounts ONLY this
+      # subdirectory: it never gets write access to the library, which is the
+      # whole reason the downloads moved to the library rather than the library
+      # opening up to Transmission.
+      - ${LIBRARY_DIR}/downloads:/downloads
       - ${SERVICES_DATA_DIR}/transmission/watch:/watch
     ports:
       - "51413:51413/tcp"

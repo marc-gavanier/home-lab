@@ -647,6 +647,48 @@ command:
     timeout: 60000
     exit-status: 0
 
+  # --- Every library category reaches the backup (2026-09-12, ADR-035) -------
+  # `library_dir` holds the categories an importer writes into, and its
+  # `downloads/` is deliberately absent from the restic source: a path that was
+  # never in the source cannot be un-excluded by mistake. The cost of that
+  # choice is the symmetric failure — a NEW category created here and never
+  # added to the source would go unbacked, silently, with every check green and
+  # the deploy reporting changed.
+  #
+  # So the check is DERIVED from the machine rather than from a list: it reads
+  # what actually exists under library_dir and requires each one, minus
+  # downloads/, to appear in the deployed profile's source. Add `library/anime`
+  # without touching resticprofile.yaml and this goes red the same night.
+  #
+  # The floor matters as much as the comparison. If library_dir were empty or
+  # missing, a loop over nothing returns true and the assertion would pass while
+  # verifying that nothing is backed up — the exact shape this repository keeps
+  # a pre-commit gate against.
+  library-categories-are-all-in-the-backup-source:
+    exec: |
+      lib="{{ library_dir }}"
+      profile=/opt/homelab/resticprofile.yaml
+      [ -d "$lib" ] || { echo "$lib does not exist — the library tree is gone"; exit 1; }
+      [ -r "$profile" ] || { echo "$profile is unreadable — cannot verify coverage"; exit 1; }
+      seen=0
+      missing=0
+      for d in "$lib"/*/; do
+        [ -d "$d" ] || continue
+        name=$(basename "$d")
+        [ "$name" = "downloads" ] && continue
+        seen=$((seen + 1))
+        if ! grep -qE "^[[:space:]]*-[[:space:]]+$lib/$name[[:space:]]*$" "$profile"; then
+          echo "$lib/$name exists and is NOT in the restic source — it is not being backed up"
+          missing=$((missing + 1))
+        fi
+      done
+      if [ "$seen" -lt 1 ]; then
+        echo "no category directory under $lib — this assertion is reading an empty set"
+        exit 1
+      fi
+      [ "$missing" -eq 0 ]
+    exit-status: 0
+
   # --- Retention delivered against retention declared (class C68) ------------
   # Every `db` setting used to be commented out, so all three tiers ran on stock
   # 1024MiB caps against stock 14d/3mo/2y time bounds. The size bound binds

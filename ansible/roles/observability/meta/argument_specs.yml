@@ -141,6 +141,12 @@ argument_specs:
         type: path
         required: true
         description: Root of the per-service data directories the posture spec asserts against.
+      library_dir:
+        type: path
+        required: true
+        description: >-
+          Root of the importer-writable tree. The posture spec derives from its
+          directory listing which categories must appear in the restic source.
       data_mount_point:
         type: path
         required: true

@@ -13,7 +13,8 @@ Mirrors the `source` list in `ansible/roles/deploy/templates/resticprofile.yaml.
 | Data                   | Source (host path)                                                                              | Method            | Frequency |
 |------------------------|-------------------------------------------------------------------------------------------------|-------------------|-----------|
 | Service data & configs | `/mnt/data/services` (Nextcloud files, Vaultwarden, Immich uploads, Jellyfin/Navidrome config…) | Restic            | Daily     |
-| **Media originals**    | `/mnt/data/media` (photos, music, videos)                                                       | Restic            | Daily     |
+| **Media originals**    | `/mnt/data/media` (photos, music, home videos, music videos, books)                             | Restic            | Daily     |
+| **Library**            | `/mnt/data/library/movies` and `/mnt/data/library/shows`, named one by one so `downloads/` stays out of the source structurally (ADR-035) | Restic | Daily |
 | Nextcloud DB           | MariaDB dump (`--single-transaction`) → `/mnt/data/backups/dumps`                               | dump → Restic     | Daily     |
 | Vaultwarden DB         | SQLite `sqlite3 .backup` (WAL-safe) → `/mnt/data/backups/dumps`                                 | dump → Restic     | Daily     |
 | Forgejo DB             | SQLite `sqlite3 .backup` (WAL-safe) → `/mnt/data/backups/dumps`                                 | dump → Restic     | Daily     |

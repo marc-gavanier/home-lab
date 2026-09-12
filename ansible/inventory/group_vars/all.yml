@@ -108,6 +108,15 @@ fail2ban_ban_time: 3600
 # --- Services data directories ---
 services_data_dir: "{{ data_mount_point }}/services"
 media_dir: "{{ data_mount_point }}/media"
+# The tree an automated downloader may write into, kept separate from media_dir
+# on purpose. media_dir holds what the operator alone produces — home videos,
+# music videos, photos, the Calibre library — and nothing with a download client
+# behind it ever gets write access there. library_dir holds what arrives through
+# Transmission, and the downloads sit INSIDE it rather than beside it: a hard
+# link across two bind mounts fails with EXDEV even when both resolve to the
+# same filesystem, so sharing one mount is what makes an import a link instead
+# of a 40 GB copy that also breaks seeding.
+library_dir: "{{ data_mount_point }}/library"
 backup_dir: "{{ data_mount_point }}/backups"
 
 # Where the backup writes its narrative, and where the dump assertions leave
