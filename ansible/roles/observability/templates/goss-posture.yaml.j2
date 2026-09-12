@@ -602,6 +602,15 @@ command:
             exit 1
           }
         }' /etc/apparmor.d/homelab-netdata -
+    # Measured 2026-09-12: 2.4-2.6 s warm and 3.9 s with the page cache dropped,
+    # nearly all of it `strings` over a 101 MB binary. It still blew goss's 10 s
+    # default on its first real run, because the posture check runs it alongside
+    # thirty container inspections and the contention, not the command, is the
+    # cost. A timeout reported through `exit-status` is indistinguishable from a
+    # profile that genuinely diverged — the same channel for the expiry and for
+    # the condition — so the deadline is set from the measurement with margin
+    # rather than left at a default nobody chose.
+    timeout: 60000
     exit-status: 0
 
   # --- The hole the adapter's startup grace leaves, closed here (#289) --------
@@ -1038,7 +1047,31 @@ command:
       fi
       t=$(jq -r '.profiles.homelab.check.time // empty' "$sf")
       d=$(jq -r '.profiles.homelab.check.duration // empty' "$sf")
-      [ -n "$t" ] && [ -n "$d" ] || { echo "no check section in $sf — the status file shape moved"; exit 1; }
+      if [ -z "$t" ] || [ -z "$d" ]; then
+        # The settle idiom again, and one level further in than the branch above.
+        # That one covers a status file that does not exist yet; this covers a
+        # status file that exists without a check section, which is a different
+        # state with a different cause: `backup` writes this file NIGHTLY while
+        # the homelab `check` is written by homelab-local-maintenance, WEEKLY on
+        # Sunday. Between a deploy that introduces the status file and the first
+        # Sunday after it, the file is real, its shape is right, and the section
+        # is legitimately absent.
+        #
+        # This is not hypothetical: status-file shipped 2026-09-11 23:09, the
+        # weekly producer had last run 2026-09-06, and the assertion was red
+        # from the next morning's backup until the following Sunday — announcing
+        # "the status file shape moved", which was false in every word.
+        #
+        # The window is measured from the config that declares `status-file`,
+        # because editing it is what can reset the file. Eight days covers one
+        # full weekly cycle from any starting point, with margin.
+        cfg=$(stat -c %Y /opt/homelab/resticprofile.yaml 2>/dev/null || echo 0)
+        [ $(( $(date +%s) - cfg )) -lt 691200 ] && exit 0
+        echo "no check section in $sf more than 8 days after the config declaring"
+        echo "status-file was last written — the weekly homelab check is not"
+        echo "recording its run, or the status file shape moved"
+        exit 1
+      fi
       day=$(date -d "$t" +%-d 2>/dev/null) || { echo "cannot parse check time '$t'"; exit 1; }
       secs=${d%%.*}
       case "$secs" in ''|*[!0-9]*) echo "duration '$d' is not a number"; exit 1 ;; esac
