@@ -6,28 +6,31 @@ All services run as Docker containers, orchestrated by Docker Compose. Persisten
 
 ## Deployed Services
 
-| Service                         | Description                    | Priority       | Phase   |
-|---------------------------------|--------------------------------|----------------|---------|
-| [Traefik](traefik.md)           | Reverse proxy, automatic TLS   | Infrastructure | Phase 2 |
-| [Pi-hole](pihole.md)            | Local DNS, ad/tracker blocking | Infrastructure | Phase 2 |
-| [WireGuard](wireguard.md)       | VPN remote access              | Infrastructure | Phase 2 |
-| [Nextcloud](nextcloud.md)       | Cloud files, sync, mobile      | Essential      | Phase 3 |
-| [Collabora](collabora.md)       | Collaborative document editing | Productivity   | Phase 5 |
-| [LibreSign](libresign.md)       | PDF signing (Nextcloud app)    | Productivity   | Phase 5 |
-| [Vaultwarden](vaultwarden.md)   | Password manager               | Essential      | Phase 3 |
-| [Jellyfin](jellyfin.md)         | Video streaming                | Secondary      | Phase 4 |
-| [Navidrome](navidrome.md)       | Music streaming                | Secondary      | Phase 4 |
-| [Immich](immich.md)             | Photo management               | Secondary      | Phase 4 |
-| [Transmission](transmission.md) | BitTorrent client              | Secondary      | Phase 4 |
-| [Netdata](netdata.md)           | System monitoring              | Observability  | Phase 5 |
-| [Uptime Kuma](uptime-kuma.md)   | Availability monitoring        | Observability  | Phase 5 |
-| [Dozzle](dozzle.md)             | Container logs in the browser  | Observability  | Phase 5 |
-| [Claude Code](claude-code.md)   | AI agent for the notes vault   | Productivity   | Phase 5 |
-| [SearXNG](searxng.md)           | Private metasearch engine      | Productivity   | Phase 5 |
-| [IT-Tools](it-tools.md)         | Offline developer toolbox      | Productivity   | Phase 5 |
-| [Calibre-Web](calibre-web.md)   | Ebook library, OPDS            | Secondary      | Phase 5 |
-| [Miniflux](miniflux.md)         | RSS reader, release tracking   | Productivity   | Phase 5 |
-| [Forgejo](forgejo.md)           | Self-hosted git, GitHub mirror | Secondary      | Phase 5 |
+| Service                         | Description                       | Priority       | Phase   |
+|---------------------------------|-----------------------------------|----------------|---------|
+| [Traefik](traefik.md)           | Reverse proxy, automatic TLS      | Infrastructure | Phase 2 |
+| [Pi-hole](pihole.md)            | Local DNS, ad/tracker blocking    | Infrastructure | Phase 2 |
+| [WireGuard](wireguard.md)       | VPN remote access                 | Infrastructure | Phase 2 |
+| [Nextcloud](nextcloud.md)       | Cloud files, sync, mobile         | Essential      | Phase 3 |
+| [Collabora](collabora.md)       | Collaborative document editing    | Productivity   | Phase 5 |
+| [LibreSign](libresign.md)       | PDF signing (Nextcloud app)       | Productivity   | Phase 5 |
+| [Vaultwarden](vaultwarden.md)   | Password manager                  | Essential      | Phase 3 |
+| [Jellyfin](jellyfin.md)         | Video streaming                   | Secondary      | Phase 4 |
+| [Navidrome](navidrome.md)       | Music streaming                   | Secondary      | Phase 4 |
+| [Immich](immich.md)             | Photo management                  | Secondary      | Phase 4 |
+| [Transmission](transmission.md) | BitTorrent client                 | Secondary      | Phase 4 |
+| [Netdata](netdata.md)           | System monitoring                 | Observability  | Phase 5 |
+| [Uptime Kuma](uptime-kuma.md)   | Availability monitoring           | Observability  | Phase 5 |
+| [Dozzle](dozzle.md)             | Container logs in the browser     | Observability  | Phase 5 |
+| [Claude Code](claude-code.md)   | AI agent for the notes vault      | Productivity   | Phase 5 |
+| [SearXNG](searxng.md)           | Private metasearch engine         | Productivity   | Phase 5 |
+| [IT-Tools](it-tools.md)         | Offline developer toolbox         | Productivity   | Phase 5 |
+| [Calibre-Web](calibre-web.md)   | Ebook library, OPDS               | Secondary      | Phase 5 |
+| [Miniflux](miniflux.md)         | RSS reader, release tracking      | Productivity   | Phase 5 |
+| [Forgejo](forgejo.md)           | Self-hosted git, GitHub mirror    | Secondary      | Phase 5 |
+| [Prowlarr](arr-stack.md)        | Indexer manager for the two below | Secondary      | Phase 6 |
+| [Sonarr](arr-stack.md)          | Series: search and import         | Secondary      | Phase 6 |
+| [Radarr](arr-stack.md)          | Films: search and import          | Secondary      | Phase 6 |
 
 > Notes live in **Obsidian** (a client app on PC/mobile, synced via Nextcloud), managed by
 > Claude Code on the Pi — see [ADR-005](../../knowledge/decisions/ADR-005-obsidian-notes-system.md).
