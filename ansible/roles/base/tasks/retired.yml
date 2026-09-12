@@ -79,6 +79,24 @@
     - path: /var/tmp/vaultwarden-config.json.bak-20260816
       retired_by: "2026-08-16"
 
+    # Troubleshooting copies of the wg-easy store taken during the #236 and #238
+    # investigations, on the UNENCRYPTED card. Each holds the WireGuard server
+    # private key that is still live today, four client private keys and four
+    # pre-shared keys — verified 2026-09-12 by deriving the stored server key
+    # and matching it against the running interface.
+    #
+    # They are root-only, so unlike the /var/tmp set above they were never an
+    # open door; what they are is the same secret in a place ADR-011 and
+    # sd-theft-response.md both say carries none. The deliberate v15 rollback
+    # copy is a different artefact and stays: /mnt/data/backups/wg-easy-v14/,
+    # dated 2026-07-28, on the encrypted volume, named in the service page.
+    - path: /root/wg-easy-238-backup.db
+      retired_by: "2026-08-26"
+    - path: /root/wg-easy-backup-20260825
+      retired_by: "2026-08-25"
+    - path: /root/wg-easy-backup-236-0115
+      retired_by: "2026-08-26"
+
     # Scratch output from measurements taken in August. Harmless, listed because
     # a scratch directory that is never emptied is how the three above survived.
     - path: /var/tmp/util_new.txt

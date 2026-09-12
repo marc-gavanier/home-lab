@@ -53,6 +53,46 @@
     mode: "0440"
     validate: 'visudo -cf %s'
 
+# The rotation the task above needed from the day it shipped, and did not have.
+#
+# `Defaults logfile` makes sudo write every command line it runs to a file that
+# NOTHING rotates: Ubuntu ships no logrotate stanza for it, and adding the
+# sudoers drop-in does not create one. Measured 2026-09-12, 56 days after this
+# control was deployed: 14 MB, 241 043 lines, 250 kB/day, oldest entry 18 July,
+# on the SD card.
+#
+# The size is the small half. The large half is that the SAME command lines go
+# to auth.log, which rsyslog rotates weekly and keeps four — about five weeks —
+# so a secret that reaches a command line is forgotten there and kept here for
+# ever. The audit of 2026-09-12 found six distinct credential values in this
+# file spanning 12 August to 6 September, from the `environment:` defect fixed
+# that morning. All six were verified against the live secret set and none is
+# still in use; the point is not those six, it is that the file has no mechanism
+# by which anything ever leaves it.
+#
+# So the retention deliberately MATCHES rsyslog's for auth.log rather than
+# choosing its own number: same window, same compression, so the two stores of
+# the same data expire together. `create 0600 root root` is explicit because the
+# whole reason this file matters is who can read it — sudo creates it 0600 on
+# its own, and a rotation that quietly widened that would undo the control.
+- name: hardening | Rotate the sudo logfile the way rsyslog rotates auth.log
+  ansible.builtin.copy:
+    dest: /etc/logrotate.d/sudo
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # {{ ansible_managed }}
+      /var/log/sudo.log {
+          weekly
+          rotate 4
+          missingok
+          notifempty
+          compress
+          delaycompress
+          create 0600 root root
+      }
+
 # --- batch 6 ---
 
 # 5.3.3.4.1 — pam_unix ships with `nullok` in common-auth, which permits login
