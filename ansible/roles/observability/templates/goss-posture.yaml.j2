@@ -1412,9 +1412,46 @@ command:
         exit 1
       fi
       pat='[?&]([Aa]ccess_?[Tt]oken|[Aa]pi_?[Kk]ey|token|auth|secret|password|sig|signature)='
-      bad=$(for c in traefik traefik-log-redactor; do
-              docker logs "$c" 2>&1 | grep -hoE "$pat[^ \"&]*" || true
-            done | grep -cvE '=\*\*\*$')
+      # Bounded to 48 h and read in ONE pass, and both halves were measured.
+      #
+      # Unbounded, this walked the whole rotation window every run: 323 071
+      # lines and 9.12 s isolated on 2026-09-12, which became a 30 s timeout
+      # under the contention of the full posture run — four times in the
+      # preceding 21 days, while the run's own CPU went 58.7 s to 1 min 13.7 s
+      # over the same period. A deadline sized against an input that has grown.
+      #
+      # 48 h against a DAILY cadence means every line is examined at least
+      # twice, so one missed run loses nothing; two consecutive missed runs
+      # would leave a gap, which is accepted because the posture run's own
+      # liveness is monitored and unbounded growth is not. The window is
+      # RELATIVE deliberately: `docker logs --since` parses an absolute stamp in
+      # host local time while `-t` prints UTC, and a duration has no such trap.
+      #
+      # One awk pass rather than three greps: the first bounded version counted
+      # the floor separately and came out at 10.25 s, SLOWER than the unbounded
+      # form it replaced. Measured at 4.87 s in this shape, over 49 255 lines.
+      window=48h
+      set -- $( { docker logs --since "$window" traefik 2>&1
+                  docker logs --since "$window" traefik-log-redactor 2>&1
+                } | awk -v pat="$pat" '
+        /GET|POST|HEAD|PUT|DELETE/ { http++ }
+        { line = $0
+          while (match(line, pat "[^ \"&]*")) {
+            v = substr(line, RSTART, RLENGTH)
+            if (v !~ /=\*\*\*$/) bad++
+            line = substr(line, RSTART + RLENGTH)
+          } }
+        END { print (http+0), (bad+0) }')
+      seen=$1
+      bad=$2
+      # The floor. A redactor that is running and emitting nothing would let
+      # this assertion pass over an empty set, which proves nothing — the shape
+      # this repository has a pre-commit gate against.
+      if [ "${seen:-0}" -lt 1 ]; then
+        echo "the redactor is running but produced no HTTP line in $window —"
+        echo "this assertion would otherwise pass over an empty set"
+        exit 1
+      fi
       if [ "${bad:-0}" -gt 0 ]; then
         echo "$bad credential value(s) reached a durable container log"
         exit 1
