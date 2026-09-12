@@ -1669,6 +1669,128 @@ services:
   # all (fix-stat-daily-overflow aborts the SQLite table rebuild). Renovate holds
   # it off the weekly batch; back the DB up and read the runbook first:
   # knowledge/runbooks/uptime-kuma-migration-failure.md
+  # --- The *arr stack: Prowlarr finds, Sonarr and Radarr import (ADR-036) ----
+  # Three containers that fill the gap between Transmission, which downloads,
+  # and Jellyfin, which only reads a library. Prowlarr manages the indexers and
+  # pushes them to the other two; Sonarr and Radarr decide what to fetch, hand
+  # it to Transmission over its RPC API, then import the finished download into
+  # the library by HARD LINK — which is the whole reason ADR-035 moved the
+  # downloads inside library_dir in the first place.
+  #
+  # Capabilities: the same five as calibre-web and transmission, and for the
+  # same reason — these are linuxserver s6 images whose init runs as root,
+  # chowns /config, then drops to PUID/PGID. That set is INHERITED rather than
+  # measured for these three: it is the one that works for the sibling images,
+  # and narrowing it needs a `docker diff` run per container after first start.
+  # Written down as inherited so nobody reads it as a measurement.
+  #
+  # read_only is NOT set here, and that is also not a measurement: it was not
+  # attempted. calibre-web documents an image that genuinely cannot run
+  # read-only; these three have not been tried, and the honest state is
+  # "unknown". Same for start_period — 300 s is a guess to be replaced by what
+  # the first cold boot actually shows.
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:2.5.2
+    container_name: prowlarr
+    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    security_opt: *no-new-privs
+    cap_drop: *cap-drop-all
+    cap_add: &arr-s6-caps
+      - CHOWN
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
+      - FOWNER
+    environment:
+      PUID: ${PUID}
+      PGID: ${PGID}
+      TZ: ${TZ}
+    volumes:
+      # Config only. Prowlarr never touches a media file: it searches indexers
+      # and hands results to the other two. Giving it the library would widen
+      # its reach for nothing.
+      - ${SERVICES_DATA_DIR}/prowlarr:/config
+    networks:
+      - proxy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:9696/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 300s
+      start_interval: 15s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prowlarr.rule=Host(`indexers.${DOMAIN}`)"
+      - "traefik.http.routers.prowlarr.entrypoints=websecure"
+      - "traefik.http.routers.prowlarr.tls.certresolver=letsencrypt"
+      - "traefik.http.services.prowlarr.loadbalancer.server.port=9696"
+
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:4.0.19
+    container_name: sonarr
+    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    security_opt: *no-new-privs
+    cap_drop: *cap-drop-all
+    cap_add: *arr-s6-caps
+    environment:
+      PUID: ${PUID}
+      PGID: ${PGID}
+      TZ: ${TZ}
+    volumes:
+      - ${SERVICES_DATA_DIR}/sonarr:/config
+      # ONE mount covering both the downloads and the destination, which is what
+      # makes an import a hard link. Two mounts would fail with EXDEV even on the
+      # same filesystem — measured 2026-09-12, see ADR-035. Note what is NOT
+      # here: media_dir. Sonarr can write to films, series and the download
+      # directory, and to nothing the operator produces.
+      - ${LIBRARY_DIR}:/data
+    networks:
+      - proxy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:8989/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 300s
+      start_interval: 15s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.sonarr.rule=Host(`series.${DOMAIN}`)"
+      - "traefik.http.routers.sonarr.entrypoints=websecure"
+      - "traefik.http.routers.sonarr.tls.certresolver=letsencrypt"
+      - "traefik.http.services.sonarr.loadbalancer.server.port=8989"
+
+  radarr:
+    image: lscr.io/linuxserver/radarr:6.3.0
+    container_name: radarr
+    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    security_opt: *no-new-privs
+    cap_drop: *cap-drop-all
+    cap_add: *arr-s6-caps
+    environment:
+      PUID: ${PUID}
+      PGID: ${PGID}
+      TZ: ${TZ}
+    volumes:
+      - ${SERVICES_DATA_DIR}/radarr:/config
+      - ${LIBRARY_DIR}:/data
+    networks:
+      - proxy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:7878/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 300s
+      start_interval: 15s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.radarr.rule=Host(`films.${DOMAIN}`)"
+      - "traefik.http.routers.radarr.entrypoints=websecure"
+      - "traefik.http.routers.radarr.tls.certresolver=letsencrypt"
+      - "traefik.http.services.radarr.loadbalancer.server.port=7878"
+
   uptime-kuma:
     image: louislam/uptime-kuma:2.5.0
     container_name: uptime-kuma

@@ -179,6 +179,10 @@ wait_healthy nextcloud 240
 # re-propose it. If the startup is ever to be smoothed, the lever is the I/O
 # RATE demanded (per-container throttling, or spreading starts over time) — not
 # the number of simultaneous starts.
-up immich-redis immich-db immich-machine-learning immich-server jellyfin netdata collabora calibre-web
+# prowlarr, sonarr and radarr join this wave rather than wave 1, and the reason
+# is a dependency rather than weight: Sonarr and Radarr talk to Transmission's
+# RPC, and Transmission comes up in wave 2. They retry, so starting earlier
+# would not break them — it would just make the journal say so on every boot.
+up immich-redis immich-db immich-machine-learning immich-server jellyfin netdata collabora calibre-web prowlarr sonarr radarr
 
 log "staged startup complete — all waves dispatched"
