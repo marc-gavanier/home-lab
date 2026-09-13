@@ -69,6 +69,28 @@ have learned of it.
 - **`fake-hwclock.service` being masked** is deliberate, not drift — its
   replacement pair is enabled and firing. Recorded so nobody re-files it.
 
+## Instrument trap paid a FOURTH time, 2026-09-13 (night-second), verifying the remediation
+
+**An unprivileged read of a path inside a 0700 directory does not fail loudly —
+it produces a false NEGATIVE that reads like a finding.** Verifying that the new
+`state: absent` branches had deleted nothing, the main session ran
+`readlink -f /etc/wireguard/wg0.conf` without `sudo` and got an empty answer,
+which the check printed as `MISSING` — for the symlink that is the only remote
+path to this host.
+
+It was intact. `/etc/wireguard` is `drwx------ root root`, so the unprivileged
+resolution failed rather than answering. Re-measured as root:
+`wg0.conf -> /mnt/data/secrets/wg0.conf`, target readable, 294 bytes at 0600.
+The control was the same unprivileged command run again deliberately, which
+failed again.
+
+This is the same family as the un-`sudo`'d GLOB (paid three times) and the
+un-`sudo`'d recursive `grep` (2026-09-11), and it is now **four**. The rule
+generalises past globs: **any read under a root-only directory must be run
+through `sudo sh -c`, and a negative result from one that was not is an artefact
+until re-measured.** A verification step is exactly where this hurts most — it
+turns a successful remediation into an apparent catastrophe.
+
 ## Instrument traps paid on 2026-09-13 (night-second) — TWO ARE NEW, and one is aimed at this skill's own brief
 
 1. **`sqlite3 "file:X?mode=ro"` is read-only at the SQL level, NOT at the
