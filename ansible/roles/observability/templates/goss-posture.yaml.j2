@@ -1929,6 +1929,45 @@ command:
   # start is the same fact, owned by the machine. Without this floor the check
   # fires after every single reboot, which is how an assertion teaches its
   # reader to ignore it.
+  # --- The vault mount answers, rather than merely being mounted -----------
+  # Added 2026-09-13, after /home/claude/vault returned `Input/output error` on
+  # every read for EIGHTEEN HOURS while both of its units reported healthy:
+  #
+  #     vault-mount.service       active (running)
+  #     home-claude-vault.mount   active (mounted)
+  #
+  # rclone does not exit when its credential stops being accepted, so neither
+  # unit can express the failure. The only symptom that surfaced was
+  # homelab-feed-digest failing the next morning — a consumer that touches the
+  # mount once a day, which made the detection latency a day by construction.
+  #
+  # WHY A WRITE AND NOT `ls -l`. Two traps, both measured that day:
+  #   - `ls -l <file>` on this mount prints `Input/output error` AND the correct
+  #     line, on a perfectly healthy mount. Asserting on it would produce a
+  #     permanent false positive.
+  #   - a plain read can be served from rclone's dir-cache (30 s here), so it
+  #     can succeed against a backend that is already refusing.
+  # Writing, reading back and removing exercises the credential end to end, and
+  # it is what the real consumer does.
+  #
+  # Written as the `claude` user because the mount is 0700 and root is NOT
+  # exempt: rclone's FUSE mount is not shared with other uids, so a root test
+  # would fail on a healthy mount for the wrong reason.
+  #
+  # The file is written under Inbox/ deliberately — a directory that exists and
+  # is synced, so a failure here means the mount, not a missing path.
+  vault-mount-is-writable-not-just-mounted:
+    exec: |
+      t=/home/claude/vault/Inbox/.goss-vault-probe
+      runuser -u claude -- sh -c '
+        t=/home/claude/vault/Inbox/.goss-vault-probe
+        printf probe > "$t" 2>/dev/null || { echo "vault mount: write failed"; exit 1; }
+        [ "$(cat "$t" 2>/dev/null)" = probe ] || { echo "vault mount: read-back mismatch"; rm -f "$t"; exit 1; }
+        rm -f "$t" 2>/dev/null || { echo "vault mount: remove failed"; exit 1; }
+      '
+    exit-status: 0
+    timeout: 20000
+
   no-kuma-report-was-lost-in-silence:
     exec: |
       started=$(docker inspect uptime-kuma 2>/dev/null |
