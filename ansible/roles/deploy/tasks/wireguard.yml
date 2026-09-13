@@ -24,6 +24,20 @@
     group: root
     mode: "0600"
   register: homelab_wg_conf_file
+  # DELIBERATE EXCEPTION, recorded 2026-09-13 so nobody "fixes" it later. The
+  # 2026-09-13 sweep found 22 task sites writing under /mnt/data/secrets, of
+  # which 3 are guarded on a value being present and have no `state: absent`
+  # counterpart — so clearing the variable leaves the old file behind. Two of the
+  # three got that counterpart (the Miniflux API key, and the two restic
+  # passwords). THIS ONE MUST NOT.
+  #
+  # Removing wg0.conf when the variable is undefined would delete the tunnel's
+  # only configuration, and the tunnel is the sole remote path to this host:
+  # /etc/wireguard/wg0.conf symlinks onto the encrypted volume, so after a reboot
+  # it dangles, wg-quick cannot start, wg-easy cannot either, and homelab-unlock
+  # asks for a passphrase interactively — with nobody able to reach the machine
+  # to type it. An undefined variable here means "this play has nothing to say
+  # about the tunnel", never "take the tunnel down".
   when: homelab_wg_conf is defined
 
 - name: wireguard | Link /etc/wireguard/wg0.conf to the encrypted volume

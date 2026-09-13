@@ -49,3 +49,47 @@
       check. To enable one, create a Push monitor in Kuma and set its URL in the
       vaulted host_vars — see local.example.yml.
   when: netdata_alarm_groups | default([]) | selectattr('push_url') | list | length == 0
+
+# ...and the message above used to be the WHOLE of the "off" branch, which made
+# it true of the run and false of the machine. Clearing the push URLs is the
+# documented way to turn this feature off; before 2026-09-13 it only stopped
+# INSTALLING. Whatever an earlier deploy had already put on the host stayed —
+# the alarms loaded in Netdata, the adapter on disk, and the timer firing every
+# five minutes at a URL that is no longer configured — while the deploy printed
+# "no alarm, adapter or timer was installed". An opt-out that leaves the feature
+# running is not an opt-out.
+#
+# The removal set is DERIVED from the full catalogue (netdata_curated_alarms),
+# NOT from the active selection: when no group carries a push URL the active
+# selection is empty by construction, so a remover keyed on it would remove
+# nothing. That is the whole shape of the defect — a register that shrinks to
+# nothing cannot name what has to go.
+#
+# Deliberately NOT retracted: the go.d collector configurations and the dbengine
+# retention. Those are metrics, not alerting, and the sentence above only claims
+# the alarms, the adapter and the timer.
+- name: "Retract the curated Netdata alarms when no push URL is configured"
+  when: netdata_alarm_groups | default([]) | selectattr('push_url') | list | length == 0
+  block:
+    - name: "Stop and disable the Netdata-to-Kuma adapter timer"
+      ansible.builtin.systemd:
+        name: homelab-netdata-kuma.timer
+        enabled: false
+        state: stopped
+        daemon_reload: true
+      failed_when: false
+
+    - name: "Remove the adapter, its units and every curated alarm file"
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop: >-
+        {{ ['/usr/local/bin/homelab-netdata-kuma.sh',
+            '/etc/systemd/system/homelab-netdata-kuma.service',
+            '/etc/systemd/system/homelab-netdata-kuma.timer']
+           + (netdata_curated_alarms | default([])
+              | map(attribute='file')
+              | map('regex_replace', '^(.*)$',
+                    services_data_dir ~ '/netdata/health.d/\\1.conf')
+              | list) }}
+      notify: Reload netdata health
