@@ -53,10 +53,32 @@ notify() {
     # on it — what failed is the report, not the check it carries. The marker
     # string is what `no-kuma-report-was-lost-in-silence` reads in the posture
     # spec; keep the two in step.
+    # A TIMEOUT IS NOT A LOSS. Until 2026-09-13 every non-zero curl status wrote
+    # `kuma-push-failed: this report reached nobody`, a sentence this side of the
+    # wire cannot justify: whether the beat LANDED is decided by the server, while
+    # curl only reports whether a reply came back inside its own budget. Measured
+    # on the netdata emitter that day — Kuma committed the beat at 23:25:29.334
+    # UTC, the script wrote "reached nobody" exactly TIMEOUT later, payloads
+    # byte-identical. The full reasoning lives once, in homelab-netdata-kuma.sh.
+    # curl exit 28 therefore gets `kuma-push-unconfirmed:`, which the live
+    # assertion's anchored `--grep '^kuma-push-failed:'` does NOT match. Every
+    # other status (22 on a 4xx/5xx, 7 refused, 6 DNS) is a beat that provably
+    # did not land and keeps the original marker and the original words.
+    #
+    # `|| rc=$?` rather than reading PIPESTATUS after a bare pipeline: two of the
+    # ten emitters run under `set -e`, where an unguarded failing pipeline would
+    # abort the whole script — the guard the old `|| echo` provided by accident.
+    # The verdict stays advisory, as it was: every branch leaves the status 0,
+    # because what failed is the report, not the check it carries.
+    local rc=0
     printf 'url = "%s"\n' "$KUMA_PUSH_URL" |
         curl -fsS -m 10 --retry 2 -K - -G \
-            --data-urlencode "status=$1" --data-urlencode "msg=$2" >/dev/null ||
-            echo "kuma-push-failed: this report reached nobody — $2" >&2
+            --data-urlencode "status=$1" --data-urlencode "msg=$2" >/dev/null || rc=$?
+    case "$rc" in
+        0) ;;
+        28) echo "kuma-push-unconfirmed: no reply within 10s, the beat may have landed — $2" >&2 ;;
+        *)  echo "kuma-push-failed: this report reached nobody — $2" >&2 ;;
+    esac
 }
 
 problems=()

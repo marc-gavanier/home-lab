@@ -190,20 +190,35 @@ fi
 # The URL carries the monitor's token, so it goes in on stdin rather than argv:
 # /proc has no hidepid here and this runs unattended (#177). printf is a
 # builtin, so the value never reaches an argv there either.
+# A TIMEOUT IS NOT A LOSS — the reasoning lives once, in homelab-netdata-kuma.sh:
+# whether the beat LANDED is decided by the server, while curl only reports
+# whether a reply came back inside its own budget. curl exit 28 therefore gets
+# `kuma-push-unconfirmed:`, which the live assertion's anchored grep does NOT
+# match. `|| rc=$?` keeps the guard the old `|| {` provided, so a failing push
+# can never abort the caller.
+rc=0
 printf 'url = "%s"\n' "$url" |
     curl -fsS -m 10 --retry 2 -K - -G \
         --data-urlencode "status=${OUTCOME}" \
-        --data-urlencode "msg=${msg}" >/dev/null 2>&1 || {
-            log "push failed"
-            # The marker, on stderr, unprefixed. `log` cannot carry it: it
-            # stamps a timestamp in front, and the assertion that reads this
-            # (`no-kuma-report-was-lost-in-silence`) anchors at ^ precisely so
-            # that a line merely MENTIONING the marker does not count. This
-            # script and the digest were the two push sites of ten that
-            # detected the failure and named it something else, so the
-            # assertion read eight — the whole backup chain's lost beats were
-            # invisible to the check written to catch exactly that.
-            echo "kuma-push-failed: this report reached nobody — ${WHAT}: ${msg}" >&2
-        }
+        --data-urlencode "msg=${msg}" >/dev/null 2>&1 || rc=$?
+case "$rc" in
+    0) ;;
+    28)
+        log "push unconfirmed"
+        echo "kuma-push-unconfirmed: no reply within 10s, the beat may have landed — ${WHAT}: ${msg}" >&2
+        ;;
+    *)
+        log "push failed"
+        # The marker, on stderr, unprefixed. `log` cannot carry it: it
+        # stamps a timestamp in front, and the assertion that reads this
+        # (`no-kuma-report-was-lost-in-silence`) anchors at ^ precisely so
+        # that a line merely MENTIONING the marker does not count. This
+        # script and the digest were the two push sites of ten that
+        # detected the failure and named it something else, so the
+        # assertion read eight — the whole backup chain's lost beats were
+        # invisible to the check written to catch exactly that.
+        echo "kuma-push-failed: this report reached nobody — ${WHAT}: ${msg}" >&2
+        ;;
+esac
 
 log "pushed ${OUTCOME} (${WHAT}): ${msg}"
