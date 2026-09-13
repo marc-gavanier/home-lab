@@ -72,6 +72,29 @@
 
       [Service]
       Type=oneshot
+      # SuccessExitStatus=1, 2026-09-13. This script REPORTS by pushing DOWN to
+      # its own Kuma monitor and then exiting 1, so without this line one
+      # incident is announced twice: once by this unit's monitor, and again by
+      # `Pi health`, which reds on `last run failed:`. The second message says
+      # nothing the first did not, and it LATCHES the aggregate monitor — `Pi
+      # health` carries ~17 acute host conditions, and while it is held DOWN by
+      # a scheduled job's problem an acute one arriving behind it notifies
+      # nobody until the next resend (#216).
+      #
+      # The rule is not new: it was applied to homelab-lynis on 2026-08-24 and
+      # the journal is its own positive control — lynis appears in
+      # `last run failed:` on 08-23 and 08-24 and never again. What was missing
+      # is that the POPULATION was never swept. It is now: of the 13 timer
+      # services, the ones that report by exiting non-zero after pushing DOWN
+      # get this line.
+      #
+      # NOT applied to homelab-backup or homelab-local-maintenance, and that is
+      # deliberate: both carry TWO ExecStart lines whose ordering guarantee
+      # depends on Type=oneshot stopping at the first failure — no replication
+      # if the backup did not run, no check if the prune did not. Making exit 1
+      # a success would run the second command anyway. Their duplicate
+      # notification is the cheaper of the two costs.
+      SuccessExitStatus=1
       ExecStart=/opt/homelab/scripts/cloudflare-ddns.sh
       EnvironmentFile=/opt/homelab/ddns.env
 
