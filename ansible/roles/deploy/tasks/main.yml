@@ -70,8 +70,21 @@
 - name: Apply Transmission runtime settings the compose file cannot set
   ansible.builtin.import_tasks: transmission.yml
 
+# Tagged 2026-09-13, for the reason the `ddns` comment below invites: the
+# nightly timer, the weekly maintenance timer and their units are systemd
+# files that no container reads, and correcting a schedule should not cost a
+# `compose up`. This was found the hard way — a reschedule was committed,
+# deployed with `--tags backup`, reported changed=2, and the timers on the
+# host still said Sunday, because `--tags backup` reached resticprofile.yml
+# and nothing else.
+#
+# Verified independent before tagging, the same check resticprofile.yml
+# documents: `restic_init` and `restic_open` are registered AND consumed
+# inside this file, and nothing here reads a set_fact or a `when:` produced
+# elsewhere in the role.
 - name: Set up the local restic backup and nightly timer
   ansible.builtin.import_tasks: backup.yml
+  tags: [backup]
 
 # ADR-031, and the migration is over. This announced "phase 1 … backup.sh keeps
 # running on its timer" on every single run until 2026-08-29, long after the
@@ -93,8 +106,13 @@
 - name: Set up the host tunnel to the offsite Pi (ADR-010)
   ansible.builtin.import_tasks: wireguard.yml
 
+# Tagged with `backup` rather than a tag of its own: it carries the third of
+# the three restic timers, so `--tags backup` now deploys the whole restic
+# surface — profile, nightly, weekly maintenance, weekly offsite check —
+# rather than three quarters of it. It declares no register and no when:.
 - name: Set up the weekly offsite repo check
   ansible.builtin.import_tasks: offsite.yml
+  tags: [backup]
 
 # Tagged, alone among the imports in this file, and the asymmetry is the point
 # rather than an oversight. This role mixes host-level concerns — secrets, the
@@ -107,7 +125,9 @@
 # `--tags ddns` therefore installs the script, its environment file and the two
 # systemd units, and nothing else runs. Added 2026-09-03 alongside the retry fix
 # in cloudflare-ddns.sh, whose deploy is what wanted it. Other imports can be
-# tagged the same way when they need it; none is today.
+# tagged the same way when they need it — `backup.yml` and `offsite.yml` were,
+# on 2026-09-13, when a timer reschedule deployed cleanly and changed nothing on
+# the host because the tag did not reach them.
 - name: Set up the Cloudflare DDNS updater for the vpn record
   ansible.builtin.import_tasks: ddns.yml
   tags: [ddns]
