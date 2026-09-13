@@ -1,6 +1,6 @@
 # ADR-035 — Split the media tree by who writes to it
 
-**Status**: accepted — 2026-09-12
+**Status**: accepted — 2026-09-12; **Backups section amended 2026-09-13**
 **Supersedes nothing. Related**: ADR-003 (Nextcloud media browsing), ADR-033 (music over sshfs)
 
 ## Context
@@ -68,27 +68,51 @@ mounts are free for a reader; only a writer that links needs a single mount.
 
 ## Backups
 
+> **Amended 2026-09-13.** This section originally put `library/movies` and
+> `library/shows` in the restic source. **They are now declared unbacked.** The
+> structural argument stands unchanged; what changed is which categories it
+> applies to, and the gate that enforces it now works in both directions.
+
 `library/` is **never named as a restic source**. Its subdirectories are listed
-one by one:
+one by one, and which ones appear is declared once, in
+`library_unbacked_categories`:
 
-```
-- /mnt/data/library/movies
-- /mnt/data/library/shows
+```yaml
+library_unbacked_categories: [downloads, movies, shows]
 ```
 
-so `downloads/` is outside the backup *structurally*. An `exclude:` would have
+so a category is outside the backup *structurally*. An `exclude:` would have
 worked too and was rejected: an exclusion is a filter that can be mistyped,
 forgotten, or defeated by a later edit to the source list, whereas a path that
 was never in the source cannot be any of those.
 
-That choice has a symmetric failure, and it is gated rather than trusted. A new
-category created under `library/` and not added to the source would go unbacked
-in silence, with every check green. `library-categories-are-all-in-the-backup-source`
-in the posture spec derives the set from the directory listing, requires each
-entry minus `downloads/` to appear in the deployed profile, and carries a floor
-so that an empty or missing tree fails instead of passing over nothing. Proven
-in four directions before shipping: nominal passes, an unlisted category fails,
-a tree holding only `downloads/` fires the floor, and a missing tree fails.
+**Why `movies` and `shows` are out.** They hold torrent-sourced video, retained
+only until watched and to seed. It is re-downloadable, so its recovery value is
+the cost of fetching it again — and the local repository lives on the **same
+LUKS volume** as the data it backs up, so a local copy protected against an
+accidental delete and nothing else.
+
+**What the original decision cost, measured.** The first nightly run after this
+ADR shipped changed the restic *path set*, so restic found **no parent
+snapshot** and re-read everything: 94 280 files, 418 GiB, **4 h 25** against a
+normal ~12 min. Deduplication held — it stored 69.986 GiB, exactly the 41 new
+files (two TV seasons and five films) hard-linked in from `downloads/`. Those
+70 GiB then crossed a domestic uplink at ~4.4 MB/s into an **append-only**
+repository, where nothing expires them automatically. And holding the profile
+lock for eight hours starved `homelab-local-maintenance`, which waits two hours
+for that lock and then **fails** — a weekly timer, so prune and check were
+skipped for the week.
+
+**The gate is now bidirectional, and that is the real correction.**
+`library-backup-source-matches-the-declared-split` in the posture spec walks the
+directory listing and compares every category against the declaration: a
+category that should be backed up and is missing fails, **and a category
+declared unbacked that appears in the profile fails too**. The original gate
+could only catch the first, which is why this ADR's own change passed through it
+unremarked. Proven in five directions before shipping: nominal passes, a
+declared-unbacked category present in the source fails, a backed-up category
+missing from the source fails, an empty tree fires the floor, and an empty
+declaration refuses to judge rather than passing over nothing.
 
 The `.torrent` files Transmission keeps in `services/transmission/config/torrents/`
 stay in the backup by decision. Each carries an announce URL containing the
