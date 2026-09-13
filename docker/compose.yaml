@@ -124,9 +124,25 @@ x-nextcloud-hosts: &nextcloud-hosts
 # Derived, not snapshotted: this is every name this file routes with a
 # `Host()` rule. A service added without a pin here simply resolves through
 # Pi-hole as before — the staleness degrades to the old behaviour rather than
-# to a wrong answer. Split-DNS resolution itself is still probed, by the
-# dedicated `Pi-hole DNS` monitor, which tests the function directly instead of
-# inferring it from an HTTP monitor's side effect.
+# to a wrong answer.
+#
+# WHAT THESE PINS COST, and it was not noticed when they were added on
+# 2026-09-13: before them, the twenty HTTP monitors resolved the internal names
+# through Pi-hole on every check, so they exercised split-DNS continuously
+# without anyone designing that. Pinning them removed the only live detector of
+# it. The claim that stood here — that the `Pi-hole DNS` monitor probes the
+# function directly — was false: that monitor queries the APEX (`${DOMAIN}`),
+# which carries no `address=` line, and holds no condition on the answer, so it
+# stays green on the public address whether or not `pihole-05-homelab.conf` is
+# loaded. Failure mode it could not see: the twenty-one names go NXDOMAIN,
+# every service becomes unreachable, and every monitor stays green.
+#
+# The replacement re-points that same monitor at a name only split-DNS can
+# answer, and gives it an explicit condition on the address returned — so it
+# fails both when Pi-hole stops answering and when it answers the wrong thing.
+# One monitor, both failures. Recorded in `docs/05-services/uptime-kuma.md`.
+# Kuma v2 has no supported config-as-code path, so the change is made in the UI;
+# `ops/kuma-dump.sh` is what proves the deployed monitor matches that table.
 x-kuma-hosts: &kuma-hosts
   - "books.${DOMAIN}:${PI_LAN_IP}"
   - "dns.${DOMAIN}:${PI_LAN_IP}"

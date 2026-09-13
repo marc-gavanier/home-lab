@@ -39,21 +39,21 @@ Uses Pi-hole as DNS (`dns: [${PI_LAN_IP}]` in compose) so that domain lookups fo
 | WireGuard                 | HTTP(s)  | `https://vpn.example.com`                                                                     |
 | Traefik HTTPS             | TCP Port | `192.168.1.100:443`                                                                           |
 | Transmission BT Peer Port | TCP Port | `transmission:51413`                                                                          |
-| Pi-hole DNS               | DNS      | Resolver `192.168.1.100`, query `example.com`                                                 |
+| Pi-hole DNS + split-DNS   | DNS      | Resolver `192.168.1.100`, query `drive.example.com`, condition: record = `192.168.1.100`      |
 | Pi (ping)                 | Ping     | `192.168.1.100`                                                                               |
 | Backup                    | Push     | resticprofile `backup`, daily 03:00                                                           |
 | DDNS                      | Push     | `cloudflare-ddns.sh`, every 15 min                                                            |
 | Netdata — containers      | Push     | `homelab-netdata-kuma.sh` services group, /5 min                                              |
 | Nextcloud notify_push     | Push     | `notify_push:self-test`, hourly                                                               |
 | Offsite backup            | Push     | resticprofile `copy`, daily 03:00                                                             |
-| Offsite check             | Push     | resticprofile `offsite check`, Sun 06:00                                                      |
+| Offsite check             | Push     | resticprofile `offsite check`, Tue 02:00                                                      |
 | Offsite health            | Push     | `offsite-health.sh`, on the offsite Pi                                                        |
 | Pi disk health            | Push     | `homelab-disk.sh`, daily 07:00 + jitter                                                                |
 | Pi health                 | Push     | `homelab-health.sh`, every 5 min                                                              |
 | Pi Lynis audit            | Push     | `homelab-lynis-report.sh`, weekly                                                             |
 | Pi pending action         | Push     | `homelab-health.sh` pending group, every 5 min                                                |
 | Pi resources              | Push     | `homelab-netdata-kuma.sh` resources group, /5 min                                             |
-| Pi restic prune+check     | Push     | resticprofile `prune`+`check`, Sun 05:00                                                      |
+| Pi restic prune+check     | Push     | resticprofile `prune`+`check`, Tue 01:00                                                      |
 | Pi security posture       | Push     | `homelab-posture.sh`, daily 11:00                                                             |
 | Veille quotidienne        | Push     | `feed-digest/digest.sh`, daily 06:30                                                          |
 
@@ -61,6 +61,20 @@ Defaults for the active checks: 60s interval, 3 retries, accepted codes `200-299
 TLS expiry notification on. Since #191 no active monitor accepts anything outside that
 set — Transmission's `401` was the last exception. The push monitors are dead-man's switches: the job pushes
 on success, and Kuma alarms when the push does not arrive.
+
+**`Pi-hole DNS + split-DNS` is shaped the way it is because of what it replaced.**
+Until 2026-09-13 it queried the apex (`example.com`) with no condition on the
+answer, which made it a liveness check on Pi-hole and nothing more: the apex
+carries no `address=` line, so the monitor returned the public address and
+stayed green whether or not the split-DNS config was loaded. What actually
+exercised split-DNS was accidental — the twenty HTTP monitors resolved internal
+names through Pi-hole on every check — and pinning those names into
+`uptime-kuma`'s `extra_hosts` that same day removed it without anyone noticing.
+Querying an internal name *with* a condition on the address restores the
+detector and covers both failures at once: Pi-hole silent, and Pi-hole answering
+the wrong thing. The failure it exists for is the loud one — the twenty-one
+`Host()` names go NXDOMAIN, every service becomes unreachable, and without this
+monitor every dashboard stays green.
 
 Four monitors deviate on purpose. **Forgejo** polls every 300s with 2 retries: it is a
 mirror, not an interactive service — nobody is waiting on it, and a minute of downtime
