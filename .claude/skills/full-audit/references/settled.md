@@ -179,6 +179,41 @@ that motivated the fix.
   the lab. Found by the repo's OWN posture assertion as soon as it could run
   without timing out — the gate did the audit's job.
 
+## GitGuardian incident 37230384 — a false positive, and how it surfaced
+
+Raised on PR #351, 2026-09-13. `ansible/roles/claude-code/tasks/vault.yml`,
+detector **Generic Password**, on:
+
+    pass = {{ rclone_obscured_pass.stdout }}
+
+**It is a Jinja expression, not a credential.** The value lives in the vaulted
+`rclone_webdav_pass`, is obscured by the preceding task without reaching an
+argv, and is interpolated at render time. gitleaks, the repository's other
+scanner, passed on the same commits.
+
+**The line was NOT touched by that PR** — zero `pass =` additions or removals in
+the diff. A `notify:` added four lines below pulled it into the diff hunk's
+CONTEXT, and the scanner reads the whole hunk. Any future edit near that line
+will raise it again.
+
+**A `.gitguardian.yaml` does not help and should not be added.** That file is
+read by ggshield, and this repository has no ggshield step in
+`.github/workflows`; the check comes from the GitHub App, which is configured in
+the dashboard. Committing the file would look like remediation and do nothing —
+the exact shape this skill exists to find. The remedy is to mark the incident
+*False positive* in the dashboard, which retains the signature; `Unmonitor` does
+not close incidents.
+
+**The check does not block.** `main` carries no branch protection, so the PR was
+MERGEABLE with the check red (`mergeStateStatus: UNSTABLE`).
+
+**One diagnostic lesson worth keeping.** The main session first deduced, with a
+coherent argument, that the trigger was a `-n "$USER":"$PASS"` string it had
+just written into `docs/05-services/transmission.md`. That was wrong, and it had
+said it would wait for the dashboard detail before editing — which is what
+stopped it from rewriting the wrong file. **A plausible cause is not a located
+cause.**
+
 ## Declined — added 2026-09-13, do not re-propose
 
 - **An assertion on Transmission's s6 stop hook.** The image's own
