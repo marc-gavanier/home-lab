@@ -70,10 +70,18 @@
       # anything useful. The script addresses the vault by absolute path.
       WorkingDirectory=/home/claude
       Environment=HOME=/home/claude
-      # The mount point exists as an empty local directory when rclone is not up,
-      # so writing the note would silently land on the SD card instead of
-      # Nextcloud. This gate is what makes that impossible.
-      ExecStartPre=/bin/sh -c 'grep -q " /home/claude/vault " /proc/mounts && ls -1 /home/claude/vault >/dev/null'
+      # NO ExecStartPre, since 2026-09-13, and the removal is the fix rather
+      # than a relaxation. The gate it held — the mount point exists as an empty
+      # local directory when rclone is not up, so the note would land on the SD
+      # card — now lives in digest.sh, three lines after `fail()` is defined.
+      #
+      # It had to move because an ExecStartPre that fails takes the unit down
+      # BEFORE the only notify() in this chain exists. On 2026-09-13 at 06:34:01
+      # it did exactly that: the mount was present and returning EIO (Nextcloud
+      # was refusing rclone's credential), the control process exited 2, and the
+      # failure was announced to nobody. The dead-man's window reported it 60 min
+      # 46 s later with no cause, and a manual re-run at 12:36 reset `Result=` to
+      # success. Same assertion, same two halves, in the one place that can speak.
       ExecStart=/home/claude/.local/share/feed-digest/digest.sh
       # The hard stop, and it is not theoretical: on 2026-08-13 six abandoned
       # `claude` sessions held 1.5 GB of RAM and 525 MB of swap on this host for

@@ -118,6 +118,11 @@ the service *does* beyond answering.
    output may be the last thing anyone reads for hours:
 
    ```bash
+   # cd FIRST. Both paths below are relative and `docker compose` needs the
+   # file: from the default landing directory this script silently does
+   # nothing on the way out AND nothing on the way back, which is the one
+   # failure an unattended rollback must not have.
+   cd /opt/homelab
    cp -a compose.yaml compose.yaml.bak
    scp <new compose>; docker compose up -d <svc>
    ok=no
@@ -125,7 +130,7 @@ the service *does* beyond answering.
    [ "$ok" = yes ] || { cp -a compose.yaml.bak compose.yaml; docker compose up -d <svc>; }
    ```
 
-   The probe must be the *function*, not the status: `dig @127.0.0.1 example.com`
+   The probe must be the *function*, not the status: `dig @127.0.0.1 <domain>`
    for Pi-hole, `wg show wg0` for wg-easy, an HTTPS response for Traefik.
 
    **The backup has to be older than the change.** A harness that copies the

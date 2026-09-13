@@ -180,6 +180,18 @@
       port = {{ ssh_port_hardened }}
       filter = sshd
       maxretry = {{ fail2ban_max_retry }}
+      # The unit is `ssh.service` on Ubuntu, not `sshd.service`, and the shipped
+      # default matches the latter. It is NOT a blind jail and the first reading
+      # of this said it was: fail2ban's `+` is a DISJUNCTION, so the second group
+      # `_COMM=sshd` carries the whole match on its own. Measured over 7 days on
+      # this host — `_SYSTEMD_UNIT=sshd.service` returns **1** journal entry,
+      # `_COMM=sshd` returns **56 405**, with 2 761 `Accepted publickey` lines as
+      # the positive control and 0 failure-shaped lines.
+      #
+      # So this changes nothing today, and it is here because a match group that
+      # has matched once in a week is not a match group — it is one journald
+      # metadata change away from being the only one left.
+      journalmatch = _SYSTEMD_UNIT=ssh.service + _COMM=sshd
       {% if fail2ban_service_jails | default(true) %}
 
       # The two jails below read FILES, so they must override the systemd

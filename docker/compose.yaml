@@ -1380,7 +1380,13 @@ services:
       - "traefik.http.routers.navidrome.tls.certresolver=letsencrypt"
       - "traefik.http.services.navidrome.loadbalancer.server.port=4533"
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:4533/ping"]
+      # Same defect as the three *arr probes fixed the same day, one layer down:
+      # `--spider` only reports the HTTP status, and navidrome answers 200 with
+      # its single-page app for every route it does not know. Measured
+      # 2026-09-13 — `/ping` returns `.`, `/definitely-not-a-route` returns the
+      # SPA and `--spider` exits 0 on it. Matching the body is what makes the
+      # probe fail when the server answers without serving the API.
+      test: ["CMD-SHELL", "wget -qO- http://localhost:4533/ping | grep -qx '[.]'"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -1697,6 +1703,23 @@ services:
       - "traefik.http.routers.transmission.entrypoints=websecure"
       - "traefik.http.routers.transmission.tls.certresolver=letsencrypt"
       - "traefik.http.services.transmission.loadbalancer.server.port=9091"
+    # 60 s, and it is a measurement rather than headroom. On 2026-09-13 the heal
+    # timer restarted this container at 01:25:15 while a 13.24 GB torrent was
+    # transferring; dockerd wrote "Container failed to exit within 10s of signal
+    # 15 - using the force" at 01:25:38. A full re-hash of that payload against
+    # the SHA-1 list inside its own .torrent afterwards found 89 of 1579 pieces
+    # wrong — 712 MiB spread over six of the eight files — while
+    # transmission-remote reported "13.24 GB verified". Two independent runs of
+    # the check returned byte-identical piece lists.
+    #
+    # The default of 10 s is what made it a kill: transmission flushes its
+    # resume files and closes every open file handle on SIGTERM, and it had 8
+    # files open on a USB disk that was also serving seven other containers.
+    #
+    # NOT a general extension of the other 27 containers sitting on the default
+    # — that was measured and declined. This one is the only container that
+    # writes multi-gigabyte payloads it cannot re-verify on its own.
+    stop_grace_period: 60s
     healthcheck:
       # `curl -s -o /dev/null` with no `-f` exits 0 on ANY response. Measured:
       # the probed URL answers 401 and the command exits 0; a nonexistent route

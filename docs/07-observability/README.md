@@ -242,7 +242,10 @@ world-readable — every command above and below needs `sudo`, and note that
 `sudo goss -g /etc/goss/*.yaml` expands the glob in the *unprivileged* shell and
 silently matches nothing, which is why the loop above uses `sudo sh -c`.
 
-**Running one by hand:**
+**Running one by hand** — on the **homelab**, which is the only host that has
+`posture.yaml`. The binary is on both hosts and the specs are not: `offsite` has
+`offsite-health.yaml` and nothing else, so these two commands return "file does
+not exist" there. The table above is what says which spec lives where.
 
 ```bash
 sudo goss -g /etc/goss/posture.yaml validate              # human-readable, ends in "Count: N, Failed: 0"

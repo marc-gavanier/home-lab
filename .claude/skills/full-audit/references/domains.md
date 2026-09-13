@@ -15,44 +15,53 @@ earlier — which would have sent eight agents to re-derive settled work. Rebuil
 it from `classes.md`'s OPEN table at the start of every run; if the two
 disagree, `classes.md` wins.
 
-As of the run of 2026-09-13 (night). **Rebuilt from `classes.md`'s OPEN table —
-do not trust this copy if the two disagree.**
+As of the run of 2026-09-13 (evening, second), key `locality`. **Rebuilt from
+`classes.md`'s OPEN table — do not trust this copy if the two disagree.**
 
-**TWO OPEN classes — C92 and C95. C01, C03 and C94 are all closed; do not
-re-sweep any of them.**
+**ZERO OPEN classes.** C95 closed as ENUMERATED; C92, C01, C03-R and C94 were
+already closed. Do not re-sweep any of them.
 
-- **C92 — every domain, and nobody owns it.** A correction that reached one
-  member of a population whose others share the property. 4/4 known instances
-  re-verified on 2026-09-13: 2 remediated, 1 fully deployed, 1 in DECLINED
-  territory. **It stays OPEN because no propagation gate exists** — nothing
-  derives "the population this fix's property defines". Its standing structural
-  cause: the offsite host has no continuous posture assertion of any kind.
-- **C95 — `observability` and `network` jointly.** An alerting path whose
-  precondition set intersects what it alerts about. Its founding instance
-  (Kuma → Discord → Pi-hole) was FIXED on 2026-09-13 — a fallback resolver plus
-  21 derived `extra_hosts` pins. **The CLASS is open because its space is not
-  bounded**: neither domain derived the full set of paths by which a verdict
-  reaches a human. netdata's alarm path, the feed digest and `homelab-health.sh`
-  are unswept. That derivation is the open work, and it is the next run's
-  obvious mandate.
+**Every agent's mandate is therefore the GATED substitute**, which the skill
+already defines: verify that the assertions in your area still fail when they
+should, by reading them, and sweep the run's new key over your own space. An
+evidenced "clean" is the expected outcome and closes nothing that was open.
 
-**C01 is CLOSED by the operator's arbitration** (2026-09-13), the way C57 and
-C66 were. Do not re-sample the 15; re-raising needs a new fact, not a new
-argument. **C03 is SPLIT**: C03-T is GATED — made to fail on purpose in six runs
-off-host, including a discriminating twin — and C03-R is closed by decision as a
-review rule.
+Two classes were minted on 2026-09-13 evening and are ENUMERATED, not GATED, so
+a deploy can repopulate either:
 
-**C94 is CLOSED** by eight per-domain slices (18/18+, 26/26, 12/12, 12/12, 5/5,
-0/0, `ansible/` swept, n/a) with 0 new confirmed instances. The cardinal is
-derivation-relative; do not re-derive it.
+- **C96** — a rule whose predicate is an ADDRESS, evaluated at a point other
+  than the one that produced the record the address came from. `security` owns
+  it. N = 11, 1 defective at mint time (the SSH-over-VPN case), fixed by
+  documenting the tunnel address rather than by widening the rule.
+- **C97** — a document instructs the reader to act using a name whose referent
+  depends on where it is resolved, and does not say where. **Lab-wide, not
+  documentary**: five domains derived it independently. `project-manager` owns
+  the documentary slice; every other domain owns its own. N = 150 sites over six
+  resolver generators, 21 confirmed and fixed.
 
-**Fourteen keys are now spent**: `time`, `order`, `identity`, `scale`,
+**One gate is red and stays red until the next posture run confirms it.**
+C03-T's assertion `no-kuma-report-was-lost-in-silence` timed out rather than
+evaluating, twice. The cause was goss concurrency, not the assertion; the fix
+shipped in the same PR. Re-read it before trusting it.
+
+**Sixteen keys are now spent**: `time`, `order`, `identity`, `scale`,
 `authority`, `representation`, `vacuity`, `exclusivity`, `interruption`,
-`succession`, `residue`, `concurrency`, `plurality`, `dependency`. The mint rate
-reads 5, 11, 12, 7, 2, 4, 1, 0, 2, 1, 2, 2, 3, 1. A run that reuses one proves
-nothing. The keys that paid best were found the same way: look for an instrument
-trap in `settled.md` that no class has adopted, or a pair of narrow classes in
-`classes.md` that are obviously two faces of a dimension nobody named.
+`succession`, `residue`, `concurrency`, `plurality`, `dependency`,
+`granularity`, `locality`. The mint rate reads 5, 11, 12, 7, 2, 4, 1, 0, 2, 1,
+2, 2, 3, 1, 0, 2. A run that reuses one proves nothing. The keys that paid best
+were found the same way: look for an instrument trap in `settled.md` that no
+class has adopted, or a pair of narrow classes in `classes.md` that are
+obviously two faces of a dimension nobody named.
+
+**What `locality` proved, for whoever writes key seventeen.** It paid twice at
+the meta level, and both payments are instructive. The main session's own
+instrument hit the key's property twice while hunting it — a root `mountpoint`
+on a uid-private FUSE mount, and a probe run from a container that lacked the
+binary. And the key's sharpest finding inverted its own first fix: the SSH rule
+looked like it needed widening and needed nothing, because the correct path
+already existed one address over. **A key that catches the people using it is a
+key with territory left.** `locality` is spent as a key, but C96 and C97 are
+both ENUMERATED rather than GATED, so its findings can come back.
 
 **What `dependency` proved, for whoever writes key fifteen.** Its premise check
 paid twice over — once by confirming the key had territory, and once by being

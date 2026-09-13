@@ -539,9 +539,18 @@ its committed transactions may still be sitting in a `-wal` beside it. Measured
 
 What is in each database: the indexer definitions, the series or film list, the
 quality profiles, the download history and the root-folder paths. What is *not*:
-the media itself, which lives under `/mnt/data/library` and is restored
-separately, and the API key, which is in `config.xml` in the same `/config`
-directory and comes back with the plain file restore.
+the media itself, which lives under `/mnt/data/library`, and the API key,
+which is in `config.xml` beside the database — `/mnt/data/services/$svc/config.xml`
+on the host, which the container sees as `/config/config.xml`. Every other
+command in this section is a host command, so use the host path; `/config`
+exists only inside the container.
+
+> **The media is NOT restored separately, and this sentence used to say it
+> was.** `library/movies` and `library/shows` left the restic source on
+> 2026-09-13 (ADR-035), deliberately: 325 GiB of re-downloadable content. There
+> is no backup copy to restore from, separately or otherwise. What comes back
+> from restic is the *arr databases, which hold the series and film lists — so
+> the library is rebuilt by re-acquiring it, not by restoring it.
 
 ```bash
 svc=sonarr        # or radarr, or prowlarr — everything below follows from this
@@ -582,8 +591,9 @@ that answers is not an application that kept its state:
   resolve to nothing.
 - **Sonarr / Radarr** — Series (or Movies) lists the library, and Settings →
   Media Management shows the root folder as `/data/...`. A root folder that
-  reads as missing means the media restore has not happened yet, not that the
-  database is wrong.
+  reads as missing means the *directory* is absent — not that a media restore
+  is still pending: there is no media restore (ADR-035, see above). Recreate the
+  root folder and let the *arr re-acquire what the database lists.
 - All three — Settings → General → the API key matches what the reverse proxy
   and any client already hold. If `config.xml` was lost and regenerated, the key
   is new and every client has to be updated.

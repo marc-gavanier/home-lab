@@ -24,6 +24,34 @@
     mode: "0644"
     directory_mode: "0755"
 
+# The two purges below delete every host file whose basename is absent from a
+# `fileglob` result, and `fileglob` returns an EMPTY LIST when its search path
+# does not resolve — no error, no warning. `x not in []` is true for every x, so
+# a glob that silently stops matching turns both purges into "delete the whole
+# mirror", on a host, in one run. The search path is relative to the ROLE, which
+# is resolved on the CONTROLLER: a move of these files, a rename of the role or
+# a run from a different checkout all produce that empty list without touching
+# this file.
+#
+# So the lists are resolved ONCE, here, and asserted non-empty before anything
+# is deleted. Verified 2026-09-13 on the live host: 6 of 6 files present, no
+# damage had occurred — this closes the path, it does not repair one.
+- name: commands | Resolve the repo's command and agent inventories once
+  ansible.builtin.set_fact:
+    repo_commands: "{{ query('ansible.builtin.fileglob', 'commands/*.md') | map('basename') | list }}"
+    repo_agents: "{{ query('ansible.builtin.fileglob', 'agents/*.md') | map('basename') | list }}"
+
+- name: commands | Refuse to purge against an empty inventory
+  ansible.builtin.assert:
+    that:
+      - repo_commands | length > 0
+      - repo_agents | length > 0
+    fail_msg: >-
+      fileglob resolved to an empty list ({{ repo_commands | length }} commands,
+      {{ repo_agents | length }} agents). It returns [] rather than failing when
+      its search path misses, and the purge tasks below would read that as "the
+      repo has nothing" and delete every file on the host. Refusing.
+
 - name: commands | List slash commands currently on the host
   ansible.builtin.find:
     paths: /home/claude/.claude/commands
@@ -37,7 +65,7 @@
   loop: "{{ host_commands.files }}"
   loop_control:
     label: "{{ item.path | basename }}"
-  when: item.path | basename not in (query('ansible.builtin.fileglob', 'commands/*.md') | map('basename') | list)
+  when: item.path | basename not in repo_commands
 
 - name: commands | List subagents currently on the host
   ansible.builtin.find:
@@ -52,4 +80,4 @@
   loop: "{{ host_agents.files }}"
   loop_control:
     label: "{{ item.path | basename }}"
-  when: item.path | basename not in (query('ansible.builtin.fileglob', 'agents/*.md') | map('basename') | list)
+  when: item.path | basename not in repo_agents

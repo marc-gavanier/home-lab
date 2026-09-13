@@ -16,7 +16,7 @@ Works right after a deploy, then **breaks after a reboot** (e.g. a power cut): t
 vault mount fails / Claude Code won't start, or the backup Kuma push 403s.
 
 ```bash
-getent hosts drive.example.com      # shows the PUBLIC ip = the pin was wiped
+getent hosts drive.<domain>      # shows the PUBLIC ip = the pin was wiped
 ```
 
 ## Cause
@@ -59,14 +59,14 @@ ansible-playbook playbooks/offsite.yml --ask-vault-pass --tags offsite-backup
 On the homelab:
 
 ```bash
-getent hosts drive.example.com services.example.com    # both must be the Pi LAN IP
+getent hosts drive.<domain> services.<domain>    # both must be the Pi LAN IP
 grep -E 'drive|services' /etc/cloud/templates/hosts.debian.tmpl
 ```
 
 And on the offsite host, which is the half that used to be forgotten:
 
 ```bash
-ssh offsite "getent hosts services.example.com; grep services /etc/cloud/templates/hosts.debian.tmpl"
+ssh offsite "getent hosts services.<domain>; grep services /etc/cloud/templates/hosts.debian.tmpl"
 ```
 
 ## Related

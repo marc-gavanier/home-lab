@@ -88,3 +88,18 @@ cd ansible && ansible-playbook playbooks/site.yml
 ## Domain
 
 `example.com` — subdomains for each exposed service.
+
+> **`example.com` is a mask.** This repository is public, so every page writes
+> `example.com` where the real domain belongs. In prose that is harmless. In a
+> command you are about to type it is not: the name does not resolve, and the
+> result is a wrong verdict rather than an error you notice.
+>
+> Both directions have been measured on the live host. A runbook whose rule is
+> *"shows the public IP = bug"* returns an empty answer for the masked name, so
+> the reader concludes there is no bug. A runbook whose rule is *"expect 200"*
+> returns `000`, so the reader starts chasing an outage that is not happening.
+>
+> **Commands therefore use `<domain>`, which cannot be mistaken for something
+> that works** — substitute your own before running them. Prose keeps
+> `example.com`. The same convention already covers the installation user, which
+> is masked as `pi`.

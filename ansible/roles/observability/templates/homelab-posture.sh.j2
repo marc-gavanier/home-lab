@@ -132,7 +132,28 @@ if [ ! -r "$GOSS_SPEC" ]; then
 elif ! command -v goss >/dev/null 2>&1; then
     problems+=("goss binary missing — the declarative assertions did not run")
 else
-    goss_out=$(goss -g "$GOSS_SPEC" validate --format tap 2>&1) || true
+    # --max-concurrent, and it is the fix for a red that means nothing.
+    #
+    # goss defaults to 50 concurrent tests. This spec holds about 400, most of
+    # which shell out to `docker inspect` or `docker exec`, on a board with 4
+    # cores and one dockerd. Isolated, `docker inspect` over every container
+    # takes 0.535 s; fifty of them at once queue on the daemon's API until the
+    # slowest crosses its deadline. 380 of the 400 assertions declare no
+    # `timeout:` and therefore sit on goss's 10 s default, so the ones that
+    # shell out are the ones that lose.
+    #
+    # Measured over 30 days: 15 of 121 posture beats (12.4 %) were red for
+    # `Error Command execution timed out`, across 13 DISTINCT assertions — the
+    # set moves run to run, which is the signature of contention rather than of
+    # a slow check. Four of them on 2026-09-13 alone. Each one turns monitor 23
+    # red and fires Discord, so the cost is not a missed check, it is a check
+    # whose colour carries no information about what it asserts.
+    #
+    # 8 and not 4: the tests are I/O-bound on the docker socket rather than
+    # CPU-bound, so a little oversubscription is free, and the whole run is
+    # budgeted in minutes by a daily timer. It does not lengthen the run to the
+    # point of mattering — the plan's own CPU time was 1 min 13.7 s at 50.
+    goss_out=$(goss -g "$GOSS_SPEC" validate --max-concurrent 8 --format tap 2>&1) || true
     # The plan line is goss's own count. Its absence means goss failed to parse
     # the spec rather than found nothing wrong, and those must not read alike.
     goss_total=$(printf '%s\n' "$goss_out" | sed -n 's/^1\.\.\([0-9]*\)$/\1/p')

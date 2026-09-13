@@ -83,8 +83,17 @@ weekly in the local maintenance job, not in the backup window.
 ## Restoration
 
 Procedures are in `knowledge/runbooks/restore-from-backup.md` (single files, services,
-Nextcloud/Vaultwarden/Immich/Miniflux/Forgejo/Uptime Kuma databases, full disaster
-recovery). The
+the dumped databases, full disaster recovery). **Ten databases are dumped today** —
+Nextcloud, Vaultwarden, Immich, Miniflux, Forgejo, Uptime Kuma, Prowlarr, Sonarr,
+Radarr and wg-easy — and this sentence named six of them until 2026-09-13, having
+been written before the last four were added. Do not trust the list here; the one
+that cannot drift is the deployed spec:
+
+```bash
+sudo grep -oE '^  dump-[a-z0-9-]+-present' /etc/goss/backup-dumps.yaml | sort -u
+```
+
+The
 LUKS header — the prerequisite for reaching *any* of `/mnt/data` — has its own backstop:
 `knowledge/runbooks/luks-header-backup.md`.
 

@@ -149,8 +149,20 @@ That protection only holds if manual runs go through resticprofile rather than
 calling restic directly:
 
 ```bash
+set -a; . /opt/homelab/backup.env; set +a
 resticprofile -c /opt/homelab/resticprofile.yaml -n homelab copy
 ```
+
+> **Corrected 2026-09-13.** The `backup.env` line was missing, and its absence
+> was silent in both directions. `homelab-backup.service` sources that file
+> through `EnvironmentFile=`, so the scheduled run has the Kuma push URLs and a
+> hand-run from this block did not — `backup-notify.sh` found an empty URL,
+> logged one line to `/var/log/homelab-backup.log` and exited 0. Measured on a
+> real hand-run: `[14:41:24] no push URL for copy — nothing pushed`. The copy
+> itself completed; nothing announced it, and the dead-man's window on the
+> offsite monitor is 25 h, so a *failed* hand-run would have been just as quiet
+> for just as long. `backup-notify.sh` now emits the lost-report marker in that
+> case, which is the half that survives the next runbook omission.
 
 > **Corrected 2026-08-29.** Until today this block showed
 > `flock /var/lock/offsite-copy.lock restic copy ...` — a direct restic call
