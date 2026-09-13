@@ -40,3 +40,35 @@
 - name: Reload UFW
   ansible.builtin.command: ufw reload
   changed_when: true
+
+# `ufw reload` DESTROYS fail2ban's jump into DOCKER-USER, and fail2ban does not
+# notice. Measured 2026-09-13, reproduced in a throwaway netns on the same
+# iptables build (v1.8.10, nf_tables):
+#
+#   `/etc/ufw/after.rules` declares `:DOCKER-USER - [0:0]`, and a `:CHAIN`
+#   declaration flushes that chain even under `iptables-restore --noflush`,
+#   which is the form ufw uses (`/lib/ufw/ufw-init-functions`). DOCKER-USER is
+#   the ONLY non-ufw chain any ufw rules file declares — seven declarations,
+#   six `ufw-*` — so it is the only chain in the ruleset exposed to this.
+#
+#   What survives is the misleading part: the `f2b-*` chains and their ban
+#   rules are untouched, only the JUMP into them disappears. So
+#   `fail2ban-client status nextcloud` goes on printing `Currently banned: 1`
+#   while that address is being forwarded normally. The operator has already
+#   paid for this exact symptom once, from a different cause — see the
+#   `ignoreip` comment in jail.local.
+#
+#   `[sshd]` is unaffected: its chain is INPUT, which no ufw file declares.
+#   Verified with a negative control — a jump in INPUT survives the same reload
+#   that removes the one in DOCKER-USER.
+#
+# fail2ban DOES repair itself, but only at the next ban or unban in that jail
+# (`actioncheck` plus `actionrepair_on_unban=true`), never on a timer. Between
+# the reload and that event, every already-banned address is free.
+#
+# `reload`, not `restart`: it re-applies the actions and rebuilds the chains
+# without dropping the ban database or re-reading the whole journal.
+- name: Reload fail2ban after UFW
+  ansible.builtin.command: fail2ban-client reload
+  changed_when: true
+  listen: Reload UFW
