@@ -90,8 +90,14 @@ been written before the last four were added. Do not trust the list here; the on
 that cannot drift is the deployed spec:
 
 ```bash
-sudo grep -oE '^  dump-[a-z0-9-]+-present' /etc/goss/backup-dumps.yaml | sort -u
+sudo grep -oE '^  dump-[a-z0-9-]+-present:' /etc/goss/backup-dumps.yaml \
+  | sed 's/^  dump-//; s/-present:$//' | grep -v -- '-container$' | sort -u
 ```
+
+It prints **one line per database**, which is the point — the earlier form of
+this command matched `dump-<svc>-container-present` as well and returned 18 rows
+for the ten databases, so anyone checking the sentence above against it counted
+eighteen and had no way to know which number was wrong.
 
 The
 LUKS header — the prerequisite for reaching *any* of `/mnt/data` — has its own backstop:
