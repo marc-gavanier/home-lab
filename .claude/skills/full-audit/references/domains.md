@@ -15,89 +15,68 @@ earlier — which would have sent eight agents to re-derive settled work. Rebuil
 it from `classes.md`'s OPEN table at the start of every run; if the two
 disagree, `classes.md` wins.
 
-As of the run of 2026-09-13 (late evening), key `repetition`. **Rebuilt from
+As of the run of 2026-09-13 (night, second), key `reversibility`. **Rebuilt from
 `classes.md`'s OPEN table — do not trust this copy if the two disagree.**
 
-**FOUR OPEN classes, after a run whose job was to come back empty.** Ownership:
+**ONE OPEN class.** The counter went 2 -> 1. Ownership:
 
 | Class | Owner(s) | What closing it needs |
 |---|---|---|
-| **C37** (REOPENED) — a WAL-mode SQLite copied without its `-wal` | `backup`, with `project-manager` on the runbook slice | A space bounded by the PROPERTY — every place a `.db` is copied or read — not by the dump mechanism. The 08-29 sweep's bound is what let a runbook instance sit outside it |
-| **C88** (REOPENED off its file axis) — a store that adds with no counterpart removing what its register no longer names | `services` (image store), `security` (ufw rule set), `ansible-deploy` (the original file axis) | A bound over STORES, not over rendered files. Two domains reached the property independently in non-file stores |
-| **C98** (minted ENUMERATED) — a repeated procedure reuses a fixed, run-invariant NAME for the artefact it later reads back as authoritative | `project-manager` (8 reference points) + `backup` (12 workspaces) | Already swept on both slices. It is ENUMERATED, not GATED — nothing continuously derives the (procedure, artefact-name) relation, so a new runbook reopens it |
-| **C99** (minted ENUMERATED) — a declarative in-place write keyed on the VALUE it writes rather than the record's IDENTITY | `ansible-deploy` | Swept 31/31, 4 defective, 0 live. ENUMERATED, not GATED: nothing asserts that an in-place write carries an identity key |
+| **C88** (OPEN, advanced) — a store that ADDS with no counterpart removing what its register no longer names | `ansible-deploy` (the 61 unswept `/etc` drop-ins), with `backup` and `network` on the two newly counted non-file stores | 105 stores are swept and 0 carry live residue. What remains is a bound over the 61 single-file drop-ins whose real detector is a git-history walk that does not exist, plus the offsite snapshot register and `acme.json`. **Do not re-sweep the three closed slices** — `security` 22/22, `services` 15/15, `ansible-deploy` 68/68 over 188 creating tasks |
 
-**ONE GATE IS RED, and it is the one promoted the same day.** **C03-T** cannot
-detect a mute reporter: Kuma fabricates a DOWN beat every interval for any push
-monitor that is not UP, and C03-T's clauses count `heartbeat` rows with no
-`status` filter. Verified live — 39 fabricated rows on 09-13, all `status=0`.
-`observability` owns the repair and the predicate is `h.status = 1`, **not** a
-match on the upstream English string. Do not re-derive this; read the run section.
+**Three classes sit ENUMERATED with live instances, which is not the same as
+open** — a run does not re-derive them, it verifies the instances are gone:
+**C98** (2 of 4 reference points still unrepaired: `$BEFORE_ASSETS`, the
+unguarded `compose.yaml.bak`), **C99** (same 4 defective `lineinfile` sites, 0
+live duplicates, the correct form already ships at
+`offsite-backup/tasks/wireguard.yml:69`), and **C100**, minted this run.
 
-**The standing structural gap that is not a class, re-confirmed exactly**:
-`offsite.yml` plays `base`, `security` and `offsite-backup` only, so `/etc/goss`
-on the offsite holds ONE spec against three on homelab. Every fix that must cross
-hosts is unverified there by construction. It has never been arbitrated — do not
-propose it as a finding.
+**C37 IS CLOSED** — 65/65 (`backup`) and 31/31 (`project-manager`), both bounded
+by the property rather than by a mechanism, 0 defective on either. Do not
+re-derive it.
 
-**Rows corrected this run; do not re-derive them.** C12's "no live assertion at
-all" is FALSE since #333 and the class is a candidate for re-promotion to GATED.
-C14 is 21/21, not 18/18, and its "silent ACME failure" half is a proxy that
-cannot see a name which never obtains a certificate. C19's derived floor is at
-`homelab-health.sh:665`. C21's description is stale for the third time — there is
-no retention monitor. C11's 2026-09-05 "BROKEN" verdict has now been refuted
-three times; retire the comparison.
+**NO GATE IS RED.** C03-T's repair is live and its repaired branch has actually
+executed. Its one residual is that it has never completed a SCHEDULED run — next
+2026-09-14 11:04. **Read the run section before re-testing it**; the fixture
+lesson has already been re-applied to the real store.
 
-**Template-vs-deployed was verified clean in both directions over 317 assertion
-names and 4 specs.** Every "derived" verdict in `classes.md` that rests on a goss
-template is safe. Do not re-check without a new symptom.
+**Rows corrected this run; do not re-derive them.** C30 is **24/24 and 22/22**,
+not 19/19 and 18/18, and its "proven both ways" is struck. C19's auto-restart
+half **is derived** (`homelab-health.sh.j2:615-616`); 33/33 units at `NRestarts=0`
+on both hosts. C14's blind spot is **measured empty with a control**. C23 re-swept
+74/74 both hosts. C32 re-derived as every `0.0.0.0` TCP listener, 5/5.
 
-**Seventeen keys are now spent**: `time`, `order`, `identity`, `scale`,
+**The OPEN counter itself was wrong going into this run** — it read 4 where two of
+the four were minted ENUMERATED. A move is not a state, and that error reached
+all eight briefs. Rebuild this table from the OPEN table's **State** column, not
+from its row count.
+
+**Eighteen keys are now spent**: `time`, `order`, `identity`, `scale`,
 `authority`, `representation`, `vacuity`, `exclusivity`, `interruption`,
 `succession`, `residue`, `concurrency`, `plurality`, `dependency`,
-`granularity`, `locality`, `repetition`. The mint rate reads 5, 11, 12, 7, 2, 4,
-1, 0, 2, 1, 2, 2, 3, 1, 0, 2, **2**. A run that reuses one proves nothing.
-**Two were proposed to the operator and not spent — `commensurability` (are both
-sides of this comparison in the same unit, base and reference frame?) and
-`reversibility` (does this mechanism have an inverse, and does the inverse
-restore the prior state?). Both are still available and both arrived with three
-unclassed precedents each.** The keys that paid best
-were found the same way: look for an instrument trap in `settled.md` that no
-class has adopted, or a pair of narrow classes in `classes.md` that are
-obviously two faces of a dimension nobody named.
+`granularity`, `locality`, `repetition`, `reversibility`. The mint rate reads
+5, 11, 12, 7, 2, 4, 1, 0, 2, 1, 2, 2, 3, 1, 0, 2, 2, **1**. A run that reuses one
+proves nothing. **Two remain proposed and unspent — `commensurability` (are both
+sides of this comparison in the same unit, base and reference frame?) and the
+invented `indeterminacy` (what does this do when it CANNOT tell — does it fall to
+the permissive side, or refuse to judge?).** `commensurability` arrived with
+three unclassed precedents; `indeterminacy` was declined this round on the stated
+ground that it overlaps C29 and C83, two large swept classes.
 
-**What `repetition` proved, for whoever writes key eighteen.** It was the first
-key whose risk was stated to the operator BEFORE it was chosen, and the warning
-held exactly: Ansible idempotence is swept ground, and not one of the run's four
-register moves came from it. The key paid where a repeat is NOT the
-well-understood question — runbooks a human follows twice, a staging directory
-read back as authoritative, a store with no reaper. **Its sharpest finding was
-not an instance of itself**: the gate deployed that same afternoon was blind
-because its fail-on-purpose proof ran against a synthetic database. The general
-lesson is in `settled.md` and it outranks the key — *a gate proven against a
-fixture is proven against the fixture's model of the world.*
+**What `reversibility` proved, for whoever writes key nineteen.** Its risk was
+stated to the operator before it was chosen — C88 was OPEN on exactly this axis —
+and the warning did its job: **five domains filed C88 instances and not one tried
+to re-mint it.** A key that overlaps an open class is not wasted; it is how the
+class gets measured. But its sharpest finding was not an instance of itself. It
+was that **the previous night's remediation was shipped on a premise the register
+itself had recorded wrongly** — "told nobody", when a monitor had named the cause
+in seven minutes. The general lesson outranks the key: *before recording that a
+failure was unobserved, query the monitor's own beats, not the unit's journal.*
 
-**What `locality` proved, for whoever writes key seventeen.** It paid twice at
-the meta level, and both payments are instructive. The main session's own
-instrument hit the key's property twice while hunting it — a root `mountpoint`
-on a uid-private FUSE mount, and a probe run from a container that lacked the
-binary. And the key's sharpest finding inverted its own first fix: the SSH rule
-looked like it needed widening and needed nothing, because the correct path
-already existed one address over. **A key that catches the people using it is a
-key with territory left.** `locality` is spent as a key, but C96 and C97 are
-both ENUMERATED rather than GATED, so its findings can come back.
-
-**What `dependency` proved, for whoever writes key fifteen.** Its premise check
-paid twice over — once by confirming the key had territory, and once by being
-WRONG in a way that cost eight briefs. The lead it produced
-(`homelab-ddns.service` lacking a mount guard) came from
-`systemctl show -p ConditionPathExists`, which returns empty on this systemd
-version even when the unit declares it. Four domains refuted it. **Verify the
-premise with a positive control, and verify the LEAD the same way** — a null
-result from an unproven instrument is not a lead, and this one propagated to
-every agent.
-
-**Invent the key first, write it into the brief, and send the agents after it.**
+**And one warning this run earned the hard way.** `sqlite3 "file:X?mode=ro"` is
+read-only at the SQL level, **not** at the filesystem level — the observability
+mandate below prescribes it as the safe form and that is not sufficient. It
+writes `-wal` and `-shm`.
 
 **Six domains own no OPEN class and are not idle.** Their job is the one that
 demoted C02, C13, C20, C26 and, on 2026-09-05 evening, C17: re-read the GATED
