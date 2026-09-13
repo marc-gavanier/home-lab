@@ -46,6 +46,18 @@
   no_log: true
   when: miniflux_api_key | default('') | length > 0
 
+# The retract half, and without it the guard above is a revocation that does not
+# revoke: clearing miniflux_api_key in the vault SKIPS the write, and the key
+# already on disk stays there — 0400 on LUKS, and still read by digest.sh, which
+# resolves it by path and has no idea the operator meant to withdraw it.
+# Emptying the variable is the documented way to turn the digest off, so it has
+# to be the way the key leaves the host too.
+- name: digest | Remove the Miniflux API key when it is not configured
+  ansible.builtin.file:
+    path: /mnt/data/secrets/claude/miniflux_api_key
+    state: absent
+  when: miniflux_api_key | default('') | length == 0
+
 - name: digest | Create the digest systemd service
   ansible.builtin.copy:
     dest: /etc/systemd/system/homelab-feed-digest.service
