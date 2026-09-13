@@ -24,6 +24,94 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Instrument traps paid for on 2026-09-13 (evening) — three by the MAIN session, all while verifying
+
+Every one of them produced a wrong verdict that survived until a control was
+added. They are recorded first because they are the cheapest lesson in this file.
+
+- **Do not evaluate the dump spec outside the backup window.** `resticprofile`'s
+  `run-before` does `rm -rf /mnt/data/backups/dumps` then recreates it; the dumps
+  are written; the spec is validated at line 182 of the profile, INSIDE the
+  window, into `/run/homelab-backup-dumps.tap`; `run-after` deletes the
+  directory once the snapshot holds it. Running `goss -g /etc/goss/backup-dumps
+  .yaml validate` at 14:30 therefore returns ~24 red assertions and means
+  nothing. It produced a false alarm about the entire backup chain. **The real
+  verdict is the TAP file from the last run** — 31 ok / 0 not ok that day. This
+  is C03's own property, committed by the session auditing C03.
+- **Read the assertion names before grepping for them.** The dump assertions are
+  `dump-sonarr-source`, not `sonarr-source`. A grep for the wrong prefix returned
+  0 and read as "the deploy did not land" when the file had been rendered eight
+  minutes earlier. A positive control — grep a name known to be present — turns
+  this into a five-second check.
+- **Find a deployed script through its unit, not by guessing its path.** The feed
+  digest is at `/home/claude/.local/share/feed-digest/digest.sh`, under the
+  `claude` user, not under `/opt/homelab/scripts/`. `systemctl show -p ExecStart`
+  answers in one command what three `find` guesses got wrong.
+
+The shape common to all three: **an instrument that answers a different question
+from the one being asked, with no control to reveal it.** The rule this file has
+carried since 2026-08-15 applies to the verifier as much as to the agents —
+always include a control that proves the instrument works.
+
+---
+
+## Shipped on 2026-09-13 (evening) — PR #352, deployed to both hosts before merge
+
+Six changes, each verified by function rather than by colour.
+
+- **Sonarr, Radarr and Prowlarr enter `backup_sqlite_dumps`.** They were already
+  in the restic set; what was missing was the dump and the assertion. Measured
+  before: `radarr.db-wal` held 3.77 MB of committed transactions outside the main
+  file. 15 assertions generated, 31 → 46.
+- **The nine other Kuma emitters distinguish `curl` exit 28** from a real
+  failure, as `77efb2a` had done for the tenth that morning. The form is
+  `|| rc=$?` and not a bare pipeline read through `PIPESTATUS`, **because two of
+  the ten run under `set -e`** — the old `|| echo` was providing that guard by
+  accident, and removing it without replacement would have turned a cosmetic
+  defect into an aborted script.
+- **The shared-credential-store set is declared and asserted EQUAL.** Not a
+  floor: a floor lets the set GROW in silence, which is the direction that costs
+  something. Proven under `dash` on the host, in both directions.
+- **`no-new-privileges` is asserted exactly**, by list membership in Jinja and an
+  anchored regex in jq. Proven in three directions on live containers, including
+  `no-new-privileges:false`, where the old substring test returned `true`.
+- **fail2ban**: `iptables-multiport` so the jails' declared `port = http,https`
+  is honoured, and the host's own address into `ignoreip` via
+  `ansible_default_ipv4`. The offsite deploy justified that choice by writing
+  that host's own address on a different subnet, where a literal would have
+  written the wrong one. **Proven by function**: a test ban of a documentation
+  address produced a jump reading `multiport dports 80,443` where the old one
+  carried no port match at all; the unban returned the chain to a bare `RETURN`.
+- **The three `config.php.bak-*` copies were removed by hand** — residue, not
+  state to maintain, so no Ansible task.
+
+And the standing consequence, which is NOT fixed: **the offsite host has no
+continuous posture assertion of any kind.** `offsite.yml` never plays the
+`observability` role, so `/etc/goss` there holds one spec. That is why a sysctl
+fix could sit undeployed for two days with nothing to say so.
+
+---
+
+## Declined — added 2026-09-13 (evening)
+
+- **Rotating the Nextcloud database password** after two unmanaged copies of the
+  live value were found in the service directory. The copies had been in every
+  restic snapshot since 2026-09-01, offsite included. The copies are gone; the
+  snapshots are encrypted with a key the operator controls, and that is accepted.
+- **Reclaiming the ~70 GiB pinned by the permanent snapshot group.** The same
+  cleanup was declined on 2026-08-15 at 1.2 GiB; the figure is now right and the
+  answer is the same — there is room. **A third proposal needs a new
+  consequence, not a new number.**
+- **Moving the `*.example.yml` files out of `inventory/host_vars/homelab/`.**
+  They are loaded as live variables because Ansible loads every file in a
+  host_vars directory regardless of its name — reproduced in isolation, and
+  `ansible-deploy` measured that 24 of 78 `required: true` options are therefore
+  protected by nothing. The operator's decision: the file is the reference, it
+  must stay current, and it stays where it is. Nothing is live today and the
+  residual risk is carried knowingly. Do not propose the move again.
+
+---
+
 ## Handling secrets DURING an audit — eight traps, five paid on 2026-09-12 and one on 2026-09-13
 
 The dedicated secret audit of 2026-09-12 found two real defects and caused five

@@ -15,51 +15,65 @@ earlier — which would have sent eight agents to re-derive settled work. Rebuil
 it from `classes.md`'s OPEN table at the start of every run; if the two
 disagree, `classes.md` wins.
 
-As of the run of 2026-09-13. **Rebuilt from `classes.md`'s OPEN table — do not
-trust this copy if the two disagree.**
+As of the run of 2026-09-13 (evening). **Rebuilt from `classes.md`'s OPEN table —
+do not trust this copy if the two disagree.**
 
-**Three OPEN classes. C26 and C87 are CLOSED and must not be re-swept.**
+**Four OPEN classes. C90 is CLOSED and must not be re-swept.**
 
-- **C01 — `project-manager`, with every domain feeding it.** 61/87, 4
-  contradicted cumulative. **26 remain, and the bound is now the rule set rather
-  than the budget: 9 of the 26 are claims about a REFUSAL TO START**, and the
-  only instrument that settles a refusal to start is a start, which rules 5 and
-  6 forbid. ~13 are settleable read-only; 4 are out of the space. **Do not
-  re-derive N = 87.** The "Alternatives considered" stratum is **SWEPT 29/29,
-  0 instances** — close it, do not re-sample it.
-- **C03 — `observability`, with `ansible-deploy` on the gate.** REOPENED for the
-  FIFTH time, in the same script as the fourth. The register's own standing
-  instruction applies: **a class that reopens five times does not need a sixth
-  sweep, it needs a gate, and it still has none.** Its instance is a false
-  positive feeding a live assertion.
-- **C90 — every domain, and that is the point.** Two or more independent
-  mutators of one object with nothing serialising them. Two sweeps returned
-  different cardinals (13 by arbiter, 14 by mechanism) and three further domains
-  produced instances in neither space. **Bind it by the (object, mutator-set)
-  relation, not by enumerating the things that provide mutual exclusion** — a
-  sweep of the latter cannot see an object that has none, which is the property.
+- **C01 — `project-manager`.** 72/87. **Do not re-derive N = 87, and do not
+  re-sample the 15 that remain.** 9 are claims about a REFUSAL TO START and 2
+  more were reclassified into that set on 09-13; the only instrument that settles
+  them is forbidden by rules 5 and 6. 4 are out of the space. **The decidable
+  space is swept.** What is left is a DECISION for the operator — close it the
+  way C57 and C66 were closed, or accept a class no permitted instrument can
+  finish. An agent sent here should put that choice, not sample again.
+- **C03 — `observability`, with `ansible-deploy` on the gate.** Its instance
+  population is CLOSED 10/10 (PR #352). The class stays open because it has no
+  gate. The assertion is designed and proven discriminating on live data —
+  `no-loss-marker-contradicts-kuma`, reconciling each marker against Kuma's own
+  `heartbeat` table rather than auditing curl, 3 raised / 10 silent with both
+  controls. **It is not deployed.** Deploying and proving it fail on purpose is
+  the whole remaining job. Read `observability`'s C03-T / C03-R split first.
+- **C92 — every domain, and nobody owns it.** A correction that reached one
+  member of a population whose others share the property. Four instances in one
+  day from three domains. **The space is derived per correction**; bounding it is
+  the open work. Start with the commits of 2026-09-11 to 09-13, which are known
+  to contain four.
+- **C94 — `system` has 18/18 for its own read sites; the other seven domains
+  have nothing.** Cardinality CEILINGS — the upper twin of C83, which guards
+  floors and has a deployed gate. Greppable in principle: `head -1`, `tail -1`,
+  `grep -m1`, `jq '.[0]'`, `awk 'NR==1'`, unanchored `--filter name=`, `pgrep -f`,
+  and substring containment used as equality. **Measure the live cardinality; a
+  site is only an instance if the set can exceed one TODAY.**
 
-**C26 and C87 are CLOSED.** C26 all four axes, 340/340 ∪ 8 189 processes, 3
-instances, 2 of them in the argv the images ship. C87 at 1997/1997 with a stated
-depth plus a 112 895-entry unbounded cross-check. **C91** (aligned schedules
-degrading their own measurements) is ENUMERATED at 13/13. Do not re-derive any
-of them.
+**C90 is CLOSED** by six independent derivations of the (object, mutator-set)
+relation — 191/191, 106/106, 31/31, 18/18, 12/12 and 17 runbooks → 4. The
+cardinal is derivation-relative; do not quote one as "the" number and do not
+re-derive it. **C93** (a template or backup file the consumer loads as live
+input) is ENUMERATED 3/3 and its only live instance is DECLINED — the
+`*.example.yml` files stay in `host_vars/`.
 
-**Twelve keys are now spent**: `time`, `order`, `identity`, `scale`, `authority`,
-`representation`, `vacuity`, `exclusivity`, `interruption`, `succession`,
-`residue`, `concurrency`. The mint rate reads 5, 11, 12, 7, 2, 4, 1, 0, 2, 1, 2, 2. A run that
-reuses one proves nothing. The keys that paid best were found the same way: look
-for an instrument trap in `settled.md` that no class has adopted, or a pair of
-narrow classes in `classes.md` that are obviously two faces of a dimension
-nobody named.
+**Thirteen keys are now spent**: `time`, `order`, `identity`, `scale`,
+`authority`, `representation`, `vacuity`, `exclusivity`, `interruption`,
+`succession`, `residue`, `concurrency`, `plurality`. The mint rate reads
+5, 11, 12, 7, 2, 4, 1, 0, 2, 1, 2, 2, 3. A run that reuses one proves nothing.
+The keys that paid best were found the same way: look for an instrument trap in
+`settled.md` that no class has adopted, or a pair of narrow classes in
+`classes.md` that are obviously two faces of a dimension nobody named.
 
-**What `residue` proved, for whoever writes key twelve.** It minted two and
-found the worst live defect since the founding one, from a register that had
-just been worked down. The reason is the same one `time` and `order` exposed:
-all 86 classes asked about objects that are supposed to exist. None asked about
-objects that are not. **The dimension that pays is the one the register has no
-vocabulary for, and the test for it is whether you can state the question in six
-words that no existing class answers.**
+**What `plurality` proved, for whoever writes key fourteen.** It was the first
+key whose premise was verified with a positive control BEFORE the agents were
+sent (`--filter name=nextcloud` returns 5, `^nextcloud$` returns 1), and that
+five-second check is what made eight briefs concrete instead of speculative.
+Do that again. It also minted three from a register that had just been worked
+down twice in one day, which says the decay hoped for in early September has not
+arrived.
+
+**The standing structural gap, and it is not a class**: the offsite host has no
+continuous posture assertion of any kind, because `offsite.yml` never plays the
+`observability` role. Every fix that must cross hosts is therefore unverified
+there by construction. That is the reason C74 could read CLOSED for two days
+with a live instance on the second machine.
 
 **Invent the key first, write it into the brief, and send the agents after it.**
 
