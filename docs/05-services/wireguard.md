@@ -103,10 +103,22 @@ the web UI is reverted on the next deploy, on purpose.
 
 ## Restore
 
-From Restic backup:
-```bash
-restic restore latest --target / --include /mnt/data/services/wireguard
-docker restart wg-easy
-```
+**Follow [`restore-from-backup.md` § Restore wg-easy (SQLite)](../../knowledge/runbooks/restore-from-backup.md#restore-wg-easy-sqlite).**
+That is the procedure this repository maintains; this page deliberately does not
+carry a second copy of it.
+
+The reason the pointer is here rather than a short version: until 2026-09-13
+this page carried its own, older recipe — `restic restore … --include
+/mnt/data/services/wireguard` followed by `docker restart wg-easy`. It was wrong
+in two ways that only matter on the day you use it. It restored the raw data
+directory over a **running** container instead of the dump, and `restart` is not
+`down`, so the heal timer's behaviour and the live writes underneath were both
+ignored. The runbook restores `wg-easy.db` from the dump set, takes the service
+`down` first, and warns against the pre-v15 `wg0.json` sitting next to it.
+
+This is the one service where following the wrong page is not a service outage
+but the loss of the way back in: the tunnel is the only route to this Pi and to
+the offsite one, and `/etc/wireguard/wg0.conf` is a symlink onto the encrypted
+volume, so it is also on the path to the unlock.
 
 Clients will need to re-import their config if server keys change.
