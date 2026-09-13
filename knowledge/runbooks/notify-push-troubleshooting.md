@@ -1,6 +1,6 @@
 # Runbook: notify_push self-test fails
 
-`occ notify_push:setup https://drive.example.com/push` runs a 6-step self-test.
+`occ notify_push:setup https://drive.<domain>/push` runs a 6-step self-test.
 Each failure points at a specific misconfiguration. This runbook lists the ones
 hit on this homelab and their fixes. All fixes live in `docker/compose.yaml` and
 `ansible/roles/deploy/tasks/nextcloud.yml` — re-deploy with `--tags deploy`. (The
@@ -10,7 +10,7 @@ nineteen files and contains none of this.)
 ## Quick diagnosis
 
 ```bash
-docker exec -u www-data nextcloud php occ notify_push:setup https://drive.example.com/push
+docker exec -u www-data nextcloud php occ notify_push:setup https://drive.<domain>/push
 ```
 
 The test stops at the first failing step. Map the message to a cause below.
@@ -24,7 +24,7 @@ NAT with a public source IP, and notify_push's `/test/*` endpoints reject it.
 
 Check:
 ```bash
-docker exec nextcloud getent hosts drive.example.com   # shows the PUBLIC ip = bug
+docker exec nextcloud getent hosts drive.<domain>   # shows the PUBLIC ip = bug
 ```
 **Fix:** pin the name to the Pi over the LAN in `compose.yaml` (nextcloud service):
 ```yaml

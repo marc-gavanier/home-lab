@@ -159,6 +159,32 @@ trap 'fail "digest aborted (rc=$?) — see $LOG"' ERR
 
 [ -r "$API_KEY_FILE" ] || fail "missing API key at $API_KEY_FILE"
 
+# The vault gate, and it lives HERE rather than in the unit's ExecStartPre for
+# one reason: `fail` exists on this line and does not exist there.
+#
+# Until 2026-09-13 the unit carried
+#   ExecStartPre=/bin/sh -c 'grep -q " /home/claude/vault " /proc/mounts && ls -1 /home/claude/vault >/dev/null'
+# and on that morning it did its job and nobody heard. rclone's mount was up
+# and `active (running)` while Nextcloud refused its credential — the unit
+# journal reads `PasswordLoginForbidden` at 06:34, 11:39 and 12:32 — so
+# /proc/mounts matched and the readdir returned EIO. The control process exited
+# 2, systemd failed the unit at 06:34:01, and digest.sh, which holds the only
+# notify() in this chain, never started. Nothing pushed anything; the beat's
+# 60-minute dead-man's window was the entire signal, and the operator learned of
+# it 60 min 46 s later as "No heartbeat in the time window", with no cause.
+# The unit was re-run by hand at 12:36 and now reports `Result=success`, which
+# is how a green dashboard survives a job that did not run.
+#
+# The protection the ExecStartPre bought is preserved exactly — the mount point
+# exists as an empty local directory when rclone is down, so writing the note
+# without this check lands it on the SD card instead of Nextcloud. Both halves
+# still have to hold, and the readdir is what catches a mount that is present
+# and not serving.
+grep -q " ${VAULT} " /proc/mounts \
+    || fail "the vault is not mounted at ${VAULT} — refusing to write the note to the SD card"
+ls -1 "$VAULT" >/dev/null 2>&1 \
+    || fail "the vault at ${VAULT} is mounted but unreadable — check vault-mount.service (a rejected credential leaves it active and failing)"
+
 # Prompt selection. `ansible.builtin.template` is authoritative by design — this
 # role even PURGES commands deleted from the repo, so the host cannot drift from
 # git — and that is right for infrastructure. A prompt is not infrastructure, it

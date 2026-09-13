@@ -295,26 +295,65 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
-## OPEN — 1 (after the operator's arbitration of 2026-09-13 evening; 2 before it)
+## OPEN — 0 (after the run of 2026-09-13 evening, key `locality`)
 
-**The counter moved 2 -> 1, and it is the lowest this register has ever been.**
-The move is an arbitration, not a sweep, and the distinction is the whole point:
-C92's space was measured hard enough this run to prove it cannot be bounded by
-any instrument this audit has, which is a result, not a failure.
+**The counter reaches ZERO for the first time in this register's life.** C95 was
+the last one, and it closed the way C90 did: not by a better sweep of the same
+space, but by three domains re-deriving the space from the PROPERTY after being
+told, in the brief, exactly which bound had failed and why.
 
-**`granularity` minted ZERO.** The mint rate across fifteen keys now reads
-5, 11, 12, 7, 2, 4, 1, 0, 2, 1, 2, 2, 3, 1, **0**. That is the second zero-mint
-key after `exclusivity`, but the two are not consecutive — `dependency` minted
-one between them — so the termination clock stands at ONE, not two. The next run
-must invent a sixteenth key and also come back empty.
+**`locality` minted TWO, so the termination clock RESETS to zero.** The mint rate
+across sixteen keys now reads 5, 11, 12, 7, 2, 4, 1, 0, 2, 1, 2, 2, 3, 1, 0,
+**2**. `granularity`'s zero is spent. Two consecutive zero-mint runs on two new
+keys are still what ends this, and nothing is closer to that than it was
+yesterday — which is the honest reading of a run that emptied the OPEN table.
 
-**What did NOT happen, and it matters more than the counter.** No agent proposed
-a mint, and the main session arbitrated none away. That is the first run in this
-register's life where the zero is unanimous rather than negotiated.
+**Zero OPEN does not mean finished, and the criterion says so in its own words.**
+The known perimeter is worked down; whether the perimeter is complete is what the
+two zero-mint runs test, and this run answered that question in the negative for
+the sixteenth time.
 
-| ID | Property | Space it WAS swept over | Space it must be swept over | State |
-|-----|------------------------------------------|---------------------------------|------------------------------------|-----------------|
-| C95 | **An alerting or escalation path whose precondition set intersects the set of objects it alerts about** — so the failure it exists to announce is the failure that prevents the announcement | **Three incompatible bounds, and that is why it stays open.** `observability` closed it 10/10 bounded by SINK — where a verdict reaches a human unprompted: 1 push sink, 3 pull, 1 severed. `network` bound it by TRANSPORT: 12 emitters, 2 channels, 9 preconditions, 5 intersections. `backup` bound its own slice 5/5 | The space is the (path, precondition-set) relation, and it must include **emitters that never emit** — which neither closing derivation can see by construction. `backup`'s live instance is exactly that: `resticprofile` attaches `run-after-fail` per COMMAND, so a failure before the first restic command pushes nothing. Proven on the event of 2026-09-13 07:00:01. A sweep of the things that DELIVER cannot see a path that never reaches delivery — the seventh-to-eighth payment of this register's oldest trap | OPEN |
+*(No OPEN rows. The table returns when a class is minted or reopened.)*
+
+### C95 — CLOSED as ENUMERATED, by three derivations that finally share a relation
+
+The three slices, each stating its own derivation and its own blind spot:
+
+| Domain | Cardinal | How the space was derived |
+|---|---|---|
+| `observability` | 47/47 | by ORIGIN: 10 emitter scripts + 22 Kuma active probes + 15 dead-man expiries + 0 non-Kuma paths. 8 intersections, 4 new |
+| `network` | 14/14 | the 6 announcement paths decomposed hop by hop into 14 network preconditions. 8 intersections, 3 live |
+| `backup` | 20/20 | 10 hook sites + 4 aggregate channels + 5 dead-man windows + 1 terminal path + 0 `OnFailure=` |
+
+**What makes this a closure and not a fourth sample.** The reason C95 stayed open
+was structural and written down: a sweep of the things that DELIVER cannot see an
+emitter that never emits. All three derivations are generated from the
+preconditions rather than from the sinks, so a mute emitter is a member of the
+space by construction. `backup` enumerated five KINDS of mute emitter —
+unsatisfied `Requires=`, false `ConditionPathExists=`, lock-wait timeout, host
+killed mid-command, and an empty push URL — and `observability`'s p3/p5 cover the
+same ground from the other side.
+
+**The cardinals differ and that is not a defect** — C74 and C90 both record it as
+expected for a derivation-relative property. Do not quote 47, 14 or 20 as "the"
+number.
+
+**ENUMERATED, not GATED**: nothing derives the (path, precondition-set) relation
+continuously, so a new emitter reopens it. The gate that would close that gap
+does not exist and was not invented here.
+
+**Two arbitrations by the main session, recorded as such** because the operator
+delegated the run's execution rather than each verdict, and either can be
+overturned in one edit:
+
+1. `network` and `backup` both ended with "the class closes when the three slices
+   are re-derived against the same relation, not when one of them reports a
+   number". They were re-derived against the same relation, in the same run, by
+   the same instruction. That condition is met.
+2. `observability`'s row A8 folded the ten resticprofile hook sites into one
+   emitter and inherited the DECLINED verdict for all of them. `backup`'s
+   instance B — an empty push URL, which fired at 14:41:24 that day — is NOT the
+   declined item, and is filed as a live instance rather than under the decline.
 
 ### Why C92 closed by decision rather than by enumeration
 
@@ -392,6 +431,151 @@ are largely covered by `system` and `services`, but that is an argument, not a
 sweep, and it is the residual risk on this closure. C90 is therefore ENUMERATED,
 **not GATED**: nothing derives the (object, mutator-set) relation continuously,
 so the next deploy can repopulate it.
+
+## The run of 2026-09-13 (evening, second) — the key was `locality`, and it emptied the OPEN table
+
+The sixteenth key, invented because the register recorded that no named dimension
+was left. The six-word question no class asked: **from WHERE is this mechanism
+evaluated?** The fifteen before it asked *when*, *in what order*, *by whom*, *how
+many*, *against which version*, *what survived removal*, *what if two match*,
+*does the remedy need what it fixes*, *at what grain*. None asked whether the
+point of evaluation contains the object.
+
+Three admissible shapes were given so agents would not return philosophy: the
+same name with two referents; written here and executed there; an object whose
+real origin is not the one assumed. All three had unclassed precedents in this
+lab — the symlink resolved in a container's mount namespace (#27), the Docker DNS
+hairpin, and the 144 SSH connections from a bridge that the previous run had
+measured and mis-attributed.
+
+### Minted — 2, from 3 proposals
+
+| ID | Property | Space, and its cardinal | State |
+|---|---|---|---|
+| C96 | **A rule whose predicate is an ADDRESS, evaluated at a point in the path other than the one that produced the record the address came from** | address allow-lists × evaluation point. **N = 11, swept 11/11, 1 defective.** Stated blind spot: rules carrying no source predicate are outside it | ENUMERATED |
+| C97 | **A document instructs the reader to act using a name whose referent depends on where it is resolved, and does not say where** | bounded by GENERATOR, not by directory: the six resolver classes a typed name can go through — DNS, the workstation's SSH config, a mount namespace, the working directory, the user's home, the host identity. **150 sites, swept 150/150, 21 confirmed** | ENUMERATED |
+
+**C97 is minted lab-wide rather than as a documentary class, and the reason is
+convergence.** `project-manager` derived it from documents and explicitly put the
+scope decision to the main session. Four other domains reached the same property
+from unrelated directions in the same run: `services` ("the person who writes
+`stop_grace_period` writes it in compose.yaml, the thing it governs happens in
+the container, and the record of its failure is in a third place"),
+`observability` ("emitters and the notifier use different resolvers and only the
+notifier's was ever fixed"), `backup` (a runbook restoring to `/restore` then
+pointing at three absolute symlinks that dangle under a staging root), and
+`ansible-deploy` (six controller-side `lookup()` calls). Five independent
+derivations is this register's own strongest evidence, and C90 is the precedent
+for minting once with per-domain slices.
+
+**Declined — 1.** `system` offered "a failure recorded only in the supervisor's
+namespace" for arbitration and did not claim it, asking whether it was C03-R
+restated. Declined: it proposes no bounded space, and its instances — the
+transmission SIGKILL visible only in dockerd's journal — are already members of
+C97. Recorded because a declined near-mint is what makes the other two credible.
+
+### The baseline was green and the journal disagreed on four points
+
+0 failed units on both hosts, 32 containers up, 13 `homelab-*` timer services at
+`Result=success ExecMainStatus=0`. The 24-hour journal contradicted it four
+times, and all four were handed to the agents as leads rather than kept back.
+**Three confirmed, one premise refuted — and the refuted one was the main
+session's.**
+
+### The run's two headline instances, both re-measured by the main session
+
+**1. SSH over the VPN, and the firewall was right.** `33bda23` scoped ufw's SSH
+rule to the LAN and `10.8.0.0/24` that afternoon. wg-easy masquerades every VPN
+client behind its own bridge address — `-s 10.8.0.0/24 -o eth0 -j MASQUERADE`, in
+the CONTAINER's nat table, which is why it is absent from the host's — so a
+client addressing the host's LAN address arrives with a source the allow-list
+does not contain. Probed from that exact address with controls in both
+directions: 24717 blocked, 443 and 51413 reachable, port 9 refused.
+
+The first reading was "the firewall must be widened", and it was wrong. The host
+is a peer of its own wg-easy at `10.8.0.5`, so a client addressing the TUNNEL
+address arrives over `wg0` carrying a `10.8.0.0/24` source and matches the rule
+as written — verified, reachable, in the same run. **The rule does exactly what
+it says; the address used does not.** Widening it would have re-opened what
+`host_vars` refuses in writing. Nothing in the firewall changed.
+
+This is C96's one defective member, and the near-miss is the finding: the fix
+that a competent reading suggests is the one that removes the protection.
+
+**2. 89 corrupt pieces, and the sample said three.** `services` found transmission
+SIGKILLed at 01:25:38 mid-write (dockerd: "failed to exit within 10s of signal
+15"), re-hashed a sample of the payload against the SHA-1 list in its own
+`.torrent`, and reported 3 bad pieces in one episode — 24 MiB — with ten control
+pieces matching. The main session re-hashed the same sample, reproduced all three,
+**and found a fourth the sample had not covered: the last piece.** The full
+enumeration of all 1579 pieces then returned **89 bad — 712 MiB across six of the
+eight files** — with two independent runs producing byte-identical piece lists and
+a bit-flip negative control.
+
+**The sample was thirty times off, and the method was sound.** This is the
+clearest demonstration this register has of its own founding rule: enumeration
+ends what sampling perpetuates. It is recorded here rather than in `settled.md`
+because it is evidence about the METHOD, not a decision.
+
+Transmission reports `13.24 GB verified`. The file is hardlinked into
+`library/shows` (`nlink=2`), Sonarr imported it, Jellyfin serves it, and ADR-035
+removed that path from the restic source at 13:19 the same day — so there is no
+copy to restore. The repair is one `--verify` and ~700 MB of re-download.
+
+### Broken gate — 1, reported as a red test and not as a finding
+
+**C03-T.** `no-kuma-report-was-lost-in-silence` did not evaluate on 2026-09-07 or
+2026-09-13: `Error Command execution timed out (45s)`. Its own `exec` needs
+`docker inspect uptime-kuma` — its precondition set contains the condition whose
+loss it exists to detect, which makes it a C95 instance and a broken gate at once.
+
+The general shape is worse than the instance: **380 of 400 goss assertions carry
+no `timeout:` and sit on the 10 s default, and 15 of 121 posture beats over 30
+days (12.4 %) were red for a timeout, across 13 DISTINCT assertions.** The set
+moves run to run, which is the signature of contention rather than of a slow
+check. Cause found by the main session: goss defaults to **50 concurrent tests**
+on a 4-core board where most assertions shell out to one dockerd. Fixed with
+`--max-concurrent 8` rather than by raising thirteen timeouts.
+
+### Rejected from the agents, and why
+
+- **`security`'s "the fail2ban sshd jail is blind".** Its measurement was right —
+  `_SYSTEMD_UNIT=sshd.service` returns 1 journal entry in 7 days on a host whose
+  unit is `ssh.service`. Its conclusion was not: fail2ban's `+` is a
+  DISJUNCTION, and the second group `_COMM=sshd` returns **56 405** entries over
+  the same window (control: 2 761 `Accepted publickey`). Half-dead match, jail
+  functional, impact nil. Pinned anyway, as a one-line correctness fix.
+- **The main session's own premise, written into eight briefs**: "an assertion
+  that times out is neither green nor red". Refuted from `kuma.db` — monitor 23
+  went `status=0, important=1` at 09:05:10 UTC carrying the timeout message, and
+  Discord fired. A timeout IS counted as a failure. The real defect is the
+  inverse of the one suspected: red for a reason unrelated to the property.
+- **`observability`'s "rclone 401 Unauthorized"**. The string in
+  `vault-mount.service`'s journal is `PasswordLoginForbidden`. Mechanism
+  survives, label does not.
+- **`backup`'s "0 `important=1` beats in the whole window"**. The DOWN transition
+  at 06:41:12 CEST was `important=1` and did notify. The instance survives with
+  the qualifier that matters and is sharper for it: **a second failure arriving
+  while a monitor is already DOWN produces no new notification** — which is what
+  happened to the 07:00:01 backup failure.
+- **`system`'s 320 force-kills in 14 days vs `services`' 56 in 7.** Not a
+  contradiction, different windows. The main session reproduced the 56 with a
+  control and relays only that.
+
+### Instrument errors by the main session — three, all caught by a control
+
+1. **A `journalctl --since -7d | wc -l` that drove the Pi to load 10.3** while
+   seven agents were working on it — the exact rule 6 the main session had
+   written into the brief. Killed, redone bounded.
+2. **A probe from a container with no `nc`.** Every "BLOCKED" was the `||` echo
+   of a missing binary. The controls exposed it; re-run from wg-easy, which has
+   one.
+3. **`mountpoint /home/claude/vault` as root answering NO on a perfectly healthy
+   mount.** A FUSE mount without `allow_other` denies even root, so `mountpoint`
+   returns a false negative. `/proc/mounts` and the live rclone process settled
+   it. The instrument error IS an instance of the key being spent — recorded
+   because that is the second time this run that a locality trap caught the
+   people looking for locality traps.
 
 ## The run of 2026-09-13 (late afternoon) — the key was `granularity`, and it minted nothing
 

@@ -3,14 +3,33 @@
 # =============================================================================
 
 # --- Firewall ---
-# Sources allowed to reach SSH. Measured on this host before the rule was
-# scoped (2026-09-13, 30 days of `Accepted publickey` in the ssh journal):
-# 8597 from 192.168.1.250 (the workstation, LAN) and 144 from 172.18.0.3 — the
-# `proxy` docker bridge, all of them on 24-25 August and none since. The bridge
-# is DELIBERATELY not in this list: putting it back would let any container on
-# `proxy` reach the host's sshd, and nothing has needed it for three weeks. If a
-# container ever needs it again, that is the line to revisit, and this comment
-# is why it is missing.
+# Sources allowed to reach SSH.
+#
+# Measured on this host before the rule was scoped, and the first version of
+# this comment got both halves of the measurement wrong (corrected 2026-09-13
+# evening): the journal's horizon was 18 days, not the 30 claimed, and the
+# bridge origin was 3308 connections over ten days (16-25 August), not 144 over
+# two. The conclusion survives the correction; the numbers did not, and they are
+# restated here rather than quietly replaced.
+#
+# The bridge is DELIBERATELY not in this list: putting it back would let any
+# container on `proxy` reach the host's sshd.
+#
+# WHAT THAT COSTS, AND WHY IT IS STILL RIGHT. wg-easy masquerades every VPN
+# client — `-s 10.8.0.0/24 -o eth0 -j MASQUERADE`, in the CONTAINER's own nat
+# table, which is why it does not appear in the host's — so a VPN client that
+# addresses this host by its LAN address arrives with the bridge's source and is
+# refused by the rule below. Probed 2026-09-13 from that exact address:
+# 24717 blocked, 443 and 51413 reachable, port 9 refused (controls both ways).
+#
+# That is NOT a hole in the rule, it is the rule working on an address the
+# client no longer carries. The VPN path that keeps its source is the host's own
+# `wg0`: this Pi is a peer of its own wg-easy at 10.8.0.5, so a client that
+# addresses 10.8.0.5 arrives over wg0 with a 10.8.0.0/24 source and matches the
+# second entry below. Verified from the same place in the same run: reachable.
+#
+# So remote SSH goes to the VPN address, never to the LAN address, and
+# docs/03-security/README.md says so where a reader will look for it.
 ssh_allowed_sources:
   - 192.168.1.0/24 # LAN
   - 10.8.0.0/24 # WireGuard

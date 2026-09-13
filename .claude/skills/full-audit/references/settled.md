@@ -24,6 +24,86 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-09-13 (evening, second) — key `locality`, one PR
+
+The operator's instruction was "everything in one PR", and one constraint came
+with it and overrides any argument about clarity: **nothing in the public repo
+may reveal the real domain, whatever else the fix requires.**
+
+**The firewall was NOT changed, and that is the decision worth carrying.** The
+first reading of the SSH finding was "widen the ufw rule to reach the VPN
+clients". It was wrong twice over: the clients arrive masqueraded behind a bridge
+address, so the widening would have opened the host's sshd to every container on
+`proxy` — which `host_vars` refuses in writing — and it was unnecessary, because
+the host is a peer of its own wg-easy and the tunnel address already matches the
+rule as written. **Remote SSH goes to the tunnel address, never to the LAN
+address.** Documented in `docs/03-security/README.md`, in the `host_vars`
+comment, and in the WireGuard page's client section.
+
+**What shipped**, all in one PR, deployed from the branch before merge:
+
+- `stop_grace_period: 60s` on transmission — the only container that writes
+  multi-gigabyte payloads it cannot re-verify on its own. **Explicitly not a
+  general extension to the other 27**, which stays measured-and-rejected.
+- `goss --max-concurrent 8` in `homelab-posture.sh`. The 13 timing-out
+  assertions were contention on one dockerd from 50 concurrent tests on 4 cores,
+  not slow checks. **Fixed the concurrency, not the thirteen timeouts.**
+- The feed-digest vault gate moved out of `ExecStartPre` and into `digest.sh`,
+  three lines after `fail()` exists. Same two assertions, same protection, in the
+  one place that can announce its own failure.
+- `backup-notify.sh` emits the lost-report marker when its push URL is empty,
+  and still exits 0 — a backup that ran perfectly must not be recorded as failed
+  because its notification had nowhere to go.
+- `offsite-backup.md`'s manual copy block sources `backup.env`, which is what
+  made a hand-run silent.
+- navidrome's healthcheck reads the body, like the three `*arr` probes fixed
+  that afternoon.
+- The `claude-code` purge tasks resolve their inventories once and assert them
+  non-empty. `fileglob` returns `[]` rather than failing, and `not in []` is true
+  for everything.
+- fail2ban's `sshd` journalmatch names `ssh.service`. A correctness fix with no
+  live effect — see the rejected claim in `classes.md`.
+- Documentary: 10 typed commands moved from the masked literal to `<domain>`,
+  with the convention finally stated in `README.md`; `/config` replaced by the
+  host path in the restore runbook; `cd /opt/homelab` added to the unattended
+  rollback; the media-restore sentence corrected in two places; the dump list
+  replaced by the command that regenerates it; the 29 denominators corrected to
+  32; the posture by-hand section says which host.
+
+## Declined — added 2026-09-13 (evening, second), do not re-propose
+
+- **Widening the ufw SSH rule to any bridge source.** See above: unnecessary and
+  harmful. The tunnel address is the supported remote path.
+- **`system`'s near-mint, "a failure recorded only in the supervisor's
+  namespace".** Offered for arbitration, not claimed by its own agent. No bounded
+  space; its instances are members of C97.
+- **A general `stop_grace_period` extension.** Re-raised with a genuinely new
+  fact — the earlier sweep read container logs, which cannot see a SIGKILL, and
+  the daemon journal shows 56 forced kills in 7 days. The new fact was accepted
+  and the answer is unchanged for the other 27: only transmission gets one.
+
+## Instrument traps paid on 2026-09-13 (evening, second) — three, all by the MAIN session
+
+1. **A sample is not a sweep, and this run put a number on it.** An agent
+   re-hashed 14 of 1579 torrent pieces and found 3 bad. The main session
+   reproduced all 3, found a 4th the sample had not covered, then enumerated all
+   1579 and found **89**. The method was sound at every step; only the coverage
+   was not. When a full enumeration is affordable, sampling is not a shortcut,
+   it is a different and weaker claim.
+2. **`mountpoint` as root returns NO on a healthy FUSE mount.** Without
+   `allow_other`, a FUSE mount denies even root, so the stat fails and
+   `mountpoint` reports a false negative. Read `/proc/mounts` and look for the
+   mounting process instead.
+3. **A heavy `journalctl` scan is a change to the system under audit.** A
+   7-day unbounded scan took the Pi to load 10.3 while seven agents worked on
+   it. The rule was already in the brief; it was broken by the person who wrote
+   it. Bound every journal query by unit or by a narrow window.
+
+Two older traps recurred and are restated rather than re-filed: **a live probe
+must never carry the masked domain** (paid a fifth time, and now fixed at the
+source — the repo says `<domain>` in commands and states the convention in
+`README.md`), and **a negative result needs a control known to be non-empty**.
+
 ## Arbitrated and shipped on 2026-09-13 (late afternoon) — key `granularity`, PR #354
 
 **The operator's two register decisions.** C92 closed by decision as a REVIEW

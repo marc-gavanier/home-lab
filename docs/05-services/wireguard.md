@@ -45,6 +45,31 @@ enter its first 72 characters, or set a shorter `wg_password` and redeploy.
 
 The VPN appears as a regular network connection in system settings.
 
+### Two things every client config gets wrong on its own
+
+Both were measured on the four live clients on 2026-09-13, and neither is a
+misconfiguration — they are consequences of the defaults that nothing here had
+written down.
+
+**Reach this host by its tunnel address, not its LAN address.** wg-easy
+masquerades every client behind its own bridge address before the packet reaches
+the host's firewall, so a connection aimed at the LAN address arrives with a
+source the SSH allow-list does not contain and is refused. The tunnel address
+keeps the client's real source and is accepted. This is why `ssh` to the LAN
+address works at home and fails over the VPN, and why `offsite` — reached by
+`ProxyJump` through this host — fails with it.
+
+**The endpoint name is resolved through the tunnel it is needed to build.**
+Every client carries `AllowedIPs = 0.0.0.0/0` with Pi-hole as its DNS *and* an
+`Endpoint` given as a name that only Pi-hole answers. While the tunnel is up
+this is invisible. When it is down — the case where a client is being repaired —
+the name has no resolver, and the same derivation is already written down for
+the offsite host: *"a full-tunnel client could not look the name up."* Nobody had
+applied it to the human clients. The configuration was read, not tested: there
+is no out-of-band path to this host, so proving the failure would mean causing
+it. Keep the current public IP noted somewhere off this network before you need
+it.
+
 ## Configuration — where it lives, and why it is not in `.env`
 
 Since v15 (ADR-020) wg-easy keeps its settings in **SQLite**, not in the

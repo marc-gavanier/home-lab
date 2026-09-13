@@ -71,6 +71,18 @@ Defense in depth — each layer is secured independently. If one layer falls, th
   enforced it, while UFW printed `ALLOW IN Anywhere` and this page claimed the
   opposite; both statements were true at once, which is exactly why nobody
   noticed for weeks.
+- **Reaching SSH over the VPN: use the tunnel address, not the LAN address.**
+  From outside, `ssh` must target the homelab's WireGuard address — the LAN
+  address is refused, by design and not by accident. wg-easy masquerades every
+  client behind its own bridge address before the packet reaches UFW, so a
+  connection aimed at the LAN address arrives with a source the allow-list does
+  not contain, and adding that source would open the host's sshd to every
+  container on the `proxy` network. The tunnel address keeps the client's real
+  `10.8.0.0/24` source because this Pi is itself a peer of its own wg-easy, so
+  the traffic arrives on `wg0` and matches the rule as written. Probed both ways
+  on 2026-09-13 with open and closed controls. The same applies to `offsite`,
+  which is reached by `ProxyJump` through this host: if the jump fails from
+  outside, this is why.
 - **fail2ban**: three jails — `sshd`, plus **Nextcloud and Vaultwarden**
   (issue #35). SSH is not reachable from the internet (above), so its jail
   guards the least exposed door; the two application jails cover the attacker
@@ -97,8 +109,8 @@ Defense in depth — each layer is secured independently. If one layer falls, th
   auto-reboot on the homelab; `needrestart` activates patched libraries
   reboot-free; kernel residue on a bounded manual cadence) — strategy in
   [ADR-013](../../knowledge/decisions/ADR-013-update-patching-strategy.md)
-- **Non-root where the image allows it**: 11 of the 29 containers declare a
-  service uid and run as it. The other 18 start as root, and section 3 below
+- **Non-root where the image allows it**: 11 of the 32 containers declare a
+  service uid and run as it. The other 21 start as root, and section 3 below
   explains why — for five of them it is structural and cannot be removed
   without breaking the service. This line used to read "no service runs as
   root", which the same document then contradicted
@@ -214,7 +226,7 @@ Defense in depth — each layer is secured independently. If one layer falls, th
 - Isolated Docker networks (`proxy` / `internal` / `socketproxy`); the DB tier
   lives on `internal` only — never proxied, never published
 - No directly exposed service ports — everything routes through Traefik (vpn-only)
-- **Read-only rootfs on 23 of the 29 services** (ADR-019, issue #32) — a
+- **Read-only rootfs on 23 of the 32 services** (ADR-019, issue #32) — a
   compromised process cannot rewrite the code it runs, drop a binary, or persist
   anything outside the paths we declared. Every writable path is explicit: a
   sized `tmpfs` for state meant to be lost (PID files, sockets, caches,

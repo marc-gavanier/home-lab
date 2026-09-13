@@ -98,7 +98,29 @@ esac
 # Kuma reads the duplicates as arrays and records the beat DOWN with the message
 # "[object Object]". Measured, on this stack.
 url="${url%%\?*}"
-[ -n "$url" ] || { log "no push URL for ${WHAT} — nothing pushed"; exit 0; }
+# An EMPTY url is a lost report, and it used to be the one lost report nothing
+# could see. The script logged one line to $BACKUP_LOG — which no assertion and
+# no monitor reads — and exited 0, so a hand-run copy announced nothing and
+# claimed success. It fired on 2026-09-13 at 14:41:24: `no push URL for copy —
+# nothing pushed`, from the manual block in knowledge/runbooks/offsite-backup.md
+# that omitted `. /opt/homelab/backup.env`. The runbook is fixed in the same
+# commit; this is the half that makes the NEXT such omission visible instead of
+# silent, whatever writes it.
+#
+# The marker goes to stderr in the exact anchored form
+# `no-kuma-report-was-lost-in-silence` greps for — the same channel the two
+# failure paths at the bottom of this file already use.
+#
+# STILL `exit 0`, deliberately: this runs as resticprofile's run-after and
+# run-after-fail, and a non-zero hook changes what resticprofile reports about
+# the restic command itself. A backup that ran perfectly must not be recorded
+# as failed because its notification had nowhere to go. The failure is
+# announced, not propagated.
+if [ -z "$url" ]; then
+    log "no push URL for ${WHAT} — nothing pushed"
+    echo "kuma-push-failed: this report reached nobody — ${WHAT}: no push URL was set (is backup.env sourced?)" >&2
+    exit 0
+fi
 
 # Problems first, readings after — the shape every other push on this host
 # uses, so the first words of a Discord notification are what is wrong.

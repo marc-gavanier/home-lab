@@ -132,9 +132,11 @@ sudo -u claude tail -40 /home/claude/.local/share/feed-digest/digest.log
 
 | Symptom in the journal | Cause | Fix |
 |---|---|---|
-| `ExecStartPre` failed, nothing else | vault not mounted | `systemctl status vault-mount`; see the stale-endpoint runbook in the service doc |
+| `the vault is not mounted at …` | vault not mounted | `systemctl status vault-mount`; see the stale-endpoint runbook in the service doc |
+| `the vault … is mounted but unreadable` | the mount is up and the credential is rejected — `vault-mount.service` stays `active (running)` and rclone logs `PasswordLoginForbidden` | `journalctl -u vault-mount -n 30`, renew the Nextcloud app password, `systemctl restart vault-mount` |
+| `ExecStartPre` failed, nothing else | **cannot happen since 2026-09-13** — the gate moved into `digest.sh` precisely because a failing `ExecStartPre` killed the unit before the only `notify()` in the chain existed, so the failure reached nobody and the dead-man's window reported it an hour later with no cause | if you see this, the unit on the host is older than the repo |
 | `missing API key at …` | key file absent or unreadable | redeploy `--tags claude-code`; check `miniflux_api_key` is set in `local.yml` |
-| `curl … (22)` on `/v1/entries` | Miniflux or Traefik down | `curl $R https://rss.example.com/healthcheck` → expect 200 |
+| `curl … (22)` on `/v1/entries` | Miniflux or Traefik down | `curl $R https://rss.<domain>/healthcheck` → expect 200 |
 | `claude -p failed` | claude.ai session expired | re-login the `claude` user, same procedure as Remote Control 401 |
 | `claude -p returned an empty digest` | model returned nothing | replay; if it repeats, the prompt is the suspect |
 | Timer never fired at all | Pi was off | `Persistent=true` catches up on next boot; nothing to do |
