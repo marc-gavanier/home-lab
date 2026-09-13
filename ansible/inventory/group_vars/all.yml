@@ -202,6 +202,33 @@ backup_sqlite_dumps:
     source: "{{ services_data_dir }}/wireguard/wg-easy.db"
     file: wg-easy.sqlite3
 
+  # Added 2026-09-13. Deployed the same night and audited the next morning: all
+  # three were in the restic set — services/ is a source — and all three were
+  # copied LIVE, in WAL mode, with a WAL that was not empty. Measured before the
+  # fix: radarr.db-wal held 3.77 MB of committed transactions outside the main
+  # file, sonarr.db-wal 696 KB. A restore from that copy is a database missing
+  # its most recent writes, and nothing said so: this list is what generates the
+  # assertions, so a database absent from it has no -source, no -integrity and
+  # no -content check. The gate derives from the dump variables, not from the
+  # databases present, which is why three new services could arrive unguarded.
+  #
+  # NOT covered by the "a rescan rebuilds them" decision of 2026-09-02 — that
+  # named Navidrome, Jellyfin, Calibre-Web and Pi-hole, whose databases are
+  # derived from the media on disk. These hold indexer definitions, API keys,
+  # quality profiles and the download history: nothing on disk rebuilds them.
+  - name: sonarr
+    container: sonarr
+    source: "{{ services_data_dir }}/sonarr/sonarr.db"
+    file: sonarr.sqlite3
+  - name: radarr
+    container: radarr
+    source: "{{ services_data_dir }}/radarr/radarr.db"
+    file: radarr.sqlite3
+  - name: prowlarr
+    container: prowlarr
+    source: "{{ services_data_dir }}/prowlarr/prowlarr.db"
+    file: prowlarr.sqlite3
+
 # Immich dumps itself on its own schedule, into the restic set. Only asserted.
 immich_backup_dir: "{{ services_data_dir }}/immich/upload/backups"
 
@@ -423,6 +450,21 @@ credential_store_default_mode: "0700"
 # Out of scope, each with the reason. Not "known exceptions to fix later" — a
 # directory listed here is one the property reaches and that holds no credential,
 # except where a mode change would break the container, which is stated as such.
+# Stores the derivation DROPS for being bind-mounted by more than one container.
+# The drop itself is correct and deliberate: a directory three containers write
+# to cannot be closed to one uid without breaking the other two, which is why
+# `awk '$1 == 1'` sits in the derivation. What was missing until 2026-09-13 is
+# that the drop was SILENT — a new shared store would leave the assertion with
+# nothing said, and the one store already in this set turned out to be holding
+# two unmanaged copies of the live Nextcloud database password, found by the
+# audit of that day precisely because nothing was watching it.
+#
+# So the set is declared, and asserted to be exactly this. It is not an
+# exemption list to work through: it is the boundary of what the mode assertion
+# can reach, and a change to it is a decision, not a deploy.
+credential_store_shared:
+  - nextcloud/data   # mounted by nextcloud, nextcloud-cron and nextcloud-notify-push
+
 credential_store_exemptions:
   # The `wireguard` exemption was REMOVED here on 2026-08-29 (#261). It read
   # "0700 here would BREAK wg-easy … sequenced behind the chown that fixes
