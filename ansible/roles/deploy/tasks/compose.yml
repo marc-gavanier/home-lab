@@ -74,12 +74,56 @@
     project_src: /opt/homelab
     services: "{{ deploy_services.split() if deploy_services is defined else omit }}"
 
-- name: compose | Deploy services
-  community.docker.docker_compose_v2:
-    project_src: /opt/homelab
-    state: present
-    services: "{{ deploy_services.split() if deploy_services is defined else omit }}"
-  register: compose_result
+# The crash-heal timer is suspended around the recreate, and put back in an
+# `always:` so a failed deploy cannot leave recovery switched off.
+# Audit class C90, 2026-09-13 — two independent mutators of the same objects
+# with nothing serialising them.
+#
+# It has collided twice, and both times INVISIBLY. From the journal:
+#
+#   2026-09-05T22:05:58  container d2834e7137d6_immich-redis (service
+#                        immich-redis) is created — restarting
+#   2026-09-05T22:06:01  ERROR: failed to restart immich-redis
+#   2026-09-05T22:06:01  homelab-stack-heal.service: Deactivated successfully.
+#   2026-09-12T02:13:39  container da2ce0510d8a_forgejo (service forgejo) is
+#                        created — restarting
+#   2026-09-12T02:13:41  checked 30 of 29 declared container(s), 1 restarted
+#
+# `da2ce0510d8a_forgejo` is Docker's rename-on-recreate temporary. The healer
+# sees a container in `created`, calls it crashed, and restarts it underneath
+# an in-flight `compose up`. Three instruments were blind at once: the unit
+# logs ERROR and exits 0, so systemd reports success; the health assertion
+# fired only on `heal_n < heal_m` while a collision's signature is `30 of 29`,
+# one MORE than declared; and the dashboard stayed green.
+#
+# Why stopping the timer rather than a lock file: `always:` runs on failure,
+# so the window cannot outlive the deploy. A /run flag covering manual
+# `docker compose` too was considered and declined — an interrupted deploy
+# leaves it behind and disables recovery silently, which is the class of
+# defect this audit exists to find. The operator's manual path stays covered
+# by the runbook rule (`compose down`, never `stop`).
+#
+# `systemctl stop` on a TIMER does not touch a service already running; a heal
+# that is mid-flight when the deploy starts still finishes. This narrows the
+# window, it does not close it, and saying so is the honest version.
+- name: compose | Deploy services, with crash-heal suspended
+  block:
+    - name: compose | Suspend crash-heal for the recreate
+      ansible.builtin.systemd:
+        name: homelab-stack-heal.timer
+        state: stopped
+
+    - name: compose | Deploy services
+      community.docker.docker_compose_v2:
+        project_src: /opt/homelab
+        state: present
+        services: "{{ deploy_services.split() if deploy_services is defined else omit }}"
+      register: compose_result
+  always:
+    - name: compose | Resume crash-heal
+      ansible.builtin.systemd:
+        name: homelab-stack-heal.timer
+        state: started
 
 - name: compose | Show deployment actions
   ansible.builtin.debug:
