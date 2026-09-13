@@ -110,11 +110,42 @@
 # the HOST, where that path does not exist, and `pihole setpassword` — which
 # takes no flags and treats whatever it receives as the new password — would
 # cheerfully set it to the empty string and answer "New password set".
+# The value reaches `pihole setpassword` on STDIN, never in an argv.
+# Audit class C26, fixed 2026-09-13.
+#
+# The host's `docker exec` line was already clean — `$(cat …)` expands inside
+# the container, not here — but `sh -c` then exec'd
+# `pihole setpassword <plaintext>`, which becomes
+# `pihole-FTL --config webserver.api.password <plaintext>`. /proc carries no
+# hidepid, so any local account could read it for the life of that call.
+#
+# This is verbatim the defect transmission.yml documents and fixes for itself in
+# this same role (#198): "the `$(cat …)` already expands inside the container,
+# so the host's `docker exec` argv was clean — but the value still landed in the
+# argv of the transmission-remote process itself". Six of the seven
+# `$(cat /run/secrets/…)` sites here keep the value out of argv; this was the
+# seventh.
+#
+# Three things make the stdin form correct, all verified in the running
+# container rather than assumed:
+#   - `SetWebPassword` falls through to `read` when given no argument, and it
+#     reads TWICE — password then confirmation. Hence two lines.
+#   - `/bin/sh` is busybox and `printf` is a SHELL BUILTIN there, so the value
+#     never becomes a separate process's argv on the way in either.
+#   - an EMPTY password is not an error to that function, it is the instruction
+#     to REMOVE the password ("Password Removed", exit 0). The guard below is
+#     what stops a failed `cat` from silently disabling authentication — the
+#     same hazard the deleted comment warned about for the argument form.
+#
+# No `-i` on `docker exec`: the pipe is inside the container, so `pihole` gets
+# its stdin from the shell, not from the host.
 - name: pihole | Set Pi-hole admin password
   ansible.builtin.command:
     cmd: >-
       docker exec pihole sh -c
-      'pihole setpassword "$(cat /run/secrets/pihole_password)"'
+      'p=$(cat /run/secrets/pihole_password) || exit 1;
+      [ -n "$p" ] || { echo "pihole_password is empty - refusing to clear the password"; exit 1; };
+      printf "%s\n%s\n" "$p" "$p" | pihole setpassword'
   no_log: true
   changed_when: true
   when:
