@@ -140,10 +140,12 @@ parts that need a thought experiment.
 
 # The register
 
-Runs of 2026-08-15 through 2026-09-13.
-**91 classes: 3 OPEN, 9 GATED, 74 ENUMERATED, 5 closed by decision, plus the
-DECLINED list.** (OPEN = C01, 61/87 and still open; C03, REOPENED for the FIFTH
-time; and C90, minted 2026-09-13 and partially swept. GATED = C07, C11, C14,
+Runs of 2026-08-15 through 2026-09-13 (evening).
+**94 classes: 4 OPEN, 9 GATED, 76 ENUMERATED, 5 closed by decision, plus the
+DECLINED list.** (OPEN = C01, 72/87 and now RULE-bound rather than budget-bound;
+C03, whose gate is designed and proven discriminating but not deployed; and C92
+and C94, both minted 2026-09-13 evening. **C90 CLOSED the evening it was minted,
+by six independent derivations of the relation the register asked for.** GATED = C07, C11, C14,
 C15, C18, C19, C21, C41 and C81 — **C17 left the table on 2026-09-05 evening,
 C10 and C16 on 2026-09-11**; closed by decision = C04, C08, C57, C66 and C77's
 non-secret half; everything else ENUMERATED.)
@@ -285,24 +287,27 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
-## OPEN — 3
+## OPEN — 4
 
-**The counter did not move — 3 in, 3 out — and the composition changed
-completely for the second run running.** Two of the three that were open are
-CLOSED by exhaustive sweep, each by two independent derivations. One class
-REOPENED for the fifth time, and one of the two mints arrives OPEN.
+**The counter went 3 -> 4 and the termination clock RESETS.** C90 CLOSED the
+evening it was minted — six domains bound it by the (object, mutator-set)
+relation this register demanded, which is the most independent derivations any
+class has ever had. Against that, three classes were minted and two of them
+arrive OPEN, so the honest total rises.
 
-Declining the C03 reopening and recording C90 as ENUMERATED on the strength of
-a 13/13 would have shown `1 OPEN` and something close to a clean sheet. That is
-the number this register exists to stop anyone from manufacturing.
+Recording the three mints as instances of existing classes would have shown
+`1 OPEN` and a clean sheet. Two of them were reached by three unrelated domains
+each, and the third by two; that is the evidence threshold this register names as
+strongest, and declining it would be measuring to the target.
 
 | ID | Property | Space it WAS swept over | Space it must be swept over | State |
 |-----|------------------------------------------|---------------------------------|------------------------------------|-----------------|
-| C01 | A documentary statement whose content contradicts the deployed artefact | 218 machine-checkable referents of five kinds, plus **61 of 87** third-party capability claims (39 → 61 on 2026-09-13; 4 contradicted cumulative) | The remaining **26**, itemised with the instrument each needs. **9 of the 26 are claims about a REFUSAL TO START** — Docker vs an unloaded AppArmor profile, fail2ban vs a missing logpath, s6 vs a `/run` it does not own — and the only instrument that settles a refusal to start is a start, which the read-only rule forbids. ~13 are settleable read-only; 4 are out of the space. **The bound is now the rule set, not the budget** | OPEN, 61/87 |
-| C03 | A validation whose instrument answers a different question from the one its comment claims | 107/107 (21 shell artefacts + 86 `exec:` blocks), swept at 198 guard sites | **REOPENED, fifth time, and in the same script as the fourth.** `homelab-netdata-kuma.sh:216-220`: `curl -fsS --max-time 10 --retry 2` decides the marker, so the instrument answers *"did my client get a response inside its budget"* while the marker asserts *"this report reached nobody"*. Verified false on 2026-09-13: Kuma committed the beat at 01:25:29 UTC+2, the marker was written at 01:25:39, payloads byte-identical. That marker is the **sole input to the live `no-kuma-report-was-lost-in-silence` assertion** — a false positive into a live gate | REOPENED |
-| C90 | **Two or more independent mutators of the same object, with nothing establishing mutual exclusion between them** | **13/13 pairs** (`system`, arbiter-bound) and **14** mutual-exclusion mechanisms (`services`) — 2 owned by this repo, 1 by systemd, 11 by upstream images. Zero live `flock` invocations lab-wide | **The two sweeps returned DIFFERENT CARDINALS (13 vs 14), and `network` found an instance neither counted** — six actors can restart `pihole`, only two re-attach the netns `dnsproxy` shares with it. A space whose cardinal depends on who is counting is not bounded. Bound it by deriving the (object, mutator-set) relation rather than by enumerating mechanisms | MINTED, partially swept |
+| C01 | A documentary statement whose content contradicts the deployed artefact | 218 machine-checkable referents of five kinds, plus **72 of 87** third-party capability claims (61 → 72 on 2026-09-13 evening; 11 settled that run, 11 of 11 true) | The remaining **15, and none of them is budget-bound.** 9 are claims about a REFUSAL TO START — the only instrument that settles a refusal to start is a start, which rules 5 and 6 forbid. 2 more were reclassified INTO that set the same evening (Immich 2FA needs a credential; the Dozzle/Miniflux bcrypt refusal needs an authentication). 4 are out of the space. **The decidable space is swept. What remains is a decision — close it the way C57 and C66 were closed, or accept a class that no permitted instrument can finish** | OPEN, 72/87 |
+| C03 | A validation whose instrument answers a different question from the one its comment claims | 107/107 (21 shell artefacts + 86 `exec:` blocks), swept at 198 guard sites. **The fifth reopening's INSTANCE population is now closed 10/10** — `77efb2a` fixed 1 emitter of 10 on 2026-09-13 midday, PR #352 the other 9 that evening | **Still OPEN, and for the reason the register has recorded since 2026-08-30: it needs a GATE and it still has none.** The assertion is now designed and *proven discriminating on live data* — `no-loss-marker-contradicts-kuma`, which reconciles each marker against the authority its own sentence invokes (Kuma's `heartbeat` table) instead of auditing curl: 13 markers over 3 days, 3 raised / 10 silent, positive control 3/3, negative 10/10. It is NOT deployed (the run is read-only). `observability` also reports the class is **not mechanically decidable in general** and proposes a split: C03-T, where the instrument can name its own "unknown", is gatable; C03-R is a review rule | OPEN |
+| C92 | **A correction applied to the instance that was REPORTED, in a population whose other members carry the same property, with nothing that propagates it or detects the residue** | Nothing yet. The space is derived per correction: for each fix, the population its own property defines | **Four instances in a single day, from three domains that did not talk to each other, and two verified by the main session.** The bound has to be derived commit by commit — "the population this fix's property defines" — and no sweep has yet been run over it. Note the recursion the register must watch: this class's own remediation is subject to it | OPEN |
+| C94 | **A mechanism that reads a selector's result as a scalar without bounding its cardinality from ABOVE** | **18/18** scalar read sites (`system`), plus the instances listed below found by four other domains | The upper twin of C83, which guards cardinality FLOORS and has a deployed gate; nothing guards ceilings. `system`'s 18/18 covers its own domain's read sites only. The space is every selector whose result is consumed as one value — greppable in principle (`head -1`, `tail -1`, `grep -m1`, `jq '.[0]'`, `awk 'NR==1'`, unanchored `--filter name=`, `pgrep -f`, substring containment used as equality) but not yet enumerated lab-wide | OPEN, 18/18 in one domain |
 
-### Why C90 arrives OPEN, and not ENUMERATED
+### Why C90 arrived OPEN on 2026-09-13 midday — and what closed it the same evening
 
 Because two competent sweeps of it disagreed, and a third domain produced an
 instance that neither space contained. `system` bound it by *arbiter* and got
@@ -317,8 +322,231 @@ property, not by the mechanism you happen to be enumerating.** A sweep of the
 things that *provide* mutual exclusion cannot see an object that has none — and
 an object that has none is precisely what the property names.
 
-The honest state: the property is named, six domains produced instances, and no
-sweep has yet been bounded by the property itself.
+The honest state that morning: the property was named, six domains produced
+instances, and no sweep had been bounded by the property itself.
+
+**That is exactly what the evening run fixed, and it is the cleanest closure in
+this register's life.** Six domains were sent back with one instruction — bound
+it by the (object, mutator-set) relation, not by enumerating the things that
+PROVIDE mutual exclusion — and six returned a sweep over their own slice:
+
+| Domain | Cardinal | How the space was derived |
+|---|---|---|
+| `ansible-deploy` | 191/191 | 234 write tasks → 191 objects, each passed to five mutator generators |
+| `services` | 106/106 | 32 lifecycles + 68 bind sources + 1 shared netns + 5 datastores |
+| `system` | 31/31 | 19 deployed scripts + 39 role `dest:` + kernel singletons, both hosts |
+| `network` | 18/18 | smallest unit of destructive interleaving: the record, not the zone |
+| `backup` | 12/12 | backup objects, with restic's in-repo lock as the serialiser |
+| `project-manager` | 17 runbooks → 4 | operator procedures as a mutator, which no code sweep can see |
+
+**The cardinals differ and that is not a defect — it is the property being
+derivation-relative, exactly as C74's closure recorded on 2026-09-11.** Do not
+quote any one of them as "the" number. What makes the closure believable is that
+each slice states its own derivation and its own blind spot, and that three
+generators nobody had counted turned up: `ansible-deploy`'s G3 (a package or
+system generator writing a file Ansible also renders), `network`'s seventh
+pihole mutator (`RestartPolicy: unless-stopped`, the only one that acts with no
+operator, no timer and no deploy), and `backup`'s finding that the serialiser
+for ten of its twelve objects is restic's own in-repo lock, which neither
+earlier bound contained.
+
+**Two domains produced no slice — `security` and `observability`.** Their objects
+are largely covered by `system` and `services`, but that is an argument, not a
+sweep, and it is the residual risk on this closure. C90 is therefore ENUMERATED,
+**not GATED**: nothing derives the (object, mutator-set) relation continuously,
+so the next deploy can repopulate it.
+
+## The run of 2026-09-13 (evening) — the key was `plurality`, and it closed the class the morning run could not bound
+
+The thirteenth key, and the six-word question no class answered: **what if two
+things match instead of one?** `concurrency`, that same morning, asked what
+happens when two ACTORS touch one object. This one asks what happens when a
+selector that assumes ONE match meets several — or writes as though exactly one
+exists and finds none.
+
+Mint rate across the thirteen keys: 5, 11, 12, 7, 2, 4, 1, 0, 2, 1, 2, 2, **3**.
+The decay this file hoped for in early September has not continued.
+
+The key's own premise was verified before the agents were sent, with a positive
+control, because a false premise would have wasted eight briefs:
+
+```
+docker ps --filter name=nextcloud   -> 5 containers
+docker ps --filter name=immich      -> 4 containers
+docker ps --filter name=^nextcloud$ -> 1        (the control)
+```
+
+### The closure — C90, six independent derivations, recorded above
+
+See "Why C90 arrived OPEN" for the table. It is the most-derived closure in this
+register and it arrives ENUMERATED rather than GATED.
+
+### Minted — 3
+
+- **C92 — a correction that reached one member of N.** See the OPEN table.
+  Reached independently by `system` (C74's sysctl fix on 1 host of 2),
+  `observability` (C03's midday fix on 1 emitter of 10) and `services` (netdata's
+  `pidof` fix not carried ten lines down to `traefik-log-redactor`). The main
+  session verified two of the three and found a fourth in the act: `0a593ec`,
+  committed at 12:46 that day with a message reading *"verified on the live
+  offsite disk"*, had written an `ExecCondition` into a template whose deployed
+  unit on the offsite host still dated from 2026-07-14. **The fix was real, the
+  verification was real, and the deploy had not happened** — which is the
+  property, stated better than any summary could.
+- **C93 — a file whose designed role is to be a TEMPLATE or a BACKUP, and which
+  the consuming tool also loads as live input.** See the ENUMERATED table.
+  Proposed by `ansible-deploy`, reached from a different direction by `security`,
+  and reproduced in isolation by the main session.
+- **C94 — cardinality ceilings.** See the OPEN table. The key's own child, and
+  the class that unifies four findings nobody had a word for.
+
+### Instances, grouped under their class
+
+**C94 (ceilings) — four, and the first two are causally linked.**
+
+1. **The credential-store gate ends its derivation with `uniq -c | awk '$1 == 1'`**
+   (`goss-posture.yaml.j2:116`). Its own comment states the restriction and
+   justifies it correctly — a directory three containers write to cannot be
+   closed to one uid. What was wrong is that the drop was SILENT. Exactly one
+   store is in that set lab-wide: `nextcloud/data`, 0755, mounted by three
+   containers. Found by `security` and `services` independently.
+2. **And that store held two unmanaged copies of the LIVE Nextcloud database
+   password.** `config.php.bak-20260901-022212` and `-022246`, 0640, left by a
+   repair, in no commit, verified by the main session by fingerprinting the
+   single `dbpassword` line with a positive control (the same line of the same
+   file hashed twice). A third copy carried an older password. All three had
+   been in every restic snapshot since 2026-09-01, therefore on the append-only
+   offsite too. **This is C87's property at depth 4** under `/mnt/data/services`,
+   one level past the depth 3 its closure that morning had stated — see the
+   register correction below.
+3. **`no-new-privileges` was asserted by SUBSTRING on both sides** — Jinja's
+   `'no-new-privileges' in optstr` and jq's `test("no-new-privileges")`. Both are
+   satisfied by `no-new-privileges:false`, the documented spelling that turns the
+   option OFF. Nothing declared `:false`; the assertion could not have said so.
+   Found by `security`.
+4. **`restic forget` groups by `host,paths`, and `path: false` disables only the
+   FILTER, not the grouping.** Found by `backup` (technical) and
+   `project-manager` (documentary: the docs describe a 7/4/6 policy applying to
+   one repository). Re-derived independently by the main session from
+   `restic snapshots --json`: 4 groups of 9 / 12 / 12 / **1**. The group of one
+   is the 03:00 snapshot of 2026-09-13, alone in its path set, therefore its own
+   daily AND weekly AND monthly — **permanent**. It is the snapshot holding
+   `library/movies` and `library/shows`, which ADR-035 removed from scope nine
+   hours later. 22 of 34 snapshots are retained forever. ~70 GiB, against the
+   1.2 GiB that made the same cleanup DECLINED on 2026-08-15 — **a new fact, not
+   a new argument**. Put to the operator, who declined again: there is room.
+
+**C92 (partial remediation) — four, listed under the mint above.**
+
+**C90 (mutators) — the five recorded that morning, plus `network`'s seventh
+pihole mutator and `ansible-deploy`'s G3 generator class.**
+
+**C18 (a database dump absent, stale or empty) — BROKEN GATE.** Sonarr, Radarr
+and Prowlarr were deployed on the night of 2026-09-13 and backed up LIVE, in WAL
+mode: `radarr.db-wal` held 3.77 MB of committed transactions outside the main
+file, `sonarr.db-wal` 696 KB, measured by `backup` and re-measured by the main
+session with the goss spec as a positive control (313 lines, 10 artefacts named,
+none of them these). **The gate's derivation keys on the dump VARIABLES, not on
+the databases present** — the same wrong-axis defect that reopened C10 on
+2026-09-11. Not covered by the 2026-09-02 DECLINED entry, which named the media
+services whose databases a rescan rebuilds; these hold indexer definitions, API
+keys and download history.
+
+**C70-adjacent, and it does not fit a class — recorded as an instance of C94's
+sibling shape rather than minted.** fail2ban's `[nextcloud]` and `[vaultwarden]`
+jails declare `port = http,https` one line above `banaction = iptables-allports`,
+which ignores it; the jump sits at position 1 of `DOCKER-USER`, ahead of the
+repo's eight rules, so a banned LAN client also lost DNS over TCP to Pi-hole.
+Found by `network`, converged on by `security`. The same day, the jail banned
+the host's OWN address (12:42:01 → 13:42:01, exactly `bantime`) after an expired
+rclone credential produced 8 WebDAV failures; the ban was inert because
+`DOCKER-USER` lives in `FORWARD`, which host-emitted traffic never traverses.
+
+### Rejected from the agents, and why
+
+- **`observability`'s "C19 goss is a broken gate".** True, and recorded since
+  2026-09-05 (vacuous at zero, rescued by composition). Not a discovery.
+- **`network`'s `Currently banned: 1`.** True at the instant of measurement,
+  expired at 13:42:01 while the agent was writing. The main session re-read it
+  at 0 and the finding was rewritten in the past tense.
+- **`project-manager`'s own proposed mint** (an expiry rule whose grouping key
+  derives from a modifiable declaration). It argued against its own proposal and
+  recommended folding it into C88. The argument was accepted.
+- **Not verified, and flagged as such rather than quoted**: `observability`'s
+  "139 sites of verdict-on-client-budget" and "9 of 51 posture reds are purely
+  instrumental", and `backup`'s suspected `pgrep -x restic` plurality.
+- **To `project-manager`'s credit**, as on the morning run: the refusal-to-start
+  claims were declared undecidable under the rules rather than guessed.
+
+### Register corrections — 2
+
+1. **C87's closure of 2026-09-13 midday overstated its cross-check.** It records
+   "1997/1997 at a STATED depth of 3, cross-checked by a second, *unbounded-depth*
+   property-keyed pass over 112 895 entries … both passes returning the same
+   instances". The three `config.php.bak-*` files sit at depth 4 under
+   `/mnt/data/services`, answer the property word for word, and were in neither
+   pass. **An unbounded-depth pass that misses a depth-4 instance was not
+   unbounded.** The stated-depth discipline was right; the claim made for the
+   cross-check was not.
+2. **C74's closure of 2026-09-11 recorded a fix that reached one host of two.**
+   The register reads `1 material instance (net.ipv6.conf.eth0.accept_redirects,
+   both hosts)` and CLOSED. Verified by `system` and re-verified by the main
+   session with the other host as a control: offsite still read `1`, its
+   `99-homelab.conf` dated 2026-08-18 at 29 lines against 2026-09-11 at 30. The
+   detector that would have caught it, `sysctl-declared-knobs-reach-every-
+   interface`, lives only in `posture.yaml`, and `offsite.yml` never plays the
+   `observability` role — so `/etc/goss` on the offsite host holds one spec.
+   **That residual is unfixed and it is the standing cost of C92**: the offsite
+   host has no continuous posture assertion of any kind.
+
+### What the remediation shipped, and what the operator decided
+
+PR #352, three commits, deployed to BOTH hosts from the branch before merge and
+verified by function rather than by colour.
+
+- The three `*arr` databases enter `backup_sqlite_dumps` — 15 assertions
+  generated, the 6 that are meaningful outside the backup window verified green,
+  the full verdict due at the next 03:00 run (31 → 46 assertions).
+- The nine other Kuma emitters distinguish `curl` exit 28. `|| rc=$?` rather than
+  a bare pipeline read through `PIPESTATUS`, **because two of the ten run under
+  `set -e`, where the old `|| echo` was providing a guard by accident** — a
+  detail that would have turned a cosmetic fix into an outage.
+- The shared-store set is declared and asserted EQUAL, not floored: a floor lets
+  a set grow in silence, which is the direction that costs something. Proven
+  under `dash` on the host in both directions.
+- `no-new-privileges` is asserted by list membership and by an anchored regex.
+  Proven in three directions on live containers, including the disabling form,
+  where the old expression returned `true`.
+- fail2ban: `iptables-multiport`, and the host's own address into `ignoreip` via
+  `ansible_default_ipv4` — which the offsite deploy then justified, writing that
+  host's own address on a different subnet where a literal would have written the
+  wrong one. **Proven by function**: a test ban of a documentation address landed
+  a jump reading `multiport dports 80,443` where the old one carried no port
+  match at all, and the unban returned the chain to a bare `RETURN`.
+- The three `config.php.bak-*` were removed by hand — residue, not state to
+  maintain.
+
+**Declined by the operator on 2026-09-13, and not to be re-proposed:**
+
+- **Rotating the Nextcloud database password** after the two copies were found.
+  The copies are gone; the snapshots that hold them are encrypted with a key the
+  operator controls, and that is accepted.
+- **Reclaiming the ~70 GiB pinned by the permanent snapshot group.** "There is
+  room." This is the second refusal of the same cleanup and the first one where
+  the figure was right; do not raise it a third time without a new consequence.
+- **Moving the `*.example.yml` files out of `host_vars/`** (C93's only live
+  instance). The file is the reference and must stay current where it is. The
+  residual risk is recorded in C93's row and is the operator's to carry.
+
+### Three instrument errors by the main session, all caught, all worth carrying
+
+They are in `settled.md` in full. The one that matters: **running the dump spec
+outside the backup window measures nothing**, because `run-before` creates the
+dump directory and `run-after` destroys it — the spec is evaluated at line 182 of
+the profile, inside the window, into `/run/homelab-backup-dumps.tap`. Reading it
+at 14:30 produced 24 red assertions and a false alarm about the whole backup
+chain. The last real verdict was **31 ok / 0 not ok**. This is C03's property,
+committed by the session auditing C03.
 
 ## The run of 2026-09-13 — the key was `concurrency`, and the register had written its own warning
 
@@ -2598,7 +2826,7 @@ check, and it is stated as one.
 | C15 | The offsite repository losing the one property that makes it a backup | goss assertion on the live rest-server process, proven to fail in both modes (#278) |
 | C16 | A read-write bind mount its container cannot create files in | **Left this table on 2026-09-11 — downgraded to ENUMERATED.** The enumeration is derived; the PREDICATE is a proxy (`owner == OPERATOR_UID`). 15 of 27 mounts reach the test and 0 of the 15 can ever fail it |
 | C17 | A filesystem never checked, and boot triggers reset every boot | **Left this table on 2026-09-05 evening — downgraded to ENUMERATED.** The three assertions are hardwired to `/`: one filesystem of four, and `Last checked` is asserted nowhere, six days after this file first recorded that omission. Nothing is proposed — the only live instance is the offsite root, and the operator DECLINED it on 2026-09-02 |
-| C18 | A database dump absent, stale, or empty | goss `backup-dumps`, now **26** checks (2x3 + 3x5 + 5, counted on the deployed spec 2026-09-05 evening), generated from the dump variables so a database cannot get a dump without a check (#177, ADR-032). **The `empty` word is no longer an overstatement** — the derived `-content` floor shipped 2026-09-05 10:39 and 2x3+3x4+4 = 22 matches the host. The derivation half recorded as defective that morning is **FIXED**: `-container-present` is now generated in the same loop, and the residue is a list of one (Immich) |
+| C18 | A database dump absent, stale, or empty | **BROKEN on 2026-09-13 and repaired the same evening — see the run section.** Its derivation keys on the dump VARIABLES rather than on the databases present, so three services deployed that night were backed up live, in WAL mode, with no dump and no assertion. PR #352 adds them (15 assertions, 31 → 46). **The wrong-axis defect itself is untouched**: a database that never enters `backup_sqlite_dumps` is still invisible to this gate by construction, which is the same shape that reopened C10. goss `backup-dumps`, now **26** checks (2x3 + 3x5 + 5, counted on the deployed spec 2026-09-05 evening), generated from the dump variables so a database cannot get a dump without a check (#177, ADR-032). **The `empty` word is no longer an overstatement** — the derived `-content` floor shipped 2026-09-05 10:39 and 2x3+3x4+4 = 22 matches the host. The derivation half recorded as defective that morning is **FIXED**: `-container-present` is now generated in the same loop, and the residue is a list of one (Immich) |
 | C19 | A failed systemd unit, or a timer whose service did not succeed | goss `units.yaml` plus the health script's last-run check — **homelab only; the offsite half is C02**. **Only the GOSS half is vacuous at zero** — corrected 2026-09-05 evening by two agents independently: the script half now carries a derived floor (`timers_seen -eq 0`, `homelab-health.sh:592`, shipped 2026-09-05). The goss half still exits 0 with the binary absent (positive control: `PATH=/nonexistent`), rescued by composition rather than by assertion |
 | C20 | A secret that a deploy reports as rotated without rotating it | **Left this table on 2026-09-03 — downgraded to ENUMERATED.** 4 hand-written probes over a space of 16 secret files; a list of four is not a gate (#159 fixed the case-mismatch bug, which is a different question) |
 | C21 | A snapshot that missed its offsite copy and is never retried | retention monitor (#158, #168). **The "time-window filter" this row used to name no longer exists** — re-verified 2026-09-03: `copy:` carries no bound, every snapshot is re-offered nightly, 31 local / 81 offsite with no gaps. The class holds; the description was stale for the second time |
@@ -2627,7 +2855,7 @@ check, and it is stated as one.
   measured, and `/run/traefik/access.log` appears 99 s after its container starts
   while its healthcheck requires the file.
 
-## ENUMERATED — 33 here; the rest (C03, C06, C09, C13, C27, C39, C43, C75) are recorded in their own sections above. **C01 left this table on 2026-09-11 — REOPENED, see the OPEN table**
+## ENUMERATED — 35 here; the rest (C03, C06, C09, C13, C27, C39, C43, C75) are recorded in their own sections above. **C01 left this table on 2026-09-11 — REOPENED, see the OPEN table**
 
 Swept completely at least once. Re-check only after a change that could reopen
 them; do not re-derive without a new symptom.
@@ -2681,6 +2909,8 @@ them; do not re-derive without a new symptom.
 | C88 | A file rendered into a host DIRECTORY by a loop over a register that can shrink, with no counterpart removing what the register no longer names | 4/4 (looped render tasks ∩ directory bind mounts), 1 carrying residue. **NOT C87** — C88's artefacts are made BY Ansible and orphaned by it; C87's are made outside it. The cleanup today is 20 hand-written `state: absent` tasks, 5 removals of 8 got one: a list, not a derivation | 09-12 |
 | C87 | A hand-made artefact that outlives its operation — created outside Ansible by a repair, a migration or a measurement, maintained by nothing, and invisible to C27, C10 and C16 BY CONSTRUCTION | **CLOSED 2026-09-13.** 16/16 admin+scratch (09-12) plus the service-data slice: **1997/1997 at a STATED depth of 3**, cross-checked by a second, *unbounded-depth* property-keyed pass over **112 895/112 895** entries across `/mnt/data/services`, `/mnt/data/tmp`, `/mnt/data/backups` — both passes returning the same instances, which is what makes the number believable. Offsite control still 0. Derivation: `zero occurrences in the entire git history` ∩ `present on the host`. **5 instances, 1 ACTING**: `jellyfin/config/iptv-fr.m3u`, the `<Url>` of Jellyfin's only Live TV tuner, in no commit and no doc — the container layer's one reproducibility gap. Inert: `/mnt/data/tmp/nextcloud-db-pre12/` (235 MB full MariaDB datadir, 48 days, 0700 uid 999), `backups/pre-navidrome-0.64.0/navidrome.db` (20 MB, made 8 min before the upgrade), `/mnt/data/tmp/dnsprobe.sh` (an empty DIRECTORY named like a script), pihole's logrotate decoy. **The three `acme.json.bak*` are gone** — last run's finding was acted on | 09-12, 09-13 |
 | C91 | **A set of periodic mechanisms whose schedules are ALIGNED, so their executions coincide and the contention degrades what each measures past its own fixed budget** | **13/13**, derived: every `homelab-*` timer's `OnCalendar` falls on a 5-minute boundary, so alignment is structural rather than accidental. Two units sharing `OnCalendar=*:0/5` measured overlapping on **43 of 77 runs (56 %)**. 1 material instance, and it is C03's fifth reopening: Kuma push latency went 274 ms → 10.9 s / 12.0 s / 3.3 s against a fixed `--max-time 10`. **NOT C67** (a deadline sized against an input that has since grown) — nothing grew; the mechanism's own schedule creates the load that breaks its own budget. **NOT C69** (a periodic control whose own runtime nothing measures) — the runtimes are measured; it is their coincidence that is not | 09-13 |
+| C90 | Two or more independent mutators of the same object, with nothing establishing mutual exclusion between them | **CLOSED 2026-09-13 evening by SIX independent derivations** of the (object, mutator-set) relation: 191/191 (`ansible-deploy`), 106/106 (`services`), 31/31 (`system`), 18/18 (`network`), 12/12 (`backup`), 17 runbooks → 4 (`project-manager`). The cardinal is derivation-relative — do not quote one as "the" number; what makes it believable is that each slice states its own derivation and its own blind spot. 3 mutator generators nobody had counted turned up. **ENUMERATED, not GATED**: nothing derives the relation continuously. Residual: `security` and `observability` produced no slice | 09-13 |
+| C93 | **A file whose designed role is to be a TEMPLATE or a BACKUP, and which the consuming tool also loads as LIVE INPUT** | **3/3** — the `*.example.yml` files live INSIDE `inventory/host_vars/homelab/`, and Ansible loads every file in a host_vars directory regardless of its name. Reproduced in isolation by the main session: a key present only in the example surfaces with its placeholder value; a key present in both is won by the real file, which loads later alphabetically. Consequence measured by `ansible-deploy`: **31 of 78 `required: true` options can never fail**, 24 are protected by nothing — including `ssh_port_hardened: 22` and `luks_passphrase: ""`. Zero live placeholders today, verified. **The operator DECLINED moving them on 2026-09-13**: the file is the reference and stays where it is. The class is swept; its one live instance is accepted | 09-13 |
 
 ## DECLINED
 
@@ -2726,6 +2956,20 @@ that they never be proposed again:
   is enumerated 37/37 and its live defect is fixed; the rest is an unbounded read
   of the whole template tree for a class whose only demonstrated cost has been in
   secrets. Closed the way C66's tail was. Do not re-open it without an instance.
+
+**Added by the operator's arbitration of 2026-09-13 (evening):**
+
+- **Rotating the Nextcloud database password.** Two unmanaged copies of the live
+  value had been in every restic snapshot since 2026-09-01, offsite included.
+  The copies were removed; the snapshots are encrypted with a key the operator
+  controls, and that is accepted. Do not raise it again.
+- **Reclaiming the ~70 GiB pinned by the permanent snapshot group.** The second
+  refusal of this cleanup and the first where the figure was right (1.2 GiB on
+  2026-08-15, ~70 GiB now). "There is room." A third proposal needs a new
+  CONSEQUENCE, not a new number.
+- **Moving the `*.example.yml` files out of `host_vars/`** — C93's only live
+  instance. The file is the reference and must stay current where it is. The
+  residual risk is recorded in C93's row and the operator carries it knowingly.
 
 **C76** is on this list in effect rather than in form: it was minted and
 enumerated on 2026-09-02 and no action was requested on it.
