@@ -183,7 +183,7 @@ the service *does* beyond answering.
    and the Pi does **not** use Pi-hole as its own resolver, so `curl
    https://videos.example.com/health` fails on the host with "Could not resolve
    host" while the service is perfectly healthy. Use `--resolve
-   <name>:443:192.168.1.100`, or probe from inside the container. Only
+   <name>:443:<pi-lan-ip>`, or probe from inside the container. Only
    `drive` and `services` are pinned in `/etc/hosts`.
 
 5. **If the image declares `VOLUME` at the path you are changing, `up -d` is not

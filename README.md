@@ -101,5 +101,16 @@ cd ansible && ansible-playbook playbooks/site.yml
 >
 > **Commands therefore use `<domain>`, which cannot be mistaken for something
 > that works** — substitute your own before running them. Prose keeps
-> `example.com`. The same convention already covers the installation user, which
-> is masked as `pi`.
+> `example.com`.
+>
+> The same rule covers everything else that belongs to your installation rather
+> than to this project: **`<pi-lan-ip>`** for the Pi's address on the LAN, and
+> the installation user, masked as `pi`. None of these are secrets — they are
+> simply not the project's to publish, and a reader who is not you needs a
+> placeholder rather than someone else's value.
+>
+> Where do the real ones live? Secrets go in `local.yml` (gitignored, vaulted).
+> Everything private-but-not-secret — the LAN address, the devices you exempt
+> from DNS filtering, the labels on your own notes — goes in
+> `host_vars/<host>/private.yml`, which is gitignored and plain text. See
+> `private.example.yml`, which documents the three tiers and why they differ.

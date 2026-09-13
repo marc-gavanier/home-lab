@@ -53,7 +53,7 @@ Transmission writes back to `settings.json` on shutdown, so **stop the daemon be
    docker compose up -d transmission
    ```
 
-4. **Port forwarding (manual, one-time)**: on the SFR box admin, forward TCP+UDP 51413 → `192.168.1.100:51413`.
+4. **Port forwarding (manual, one-time)**: on the SFR box admin, forward TCP+UDP 51413 → `<pi-lan-ip>:51413`.
 
 5. Add the Uptime Kuma monitor — **not** a plain HTTP check on the root. The
    specification is in [uptime-kuma.md](uptime-kuma.md#monitors-configured):

@@ -71,9 +71,9 @@ Set a DHCP static lease on the ISP router to ensure the Pi always gets the same 
 2. Navigate to **LAN > Baux statiques** (static leases)
 3. Add a new static lease:
    - **MAC address**: get it from the Pi with `ip link show eth0 | grep ether`
-   - **IP address**: choose an IP outside the dynamic DHCP range (e.g. `192.168.1.100`)
+   - **IP address**: choose an IP outside the dynamic DHCP range (e.g. `192.168.1.10`)
 4. Reboot the Pi to apply: `sudo reboot`
-5. Verify the new IP: `ssh pi@192.168.1.100`
+5. Verify the new IP: `ssh pi@<pi-lan-ip>`
 6. Clean up old SSH host key: `ssh-keygen -R <OLD_IP>`
 
 > **Note**: if the router says "IP already in use", pick an IP outside the dynamic pool (lower range like .10-.50 or use .100).
@@ -162,7 +162,7 @@ After the security role changes the SSH port, configure your workstation for eas
 ```bash
 cat > ~/.ssh/config << 'EOF'
 Host homelab
-    HostName 192.168.1.100
+    HostName <pi-lan-ip>
     User pi
     Port <ssh_port_hardened>   # the port set in your vaulted local.yml
     IdentityFile ~/.ssh/id_ed25519
@@ -255,8 +255,8 @@ public. Forward only:
 
 | Port  | Protocol | Destination   | Purpose                                             |
 |-------|----------|---------------|-----------------------------------------------------|
-| 51820 | UDP      | 192.168.1.100 | WireGuard tunnel                                    |
-| 51413 | TCP/UDP  | 192.168.1.100 | Transmission BitTorrent peer (optional — P2P connectivity) |
+| 51820 | UDP      | <pi-lan-ip> | WireGuard tunnel                                    |
+| 51413 | TCP/UDP  | <pi-lan-ip> | Transmission BitTorrent peer (optional — P2P connectivity) |
 
 > Ports **80 and 443 are deliberately not forwarded**: HTTP-01 is gone (DNS-01),
 > and public 443 would only ever return 403 (vpn-only). The homelab is invisible
@@ -270,7 +270,7 @@ Ubuntu's `systemd-resolved` listens on port 53, conflicting with Pi-hole. The `b
 
 ### Split DNS (Pi-hole)
 
-Pi-hole resolves homelab subdomains to the Pi's LAN IP (192.168.1.100) instead of the public IP. This ensures VPN clients reach services directly without going through the public internet.
+Pi-hole resolves homelab subdomains to the Pi's LAN IP (<pi-lan-ip>) instead of the public IP. This ensures VPN clients reach services directly without going through the public internet.
 
 Configured via dnsmasq custom config (`ansible/roles/deploy/templates/pihole-05-homelab.conf.j2`), requires `FTLCONF_misc_etc_dnsmasq_d: "true"` in the Pi-hole environment (Pi-hole v6 ignores `/etc/dnsmasq.d/` by default).
 
@@ -339,7 +339,7 @@ All HTTPS services are **VPN/LAN-only** (Traefik `vpn-only` middleware applied g
 - **Telemetry**: Disabled (Canonical telemetry opt-out)
 - **SSH**: Public-key only (ed25519), non-standard port (`ssh_port_hardened`, vaulted). Not exposed to internet — remote access via WireGuard VPN only.
 - **SSH port**: non-standard, kept out of the public repo (avoids bot noise on 22; classic alternatives like 2222 are also scanned; a published port would cancel the obscurity it buys). Real security comes from key-only auth + fail2ban, not the port.
-- **IP assignment**: Static DHCP lease on router (192.168.1.100)
+- **IP assignment**: Static DHCP lease on router (<pi-lan-ip>)
 - **Docker**: Does not auto-start at boot. Started by `homelab-unlock` after LUKS volume is opened.
 - **Remote access**: All remote access goes through WireGuard VPN (port 51820/udp). SSH is LAN/VPN only, never directly exposed to internet.
 - **ISP (SFR/Red)**: Required IPv4 full stack rollback to exit CGNAT. Without it, port forwarding is impossible (WAN IP is private 10.x.x.x).

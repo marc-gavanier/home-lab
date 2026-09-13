@@ -40,10 +40,10 @@ Uses Pi-hole as DNS (`dns: [${PI_LAN_IP}]` in compose) so that domain lookups fo
 | Netdata                   | HTTP(s)  | `https://system.example.com/api/v1/info`                                                      |
 | Transmission              | Keyword  | `https://share.example.com/transmission/web/`                                                 |
 | WireGuard                 | HTTP(s)  | `https://vpn.example.com`                                                                     |
-| Traefik HTTPS             | TCP Port | `192.168.1.100:443`                                                                           |
+| Traefik HTTPS             | TCP Port | `<pi-lan-ip>:443`                                                                           |
 | Transmission BT Peer Port | TCP Port | `transmission:51413`                                                                          |
-| Pi-hole DNS + split-DNS   | DNS      | Resolver `192.168.1.100`, query `drive.example.com`, condition: record = `192.168.1.100`      |
-| Pi (ping)                 | Ping     | `192.168.1.100`                                                                               |
+| Pi-hole DNS + split-DNS   | DNS      | Resolver `<pi-lan-ip>`, query `drive.example.com`, condition: record = `<pi-lan-ip>`      |
+| Pi (ping)                 | Ping     | `<pi-lan-ip>`                                                                               |
 | Backup                    | Push     | resticprofile `backup`, daily 03:00                                                           |
 | DDNS                      | Push     | `cloudflare-ddns.sh`, every 15 min                                                            |
 | Netdata — containers      | Push     | `homelab-netdata-kuma.sh` services group, /5 min                                              |

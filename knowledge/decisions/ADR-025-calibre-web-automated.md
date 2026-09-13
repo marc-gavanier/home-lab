@@ -43,8 +43,8 @@ Two side effects worth recording:
   was then reset by CWA's own init, which chowns its three mounts to
   `PUID`:`PGID` — and Ansible derives `PGID` from `ansible_user`'s primary group
   (1003), not from `gpio` (1000). So the library ends up
-  `marc-gavanier:marc-gavanier`, exactly like `transmission/config`, rather than
-  matching the `marc-gavanier:gpio` of `music` and `photos`. Fighting the init
+  `<deploy-user>:<deploy-user>`, exactly like `transmission/config`, rather than
+  matching the `<deploy-user>:gpio` of `music` and `photos`. Fighting the init
   over this would be pointless: it re-applies on every start.
 
 ### The hardening bar cannot be met, and the failure is upstream

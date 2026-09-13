@@ -18,7 +18,18 @@
 # docker/configs/: the mount layout is Jellyfin's own and changing compose.yaml
 # would recreate the container for a static file it reads at scan time.
 # transmission.yml sets the precedent for touching services/<svc>/config/.
-- name: jellyfin | Install the Live TV playlist
+# Gitignored since 2026-09-13, and the guard below is what makes that safe. A
+# channel list is a personal subscription — it names what you are entitled to,
+# and the stream hosts identify the ISP — so `iptv-fr.m3u` left the repository
+# while `iptv-fr.m3u.example` stayed.
+#
+# It went IN on 2026-09-13 to close a reproducibility gap (class C87: the file
+# existed on the host, in no commit and no doc, maintained by nothing). Taking
+# it back out must not reopen that, so what is reproducible now is the
+# MECHANISM: the task, the destination, the ownership and the example are all
+# committed, and only the operator's own channel list is not.
+- name: jellyfin | Install the Live TV playlist, when one is supplied
+  when: (role_path ~ '/files/jellyfin/iptv-fr.m3u') is file
   ansible.builtin.copy:
     src: jellyfin/iptv-fr.m3u
     dest: "{{ services_data_dir }}/jellyfin/config/iptv-fr.m3u"

@@ -159,7 +159,7 @@
 # the #327 deploy, and nothing in this file restored the mode.
 #
 # Exposure was nil and that was verified rather than assumed: the directory gate
-# /mnt/data/services/pihole is 0750 marc-gavanier:gpio, and the negative control
+# /mnt/data/services/pihole is 0750 <deploy-user>:gpio, and the negative control
 # `sudo -u nobody head -c 1` on the file is refused. But the defence-in-depth
 # layer was genuinely off, and it recurs on EVERY rotation.
 #

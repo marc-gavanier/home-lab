@@ -35,3 +35,17 @@ feed_digest_label_read: "entries read"
 feed_digest_label_carried: "beyond the cap, carried over to the next run"
 # %s is replaced by the folder's last segment.
 feed_digest_note_footer: "Generated automatically, see [[%s]]."
+
+# --- LAN topology ---
+# The address your Pi holds on the LAN. Everything in the repository reaches it
+# through this variable, so this is the one place to set it.
+homelab_ip: "192.168.1.10"
+
+# --- Pi-hole: clients exempted from filtering (optional) ---
+# Some devices break when their DNS is filtered — an ISP TV decoder is the usual
+# one. Pi-hole stores this as a per-client rule; match BY MAC rather than by
+# address, because a DHCP lease moves and the rule silently stops applying.
+# Documentation only: the groups are created in Pi-hole's admin UI.
+# pihole_bypass_clients:
+#   - mac: "AA:BB:CC:DD:EE:FF"
+#     label: "TV decoder"

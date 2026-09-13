@@ -1280,7 +1280,7 @@ command:
 
   # --- Addresses this host does not control (#292, class C43) ----------------
   # The board holds no fixed address on the LAN side: the router hands it a
-  # one-day DHCP lease, and 192.168.1.100 is written into the repository
+  # one-day DHCP lease, and <pi-lan-ip> is written into the repository
   # nineteen times — including as the resolver every VPN client is handed. The
   # day the router gives it a different one, nothing anywhere says so; the
   # symptom is VPN clients with no DNS and an operator reading a configuration

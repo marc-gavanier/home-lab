@@ -2,7 +2,7 @@
 
 **Date**: 2026-07-11
 **Status**: Accepted — deployed and verified on the Pi the same day
-**Deciders**: Marc Gavanier
+**Deciders**: the home lab operator
 
 ## Context
 
