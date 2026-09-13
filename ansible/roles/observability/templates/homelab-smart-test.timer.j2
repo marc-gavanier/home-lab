@@ -32,8 +32,17 @@ Description=Weekly SMART extended self-test on the homelab data disk
 # that report reads the last COMPLETED entry whatever the time. Removing that
 # false constraint is what freed the schedule.
 #
-# Wednesday also keeps it off the Sunday cluster (restic prune 05:00, offsite
-# check 06:00).
+# Wednesday also keeps it clear of the weekly block, which moved to TUESDAY
+# 00:00-02:02 on 2026-09-13 (lynis 00:30, restic prune/check 01:00, offsite
+# check 02:00). It used to read "the Sunday cluster (restic prune 05:00,
+# offsite check 06:00)"; that cluster no longer exists.
+#
+# This timer deliberately did NOT join that move, and the reason is the
+# measurement above: the block was pulled AHEAD of the 03:00 backup because
+# everything in it is bounded and finishes in minutes. This scan is neither —
+# it runs four to eight hours at 3-5x read latency, so putting it before the
+# backup would drag the scan straight through the one job the paragraph above
+# says must not be slowed. After the backup remains the right side of it.
 #
 # The announced 228 minutes is a floor, not a duration. Nothing waits on the
 # test, and a run still going when the next Wednesday comes round is skipped by

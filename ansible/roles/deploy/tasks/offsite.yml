@@ -45,10 +45,17 @@
     mode: "0644"
     content: |
       [Unit]
-      Description=Weekly offsite restic repo check (Sunday 06:00)
+      Description=Weekly offsite restic repo check (Tuesday 02:00)
 
       [Timer]
-      OnCalendar=Sun *-*-* 06:00:00
+      # Moved off Sunday 06:00 on 2026-09-13, with the rest of the weekly block.
+      # Sunday because the operator ingests media at the weekend; 06:00 because
+      # it sat downstream of the 03:00 backup and inherited its overruns.
+      # It takes the `offsite` profile lock, which is NOT the one the backup
+      # holds, so it was never starved the way the local maintenance was — but
+      # it does compete for the same uplink as the offsite copy, which is the
+      # real reason to keep it ahead of 03:00. Max measured 109 s.
+      OnCalendar=Tue *-*-* 02:00:00
       Persistent=true
 
       [Install]

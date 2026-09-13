@@ -6,9 +6,18 @@ Description=Weekly lynis security audit
 # Weekly (not monthly): Uptime Kuma caps the push heartbeat interval at 24 days,
 # so a monthly cadence would flag DOWN between runs. Weekly fits comfortably
 # (Kuma interval ~8 days) and gives a finer dead-man's signal.
-OnCalendar=weekly
+# Tuesday 00:30, moved 2026-09-13 from a bare `weekly` (= Monday 00:00). The
+# operator ingests media at the weekend, and the weekly block was regrouped
+# ahead of the nightly backup for that reason; this joins it for coherence
+# rather than out of necessity — lynis takes no restic lock and could not
+# starve anything. Max measured 353 s, so it clears well before the local
+# maintenance at 01:00.
+OnCalendar=Tue *-*-* 00:30
 Persistent=true
-RandomizedDelaySec=1h
+# 15m, not 1h. An hour of jitter from 00:30 reaches 01:30, which is inside the
+# local maintenance window; the point of a fixed block is defeated by a delay
+# wider than the gaps between its members.
+RandomizedDelaySec=15m
 
 [Install]
 WantedBy=timers.target
