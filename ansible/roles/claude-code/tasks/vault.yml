@@ -131,6 +131,22 @@
       url = https://drive.{{ domain }}/remote.php/dav/files/admin/
       vendor = nextcloud
       user = admin
+      # GitGuardian flags the next line as a "Generic Password" and it is a
+      # FALSE POSITIVE, recorded here so nobody re-runs the ten-minute
+      # investigation. The value is a Jinja expression, not a credential: the
+      # secret lives in the vaulted `rclone_webdav_pass`, is obscured by the
+      # task above without ever reaching an argv, and reaches this template
+      # only at render time. Nothing secret is in this repository.
+      #
+      # Incident 37230384, raised on PR #351 on 2026-09-13 — and note HOW it
+      # surfaced: the line was untouched by that PR. A `notify:` added four
+      # lines below pulled it into the diff hunk's CONTEXT, and the scanner
+      # reads the whole hunk. Expect it again from any edit near here.
+      #
+      # The GitHub App is configured in the dashboard, not from this repository:
+      # a `.gitguardian.yaml` would be read by nothing (no ggshield step in
+      # .github/workflows). Mark the incident False positive there instead —
+      # `Unmonitor` does not close it.
       pass = {{ rclone_obscured_pass.stdout }}
   no_log: true
   when: "'REMOTE_MATCH' not in rclone_remote_check.stdout | default('')"
