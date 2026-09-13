@@ -24,6 +24,78 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## The correction of 2026-09-13 (night-second) — "told nobody" was false, and it justified two decisions
+
+The late-evening run's second headline reads *"a scheduled job failed at 07:00
+and told nobody"* and *"the failure is silent"*. Measured from the live Kuma
+database the following night: **`Pi health` (monitor 20) announced
+`homelab-local-maintenance.service` by name at 07:06:04 CEST**, and carried it
+for **72 DOWN beats over six hours** alongside `homelab-feed-digest`, which it
+had already named at **06:41:12 — seven minutes and eleven seconds after that
+unit failed.** Control: 1 665 beats in the window, 1 646 UP and 19 DOWN.
+
+Monitor 22's silence is real and stays true. **"Told nobody" is not**, and the
+error is not cosmetic: the same false premise drove two decisions that night.
+`OnFailure=` was declined — correctly, and it is not being re-raised here, by
+anyone — and `SuccessExitStatus=1` was shipped, which **deletes the detector that
+made the decline safe.** See `classes.md`'s run section.
+
+**The rule this pays for**: before recording that a failure was unobserved, query
+the monitor's own beats. A unit's journal and a monitor's register answer
+different questions, and the register is the one that knows whether a human could
+have learned of it.
+
+## Measured and rejected — added 2026-09-13 (night-second)
+
+- **The image-retention arithmetic, in both halves.** `services` reported "42 of
+  44 unreferenced images go; 1 of 14 services keeps its previous tag". Re-measured
+  per repository: of 18 repos holding an unreferenced previous tag, **6 keep it
+  and 12 lose it**; restricted to the comment's own scope — bumped this month —
+  **7 qualify and exactly one loses its rollback tag (navidrome)**. Do not quote
+  the agent's figures.
+- **Escalating the lost rollback tags.** All 8 checked are **still pullable
+  upstream** (controls: a tag that must exist -> pullable; a fabricated tag ->
+  gone). The cost of losing one is bandwidth and time, never data. `services`
+  refuted its own escalation on a second ground — the host resolves via
+  1.1.1.1/8.8.8.8 and not Pi-hole, so a DNS-stack outage does not block the
+  re-pull. **The remedy is to fix the sentence, not the mechanism.**
+- **A stale wg-easy peer** (`security`, self-refuted: the container has only been
+  up 2 days). **`udp/50349` with no owner** (`network`, self-refuted: it is wg0's
+  kernel socket). **The Sunday/Tuesday timer discrepancy** (PR #354 rewrote the
+  timer at 12:22 that day).
+- **`system`'s swap note**: `swap.yml:14`'s "~1.9 GiB in swap" is 18 % low against
+  2 309 MB measured by cgroup counters, with the last container restarts 3-6 h
+  before. Still inside 4 632 MB available. A comment figure, not a defect.
+- **`fake-hwclock.service` being masked** is deliberate, not drift — its
+  replacement pair is enabled and firing. Recorded so nobody re-files it.
+
+## Instrument traps paid on 2026-09-13 (night-second) — TWO ARE NEW, and one is aimed at this skill's own brief
+
+1. **`sqlite3 "file:X?mode=ro"` is read-only at the SQL level, NOT at the
+   filesystem level.** It still creates `-wal` and `-shm` beside the database.
+   `project-manager` left a zero-length `-wal` and a 32 KB `-shm` next to two
+   dormant Kuma rollback copies at 23:20:28 — impact nil, inside the
+   `kuma-pre-*` restic exclusion, but it was a write on a read-only run.
+   **This skill's own observability brief prescribes `mode=ro` as the safe
+   form. It is not sufficient on its own**, and the brief should say so.
+2. **SQLite's double-quoted-string misfeature.** `type in ("http","keyword")`
+   silently becomes `type IN ('http', monitor.keyword)` when a column of that
+   name exists — `observability` got 12 rows instead of 18 **and a false CLEAN on
+   the very defect it then found by another route.** Single quotes in every Kuma
+   query, always.
+3. **`docker image prune --filter until=` reads the image's upstream BUILD date**,
+   not its local pull date. Proof on the host: `ghcr.io/wg-easy/wg-easy:14`
+   carries 2025-06-03 on a machine born in July 2026. Controls: `until=1h`
+   selects 73/73, `until=87600h` selects 0/73. Anything reasoning about rollback
+   age from that filter is measuring the wrong clock.
+
+**Two rule-5 writes, both disclosed unprompted** — trap 1 above, and `services`
+writing then deleting two files under `/tmp` on the host. Both agents reported
+themselves before being asked, which is why the rest of their reports were
+believed. `observability` disclosed trap 2 against its own headline. `network`
+disproved its own instrument rather than reporting a hole. `system` and
+`project-manager` each rejected a near-mint of their own.
+
 ## Shipped on 2026-09-13 (late evening) — key `repetition`, one PR, deployed from the branch before merge
 
 The operator accepted every item of the lot except one, declined that one
