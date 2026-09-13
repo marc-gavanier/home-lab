@@ -2098,8 +2098,39 @@ command:
 
       kq() { docker exec uptime-kuma sqlite3 "file:/app/data/kuma.db?mode=ro" "$1" 2>/dev/null; }
 
+      # `h.status = 1` ON BOTH CLAUSES, 2026-09-13, and without it this whole
+      # assertion is decorative. Kuma FABRICATES a beat: monitor.js writes a
+      # row reading "No heartbeat in the time window", once per interval, for
+      # every push monitor whose previous beat is not UP. There is no time term
+      # in that disjunct, so the rows keep coming for as long as the reporter
+      # stays down.
+      #
+      # Both clauses below used to count rows in `heartbeat` with no status
+      # filter, so those fabricated rows answered "something reached the
+      # dashboard" on behalf of a reporter that reached nothing — and a
+      # genuinely mute reporter could satisfy neither clause. Measured on the
+      # live database the day this shipped: 39 fabricated rows, 36 of them for
+      # monitor 20, ALL at status=0, against 164 real status=1 rows for the
+      # same monitor the same day. Both kinds coexist, which is exactly what
+      # makes a bare row count meaningless.
+      #
+      # Why status and not the message. The obvious fix is
+      # `h.msg <> 'No heartbeat in the time window'`, and it is the wrong one:
+      # that string is an upstream literal from one version of Kuma, and a
+      # release can change it silently — the same axis that has already cost
+      # this repository once. `status` is a structured field. C41 has filtered
+      # on it since 2026-08-30 and that is precisely why C41 survives what this
+      # assertion did not.
+      #
+      # Why the six-run fail-on-purpose proof passed anyway, on the afternoon
+      # this was promoted: it ran against a SYNTHETIC Kuma database, which by
+      # construction held only the rows the test itself wrote. A fixture cannot
+      # contain the rows the upstream writes on its own. The proof was sincere
+      # and the gate was blind. Re-prove this one against a database that
+      # CONTAINS fabricated rows, or it proves nothing again.
       beats=$(kq "select count(*) from heartbeat h join monitor m on m.id = h.monitor_id
-                  where m.type = 'push' and m.active = 1 and h.time > '$loss_utc';")
+                  where m.type = 'push' and m.active = 1 and h.status = 1
+                    and h.time > '$loss_utc';")
       case "$beats" in
         ''|*[!0-9]*) echo "$lost report(s) lost and Kuma cannot be read — refusing to judge"; exit 1 ;;
       esac
@@ -2112,7 +2143,8 @@ command:
       silent=$(kq "select m.name || ' (every ' || m.interval || 's, last ' ||
                           coalesce(datetime(h.t), 'never') || ')'
                    from monitor m
-                   left join (select monitor_id, max(time) t from heartbeat group by monitor_id) h
+                   left join (select monitor_id, max(time) t from heartbeat
+                               where status = 1 group by monitor_id) h
                      on h.monitor_id = m.id
                    where m.type = 'push' and m.active = 1
                      and m.interval <= $since
