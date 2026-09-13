@@ -695,6 +695,12 @@ homelab_control_timers:
     exempt: "netdata is not installed on the offsite (verified 2026-08-30)"
   - timer: homelab-stack-heal
     exempt: "docker is not installed on the offsite (verified 2026-08-30)"
+  - timer: homelab-image-retention
+    exempt: >-
+      docker is not installed on the offsite, so there is no image store to
+      reclaim (re-verified 2026-09-13: `command -v docker` is empty there and
+      no docker.service unit file exists, against a systemctl control that
+      answers)
   - timer: homelab-notify-push
     exempt: "it watches a Nextcloud service that does not run on the offsite"
   - timer: homelab-feed-digest
