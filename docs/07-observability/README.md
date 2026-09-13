@@ -586,15 +586,19 @@ why the exact string is written here rather than left in the UI alone. Re-enter
 it whenever monitor #1 is recreated, and treat that as part of restoring Kuma,
 not as an optional refinement.
 
-TLS certificate expiry notification is enabled on the HTTPS monitors. Traefik
-renews automatically, so this is normally moot — it exists to catch a *silent*
-renewal failure (ACME error, bad API token, rate limit), which would otherwise
-only surface as an outage on expiry day.
+TLS certificate expiry notification is enabled on **15 of the 18 active HTTPS
+monitors**. Traefik renews automatically, so this is normally moot — it exists to
+catch a *silent* renewal failure (ACME error, bad API token, rate limit), which
+would otherwise only surface as an outage on expiry day.
 
-That mechanism covered **15 of the 18 certificates**: it can only watch what an
-HTTPS monitor polls, and three hostnames have no monitor. Since #157,
-`homelab-health.sh` parses `acme.json` directly instead, so all 18 are watched
-from the store Traefik actually writes — the push carries e.g. `certs 50d/18`,
+That mechanism reaches **15 of the 21 certificates**, and the six it misses now
+fail for TWO different reasons, where this paragraph used to name only one.
+Three hostnames have no HTTPS monitor at all, which is the original reason. The
+other three — Prowlarr, Sonarr and Radarr, created 2026-09-13 — have a monitor
+with `expiry_notification` switched off, so the count coincidentally stayed at
+15 while its cause changed underneath. Since #157, `homelab-health.sh` parses
+`acme.json` directly instead, so all **21** are watched
+from the store Traefik actually writes — the push carries e.g. `certs 31d/21`,
 naming the soonest expiry and the count. It alarms at **21 days**: Traefik renews
 at 30, so the alarm means renewal has been failing for over a week — long enough
 that one unreachable night is retried and never seen, short enough to act on
