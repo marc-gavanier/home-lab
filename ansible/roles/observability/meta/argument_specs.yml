@@ -145,8 +145,18 @@ argument_specs:
         type: path
         required: true
         description: >-
-          Root of the importer-writable tree. The posture spec derives from its
-          directory listing which categories must appear in the restic source.
+          Root of the importer-writable tree. The posture spec walks its
+          directory listing and compares each category against the declared
+          backed-up/unbacked split.
+      library_unbacked_categories:
+        type: list
+        elements: str
+        required: true
+        description: >-
+          Categories under library_dir that are deliberately outside the restic
+          source. The posture spec checks the deployed profile against this list
+          in both directions, so a category can neither drop out of the backup
+          nor be added to it without the assertion failing.
       data_mount_point:
         type: path
         required: true

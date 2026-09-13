@@ -191,18 +191,35 @@ homelab:
       - /mnt/data/services
       - /mnt/data/media
       # library/ is listed SUBDIRECTORY BY SUBDIRECTORY, deliberately, and the
-      # parent is never named. `downloads/` is therefore outside the backup
-      # STRUCTURALLY rather than by an `exclude:` — an exclusion is a filter
-      # that can be mistyped, forgotten, or defeated by a later change to the
-      # source, and a path that was never in the source cannot be any of those.
+      # parent is never named. A category is outside the backup STRUCTURALLY
+      # rather than by an `exclude:` — an exclusion is a filter that can be
+      # mistyped, forgotten, or defeated by a later change to the source, and a
+      # path that was never in the source cannot be any of those.
       #
-      # The symmetric failure is real and is gated rather than trusted: a new
-      # category directory created here and not added below would go unbacked in
-      # silence. `library-categories-are-all-in-the-backup-source` in the
-      # posture spec derives the check from the directory listing and fails the
-      # day that happens.
-      - /mnt/data/library/movies
-      - /mnt/data/library/shows
+      # WHICH categories are in and which are out is declared ONCE, in
+      # `library_unbacked_categories` (group_vars/all.yml), and
+      # `library-backup-source-matches-the-declared-split` in the posture spec
+      # checks the deployed profile against that declaration IN BOTH
+      # DIRECTIONS: a category that should be backed up and is missing fails,
+      # and a category declared unbacked that appears here fails too.
+      #
+      # `movies` and `shows` left this list on 2026-09-13 and the reason is
+      # worth keeping, because the first version of ADR-035 decided the
+      # opposite. They hold torrent-sourced video, retained only until watched
+      # and to seed. It is re-downloadable, so its recovery value is the cost of
+      # fetching it again — and the LOCAL repository lives on the same LUKS
+      # volume as the data it backs up, so keeping them locally protected
+      # against an accidental delete and nothing else.
+      #
+      # What it cost while they were in: the first run after ADR-035 changed the
+      # path set, so restic found NO PARENT SNAPSHOT and re-read everything —
+      # 94 280 files, 418 GiB, 4 h 25 against a normal ~12 min. It stored
+      # 69.986 GiB (41 files: two TV seasons and five films, hard-linked from
+      # `downloads/`). Holding the profile lock for 8 h then starved
+      # homelab-local-maintenance, which waits 2 h for that lock and then FAILS
+      # — a weekly timer, so prune and check were skipped for the week.
+      # The `.torrent` files stay in the backup (ADR-035), so a restore still
+      # resumes seeding; it re-fetches the data rather than restoring it.
       - /mnt/data/backups/dumps
       - /mnt/data/secrets
       - /opt/homelab

@@ -117,6 +117,27 @@ media_dir: "{{ data_mount_point }}/media"
 # same filesystem, so sharing one mount is what makes an import a link instead
 # of a 40 GB copy that also breaks seeding.
 library_dir: "{{ data_mount_point }}/library"
+
+# Which categories under library_dir are deliberately OUTSIDE the restic source.
+# This is the single declaration of that split; the posture assertion
+# `library-backup-source-matches-the-declared-split` checks the deployed profile
+# against it in BOTH directions, so a category cannot silently drop out of the
+# backup and cannot silently be added to it either.
+#
+# `downloads` has always been here: it is Transmission's working area and every
+# completed file is hard-linked into a category anyway.
+#
+# `movies` and `shows` joined on 2026-09-13, reversing the original ADR-035
+# decision. They hold torrent-sourced video kept until watched and to seed. It
+# is re-downloadable, and the local repository lives on the SAME LUKS volume as
+# the data, so backing it up locally protected against an accidental delete and
+# nothing more. One night with them in the source cost 4 h 25 of reading,
+# 69.986 GiB stored, ~4 h 20 of uplink, and a failed weekly maintenance.
+library_unbacked_categories:
+  - downloads
+  - movies
+  - shows
+
 backup_dir: "{{ data_mount_point }}/backups"
 
 # Where the backup writes its narrative, and where the dump assertions leave

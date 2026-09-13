@@ -664,29 +664,55 @@ command:
   # missing, a loop over nothing returns true and the assertion would pass while
   # verifying that nothing is backed up — the exact shape this repository keeps
   # a pre-commit gate against.
-  library-categories-are-all-in-the-backup-source:
+  # Renamed in spirit on 2026-09-13, not in name: it no longer asserts that
+  # EVERY category is backed up, because two deliberately are not. It asserts
+  # that the deployed profile matches `library_unbacked_categories`, IN BOTH
+  # DIRECTIONS. The one-directional version could only catch a category falling
+  # out of the backup; it could not catch one being added, which is exactly what
+  # ADR-035 did on 2026-09-12 — 70 GiB of torrent video into an append-only
+  # offsite repository, a 4 h 25 backup, and a starved weekly maintenance.
+  #
+  # The declared set is rendered here rather than read from the host, so the
+  # assertion compares the DEPLOYED profile against the DECLARED intent. Both
+  # floors are kept: an empty category listing and an unreadable profile fail
+  # rather than pass over nothing (class C83).
+  library-backup-source-matches-the-declared-split:
     exec: |
       lib="{{ library_dir }}"
       profile=/opt/homelab/resticprofile.yaml
+      unbacked="{{ library_unbacked_categories | join(' ') }}"
       [ -d "$lib" ] || { echo "$lib does not exist — the library tree is gone"; exit 1; }
       [ -r "$profile" ] || { echo "$profile is unreadable — cannot verify coverage"; exit 1; }
+      [ -n "$unbacked" ] || { echo "library_unbacked_categories is empty — refusing to judge"; exit 1; }
       seen=0
-      missing=0
+      wrong=0
       for d in "$lib"/*/; do
         [ -d "$d" ] || continue
         name=$(basename "$d")
-        [ "$name" = "downloads" ] && continue
         seen=$((seen + 1))
-        if ! grep -qE "^[[:space:]]*-[[:space:]]+$lib/$name[[:space:]]*$" "$profile"; then
+        declared_out=0
+        for u in $unbacked; do
+          [ "$name" = "$u" ] && declared_out=1
+        done
+        if grep -qE "^[[:space:]]*-[[:space:]]+$lib/$name[[:space:]]*$" "$profile"; then
+          present=1
+        else
+          present=0
+        fi
+        if [ "$declared_out" -eq 1 ] && [ "$present" -eq 1 ]; then
+          echo "$lib/$name is declared UNBACKED and IS in the restic source — it is being backed up against intent"
+          wrong=$((wrong + 1))
+        fi
+        if [ "$declared_out" -eq 0 ] && [ "$present" -eq 0 ]; then
           echo "$lib/$name exists and is NOT in the restic source — it is not being backed up"
-          missing=$((missing + 1))
+          wrong=$((wrong + 1))
         fi
       done
       if [ "$seen" -lt 1 ]; then
         echo "no category directory under $lib — this assertion is reading an empty set"
         exit 1
       fi
-      [ "$missing" -eq 0 ]
+      [ "$wrong" -eq 0 ]
     exit-status: 0
 
   # --- Retention delivered against retention declared (class C68) ------------
