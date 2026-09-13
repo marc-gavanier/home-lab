@@ -109,7 +109,21 @@ docker compose up -d <service>
 > | `services/pihole` | config, gravity, lists — **no query history** | nothing: a rescan rebuilds it |
 > | `services/netdata` | config — **no `cache/`** | nothing: it regenerates |
 >
-> Every other service is complete from this command alone.
+> **Every other service comes back from this command alone — but for six of
+> them the database that comes back is the LIVE one, not the consistent one.**
+> Vaultwarden, Forgejo, wg-easy, Sonarr, Radarr and Prowlarr are all dumped
+> nightly *and* left in the snapshot, so `--include` restores their `.db` and
+> exits 0 with no warning, having handed you whatever WAL state happened to be
+> on disk. Measured 2026-09-13: `radarr.db-wal` held 3.77 MB of committed
+> transactions outside the main file, `sonarr.db-wal` 696 KB. Prefer the dump —
+> each has its own section below, except Vaultwarden and Forgejo which already
+> did.
+>
+> The distinction to keep straight: the four database rows in the table above
+> (Miniflux, Nextcloud, Immich, Uptime Kuma) restore **nothing** for the
+> database, which is loud and obvious. These six restore **something plausible
+> but possibly torn**, which is quiet. The second failure mode is the one that
+> reaches production.
 >
 > How this got here is worth one sentence, because it is the shape to watch for:
 > `resticprofile.yaml` states the rule that makes an exclusion safe — *"exclude
@@ -497,6 +511,70 @@ Sanity-check, and check it before you close the session you still have:
 `docker exec wg-easy wg show wg0 peers | wc -l` against the number of clients
 the UI lists, and one actual handshake from a client — a peer list that loads is
 not a tunnel that works.
+
+## Restore Sonarr / Radarr / Prowlarr (SQLite)
+
+One procedure for three services: the layout is identical, only the name
+changes. They joined the dump set on 2026-09-13 and had no procedure here until
+later the same day, which is the gap this section closes.
+
+**Read the warning above before using `--include services/<svc>` on its own.**
+Unlike Uptime Kuma's, these databases are *not* excluded from the snapshot, so a
+plain restore gives you a `.db` file and exit 0 — but it is the live copy, and
+its committed transactions may still be sitting in a `-wal` beside it. Measured
+2026-09-13: `radarr.db-wal` held 3.77 MB, `sonarr.db-wal` 696 KB. The dump under
+`/mnt/data/backups/dumps` is the consistent copy; prefer it.
+
+What is in each database: the indexer definitions, the series or film list, the
+quality profiles, the download history and the root-folder paths. What is *not*:
+the media itself, which lives under `/mnt/data/library` and is restored
+separately, and the API key, which is in `config.xml` in the same `/config`
+directory and comes back with the plain file restore.
+
+```bash
+svc=sonarr        # or radarr, or prowlarr — everything below follows from this
+
+restic restore latest --target /mnt/data/tmp/restore \
+  --include /mnt/data/backups/dumps \
+  --include /mnt/data/services/$svc
+
+cd /opt/homelab
+docker compose down $svc       # `down`, never `stop`: the heal timer brings a
+                               # stopped container back within 2 min (ADR-007)
+
+# Config and everything that is not the database — skip if only the database
+# was lost. config.xml (and the API key in it) comes back here.
+rsync -a --delete /mnt/data/tmp/restore/mnt/data/services/$svc/ /mnt/data/services/$svc/
+
+# Database, from the DUMP. Drop any stale WAL/SHM first so SQLite reopens
+# cleanly rather than replaying a journal that belongs to the old file.
+rm -f /mnt/data/services/$svc/$svc.db-wal \
+      /mnt/data/services/$svc/$svc.db-shm
+cp /mnt/data/tmp/restore/mnt/data/backups/dumps/$svc.sqlite3 \
+   /mnt/data/services/$svc/$svc.db
+
+# PUID=1000 / PGID=1003 in the LinuxServer image. The directory is 0700 and the
+# database 0644 by decision: config.xml holds the API key, so the directory is
+# what keeps it private (2026-09-13).
+chown -R 1000:1003 /mnt/data/services/$svc
+chmod 700 /mnt/data/services/$svc
+docker compose up -d $svc
+```
+
+Sanity-check, and do it for the function rather than the colour — a container
+that answers is not an application that kept its state:
+
+- **Prowlarr** — Indexers: the list is populated, and *Test All* passes. This is
+  the one to restore first: Sonarr and Radarr pull their indexer definitions
+  from it, so a Prowlarr restored after them leaves both with indexers that
+  resolve to nothing.
+- **Sonarr / Radarr** — Series (or Movies) lists the library, and Settings →
+  Media Management shows the root folder as `/data/...`. A root folder that
+  reads as missing means the media restore has not happened yet, not that the
+  database is wrong.
+- All three — Settings → General → the API key matches what the reverse proxy
+  and any client already hold. If `config.xml` was lost and regenerated, the key
+  is new and every client has to be updated.
 
 ## Full disaster recovery
 

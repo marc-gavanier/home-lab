@@ -61,13 +61,65 @@ the C89 audit sweeps.
 ## Data and Restore
 
 `/config` per service under `services_data_dir`, inside the restic source with
-the rest of `/mnt/data/services`. A restore brings back the indexer definitions,
-the series and film lists, and the quality profiles.
+the rest of `/mnt/data/services`. It holds the indexer definitions, the series
+and film lists, the quality profiles, the download history — and `config.xml`,
+which carries the API key. That is why the directory is `0700`: the file itself
+is `0644` and the directory is what keeps the key private.
+
+**A plain file restore is not enough on its own — see `## Backup` below.** The
+full procedure is
+[`restore-from-backup.md` § Restore Sonarr / Radarr / Prowlarr (SQLite)](../../knowledge/runbooks/restore-from-backup.md#restore-sonarr--radarr--prowlarr-sqlite);
+restore **Prowlarr first**, because the other two pull their indexer definitions
+from it.
 
 The media itself is not theirs to restore: films and series live in
 `library/movies` and `library/shows`, backed up separately and listed
 subdirectory by subdirectory so that `library/downloads` stays out of the backup
 (ADR-035).
+
+## Backup
+
+No new path: `/mnt/data/services` is already backed up wholesale by restic.
+
+Each of the three databases gets one extra step — a `backup_sqlite_dumps` entry
+run from a resticprofile hook (ADR-031), added 2026-09-13 — and the reason is the
+same one that applies to Vaultwarden and Forgejo. These are live SQLite
+databases in WAL mode, so a restic snapshot of the file can capture a torn
+state: the committed transactions sitting in the `-wal` beside it are not in the
+file restic copied.
+
+How much data that is, measured on the running host — all three read at the same
+instant, because a WAL grows and is checkpointed continuously and figures taken
+minutes apart do not belong in the same table:
+
+| File | Committed data outside the main database |
+|-------------------|------------------------------------------|
+| `radarr.db-wal`   | 310 KB |
+| `sonarr.db-wal`   | 286 KB |
+| `prowlarr.db-wal` | 20 KB  |
+
+Those are ordinary values, not a worst case. `radarr.db-wal` was measured at
+**3.77 MB** on 2026-09-13 — which is the figure that justified adding the dumps,
+and the reason to read the table above as "routinely non-zero" rather than as a
+bound.
+
+The dump takes each database through SQLite's Online Backup API into the dump
+directory first:
+
+```sh
+sqlite3 /mnt/data/services/sonarr/sonarr.db ".backup '…/dumps/sonarr.sqlite3'"
+```
+
+**These three differ from Uptime Kuma's database in one way that matters during
+a restore.** Kuma's `kuma.db` is *excluded* from the snapshot, so restoring
+`services/uptime-kuma` visibly gives you no database at all. These are dumped
+*and* left in the snapshot, so a plain `--include services/sonarr` hands you a
+`.db` and exits 0 — it is just not necessarily the consistent one. Prefer the
+dump; the runbook section linked above does.
+
+Their `logs.db` siblings are deliberately not dumped: they hold the application
+log, a rescan of the UI rebuilds nothing anyone needs from them, and losing them
+costs history rather than state.
 
 ## Health
 

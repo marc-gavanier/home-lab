@@ -10,19 +10,23 @@ Chosen for its deduplication, native encryption (AES-256), incremental support, 
 
 Mirrors the `source` list in `ansible/roles/deploy/templates/resticprofile.yaml.j2` (keep this table and that profile in sync).
 
-| Data                   | Source (host path)                                                                              | Method            | Frequency |
-|------------------------|-------------------------------------------------------------------------------------------------|-------------------|-----------|
-| Service data & configs | `/mnt/data/services` (Nextcloud files, Vaultwarden, Immich uploads, Jellyfin/Navidrome config…) | Restic            | Daily     |
-| **Media originals**    | `/mnt/data/media` (photos, music, home videos, music videos, books)                             | Restic            | Daily     |
-| **Library**            | `/mnt/data/library/movies` and `/mnt/data/library/shows`, named one by one so `downloads/` stays out of the source structurally (ADR-035) | Restic | Daily |
-| Nextcloud DB           | MariaDB dump (`--single-transaction`) → `/mnt/data/backups/dumps`                               | dump → Restic     | Daily     |
-| Vaultwarden DB         | SQLite `sqlite3 .backup` (WAL-safe) → `/mnt/data/backups/dumps`                                 | dump → Restic     | Daily     |
-| Forgejo DB             | SQLite `sqlite3 .backup` (WAL-safe) → `/mnt/data/backups/dumps`                                 | dump → Restic     | Daily     |
-| Uptime Kuma DB         | SQLite `sqlite3 .backup` (WAL-safe) → `/mnt/data/backups/dumps`                                 | dump → Restic     | Daily     |
-| Miniflux DB            | `pg_dump` via `docker exec` (plain SQL) → `/mnt/data/backups/dumps`                             | dump → Restic     | Daily     |
-| Immich DB              | Immich's own scheduled backup → `services/immich/upload/backups/*.sql.gz`                       | built-in → Restic | Daily     |
-| Stack config           | `/opt/homelab` (compose, scripts)                                                               | Restic            | Daily     |
-| Secrets (ADR-011)      | `/mnt/data/secrets` (`.env`, `backup.env`, `wg0.conf`… — `/opt/homelab` entries are symlinks)   | Restic            | Daily     |
+| Data                   | Source (host path)                                                                                                                        | Method            | Frequency |
+|------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|-------------------|-----------|
+| Service data & configs | `/mnt/data/services` (Nextcloud files, Vaultwarden, Immich uploads, Jellyfin/Navidrome config…)                                           | Restic            | Daily     |
+| **Media originals**    | `/mnt/data/media` (photos, music, home videos, music videos, books)                                                                       | Restic            | Daily     |
+| **Library**            | `/mnt/data/library/movies` and `/mnt/data/library/shows`, named one by one so `downloads/` stays out of the source structurally (ADR-035) | Restic            | Daily     |
+| Nextcloud DB           | MariaDB dump (`--single-transaction`) → `/mnt/data/backups/dumps`                                                                         | dump → Restic     | Daily     |
+| Vaultwarden DB         | SQLite `sqlite3 .backup` (WAL-safe) → `/mnt/data/backups/dumps`                                                                           | dump → Restic     | Daily     |
+| Forgejo DB             | SQLite `sqlite3 .backup` (WAL-safe) → `/mnt/data/backups/dumps`                                                                           | dump → Restic     | Daily     |
+| Uptime Kuma DB         | SQLite `sqlite3 .backup` (WAL-safe) → `/mnt/data/backups/dumps`                                                                           | dump → Restic     | Daily     |
+| wg-easy DB             | SQLite `sqlite3 .backup` (WAL-safe) → `/mnt/data/backups/dumps`                                                                           | dump → Restic     | Daily     |
+| Sonarr DB              | SQLite `sqlite3 .backup` (WAL-safe) → `/mnt/data/backups/dumps`                                                                           | dump → Restic     | Daily     |
+| Radarr DB              | SQLite `sqlite3 .backup` (WAL-safe) → `/mnt/data/backups/dumps`                                                                           | dump → Restic     | Daily     |
+| Prowlarr DB            | SQLite `sqlite3 .backup` (WAL-safe) → `/mnt/data/backups/dumps`                                                                           | dump → Restic     | Daily     |
+| Miniflux DB            | `pg_dump` via `docker exec` (plain SQL) → `/mnt/data/backups/dumps`                                                                       | dump → Restic     | Daily     |
+| Immich DB              | Immich's own scheduled backup → `services/immich/upload/backups/*.sql.gz`                                                                 | built-in → Restic | Daily     |
+| Stack config           | `/opt/homelab` (compose, scripts)                                                                                                         | Restic            | Daily     |
+| Secrets (ADR-011)      | `/mnt/data/secrets` (`.env`, `backup.env`, `wg0.conf`… — `/opt/homelab` entries are symlinks)                                             | Restic            | Daily     |
 
 > The OS itself is **not** backed up — it is reproducible from scratch via Ansible (IaC).
 
