@@ -78,6 +78,46 @@ Transmission writes back to `settings.json` on shutdown, so **stop the daemon be
 - **Semi-private trackers**: consider disabling DHT/PEX/LSD per torrent to keep ratio counting honest. Set them off globally in `settings.json` only if you exclusively use private trackers.
 - **Public trackers** and **WebTorrent**: keep DHT/PEX/LSD on for swarm discovery.
 
+## Known exposure: the image's own stop hook puts the RPC password in an argv
+
+Found by the audit of 2026-09-13, **accepted rather than fixed**, and written
+down here so nobody rediscovers it as if it were new.
+
+The image ships its own s6 stop hook, which runs on **every container stop** —
+so on every deploy, every crash-heal restart, every `compose down`:
+
+```
+/etc/s6-overlay/s6-rc.d/svc-transmission/finish
+    /usr/bin/transmission-remote 127.0.0.1:${PORT:-9091} -n "$USER":"$PASS" --exit
+```
+
+`$PASS` is the live RPC password. `/proc` carries no `hidepid`, so any local
+account can read that command line for the duration of the call. The same form
+sits in `/app/blocklist-update.sh`, inert only because `blocklist-enabled` is
+false — one checkbox away, and its window is seconds rather than milliseconds.
+
+**Why it is not fixed.** Both files are inside the image. This repository
+already removed the `-n` form from everything it controls: the healthcheck in
+`compose.yaml` and the Ansible task both use `TR_AUTH`, which puts the value in
+the process's environment where `/proc/<pid>/environ` is 0400 owner-only (#198).
+What remains is upstream's, and editing a file inside an image is undone by the
+next pull.
+
+**Why there is no assertion for it either**, which is the less obvious half.
+A check that pins the contents of an upstream script fires on any benign
+refactor and tells you nothing about the property you care about — that is audit
+class C86, *a configuration value written to restate an upstream default in
+order to freeze it*, and this repository has already paid for it three times. A
+permanently-red monitor or a tripwire on someone else's code is worse than a
+written-down acceptance.
+
+**What would change the decision.** Mounting `/proc` with `hidepid` would close
+it, and was rejected on cost: netdata reads `/proc` for every container's
+metrics and would need the exemption, which is a larger change than the exposure
+warrants on a LAN-only host reached through a VPN. If Transmission is ever
+exposed beyond the tunnel, or if an untrusted local account is ever created on
+this host, re-open this.
+
 ## Restore
 
 ```bash
