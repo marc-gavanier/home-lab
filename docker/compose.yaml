@@ -1781,7 +1781,13 @@ services:
     networks:
       - proxy
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:9696/ping"]
+      # `-fsS` alone accepts any non-4xx/5xx answer, and these apps return 302 to
+      # the UI for anything they do not route — so the old check passed on a
+      # redirect and only ever proved the port was open. Verified 2026-09-13 on
+      # all three: /ping -> rc=0, an unknown route -> rc=0. Matching the body is
+      # what makes it fail when the app answers without serving its API; Kuma
+      # already tests these three that way.
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9696/ping | tr -d ' \\n' | grep -q '\"status\":\"OK\"'"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -1816,7 +1822,13 @@ services:
     networks:
       - proxy
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:8989/ping"]
+      # `-fsS` alone accepts any non-4xx/5xx answer, and these apps return 302 to
+      # the UI for anything they do not route — so the old check passed on a
+      # redirect and only ever proved the port was open. Verified 2026-09-13 on
+      # all three: /ping -> rc=0, an unknown route -> rc=0. Matching the body is
+      # what makes it fail when the app answers without serving its API; Kuma
+      # already tests these three that way.
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8989/ping | tr -d ' \\n' | grep -q '\"status\":\"OK\"'"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -1846,7 +1858,13 @@ services:
     networks:
       - proxy
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:7878/ping"]
+      # `-fsS` alone accepts any non-4xx/5xx answer, and these apps return 302 to
+      # the UI for anything they do not route — so the old check passed on a
+      # redirect and only ever proved the port was open. Verified 2026-09-13 on
+      # all three: /ping -> rc=0, an unknown route -> rc=0. Matching the body is
+      # what makes it fail when the app answers without serving its API; Kuma
+      # already tests these three that way.
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:7878/ping | tr -d ' \\n' | grep -q '\"status\":\"OK\"'"]
       interval: 30s
       timeout: 10s
       retries: 5
