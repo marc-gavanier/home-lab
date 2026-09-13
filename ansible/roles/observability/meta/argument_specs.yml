@@ -176,6 +176,16 @@ argument_specs:
           Mode every derived credential store must carry, asserted by goss-posture. Written
           as 0700; the assertion strips the leading zero before comparing with `stat -c %a`,
           because otherwise every store fails.
+      credential_store_shared:
+        type: list
+        elements: str
+        required: true
+        description: >-
+          Stores the credential-store derivation drops for being bind-mounted by more than
+          one container, as paths relative to the services data dir. goss-posture asserts the
+          derived set equals this one, so a NEW shared store fails the check instead of
+          leaving it in silence. Dropping them is correct — a shared directory cannot be
+          closed to one uid — but the drop must be visible.
       credential_store_exemptions:
         type: dict
         required: true

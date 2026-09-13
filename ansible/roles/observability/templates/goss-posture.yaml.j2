@@ -147,6 +147,33 @@ command:
     timeout: 30000
     exit-status: 0
 
+  # The same derivation, asserted for the set it DROPS. `awk '$1 == 1'` above
+  # removes every store bind-mounted by more than one container, and that is
+  # correct — a directory three containers write to cannot be closed to one uid
+  # without breaking the other two. What was wrong until 2026-09-13 is that the
+  # removal was silent: a store could leave the mode assertion by gaining a
+  # second mount, and nothing would say so. The one store already in that set
+  # was holding two unmanaged copies of the live Nextcloud database password,
+  # and it was the audit that found them, not this spec.
+  #
+  # Equality, not a floor. A floor would let the set GROW in silence, which is
+  # the direction that costs something. Both directions are a decision: a store
+  # that stops being shared should come back under the mode assertion, and one
+  # that becomes shared should be looked at before it is written down.
+  credential-stores-shared-set-unchanged:
+    exec: |
+      base={{ services_data_dir }}
+      want="{{ credential_store_shared | sort | join(' ') }}"
+      got=$(docker inspect $(docker ps -aq) \
+            | jq -r --arg b "$base/" '.[] | .Mounts[]? | select(.Type == "bind") | select(.Source | startswith($b)) | .Source' \
+            | sort | uniq -c | awk -v b="$base/" '$1 > 1 { sub("^" b, "", $2); print $2 }' \
+            | sort | tr '\n' ' ')
+      got=${got% }
+      [ "$got" = "$want" ] || { echo "shared stores are [$got], declared [$want]"; exit 1; }
+    # Same population and same disk as the assertion above, so the same budget.
+    timeout: 30000
+    exit-status: 0
+
   # The same derivation, asserted for SIZE rather than for modes, and it is a
   # separate assertion on purpose: goss streams stdout and never materialises it,
   # so the name is the only thing an operator sees. "All closed" passing over
@@ -419,7 +446,15 @@ command:
 {%- set caps = ('CAP_' ~ caplist | join(' CAP_')) if caplist else '' %}
 {%- set ro = 'true' if svc.read_only | default(false) else 'false' %}
 {%- set optstr = (svc.security_opt | default([])) | join(' ') %}
-{%- set nnp = 'true' if 'no-new-privileges' in optstr else 'false' %}
+{#- Membership in the LIST, not a substring of the joined string. Until
+    2026-09-13 this read `'no-new-privileges' in optstr`, which is also
+    satisfied by `no-new-privileges:false` — the documented spelling for
+    turning the option OFF. A service could therefore have disabled it and
+    still been asserted, on both sides, to have it on. Nothing declared
+    `:false` when this was found; the assertion simply could not have said
+    so. Docker returns the option as `no-new-privileges:true` at runtime,
+    measured on traefik, pihole and vaultwarden. -#}
+{%- set nnp = 'true' if 'no-new-privileges:true' in (svc.security_opt | default([])) else 'false' %}
 {%- set aa = optstr.split('apparmor=')[1].split(' ')[0] if 'apparmor=' in optstr else '' %}
 {%- set usr = svc.user | default('') %}
   {{ cname }}-not-privileged:
@@ -439,7 +474,7 @@ command:
     exit-status: 0
     stdout: ["/^{{ ro }}$/"]
   {{ cname }}-no-new-privileges:
-    exec: docker inspect {{ cname }} | jq -r '[.[0].HostConfig.SecurityOpt[]?] | join(" ") | test("no-new-privileges")'
+    exec: docker inspect {{ cname }} | jq -r '[.[0].HostConfig.SecurityOpt[]?] | join(" ") | test("(^| )no-new-privileges:true( |$)")'
     exit-status: 0
     stdout: ["/^{{ nnp }}$/"]
   # Conditional on purpose, and the reason was learned the hard way on

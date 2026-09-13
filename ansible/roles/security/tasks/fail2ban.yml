@@ -157,7 +157,15 @@
       # Kept for parity with the homelab's file; nothing containerised reaches
       # this host, so no jail here reads an address that Traefik rewrote.
       {% endif %}
-      ignoreip = 127.0.0.1/8 ::1 172.16.0.0/12
+      # The host's OWN address, added 2026-09-13. On that day [nextcloud] banned
+      # it: an rclone client running ON this Pi held an expired app password and
+      # produced 8 `Login failed` lines in the Nextcloud log, which is a
+      # credential to rotate, not an intruder to block. The ban was inert —
+      # DOCKER-USER lives in the FORWARD path and traffic the host itself emits
+      # never traverses it — so for an hour fail2ban reported `Currently banned:
+      # 1` while blocking nothing at all. `ansible_default_ipv4` rather than the
+      # literal: the offsite host needs its own address here, not this one's.
+      ignoreip = 127.0.0.1/8 ::1 172.16.0.0/12 {{ ansible_default_ipv4.address | mandatory }}
 
       # No `logpath` here, deliberately. [DEFAULT] sets `backend = systemd` and
       # the systemd backend ignores logpath entirely — `fail2ban-client status
@@ -194,7 +202,16 @@
       backend = auto
       logpath = {{ services_data_dir }}/nextcloud/data/data/nextcloud.log
       port = http,https
-      banaction = iptables-allports
+      # multiport, not allports, since 2026-09-13. Both jails declare
+      # `port = http,https` one line above and `iptables-allports` ignores it:
+      # the rule it writes carries no port match, so a banned address loses
+      # EVERY service behind DOCKER-USER — including DNS over TCP to Pi-hole,
+      # whose RETURN rules sit behind this chain's jump. The jump is inserted at
+      # position 1, ahead of the eight rules this repo puts there. A LAN client
+      # banned for failing to log into Nextcloud would have lost its resolver
+      # for the whole bantime, silently. Traefik publishes 80 and 443 on the
+      # container side too, so `http,https` matches in the FORWARD path.
+      banaction = iptables-multiport
       chain = DOCKER-USER
       maxretry = 5
       findtime = 600
@@ -223,7 +240,16 @@
       logpath = {{ services_data_dir }}/vaultwarden/logs/vaultwarden.log
       logtimezone = UTC
       port = http,https
-      banaction = iptables-allports
+      # multiport, not allports, since 2026-09-13. Both jails declare
+      # `port = http,https` one line above and `iptables-allports` ignores it:
+      # the rule it writes carries no port match, so a banned address loses
+      # EVERY service behind DOCKER-USER — including DNS over TCP to Pi-hole,
+      # whose RETURN rules sit behind this chain's jump. The jump is inserted at
+      # position 1, ahead of the eight rules this repo puts there. A LAN client
+      # banned for failing to log into Nextcloud would have lost its resolver
+      # for the whole bantime, silently. Traefik publishes 80 and 443 on the
+      # container side too, so `http,https` matches in the FORWARD path.
+      banaction = iptables-multiport
       chain = DOCKER-USER
       maxretry = 5
       findtime = 600
