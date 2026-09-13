@@ -175,6 +175,11 @@
 # stack is up, so the units land on a host whose docker is already configured.
 - name: Install the Docker image retention timer
   ansible.builtin.import_tasks: image_retention.yml
+  # Tagged for the reason `secrets` and `backup` are: this installs two unit
+  # files and touches nothing else, so it must be reachable WITHOUT compose.yml,
+  # whose `compose up` copies the whole stack definition and arms every pending
+  # image pin for the heal timer.
+  tags: [image-retention]
 
 - name: Flush handlers so the posture check below sees the restarts, not the state before them
   ansible.builtin.meta: flush_handlers
