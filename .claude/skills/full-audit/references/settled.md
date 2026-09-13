@@ -153,6 +153,71 @@ bearing either.** The 2026-09-12 run left a 412 KB dump world-readable in `/tmp`
 its 13 secret-shaped matches were all `*_FILE=` **paths** and public GPG key ids.
 Check before alarming — and before dismissing.
 
+## Shipped on 2026-09-13 — the remediation, and what it cost to find
+
+Twelve commits, all deployed and verified by probing the function rather than
+reading a PLAY RECAP. **Five defects were found while APPLYING the audit's
+corrections, none of them visible on any dashboard**, and that ratio is the
+lesson: verifying that a fix took effect is a better detector than the audit
+that motivated the fix.
+
+- **`--tags backup` reached none of the three restic timers.** A reschedule
+  deployed, reported `changed=2`, and left both timers on the host still saying
+  Sunday. `backup.yml` and `offsite.yml` were untagged; only `resticprofile.yml`
+  carried the tag. Any timer change since the role was written would have been
+  lost in silence. Both are tagged now.
+- **`homelab-backup` had no `--lock-wait`**, so a held lock made it fail
+  instantly and skip the night. It could never fire while the weekly
+  maintenance ran downstream of it; inverting the order exposed it.
+- **The vault mount's credential task notified nothing.** Rotating
+  `rclone_webdav_pass` wrote a new value and left the running rclone on the old
+  one until a reboot. Cause of an 18-hour outage behind `active (running)`.
+- **`rclone_webdav_pass` in the vault was stale since 2026-09-12**, which is
+  what the missing notify had been hiding. The fix made it fail loudly on the
+  next deploy, which is the correct behaviour and felt like a regression.
+- **Three Kuma monitors created by hand had `resend_interval = 0`**, alone in
+  the lab. Found by the repo's OWN posture assertion as soon as it could run
+  without timing out — the gate did the audit's job.
+
+## Declined — added 2026-09-13, do not re-propose
+
+- **An assertion on Transmission's s6 stop hook.** The image's own
+  `svc-transmission/finish` runs `transmission-remote -n "$USER":"$PASS" --exit`
+  on every container stop, and `/proc` has no hidepid. It is real, it is
+  **accepted**, and it is documented in `docs/05-services/transmission.md`.
+  It is NOT fixed (both files are inside the image; an edit is undone by the
+  next pull) and it is NOT asserted, deliberately: **a check that pins the
+  contents of an upstream script is class C86** — a value restated to freeze an
+  upstream default — and fires on any benign refactor. A permanently-red
+  monitor is worse than a written acceptance. What would re-open it is written
+  in the doc: Transmission reachable beyond the tunnel, or an untrusted local
+  account on the host.
+- **`hidepid` on `/proc`**, rejected on cost: netdata reads `/proc` for every
+  container's metrics and would need an exemption, which is a larger change
+  than the exposure warrants on a LAN-only host behind a VPN.
+- **Moving the daily reports ahead of the 03:00 backup.** Proposed by the
+  operator, declined with evidence and accepted: `disk` (2 s), `posture` (2 min)
+  and `feed-digest` (2.3 min) take no restic lock and can starve nothing, and
+  the disk timer's 07:00 is a documented choice — it reports *after* the backup
+  so that "a night that filled the disk is reported with the consequences
+  already in".
+- **Moving `homelab-smart-test` into the weekly block.** Its own measurements
+  forbid it: the scan runs four to eight hours at 3-5x read latency, and its
+  schedule was already chosen to sit AFTER the backup for exactly that reason.
+
+## Measured and rejected — added 2026-09-13
+
+- **The 70 GiB backup growth as an anomaly.** It is the intended consequence of
+  ADR-035: Radarr/Sonarr import into `library/`, hard-linked from `downloads/`,
+  and that directory had never been backed up. 41 files, two TV seasons and
+  five films, verified by inode. Restic read 418 GiB and stored 69.986 GiB —
+  deduplication held. The path-set change is what broke parent-snapshot
+  selection and forced the full re-read; it is one-off.
+- **`ls -l <file>` on the rclone vault mount** prints `Input/output error` AND
+  the correct line, on a HEALTHY mount. `stat`, directory listing, read, write
+  and delete all work. Do not diagnose a broken mount from it — and do not
+  assert on it.
+
 ## Instrument traps paid for on 2026-09-13 — carry these
 
 **A `docker logs --since/--until` window in the wrong frame returns silence, not
