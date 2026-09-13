@@ -134,6 +134,24 @@
       pass = {{ rclone_obscured_pass.stdout }}
   no_log: true
   when: "'REMOTE_MATCH' not in rclone_remote_check.stdout | default('')"
+  # Added 2026-09-13. Without it, rotating `rclone_webdav_pass` wrote a new
+  # credential to disk and left the RUNNING rclone authenticating with the old
+  # one until the next reboot — the mount reporting `active (running)` the
+  # whole time, because rclone's process does not exit when its credential
+  # stops being accepted. That is the trap the handler below already documents
+  # for the UNIT FILE ("a unit-file edit plus a bare daemon-reload leaves the
+  # RUNNING rclone on the old definition"); the same reasoning had never been
+  # applied to the secret, which is the thing that actually rotates.
+  #
+  # Found by the consequence rather than by review: on 2026-09-13 the vault
+  # mount answered `Input/output error` on every read for eighteen hours while
+  # `systemctl is-active` said `active`, and the only symptom that surfaced was
+  # the daily digest failing. Nextcloud was returning
+  # `PasswordLoginForbidden: 401` — the `admin` account has 2FA enabled, so an
+  # app-password that no longer matches is retried as an account password and
+  # refused.
+  notify:
+    - Restart vault mount
 
 - name: vault | Remove legacy rclone config from the SD card
   ansible.builtin.file:
