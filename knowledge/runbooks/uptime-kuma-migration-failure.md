@@ -32,11 +32,33 @@ cd /opt/homelab && sudo docker compose down uptime-kuma
 A knex migration that fails rolls itself back, so the schema normally stays on the previous
 version. Check rather than assume (the container is down, so read the file from the host):
 
+**Read a COPY OF ALL THREE FILES, never `kuma.db` alone.** The database runs in
+WAL mode, so the most recent writes are in `kuma.db-wal` and not yet in
+`kuma.db` — 4.1 MB of them when this was measured on 2026-09-13. This runbook's
+own premise makes that certain rather than unlikely: a container that is
+crash-looping was killed, so nothing checkpointed the WAL on the way out.
+
+`?immutable=1` is the specific trap and it used to be on the next line. It tells
+SQLite the file cannot change, which makes it **ignore the `-wal` entirely** —
+so the assessment below would have reported a monitor count and a schema version
+from before the last writes, and reported them confidently. The same trap is
+recorded against Pi-hole's FTL database.
+
 ```bash
-sudo docker run --rm -v /mnt/data/services/uptime-kuma:/d:ro alpine:3.20 \
-  sh -c 'apk add -q sqlite; sqlite3 "file:/d/kuma.db?immutable=1" \
+W=/mnt/data/tmp/kuma-assess
+sudo rm -rf $W && sudo mkdir -p $W
+sudo cp -a /mnt/data/services/uptime-kuma/kuma.db* $W/     # .db, -wal and -shm
+
+sudo docker run --rm -v $W:/d alpine:3.20 \
+  sh -c 'apk add -q sqlite; sqlite3 /d/kuma.db \
     "PRAGMA integrity_check; SELECT count(*) FROM monitor; SELECT name FROM knex_migrations ORDER BY id DESC LIMIT 1;"'
+
+sudo rm -rf $W
 ```
+
+The copy is mounted read-WRITE on purpose: opening it plainly lets SQLite replay
+the `-wal`, which is the whole point, and it is a throwaway copy so nothing that
+matters is mutated. The live directory is never opened for writing here.
 
 On 2026-08-02 this returned `ok`, 20 monitors, and a last-applied migration still from 2026-05-25
 — nothing had been lost, and no restore was needed.
@@ -65,7 +87,7 @@ Never test this on the live database.
 
 ```bash
 T=/mnt/data/tmp/kuma-trial
-sudo mkdir -p $T && sudo cp /mnt/data/services/uptime-kuma/kuma.db $T/kuma.db
+sudo mkdir -p $T && sudo cp -a /mnt/data/services/uptime-kuma/kuma.db* $T/   # .db, -wal, -shm
 
 cat > /tmp/mark.sql <<'SQL'
 INSERT INTO knex_migrations (name, batch, migration_time)
@@ -99,11 +121,25 @@ Then clean up: `sudo docker rm -f kuma-trial && sudo rm -rf $T`.
 
 ```bash
 S=/mnt/data/services/uptime-kuma
-sudo cp -a $S/kuma.db $S/kuma-pre-migration-mark.db     # backup immediately before mutating
+R=$S/kuma-pre-migration-$(date +%F-%H%M)               # the name carries its run — see below
+sudo mkdir -p $R && sudo cp -a $S/kuma.db* $R/         # .db, -wal and -shm, immediately before mutating
 sudo docker run --rm -v $S:/d -v /tmp/mark.sql:/s.sql:ro alpine:3.20 \
   sh -c 'apk add -q sqlite; sqlite3 /d/kuma.db < /s.sql'
 cd /opt/homelab && sudo docker compose up -d uptime-kuma
 ```
+
+**Two things about that rollback copy, both learned the hard way.**
+
+It copies `kuma.db*`, not `kuma.db`. A rollback point that omits the `-wal` is a
+rollback to an older state than the one you meant to protect, and the 37 monitors
+exist nowhere else.
+
+Its name carries a timestamp, so a second migration cannot overwrite the first
+one's rollback point. The previous fixed name — `kuma-pre-migration-mark.db` —
+meant the second repair compared against, and destroyed, the artefact of the
+first. `resticprofile.yaml.j2` excludes these by glob for the same reason; a
+literal path would have excluded the 2026-08-02 copies and silently backed up
+every later one.
 
 Verify the **function**, not the container state — heartbeats are the proof monitoring resumed:
 
