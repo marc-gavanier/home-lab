@@ -2,7 +2,7 @@
 
 **Date**: 2026-05-15
 **Status**: Accepted
-**Deciders**: Marc Gavanier
+**Deciders**: the home lab operator
 
 ## Context
 

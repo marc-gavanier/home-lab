@@ -146,7 +146,7 @@ authority that assigns it, or watched.**
 |---------|-------------|-------|-----------|
 | Public IPv4 | the ISP | — | **derived** — the DDNS job re-reads it every 15 min and pushes the record |
 | The offsite's endpoint | DHCP at the remote site | — | **derived** — `offsite-wg-reresolve` re-resolves the peer name, which is the recovery path a home address change needs |
-| homelab LAN address | the router, **one-day lease** | `192.168.1.100`, hardcoded in 19 places including the resolver handed to every VPN client | **watched** — `lan-address-is-the-one-the-configuration-hardcodes` |
+| homelab LAN address | the router, **one-day lease** | `<pi-lan-ip>`, hardcoded in 19 places including the resolver handed to every VPN client | **watched** — `lan-address-is-the-one-the-configuration-hardcodes` |
 | `proxy` network | Docker's default pool | `172.18.0.0/16` | **watched against both authorities** — `traefik-allowlist-covers-the-live-proxy-subnet` |
 | `homelab_internal` | Docker's default pool | `172.19.0.0/16` | **watched** — `docker-networks-are-where-the-configuration-expects-them` |
 | `homelab_socketproxy` | Docker's default pool | `172.20.0.0/16` | same assertion |
@@ -185,7 +185,7 @@ one. Both corrected. Where these networks are is a measurement, kept in
 ### Requirements
 
 - **IPv4 full stack** (not CGNAT) — required for port forwarding. SFR/Red users must request a rollback from CGNAT via support.
-- **Static DHCP lease** for the Pi (192.168.1.100)
+- **Static DHCP lease** for the Pi (<pi-lan-ip>)
 - **Port forwarding**: 51820/UDP (WireGuard) and 51413 (Transmission peer port) → Pi.
   **80/TCP and 443/TCP are deliberately NOT forwarded** — the forward was removed in
   late July 2026, and Traefik now serves the LAN and the VPN only. Re-adding them

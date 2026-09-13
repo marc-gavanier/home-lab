@@ -38,7 +38,7 @@ http:
     # #128 dropped the subnet on this evidence:
     #
     #   14 days of access logs, 77 395 requests, three source addresses ever:
-    #     59 844  192.168.1.100   the Pi itself
+    #     59 844  <pi-lan-ip>   the Pi itself
     #     17 527  172.18.0.1      the hairpin — this is every VPN client
     #          1  172.18.0.8      uptime-kuma
     #          0  10.8.0.0/24     in fourteen days

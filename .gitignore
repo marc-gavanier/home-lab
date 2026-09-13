@@ -36,3 +36,7 @@ Thumbs.db
 # SearXNG branding — generated assets and the brand logo stay out of the (public) repo
 docker/branding/searxng/out/
 docker/branding/searxng/logo.*
+
+# Jellyfin Live TV — a channel list is a personal subscription, not project config.
+# Copy iptv-fr.m3u.example next to it; the deploy task skips when it is absent.
+ansible/roles/deploy/files/jellyfin/iptv-fr.m3u

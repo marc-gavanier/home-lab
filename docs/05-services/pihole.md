@@ -21,29 +21,34 @@ DNS server with ad/tracker blocking and split DNS for the home lab.
 Set Pi-hole as the DNS server distributed by DHCP:
 
 1. Router admin (192.168.1.1) > LAN > Characteristics
-2. DNS primaire: `192.168.1.100`
+2. DNS primaire: `<pi-lan-ip>`
 3. DNS secondaire: leave empty (prevents devices from bypassing Pi-hole)
 
-### TV Decoder Bypass
+### Exempting a client from filtering
 
-The SFR TV decoder breaks when filtered by Pi-hole. Exclude it:
+Some devices break when their DNS is filtered — an ISP-supplied TV decoder is
+the usual one. Exclude it:
 
 1. Pi-hole admin > **Groups** > create group `bypass` (description: "Unfiltered devices — e.g. TV decoder")
-2. Pi-hole admin > **Clients** > add the decoder **by MAC** (`B4:E2:65:E3:BF:DF`),
-   not by IP
-3. Assign the decoder to group **bypass** only (remove from **Default**)
+2. Pi-hole admin > **Clients** > add the device **by MAC**, not by IP
+3. Assign it to group **bypass** only (remove from **Default**)
 4. Ensure adlists are NOT assigned to the bypass group
 
+The devices exempted on a given installation are listed in
+`ansible/inventory/host_vars/<host>/private.yml` (gitignored), not here: a MAC
+address identifies a piece of hardware in someone's home and this repository is
+public. `private.example.yml` shows the shape.
+
 **Why the MAC and not the IP.** This is the only per-client rule Pi-hole holds,
-and as deployed it is stored as `192.168.1.46` — an address the router hands out
-on a lease. Read from the live database on 2026-08-31:
+and it is stored as an address the router hands out on a lease. Read from the
+live database on 2026-08-31:
 
 ```bash
 sudo sqlite3 "file:/mnt/data/services/pihole/etc/gravity.db?mode=ro" \
   "select c.ip, g.name from client_by_group cg
      join client c on c.id = cg.client_id
      join 'group' g on g.id = cg.group_id;"
-# 192.168.1.46|Bypass
+# <leased-address>|Bypass
 ```
 
 The day that lease moves, the rule keeps matching an address the decoder no

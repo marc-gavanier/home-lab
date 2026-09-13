@@ -5,7 +5,15 @@
 
 # --- Connection ---
 ansible_user: pi            # Override in local.yml with your real username
-homelab_ip: "192.168.1.100"
+# NO default, deliberately (2026-09-13). This file is committed and public, and
+# the address belongs to your network rather than to this project. Set it in
+# `host_vars/homelab/private.yml`, which is gitignored — see
+# `private.example.yml` for the tier and why it exists.
+#
+# Undefined here rather than defaulted: a wrong default would be templated into
+# Pi-hole's 21 `address=` lines, wg-easy's pushed DNS and two /etc/hosts pins
+# without a word, which is exactly the shape this repo files as class C29. An
+# undefined variable fails the run and names itself.
 # Target SSH port after hardening. The port is obscurity, not security (real
 # protection is key-only auth + fail2ban) — but publishing it would cancel the
 # one thing it buys. Set the real value in each host's vaulted local.yml.

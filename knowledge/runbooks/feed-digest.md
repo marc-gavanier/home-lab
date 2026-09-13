@@ -25,7 +25,7 @@ account that can read the key):
 ```sh
 sudo -u claude bash
 K=$(cat /mnt/data/secrets/claude/miniflux_api_key)
-R="--resolve rss.example.com:443:192.168.1.100"
+R="--resolve rss.<domain>:443:<pi-lan-ip>"
 mf() { printf 'header = "X-Auth-Token: %s"\n' "$K" | curl -sS $R -K - "$@"; }
 ```
 
@@ -77,10 +77,10 @@ whole trick.
 
 ```sh
 # 1. Resurrect the last N entries (30 is a comfortable test batch)
-IDS=$(mf "https://rss.example.com/v1/entries?status=read&direction=desc&order=published_at&limit=30" \
+IDS=$(mf "https://rss.<domain>/v1/entries?status=read&direction=desc&order=published_at&limit=30" \
       | jq -c '[.entries[].id]')
 mf -H "Content-Type: application/json" -X PUT \
-   -d "{\"entry_ids\": $IDS, \"status\": \"unread\"}" https://rss.example.com/v1/entries
+   -d "{\"entry_ids\": $IDS, \"status\": \"unread\"}" https://rss.<domain>/v1/entries
 
 # 2. Re-run (as root, the unit runs as claude on its own)
 exit
@@ -186,7 +186,7 @@ To drain faster, run the service repeatedly; each pass takes the next 400 oldest
 (`direction=asc`). Check what is left:
 
 ```sh
-mf "https://rss.example.com/v1/entries?status=unread&limit=1" | jq -r .total
+mf "https://rss.<domain>/v1/entries?status=unread&limit=1" | jq -r .total
 ```
 
 After a long absence, consider marking the backlog read in the Miniflux UI instead: a
@@ -198,7 +198,7 @@ initial OPML import (2443 entries), and it is why the first scheduled run saw a 
 Feeds fail quietly — Miniflux keeps serving the others.
 
 ```sh
-mf "https://rss.example.com/v1/feeds" \
+mf "https://rss.<domain>/v1/feeds" \
   | jq -r '.[] | select(.parsing_error_count > 0) | "\(.title): \(.parsing_error_message)"'
 ```
 

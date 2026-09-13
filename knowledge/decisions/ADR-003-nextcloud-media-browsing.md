@@ -3,7 +3,7 @@
 **Date**: 2026-05-23
 **Status**: Accepted. Amended 2026-08-27 — the first con below is resolved,
 by the option this ADR guessed at rather than by the cron job it imagined.
-**Deciders**: Marc Gavanier
+**Deciders**: the home lab operator
 
 ## Context
 

@@ -119,7 +119,7 @@ To check the callback direction (Collabora → Nextcloud), which is the one the
 `extra_hosts` pin exists for:
 
 ```bash
-docker run --rm --network proxy --add-host drive.<domain>:192.168.1.100 \
+docker run --rm --network proxy --add-host drive.<domain>:<pi-lan-ip> \
   redis:8.8.1-alpine sh -c 'wget -S -q -O /dev/null https://drive.<domain>/status.php'
 ```
 
