@@ -24,6 +24,77 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Arbitrated and shipped on 2026-09-13 (late afternoon) — key `granularity`, PR #354
+
+**The operator's two register decisions.** C92 closed by decision as a REVIEW
+RULE; C95 stays OPEN. Both are in `classes.md` with their reasoning.
+
+**The review rule C92 became, and it is the durable output of that class:**
+
+> Every fix states the population its own property defines, and either sweeps it
+> or says why it does not.
+
+It exists because the run proved no instrument can derive that population: the
+directory bound gives 2 of 203 fix commits, and a correction's residues routinely
+live in directories the commit never opened. A machine cannot do this; the
+sentence in a commit message can.
+
+**What shipped**, deployed to both hosts from the branch before merge and
+verified by function: the split-DNS monitor re-pointed at an internal name with a
+condition on the address; SSH scoped in ufw per host; the three `*arr`
+healthchecks matched on their body; and the documentary corrections (media
+library on four pages, the Sunday->Tuesday schedule in six places, the restore
+section's 4-of-10 database list, `wireguard.md`'s missing Backup section, three
+`*arr` monitors absent from the Kuma registry).
+
+## Declined — added 2026-09-13 (late afternoon), do not re-propose
+
+- **Announcing the maintenance job's pre-restic failures.** `resticprofile`
+  attaches `run-after-fail` per command, so a failure before the first restic
+  command pushes nothing — proven on the 07:00:01 event. The operator's answer
+  was "on s'en fiche". Note the fact that makes it defensible: `689c4f2` moved
+  the job to Tuesday 01:00, ahead of the 03:00 backup, so the lock collision that
+  caused it cannot recur in that direction.
+- **The short-alarm sampling gap.** The netdata->Kuma adapter reads current alarm
+  state every 300 s; the two container alarms have no `delay:`, so a raised
+  window can be as short as 60 s. Measured: of the three raised episodes netdata
+  retains, one lasted 120 s and fell between two samples. Declined.
+- **Reclaiming the stranded snapshot's space.** Path-group cleanup was declined
+  in August at 1.2 GiB. The new fact — a stranded group now holds the media
+  library — was stated rather than re-argued, and the answer was unchanged. The
+  snapshot stays; the consequence is documented instead.
+
+## Instrument traps paid on 2026-09-13 (late afternoon) — four, all by the MAIN session
+
+1. **A live probe typed with the masked domain.** `example.com` resolves to
+   nothing on the hosts. This file has carried the rule since August and it still
+   happened — so it is restated here as an operational habit, not a footnote:
+   **the repo says `example.com`, every command typed at a host says the real
+   one.**
+2. **Three services tested on one service's port.** The two `rc=7` results were
+   connection-refused, not evidence. A per-target re-run is the only valid form.
+3. **A `sed` that relabelled every port**, turning an unrelated port-8000 rule
+   into an apparent third SSH rule on a host that had just been firewalled.
+4. **A null result with a control that was also null.** `journalctl -t <tag>`
+   returned "No entries" and so did the control, so the instrument was not shown
+   to discriminate. A control known to be non-empty is what makes an absence
+   mean something.
+
+## The GPG signing failure of 2026-09-13, which is NOT the one this file documents
+
+The existing entry describes an intermittent signing failure that TIMES OUT, and
+prescribes a retry then `--no-verify`. This run hit a different one:
+`gpg: signing failed: Inappropriate ioctl for device`, **immediate**, and it
+survived all of it — retry, `DISPLAY=:1`, `DBUS_SESSION_BUS_ADDRESS`,
+`gpg-connect-agent updatestartuptty`, and `--no-verify`. Four attempts, four
+identical failures.
+
+`/usr/bin/pinentry` is already `pinentry-gnome3` and the X socket exists, so the
+documented cause does not apply. **What cleared it was the operator unlocking the
+agent once in their own terminal**; every subsequent commit signed without a
+prompt. So: after two immediate `Inappropriate ioctl` failures, stop retrying and
+ask for one interactive unlock rather than working around the signature.
+
 ## Arbitrated and shipped on 2026-09-13 (night) — one PR
 
 **The operator's three decisions.** C01 closed by arbitration; C03 split, its

@@ -140,9 +140,12 @@ parts that need a thought experiment.
 
 # The register
 
-Runs of 2026-08-15 through 2026-09-13 (night).
-**95 classes: 2 OPEN, 10 GATED, 77 ENUMERATED, 7 closed by decision, plus the
-DECLINED list.** (OPEN = **C92 and C95 only**. **C01 was CLOSED BY THE
+Runs of 2026-08-15 through 2026-09-13 (evening, key `granularity`).
+**95 classes: 1 OPEN, 10 GATED, 77 ENUMERATED, 8 closed by decision, plus the
+DECLINED list.** (OPEN = **C95 only**. **C92 was CLOSED BY THE OPERATOR'S
+ARBITRATION on 2026-09-13 (evening)** — as a review rule, the way C03-R was,
+because the run proved its space is not mechanically derivable; see that run's
+section. **C01 was CLOSED BY THE
 OPERATOR'S ARBITRATION on 2026-09-13**, the way C57 and C66 were: 72/87 verified,
 11/11 true on the last batch, and the remaining 15 accepted as outside this
 audit's instrument set. **C03 was SPLIT on the operator's arbitration the same
@@ -292,34 +295,54 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
-## OPEN — 2 (after the operator's arbitration of 2026-09-13; 4 before it)
+## OPEN — 1 (after the operator's arbitration of 2026-09-13 evening; 2 before it)
 
-**The counter moved 4 -> 2, and it is the lowest this register has ever been
-outside the single evening of 2026-09-03.** Two closures are the operator's
-arbitration rather than a sweep, which is the honest way to say it: C01 and
-C03-R were both at the point where the only remaining move was one no permitted
-instrument can make.
+**The counter moved 2 -> 1, and it is the lowest this register has ever been.**
+The move is an arbitration, not a sweep, and the distinction is the whole point:
+C92's space was measured hard enough this run to prove it cannot be bounded by
+any instrument this audit has, which is a result, not a failure.
 
-**The counter did not move on measurement alone: 4 OPEN in, 4 OPEN out before
-arbitration, and the termination clock RESETS on the mint.** C94 CLOSED by eight per-domain slices. C03's gate reached
-the host. Against that, C95 was minted by two domains reaching the same instance
-from opposite ends, and C01, C92 and C95 remain.
+**`granularity` minted ZERO.** The mint rate across fifteen keys now reads
+5, 11, 12, 7, 2, 4, 1, 0, 2, 1, 2, 2, 3, 1, **0**. That is the second zero-mint
+key after `exclusivity`, but the two are not consecutive — `dependency` minted
+one between them — so the termination clock stands at ONE, not two. The next run
+must invent a sixteenth key and also come back empty.
 
-**The honest reading of a static counter**: it hides the two things that actually
-moved. C94 is closed, and C03 — the oldest open class in this register, open
-since 2026-08-15 — now has the deployed, derived assertion the file has demanded
-since 2026-08-30. What it still lacks is one deliberate failure, which no
-read-only run can supply.
-
-Recording the three mints as instances of existing classes would have shown
-`1 OPEN` and a clean sheet. Two of them were reached by three unrelated domains
-each, and the third by two; that is the evidence threshold this register names as
-strongest, and declining it would be measuring to the target.
+**What did NOT happen, and it matters more than the counter.** No agent proposed
+a mint, and the main session arbitrated none away. That is the first run in this
+register's life where the zero is unanimous rather than negotiated.
 
 | ID | Property | Space it WAS swept over | Space it must be swept over | State |
 |-----|------------------------------------------|---------------------------------|------------------------------------|-----------------|
-| C92 | **A correction applied to the instance that was REPORTED, in a population whose other members carry the same property, with nothing that propagates it or detects the residue** | Nothing yet. The space is derived per correction: for each fix, the population its own property defines | **Four instances in a single day, from three domains that did not talk to each other, and two verified by the main session.** The bound has to be derived commit by commit — "the population this fix's property defines" — and no sweep has yet been run over it. Note the recursion the register must watch: this class's own remediation is subject to it | OPEN |
-| C95 | **An alerting or escalation path whose precondition set intersects the set of objects it alerts about** — so the failure it exists to announce is the failure that prevents the announcement | Nothing swept lab-wide. `network` bound it at 1/1 over Kuma's notification channels; `observability` reached the same instance from the delivery side | The space is every path by which a verdict reaches a human, crossed with what each such path needs to be already working. Kuma's channels are 1; netdata's alarm path, the feed digest and `homelab-health.sh` were not derived by either domain. **Two domains, two different angles, one instance — the evidence threshold this register names as strongest** |
+| C95 | **An alerting or escalation path whose precondition set intersects the set of objects it alerts about** — so the failure it exists to announce is the failure that prevents the announcement | **Three incompatible bounds, and that is why it stays open.** `observability` closed it 10/10 bounded by SINK — where a verdict reaches a human unprompted: 1 push sink, 3 pull, 1 severed. `network` bound it by TRANSPORT: 12 emitters, 2 channels, 9 preconditions, 5 intersections. `backup` bound its own slice 5/5 | The space is the (path, precondition-set) relation, and it must include **emitters that never emit** — which neither closing derivation can see by construction. `backup`'s live instance is exactly that: `resticprofile` attaches `run-after-fail` per COMMAND, so a failure before the first restic command pushes nothing. Proven on the event of 2026-09-13 07:00:01. A sweep of the things that DELIVER cannot see a path that never reaches delivery — the seventh-to-eighth payment of this register's oldest trap | OPEN |
+
+### Why C92 closed by decision rather than by enumeration
+
+Five domains closed their slice with a cardinal — `system` 53/53 over 9 derived
+populations, `network` 25/25, `ansible-deploy` 13/13 after re-derivation,
+`services` 9/9, `security` 7 populations. That is more measurement than C90 or
+C94 had when they closed.
+
+It still does not bound the class, and `project-manager` is why. It tested
+whether `P(C)` — the population a correction's property defines — is a function
+of anything a machine can read from the commit, and it is not: `79d0e3b` touches
+five files under `ansible/` and `knowledge/decisions/`, and its four residues
+live in three directories it never opened. The directory bound gives **2/203**.
+The population bound gives **146/203 fix commits that changed a fact without
+touching a documentary file**, with nothing deriving which of those facts has a
+consumer.
+
+**The run then produced two fresh instances of the class, one of them inside the
+audit's own remediation** — the four media-library pages, where the documentation
+pass of 15:35 RE-EMITTED the false row while re-aligning a table; and the three
+`*arr` monitors running since 02:13 that the registry never listed, found by
+running `ops/kuma-dump.sh` to verify something else.
+
+So the choice was between a sweep that cannot close, and a rule. The operator
+took the rule, on 2026-09-13 (evening), and it is recorded in `settled.md`:
+**every fix states the population its own property defines, and either sweeps it
+or says why it does not.** The five per-domain sweeps stand as evidence; the
+class leaves the audit's counter the way C03-R did.
 
 ### Why C90 arrived OPEN on 2026-09-13 midday — and what closed it the same evening
 
@@ -369,6 +392,130 @@ are largely covered by `system` and `services`, but that is an argument, not a
 sweep, and it is the residual risk on this closure. C90 is therefore ENUMERATED,
 **not GATED**: nothing derives the (object, mutator-set) relation continuously,
 so the next deploy can repopulate it.
+
+## The run of 2026-09-13 (late afternoon) — the key was `granularity`, and it minted nothing
+
+The fifteenth key, and the six-word question no class asked: **at what grain does
+the mechanism act, and at what grain does the problem occur?** The fourteen
+before it asked *when*, *in what order*, *by whom*, *how many*, *against which
+version*, *what survived removal*, *what if two match*, *does the remedy need
+what it fixes*. None asked whether a mechanism's unit of action is the unit of
+the thing it exists to handle.
+
+**The operator was warned before the key was spent** that it sits next to the
+meta-trap this register has paid seven times — "the derivation is sound and it
+keys on the wrong axis" — and arbitrated to spend it anyway. The warning was
+half right: `granularity` paid INSIDE C92 and produced no class of its own.
+
+Mint rate across fifteen keys: 5, 11, 12, 7, 2, 4, 1, 0, 2, 1, 2, 2, 3, 1, **0**.
+**Not consecutive with `exclusivity`'s zero** — `dependency` minted one between
+them — so the termination clock stands at ONE.
+
+### The two arbitrations
+
+| Class | Outcome | Why |
+|---|---|---|
+| C92 | **CLOSED by decision, as a review rule** | Its space is not mechanically derivable — proven, not asserted. See the section above the OPEN table |
+| C95 | **STAYS OPEN** | Three derivations, three incompatible bounds, and a live instance outside the two that close |
+
+### The baseline that said "clean" over a real outage — and it was the main session's
+
+Taken at 15:37: 0 failed units on both hosts, 13 `homelab-*` timer services at
+`Result=success ExecMainStatus=0`, 32 containers up, none unhealthy.
+
+`homelab-local-maintenance.service` exited **1/FAILURE at 07:00:01 that morning**,
+after waiting the full two-hour `--lock-wait` on a profile lock the 03:00 backup
+had held since 03:00:09. It was relaunched by hand at 12:23 and succeeded, and
+systemd reports only the last result. **A timer-exit-code baseline cannot see a
+failure that was manually retried**, and this one is the founding shape of the
+whole skill: green everywhere, and the job had not run.
+
+### C95's live instance, verified by the main session from the journal
+
+`resticprofile` attaches `run-after-fail` to each COMMAND. A failure before the
+first restic command therefore pushes nothing — no Kuma beat, no notification —
+and the dead-man's window is the only remaining signal. The precondition of the
+alert ("a restic command starts") intersects the object it alerts about ("the
+lock stopped a restic command from starting"). That is the property exactly.
+
+### Instances that shipped — PR #354, deployed to both hosts before merge
+
+Grouped under C92, because all five are the same class:
+
+1. **The media library left the backup and four pages did not notice.**
+   `79d0e3b` (13:19) took `library/movies` and `library/shows` out of the restic
+   source, deliberately, with an ADR and a posture assertion checking the split
+   both ways. It corrected its own ADR and nothing else. 325 GiB (57 + 268,
+   measured) went on being described as protected. **The sharpest instance this
+   register has recorded**: `c967658` at 15:35 — the documentation-correction
+   pass — RE-EMITTED the "Library … Restic … Daily" row to re-align the table's
+   columns, two hours after its content became false, and did not see it.
+2. **The split-DNS detector was removed by the fix that claimed to keep it.**
+   The C95 remediation of 15:27 pinned 21 `Host()` names into `uptime-kuma`'s
+   `extra_hosts`, removing the only live detector of split-DNS — which nobody had
+   designed: the 20 HTTP monitors had been resolving those names through Pi-hole
+   on every check. The comment it left asserted the opposite, and `classes.md`
+   line 503 repeated it. Measured: 21 `address=` lines, none for the apex;
+   monitor 8 `hostname=<apex>`, `conditions=[]`. **The heartbeat table shows the
+   before and after**: the old monitor went UP on `104.21.13.100` (Cloudflare),
+   the new one goes UP on `192.168.1.100`.
+3. **The router was the only thing keeping SSH off the internet.** The doc said
+   "not internet-reachable", ufw said `ALLOW IN Anywhere`. Both true at once,
+   which is why neither looked wrong. Now scoped per host, values measured over
+   30 days of `Accepted publickey`. The comment it replaced claimed every
+   connection came from the WireGuard subnet or a LAN; **144 came from a docker
+   bridge**, all on 24-25 August.
+4. **The `*arr` healthchecks passed on a redirect.** `curl -fsS` fails on 4xx and
+   5xx and nothing else; these apps answer 302 to anything they do not route.
+   `/ping` -> 200 rc=0, unknown route -> 302 **rc=0**.
+5. **Three monitors running, absent from the registry.** Prowlarr, Sonarr and
+   Radarr, created 02:13, never recorded — found by running `ops/kuma-dump.sh`
+   to verify instance 2. The registry is what disaster recovery rebuilds Kuma
+   from.
+
+### Rejected from the agents, and why
+
+- **`observability`'s 5.6x sampling ratio.** The main session found an internal
+  contradiction — a 120 s episode cannot raise an alarm whose lookup is
+  `min -10m` — and sent it back rather than relaying it. The agent produced the
+  raw transitions: the alarm DID reach `raised` for 120 s, because the raised
+  window is `(unhealthy - 600 s) + <=60 s`, not the unhealthy duration. **The
+  mechanism survived, the figure did not**: 5.6x divided a measured gap by a
+  theoretical floor and was withdrawn for the measured 2.8x, and "33 %" became
+  "one of the only three episodes retained". Confirmed independently by the main
+  session through the netdata MCP rather than the agent's curl: 120 s, 417 s,
+  600 s, all transmission, all 2026-09-12.
+- **`ansible-deploy`'s five missing required variables** — its own recount by
+  YAML parse gave 79 required, 0 missing. Disclosed unprompted.
+- **`services`' mandate premise, which was the MAIN SESSION's error.** The brief
+  asserted transmission's missing `stop_grace_period` had been corrected. It was
+  never corrected — no commit adds one, `StopTimeout=<nil>` on the host. The
+  agent refused the premise instead of building on it.
+
+### Instrument errors by the main session — four, all caught, all by a control
+
+1. **A live probe typed with the MASKED domain.** `getent hosts kuma.example.com`
+   returned nothing and it proved nothing. `settled.md` has carried the rule
+   since August; it still happened.
+2. **The three `*arr` tested on sonarr's port.** radarr and prowlarr returned
+   rc=7 — connection refused, not evidence. Only the per-port re-run was.
+3. **A `sed` that relabelled EVERY port as `<ssh>`**, which turned the offsite
+   rest-server's port-8000 rule into an apparent third SSH rule on a host that
+   had just been firewalled.
+4. **`journalctl -t homelab-luks-header-backup` returning "No entries" with a
+   control that ALSO returned nothing** — so the instrument did not discriminate
+   and the finding was unsupported until `homelab-heal` (677 entries) replaced
+   the control. The finding then held.
+
+The pattern is the one this register keeps recording: **the instrument is wrong
+more often than the system, and a negative control is what separates the two.**
+
+### What the operator declined, and it is in `settled.md`
+
+Announcing the maintenance job's pre-restic failures; the short-alarm sampling
+gap; reclaiming the stranded snapshot's space. The last one was already declined
+in August at 1.2 GiB; the new fact — a stranded group now holds the media
+library — was stated rather than re-proposed, and the answer was the same.
 
 ## The run of 2026-09-13 (night) — the key was `dependency`, and the register was stale before the agents were sent
 
@@ -499,9 +646,18 @@ One PR, deployed from the branch before merge and verified by function.
   public address, and 80/443 are not forwarded, so one true alert would have
   become eighteen false ones. The pin list is **derived from the `Host()` rules
   in the same file**, and its staleness degrades safely: a service added without
-  a pin simply resolves through Pi-hole as before. Split-DNS resolution is still
-  probed directly, by the `Pi-hole DNS` monitor, rather than inferred from an
-  HTTP monitor's side effect.
+  a pin simply resolves through Pi-hole as before. ~~Split-DNS resolution is
+  still probed directly, by the `Pi-hole DNS` monitor, rather than inferred from
+  an HTTP monitor's side effect.~~
+  **FALSE, and corrected by the run of 2026-09-13 (late afternoon).** That
+  monitor queried the APEX, which carries no `address=` line, with
+  `conditions=[]` — so it answered the public address and could not see a
+  split-DNS failure at all. The pins removed the only live detector, which was
+  accidental: the 20 HTTP monitors had been exercising split-DNS on every check.
+  **This sentence is left struck through rather than deleted**, because it is
+  the register propagating a fix's own false claim into the next run's briefs —
+  the fifth time a stale figure in these reference files has done that, and the
+  first time the file itself authored the error rather than inheriting it.
 - **The four documentary gaps are closed.** `wireguard.md`'s stale restore
   recipe is replaced by a pointer to the runbook — not a second copy;
   `restore-from-backup.md` gains a *Restore Sonarr / Radarr / Prowlarr* section
