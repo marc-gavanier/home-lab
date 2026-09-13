@@ -287,10 +287,26 @@ homelab:
       - /mnt/data/services/uptime-kuma/kuma.db-wal
       - /mnt/data/services/uptime-kuma/kuma.db-shm
 
-      # Two 7 MB copies left behind by the 2.5.0 migration and the migration
-      # marker. Dead files that have gone into every snapshot since 2026-08-02.
-      - /mnt/data/services/uptime-kuma/kuma-pre-2.5.0.db
-      - /mnt/data/services/uptime-kuma/kuma-pre-migration-mark.db
+      # calibre-web's ingest staging. 3.3 GB on 2026-09-13 — LARGER than the
+      # 2.4 GB library it was ingested into — and every byte of it is a second
+      # copy of a book that is already backed up under media/books. Worse for
+      # restic than a plain duplicate: the files are zipped, so content-defined
+      # chunking finds no partner for them and each one is stored whole, on both
+      # the local repository and the append-only offsite.
+      #
+      # Excluding it loses nothing a restore needs: it holds the ORIGINALS as
+      # they were dropped in, after calibre-web has already imported them. The
+      # live directory is not touched by this change — reclaiming those 3.3 GB
+      # on disk is a manual decision, not a deploy's.
+      - /mnt/data/services/calibre-web/processed_books
+
+      # Rollback copies left behind by a Kuma repair. A GLOB, not the two
+      # literal paths this used to carry: the runbook now timestamps each
+      # rollback set so a second repair cannot overwrite the first one's, and a
+      # literal list would have excluded the 2026-08-02 copies while silently
+      # backing up every later one. ~7 MB each, and a rescan rebuilds nothing
+      # from them — they exist only to be restored by hand during a repair.
+      - /mnt/data/services/uptime-kuma/kuma-pre-*
     tag:
       - auto
     # restic's own summary, which the current script parses out of --json to

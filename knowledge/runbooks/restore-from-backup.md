@@ -49,10 +49,42 @@ export HOME=/root
 restic snapshots          # list snapshots
 ```
 
+## The staging directory — clear it BEFORE every restore, never after
+
+Every procedure below stages into the same fixed path, `/mnt/data/tmp/restore`.
+**Delete that directory before each `restic restore`, and do it even if you are
+sure it is empty.** Each recipe carries the line; this section says why, once.
+
+`restic restore` overwrites the files a snapshot contains. It does **not** remove
+files already in the target that the snapshot does not contain. So a second
+restore into a staging tree left over from a first one produces the **union of
+two snapshots** — the newer files, plus whatever only the older one had.
+
+That would be a curiosity if the staging tree were only ever read by hand. It is
+not: two of these procedures then run
+
+```
+rsync -a --delete /mnt/data/tmp/restore/mnt/data/services/<svc>/ /mnt/data/services/<svc>/
+```
+
+and `--delete` makes the staging tree the AUTHORITY over a live service
+directory. A stale file that survives in staging is therefore *restored into
+production*, and a file the real snapshot dropped comes back.
+
+The case that makes this likely rather than theoretical is the one you will
+actually be in: a restore that was interrupted — a tunnel that dropped, a
+password retyped, a wrong snapshot ID spotted halfway — and then started again.
+The second attempt is the dangerous one, and it looks identical to the first.
+
+Nothing in this repository has ever cleared this directory automatically, and
+nothing does now: the deletion is a line in each recipe, where the person
+running it can see it.
+
 ## Restore a single file or folder
 
 ```bash
 # Safest: restore into a scratch dir, then copy out what you need
+sudo rm -rf /mnt/data/tmp/restore   # ALWAYS, first — see "The staging directory" above
 restic restore latest --target /mnt/data/tmp/restore --include /mnt/data/services/vaultwarden
 
 # Or restore in place (OVERWRITES existing files)
@@ -188,6 +220,7 @@ DB dumps are taken before each backup and captured in the snapshot at
 snapshot first:
 
 ```bash
+sudo rm -rf /mnt/data/tmp/restore   # ALWAYS, first — see "The staging directory" above
 restic restore latest --target /mnt/data/tmp/restore --include /mnt/data/backups/dumps
 
 # Nextcloud (MariaDB) — put it in maintenance mode around the import
@@ -222,6 +255,7 @@ that file rather than the live `db.sqlite3` from the service folder — the live
 copy can carry a torn WAL. Restore it as the new database:
 
 ```bash
+sudo rm -rf /mnt/data/tmp/restore   # ALWAYS, first — see "The staging directory" above
 restic restore latest --target /mnt/data/tmp/restore --include /mnt/data/backups/dumps
 
 cd /opt/homelab
@@ -251,6 +285,7 @@ extensions, and the dump must be loaded into a **freshly-initialised** database.
 
 ```bash
 # 1. Get the newest dump (from disk, or restore the folder from a snapshot first):
+sudo rm -rf /mnt/data/tmp/restore   # ALWAYS, first — see "The staging directory" above
 restic restore latest --target /mnt/data/tmp/restore \
   --include /mnt/data/services/immich/upload/backups
 # `sudo sh -c`, NOT `sudo ls`: the directory is 0700 root since #272, and a glob
@@ -361,6 +396,7 @@ database.
 > (`homelab-stack-heal.sh`).
 
 ```bash
+sudo rm -rf /mnt/data/tmp/restore   # ALWAYS, first — see "The staging directory" above
 restic restore latest --target /mnt/data/tmp/restore --include /mnt/data/backups/dumps
 
 cd /opt/homelab
@@ -408,6 +444,7 @@ restic restores directly. Restore only one and you get a forge that lists
 repositories it cannot serve, or serves repositories it does not list.
 
 ```bash
+sudo rm -rf /mnt/data/tmp/restore   # ALWAYS, first — see "The staging directory" above
 restic restore latest --target /mnt/data/tmp/restore \
   --include /mnt/data/backups/dumps \
   --include /mnt/data/services/forgejo
@@ -444,6 +481,7 @@ itself. The database also has no second copy anywhere: Kuma v2 has no
 configuration export, and the monitors were entered by hand in the web UI.
 
 ```bash
+sudo rm -rf /mnt/data/tmp/restore   # ALWAYS, first — see "The staging directory" above
 restic restore latest --target /mnt/data/tmp/restore \
   --include /mnt/data/backups/dumps \
   --include /mnt/data/services/uptime-kuma
@@ -485,6 +523,7 @@ It joined the dump set on 2026-09-11 and had no procedure here until
 2026-09-12, which is the gap this section closes.
 
 ```bash
+sudo rm -rf /mnt/data/tmp/restore   # ALWAYS, first — see "The staging directory" above
 restic restore latest --target /mnt/data/tmp/restore \
   --include /mnt/data/backups/dumps
 
@@ -555,6 +594,7 @@ exists only inside the container.
 ```bash
 svc=sonarr        # or radarr, or prowlarr — everything below follows from this
 
+sudo rm -rf /mnt/data/tmp/restore   # ALWAYS, first — see "The staging directory" above
 restic restore latest --target /mnt/data/tmp/restore \
   --include /mnt/data/backups/dumps \
   --include /mnt/data/services/$svc
@@ -600,7 +640,7 @@ that answers is not an application that kept its state:
 
 ## Full disaster recovery
 
-> **Stop the scheduled timers first, and re-enable them in step 4.** This
+> **Stop the scheduled timers first, and re-enable them in step 5.** This
 > procedure takes 7-33 hours, so it *will* span 03:00, and the nightly backup's
 > own `run-after` ends with `rm -rf /mnt/data/backups/dumps` — the directory
 > step 2 restores and step 3 reads. It fires on SUCCESS, so a backup that runs
