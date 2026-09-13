@@ -197,10 +197,22 @@ docker exec -i nextcloud-db sh -c \
   < /mnt/data/tmp/restore/mnt/data/backups/dumps/nextcloud.sql
 docker exec -u www-data nextcloud php occ maintenance:mode --off
 
-# Immich (PostgreSQL) — see "Restore Immich" below (special search_path handling)
-# Miniflux (PostgreSQL), Forgejo (SQLite) — see their own sections below: both
-# need the target reset or the service stopped first, not just an import.
+# Every OTHER database has its own section below, and needs more than an import
+# — the target reset, or the service stopped first. Do not improvise from here:
+#
+#   Vaultwarden (SQLite)              -> "Restore Vaultwarden"
+#   Immich (PostgreSQL)               -> "Restore Immich"      (search_path handling)
+#   Miniflux (PostgreSQL)             -> "Restore Miniflux"
+#   Forgejo (SQLite)                  -> "Restore Forgejo"
+#   Uptime Kuma (SQLite)              -> "Restore Uptime Kuma"
+#   wg-easy (SQLite)                  -> "Restore wg-easy"
+#   Sonarr / Radarr / Prowlarr (SQLite) -> "Restore Sonarr / Radarr / Prowlarr"
 ```
+
+That is ten databases in all — the same ten the coverage table in
+`docs/06-backup/README.md` lists. If you are reading this because a service is
+missing from both, it is not dumped, and the snapshot holds only whatever was on
+disk when the backup ran.
 
 ## Restore Vaultwarden (SQLite)
 

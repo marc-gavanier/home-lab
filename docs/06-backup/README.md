@@ -14,7 +14,7 @@ Mirrors the `source` list in `ansible/roles/deploy/templates/resticprofile.yaml.
 |------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|-------------------|-----------|
 | Service data & configs | `/mnt/data/services` (Nextcloud files, Vaultwarden, Immich uploads, Jellyfin/Navidrome config…)                                           | Restic            | Daily     |
 | **Media originals**    | `/mnt/data/media` (photos, music, home videos, music videos, books)                                                                       | Restic            | Daily     |
-| **Library**            | `/mnt/data/library/movies` and `/mnt/data/library/shows`, named one by one so `downloads/` stays out of the source structurally (ADR-035) | Restic            | Daily     |
+| **Library**            | `/mnt/data/library` — **not backed up** since 2026-09-13, deliberately: torrent video, re-obtainable, kept until watched (ADR-035)        | —                 | Never     |
 | Nextcloud DB           | MariaDB dump (`--single-transaction`) → `/mnt/data/backups/dumps`                                                                         | dump → Restic     | Daily     |
 | Vaultwarden DB         | SQLite `sqlite3 .backup` (WAL-safe) → `/mnt/data/backups/dumps`                                                                           | dump → Restic     | Daily     |
 | Forgejo DB             | SQLite `sqlite3 .backup` (WAL-safe) → `/mnt/data/backups/dumps`                                                                           | dump → Restic     | Daily     |
@@ -38,6 +38,29 @@ Mirrors the `source` list in `ansible/roles/deploy/templates/resticprofile.yaml.
 
 `restic forget` runs nightly (cheap); the expensive `prune` (repack/reclaim) runs
 weekly in the local maintenance job, not in the backup window.
+
+> **Retention is per path-set, and changing the source strands a group.**
+> `forget` groups snapshots by `host,paths` (restic's default — nothing here
+> overrides it). A snapshot whose source list differs from today's therefore
+> forms its own group, receives no new members, and its keep-daily slots never
+> age out. Changing the backup source leaves the last snapshot of the old shape
+> behind **permanently**.
+>
+> There is one such snapshot today, taken 2026-09-13 03:00, the last before
+> `library/` left the source. It is the only snapshot in the repository that
+> still holds films and series, and it will stay. The consequence worth knowing
+> is not the disk it occupies but that **both ways of asking for a film exit 0
+> and neither tells you what happened**:
+>
+> - `restic restore latest --include /mnt/data/library/...` resolves `latest` to
+>   the newest snapshot overall, which no longer carries that path — so it
+>   restores **nothing**, silently.
+> - `restic restore latest --path /mnt/data/library/movies` resolves `latest`
+>   within the snapshots holding that path — so it restores the **2026-09-13
+>   copy**, however long ago that becomes, and says nothing about its age.
+>
+> Leaving the snapshot is a deliberate choice (2026-09-13): the data is
+> re-obtainable and reclaiming the space was declined.
 
 ### Destination (3-2-1)
 
@@ -81,8 +104,8 @@ LUKS header — the prerequisite for reaching *any* of `/mnt/data` — has its o
 - Weekly: `resticprofile -n homelab prune` then `check`
 - Scheduling (systemd timers):
   - `homelab-backup.timer` — daily 03:00 (dumps → backup → offsite copy → forget)
-  - `homelab-local-maintenance.timer` — Sunday 05:00 (weekly prune + metadata check; deep read-data on the 1st Sunday of the month)
-  - `homelab-offsite-check.timer` — Sunday 06:00 (offsite repo check)
+  - `homelab-local-maintenance.timer` — Tuesday 01:00 (weekly prune + metadata check; deep read-data on the run that falls in the first 7 days of the month)
+  - `homelab-offsite-check.timer` — Tuesday 02:00 (offsite repo check)
 - Monitoring: Uptime Kuma **Push** monitors (dead-man's switches) — the scripts ping on
   success/failure, and missed pings turn a monitor red (catches "didn't run at all"). Setup:
   `knowledge/runbooks/backup-monitoring.md`

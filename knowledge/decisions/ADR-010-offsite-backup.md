@@ -44,7 +44,7 @@ Consequences of the no-password-on-offsite rule:
   homelab anyway). Retention is a rare, manual, on-site procedure — growth is
   slow because media is mostly append-only.
 - Repo integrity (`restic check`) runs weekly FROM the homelab through the
-  tunnel (systemd timer `homelab-offsite-check`, Sunday 06:00).
+  tunnel (systemd timer `homelab-offsite-check`, Tuesday 02:00).
 - The offsite Pi only self-reports disk health (df + SMART) to Uptime Kuma.
 
 ## Monitoring

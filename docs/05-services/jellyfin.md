@@ -79,10 +79,11 @@ restic restore latest --target / --include /mnt/data/services/jellyfin
 docker compose up -d jellyfin
 ```
 
-Films and series live under `/mnt/data/library/` and are backed up daily, listed
-subdirectory by subdirectory in the restic source so that `library/downloads/`
-stays out of the backup structurally (ADR-035). Home videos and music videos are
-backed up with the rest of `/mnt/data/media`.
+Films and series live under `/mnt/data/library/` and are **not backed up** — the
+whole tree left the restic source on 2026-09-13, deliberately: it is
+torrent-sourced video, re-obtainable, kept only until watched (ADR-035). Losing
+it costs a re-download. Home videos and music videos are a different tree and
+*are* backed up daily, with the rest of `/mnt/data/media`.
 
 The four libraries Jellyfin was configured with are unchanged: it mounts four
 host sources into the same `/media/videos/...` container tree, so nothing inside

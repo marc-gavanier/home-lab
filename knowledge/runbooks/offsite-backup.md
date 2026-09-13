@@ -25,7 +25,7 @@ append-only mode. The repo password is deliberately NOT stored on it.
   ls /mnt/data/backups/restic-repo/snapshots | wc -l       # local
   ssh offsite 'ls /mnt/backup/restic/snapshots | wc -l'    # offsite, filesystem only
   ```
-- Sunday 06:00 — homelab `homelab-offsite-check.timer`: `restic check` of the
+- Tuesday 02:00 — homelab `homelab-offsite-check.timer`: `restic check` of the
   offsite repo through the tunnel (Kuma push monitor "offsite check").
 - Daily 08:00 — offsite `offsite-health.timer`: disk/SMART/power self-report,
   and the assertion that the rest-server still refuses deletes (Kuma push
@@ -73,7 +73,7 @@ append-only mode. The repo password is deliberately NOT stored on it.
   CPU temperature was reported and never compared until #201, on a host sampled
   once a week.
 - 1st of the month 04:00 — offsite `offsite-smart-test.timer`: SMART long
-  self-test (the drive scans its own surface); result read by the Sunday
+  self-test (the drive scans its own surface); result read by the daily
   health report.
 
 ## Management access (SSH)

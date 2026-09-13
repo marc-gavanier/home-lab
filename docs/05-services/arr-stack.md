@@ -72,10 +72,11 @@ full procedure is
 restore **Prowlarr first**, because the other two pull their indexer definitions
 from it.
 
-The media itself is not theirs to restore: films and series live in
-`library/movies` and `library/shows`, backed up separately and listed
-subdirectory by subdirectory so that `library/downloads` stays out of the backup
-(ADR-035).
+The media itself is not theirs to restore, and there is nothing to restore it
+from: films and series live in `library/movies` and `library/shows`, which are
+**deliberately outside the restic source** since 2026-09-13 (ADR-035). They are
+torrent-sourced, re-obtainable, and kept only until watched. Losing them costs a
+re-download, not a recovery.
 
 ## Backup
 

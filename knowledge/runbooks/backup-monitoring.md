@@ -65,7 +65,8 @@ file holds only the notify lines: **the cause is in the journal**, not there.
 ## Local maintenance monitor
 
 The local maintenance job (`homelab-local-maintenance.timer`,
-Sunday 05:00: weekly prune + metadata check, monthly deep read-data on the 1st Sunday)
+Tuesday 01:00: weekly prune + metadata check, deep read-data on the run that falls
+in the first 7 days of the month)
 reports to its own push monitor, same pattern as the offsite check:
 
 | Monitor               | Pinged by                                            | Interval       | Vault variable                                    |
