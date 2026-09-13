@@ -58,7 +58,7 @@ Look for the host named `homelab`.
 ## Step 3 — Verify SSH Access
 
 ```bash
-ssh pi@<PI_IP>
+ssh pi@<pi-lan-ip>
 ```
 
 Should connect without password prompt (key-based auth). If it works, you'll see the Ubuntu welcome message with system info.
