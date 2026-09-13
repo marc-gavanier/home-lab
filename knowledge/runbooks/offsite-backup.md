@@ -183,15 +183,56 @@ shell variable or file on this host).
 
 ## Deep integrity check (quarterly, manual, from the homelab)
 
+> **Disable the backup timer for the duration. The profile locks do NOT cover
+> this.** The two facts that make it necessary, both verified 2026-09-13:
+> `check` takes an **exclusive** lock on the repository, and the `offsite`
+> profile holds `/var/lock/resticprofile-offsite.lock` while the nightly copy
+> runs under the `homelab` profile and holds a **different** lock
+> (`resticprofile-homelab.lock`). Two different locks on one append-only
+> repository serialise nothing. Running the command below "overnight", as this
+> page used to say without qualification, aims a multi-hour exclusive lock
+> straight at the 03:00 copy window — and the section *Never run two copies at
+> once* above records what that cost the last time: ~100 GB of permanent
+> duplicates.
+
 ```bash
-sudo systemctl start homelab-offsite-check.service   # weekly metadata check
-# Deep read of 2% of the data (WAN-heavy once offsite — run overnight):
+sudo systemctl disable --now homelab-backup.timer     # re-enable when it finishes
+
+sudo systemctl start homelab-offsite-check.service    # weekly metadata check
+# Deep read of 2% of the data (WAN-heavy once offsite — several hours):
 sudo -i
 set -a; . /opt/homelab/backup.env; set +a
 RESTIC_REPOSITORY="$OFFSITE_RESTIC_REPOSITORY" RESTIC_PASSWORD="$OFFSITE_RESTIC_PASSWORD" \
 RESTIC_REST_USERNAME="$OFFSITE_REST_USER" RESTIC_REST_PASSWORD="$OFFSITE_REST_PASSWORD" \
 restic check --read-data-subset=2%
+
+sudo systemctl enable --now homelab-backup.timer      # and check it is armed
+systemctl list-timers homelab-backup.timer
 ```
+
+**Run it under `tmux` or `screen`.** The only route to this host is the single
+WireGuard tunnel; a dropped SSH session kills the check mid-read and leaves the
+exclusive lock behind, which is the next section.
+
+### If a lock is left behind
+
+Nothing in this repository documented `restic unlock` until 2026-09-13, and the
+local stale-lock detector (`restic-repo-has-no-stale-lock`) scans
+`<backup_dir>/restic-repo/locks` — **the local repository only**. The offsite
+repository had no lock assertion at all; one was added to
+`goss-offsite-health.yaml.j2` in the same change as this paragraph.
+
+```bash
+# List first. Never unlock blind — a lock with a live restic behind it is doing
+# its job, and removing it is how two writers meet on an append-only repo.
+restic list locks
+restic unlock            # removes stale locks only
+restic unlock --remove-all   # last resort, and only with NO restic running anywhere
+```
+
+A lock created by the offsite host's own manual prune carries
+`hostname=offsite`, so the homelab can never age it out on its own — check both
+hosts before concluding a lock is stale.
 
 ## Disaster recovery (homelab lost)
 
