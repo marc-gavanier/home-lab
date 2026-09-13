@@ -35,29 +35,36 @@
       # further out: the nightly `copy` writes to this repository and takes
       # restic's own lock on it. An overrunning copy must delay the check, not
       # fail it.
-      # SuccessExitStatus=1, 2026-09-13. This script REPORTS by pushing DOWN to
-      # its own Kuma monitor and then exiting 1, so without this line one
-      # incident is announced twice: once by this unit's monitor, and again by
-      # `Pi health`, which reds on `last run failed:`. The second message says
-      # nothing the first did not, and it LATCHES the aggregate monitor — `Pi
-      # health` carries ~17 acute host conditions, and while it is held DOWN by
-      # a scheduled job's problem an acute one arriving behind it notifies
-      # nobody until the next resend (#216).
+      # NO SuccessExitStatus HERE, and the reason is the one the 2026-09-13
+      # sweep got wrong. That sweep selected units by ExecStart COUNT and
+      # applied the line to the three carrying one, on the premise written into
+      # each: "this script REPORTS by pushing DOWN to its own Kuma monitor and
+      # then exiting 1", so the systemd failure is a duplicate worth
+      # suppressing.
       #
-      # The rule is not new: it was applied to homelab-lynis on 2026-08-24 and
-      # the journal is its own positive control — lynis appears in
-      # `last run failed:` on 08-23 and 08-24 and never again. What was missing
-      # is that the POPULATION was never swept. It is now: of the 13 timer
-      # services, the ones that report by exiting non-zero after pushing DOWN
-      # get this line.
+      # The premise is false for THIS unit, because the ExecStart below is not
+      # one of our scripts at all. It is resticprofile, and the DOWN push lives
+      # in `run-after-fail` (resticprofile.yaml, the `offsite` profile) — a HOOK,
+      # which only fires once resticprofile has actually run the command. When
+      # it aborts BEFORE that, nothing pushes anything.
       #
-      # NOT applied to homelab-backup or homelab-local-maintenance, and that is
-      # deliberate: both carry TWO ExecStart lines whose ordering guarantee
-      # depends on Type=oneshot stopping at the first failure — no replication
-      # if the backup did not run, no check if the prune did not. Making exit 1
-      # a success would run the second command anyway. Their duplicate
-      # notification is the cheaper of the two costs.
-      SuccessExitStatus=1
+      # That is not hypothetical. On 2026-09-13 the sibling unit
+      # homelab-local-maintenance waited out its 2 h `--lock-wait` ceiling and
+      # exited 1 at 07:00:01 before the profile started: no hook ran, and its
+      # monitor received no beat at all, neither up nor down. With the line
+      # below present, systemd would ALSO have recorded that as a success.
+      #
+      # What caught it was `Pi health`, precisely because systemctl said the
+      # unit had failed — measured at +7 min 11 s with the cause named, against
+      # 72 DOWN beats over six hours. `homelab-health.sh` reads
+      # `systemctl show -p Result` and skips `success`, so SuccessExitStatus=1
+      # here does not remove a duplicate: it removes the ONLY fast detector this
+      # unit has, and leaves the Kuma silence fuse, which is days wide.
+      #
+      # The correct criterion is not "how many ExecStart lines" but "can the
+      # thing this unit runs always reach its own reporter". homelab-ddns can
+      # (notify() is defined at line 26, before anything touches the filesystem
+      # or the network). This unit cannot, because it does not own the code.
       ExecStart=/usr/local/bin/resticprofile --lock-wait 2h -c /opt/homelab/resticprofile.yaml -n offsite check
       EnvironmentFile=/opt/homelab/backup.env
       Environment=HOME=/root

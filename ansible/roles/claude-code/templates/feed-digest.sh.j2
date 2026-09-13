@@ -57,54 +57,15 @@ MAX_ENTRIES={{ feed_digest_max_entries | default(400) }}
 # typo fix" signal, full articles blow the context on a busy day.
 CONTENT_CHARS={{ feed_digest_content_chars | default(600) }}
 
-mkdir -p "$(dirname "$LOG")" "$DIGEST_DIR"
+# ONLY the log directory here, and it is on the SD card. Creating $DIGEST_DIR
+# is a WRITE INTO THE VAULT, and under `set -e` it used to run at this line —
+# 97 lines before fail() exists and 102 before the vault gate. On 2026-09-13 the
+# vault returned EIO and this script died right here: no trap, no notify(), no
+# log line naming a cause. The gate below was moved into this file so it could
+# announce its own failure, and the very first thing the file did was touch the
+# vault before that was possible. The vault half now lives after the gate.
+mkdir -p "$(dirname "$LOG")"
 log() { printf '[%s] %s\n' "$(date -u +%FT%TZ)" "$*" | tee -a "$LOG"; }
-
-# Some vaults expect every folder to carry a note named after it — that is what
-# Obsidian shows when you click the folder. Written once and never overwritten, so
-# a hand-written replacement survives every deploy; delete it if your vault has no
-# such convention and it will not come back until the folder is recreated.
-PRESENTATION="${DIGEST_DIR}/${FOLDER_NAME}.md"
-if [ ! -e "$PRESENTATION" ]; then
-    cat > "$PRESENTATION" <<PRESENTATION_EOF
----
-type: note
-tags: [${NOTE_TAGS}]
----
-
-# ${FOLDER_NAME}
-
-Dated notes in this folder are written **automatically** by
-\`homelab-feed-digest.timer\`: the job reads everything unread in Miniflux, has
-Claude summarise it, writes the note, then marks those entries read. This folder
-is therefore the only place the digest is readable.
-
-A note is an output, never a source. If a digest reads badly, do not edit the
-note, fix the prompt and replay it.
-
-## Tuning the prompt
-
-The default prompt ships with the home-lab repository, in English and
-deliberately generic: that repository is public, so nothing personal lives in it.
-It is rewritten on every deploy.
-
-Anything specific to you belongs in \`prompt.local.md\` **in this folder**: what
-to filter for, what matters, how the summary should read. When that file exists it
-wins, and nothing will ever overwrite it.
-
-It sits in the vault, so Obsidian edits it from any device, phone included. That
-is the point: the moment to fix a prompt is the morning a digest disappoints.
-
-To start from the current default, on the host:
-
-    cp ~/.local/share/feed-digest/prompt.md "~/vault/${FOLDER}/prompt.local.md"
-
-It takes over on the next run, with no redeploy. It is **not version-controlled**
-— it rides the vault's backups. Anything worth keeping should be folded back into
-\`ansible/roles/claude-code/templates/feed-digest-prompt.md.j2\`.
-PRESENTATION_EOF
-    log "created ${PRESENTATION}"
-fi
 
 notify() { # $1=up|down  $2=message
     local url="$KUMA_PUSH_URL"
@@ -169,11 +130,21 @@ trap 'fail "digest aborted (rc=$?) — see $LOG"' ERR
 # journal reads `PasswordLoginForbidden` at 06:34, 11:39 and 12:32 — so
 # /proc/mounts matched and the readdir returned EIO. The control process exited
 # 2, systemd failed the unit at 06:34:01, and digest.sh, which holds the only
-# notify() in this chain, never started. Nothing pushed anything; the beat's
-# 60-minute dead-man's window was the entire signal, and the operator learned of
-# it 60 min 46 s later as "No heartbeat in the time window", with no cause.
-# The unit was re-run by hand at 12:36 and now reports `Result=success`, which
-# is how a green dashboard survives a job that did not run.
+# notify() in this chain, never started. Nothing pushed anything.
+#
+# CORRECTED 2026-09-13 (night): this comment used to say the dead-man's window
+# "was the entire signal" and that the cause was never named. That is wrong, and
+# the correction is the reason this unit must keep failing loudly. `Pi health`
+# reported it at 06:41:12 — SEVEN MINUTES AND ELEVEN SECONDS later, carrying
+# `last run failed: homelab-feed-digest.service`, and it held that message for
+# 72 DOWN beats over six hours. It could do so for exactly one reason: systemctl
+# said the unit had failed. That is also why this unit gets no
+# SuccessExitStatus=1 while homelab-ddns does — see the note in
+# roles/deploy/tasks/offsite.yml, which paid for the same mistake.
+#
+# The hand-run at 12:36 then set `Result=success` and the aggregate went green
+# while the schedule stayed unexercised — which is how a green dashboard
+# survives a job that did not run.
 #
 # The protection the ExecStartPre bought is preserved exactly — the mount point
 # exists as an empty local directory when rclone is down, so writing the note
@@ -184,6 +155,57 @@ grep -q " ${VAULT} " /proc/mounts \
     || fail "the vault is not mounted at ${VAULT} — refusing to write the note to the SD card"
 ls -1 "$VAULT" >/dev/null 2>&1 \
     || fail "the vault at ${VAULT} is mounted but unreadable — check vault-mount.service (a rejected credential leaves it active and failing)"
+
+# The vault is mounted and serving, so it is now safe to create the digest
+# folder and its presentation note. Everything below this line may write into
+# the vault; nothing above it may.
+mkdir -p "$DIGEST_DIR"
+
+# Some vaults expect every folder to carry a note named after it — that is what
+# Obsidian shows when you click the folder. Written once and never overwritten, so
+# a hand-written replacement survives every deploy; delete it if your vault has no
+# such convention and it will not come back until the folder is recreated.
+PRESENTATION="${DIGEST_DIR}/${FOLDER_NAME}.md"
+if [ ! -e "$PRESENTATION" ]; then
+    cat > "$PRESENTATION" <<PRESENTATION_EOF
+---
+type: note
+tags: [${NOTE_TAGS}]
+---
+
+# ${FOLDER_NAME}
+
+Dated notes in this folder are written **automatically** by
+\`homelab-feed-digest.timer\`: the job reads everything unread in Miniflux, has
+Claude summarise it, writes the note, then marks those entries read. This folder
+is therefore the only place the digest is readable.
+
+A note is an output, never a source. If a digest reads badly, do not edit the
+note, fix the prompt and replay it.
+
+## Tuning the prompt
+
+The default prompt ships with the home-lab repository, in English and
+deliberately generic: that repository is public, so nothing personal lives in it.
+It is rewritten on every deploy.
+
+Anything specific to you belongs in \`prompt.local.md\` **in this folder**: what
+to filter for, what matters, how the summary should read. When that file exists it
+wins, and nothing will ever overwrite it.
+
+It sits in the vault, so Obsidian edits it from any device, phone included. That
+is the point: the moment to fix a prompt is the morning a digest disappoints.
+
+To start from the current default, on the host:
+
+    cp ~/.local/share/feed-digest/prompt.md "~/vault/${FOLDER}/prompt.local.md"
+
+It takes over on the next run, with no redeploy. It is **not version-controlled**
+— it rides the vault's backups. Anything worth keeping should be folded back into
+\`ansible/roles/claude-code/templates/feed-digest-prompt.md.j2\`.
+PRESENTATION_EOF
+    log "created ${PRESENTATION}"
+fi
 
 # Prompt selection. `ansible.builtin.template` is authoritative by design — this
 # role even PURGES commands deleted from the repo, so the host cannot drift from
