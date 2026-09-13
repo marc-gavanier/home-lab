@@ -1,0 +1,71 @@
+---
+# Docker image retention. Measured 2026-09-13: 73 images, 29 active,
+# **16.62 GB reclaimable (52 %)** — `docker system df` — and the store grows
+# monotonically at ~234 MB/day (73 images entered in 71 days, from the imagedb
+# content mtimes). dozzle held 7 tags, dnsproxy 5, traefik 5. Nothing has ever
+# removed a superseded image: every `compose pull` adds one and the pin list
+# that stops naming the old tag has no counterpart that deletes it.
+#
+# IMAGES ONLY, and that is not a detail. `docker system prune` would also take
+# volumes and networks, and this repository has a standing rule against a broad
+# prune — there is an orphaned anonymous volume that must be removed by hand,
+# deliberately. `docker image prune` cannot touch it.
+#
+# `-a --filter until=720h` is the safety, and it has two independent parts:
+#   * `-a` removes images no CONTAINER references. The 29 in use are held by
+#     the running stack, and the heal timer keeps stopped containers from
+#     lingering unreferenced, so an image in service is never a candidate.
+#   * `until=720h` then requires the image to be older than 30 days, which
+#     keeps the immediately-previous tag of anything bumped this month — the
+#     one you would roll back to.
+# The residual case is an image older than 30 days whose container is down for
+# maintenance across the timer; it would be removed and re-pulled on the next
+# `compose up`. That costs bandwidth, never data.
+#
+# NOT on the deploy path, deliberately: this installs a timer and never prunes
+# during a run. A deploy that reclaims 16 GB while pulling new images is how a
+# rollback target disappears at the worst moment.
+#
+# Named `homelab-*` on purpose: `homelab-health.sh` derives its timer check from
+# that glob, so this unit is covered by the existing floor the moment it exists.
+# The goss units spec is a hand-written list and will NOT assert it — that is
+# C19's known shape, not a regression introduced here.
+
+- name: image_retention | Create the image retention service
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/homelab-image-retention.service
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Remove Docker images no container references and older than 30 days
+      Requires=docker.service
+      After=docker.service
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/bin/docker image prune -af --filter until=720h
+
+- name: image_retention | Create the image retention timer
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/homelab-image-retention.timer
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Monthly Docker image retention
+
+      [Timer]
+      # First Sunday, 04:30 — after the 03:00 backup's median run (407 s) and
+      # well clear of the Tuesday 01:00 maintenance. Persistent, because a Pi
+      # that was off must still reclaim rather than wait another month.
+      OnCalendar=Sun *-*-01..07 04:30:00
+      Persistent=true
+
+      [Install]
+      WantedBy=timers.target
+
+- name: image_retention | Enable the image retention timer
+  ansible.builtin.systemd:
+    name: homelab-image-retention.timer
+    enabled: true
+    state: started
+    daemon_reload: true

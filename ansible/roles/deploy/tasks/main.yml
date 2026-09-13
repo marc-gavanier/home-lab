@@ -171,6 +171,11 @@
 # because the reasoning is what makes the pihole.yml flush safe to keep, and
 # because a future task that notifies AFTER pihole.yml would make this flush live
 # again — at which point this paragraph is correct once more.
+# Installs a timer only; it never prunes during a run. Placed here, after the
+# stack is up, so the units land on a host whose docker is already configured.
+- name: Install the Docker image retention timer
+  ansible.builtin.import_tasks: image_retention.yml
+
 - name: Flush handlers so the posture check below sees the restarts, not the state before them
   ansible.builtin.meta: flush_handlers
 
