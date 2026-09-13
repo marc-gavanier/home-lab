@@ -15,43 +15,67 @@ earlier — which would have sent eight agents to re-derive settled work. Rebuil
 it from `classes.md`'s OPEN table at the start of every run; if the two
 disagree, `classes.md` wins.
 
-As of the run of 2026-09-13 (evening, second), key `locality`. **Rebuilt from
+As of the run of 2026-09-13 (late evening), key `repetition`. **Rebuilt from
 `classes.md`'s OPEN table — do not trust this copy if the two disagree.**
 
-**ZERO OPEN classes.** C95 closed as ENUMERATED; C92, C01, C03-R and C94 were
-already closed. Do not re-sweep any of them.
+**FOUR OPEN classes, after a run whose job was to come back empty.** Ownership:
 
-**Every agent's mandate is therefore the GATED substitute**, which the skill
-already defines: verify that the assertions in your area still fail when they
-should, by reading them, and sweep the run's new key over your own space. An
-evidenced "clean" is the expected outcome and closes nothing that was open.
+| Class | Owner(s) | What closing it needs |
+|---|---|---|
+| **C37** (REOPENED) — a WAL-mode SQLite copied without its `-wal` | `backup`, with `project-manager` on the runbook slice | A space bounded by the PROPERTY — every place a `.db` is copied or read — not by the dump mechanism. The 08-29 sweep's bound is what let a runbook instance sit outside it |
+| **C88** (REOPENED off its file axis) — a store that adds with no counterpart removing what its register no longer names | `services` (image store), `security` (ufw rule set), `ansible-deploy` (the original file axis) | A bound over STORES, not over rendered files. Two domains reached the property independently in non-file stores |
+| **C98** (minted ENUMERATED) — a repeated procedure reuses a fixed, run-invariant NAME for the artefact it later reads back as authoritative | `project-manager` (8 reference points) + `backup` (12 workspaces) | Already swept on both slices. It is ENUMERATED, not GATED — nothing continuously derives the (procedure, artefact-name) relation, so a new runbook reopens it |
+| **C99** (minted ENUMERATED) — a declarative in-place write keyed on the VALUE it writes rather than the record's IDENTITY | `ansible-deploy` | Swept 31/31, 4 defective, 0 live. ENUMERATED, not GATED: nothing asserts that an in-place write carries an identity key |
 
-Two classes were minted on 2026-09-13 evening and are ENUMERATED, not GATED, so
-a deploy can repopulate either:
+**ONE GATE IS RED, and it is the one promoted the same day.** **C03-T** cannot
+detect a mute reporter: Kuma fabricates a DOWN beat every interval for any push
+monitor that is not UP, and C03-T's clauses count `heartbeat` rows with no
+`status` filter. Verified live — 39 fabricated rows on 09-13, all `status=0`.
+`observability` owns the repair and the predicate is `h.status = 1`, **not** a
+match on the upstream English string. Do not re-derive this; read the run section.
 
-- **C96** — a rule whose predicate is an ADDRESS, evaluated at a point other
-  than the one that produced the record the address came from. `security` owns
-  it. N = 11, 1 defective at mint time (the SSH-over-VPN case), fixed by
-  documenting the tunnel address rather than by widening the rule.
-- **C97** — a document instructs the reader to act using a name whose referent
-  depends on where it is resolved, and does not say where. **Lab-wide, not
-  documentary**: five domains derived it independently. `project-manager` owns
-  the documentary slice; every other domain owns its own. N = 150 sites over six
-  resolver generators, 21 confirmed and fixed.
+**The standing structural gap that is not a class, re-confirmed exactly**:
+`offsite.yml` plays `base`, `security` and `offsite-backup` only, so `/etc/goss`
+on the offsite holds ONE spec against three on homelab. Every fix that must cross
+hosts is unverified there by construction. It has never been arbitrated — do not
+propose it as a finding.
 
-**One gate is red and stays red until the next posture run confirms it.**
-C03-T's assertion `no-kuma-report-was-lost-in-silence` timed out rather than
-evaluating, twice. The cause was goss concurrency, not the assertion; the fix
-shipped in the same PR. Re-read it before trusting it.
+**Rows corrected this run; do not re-derive them.** C12's "no live assertion at
+all" is FALSE since #333 and the class is a candidate for re-promotion to GATED.
+C14 is 21/21, not 18/18, and its "silent ACME failure" half is a proxy that
+cannot see a name which never obtains a certificate. C19's derived floor is at
+`homelab-health.sh:665`. C21's description is stale for the third time — there is
+no retention monitor. C11's 2026-09-05 "BROKEN" verdict has now been refuted
+three times; retire the comparison.
 
-**Sixteen keys are now spent**: `time`, `order`, `identity`, `scale`,
+**Template-vs-deployed was verified clean in both directions over 317 assertion
+names and 4 specs.** Every "derived" verdict in `classes.md` that rests on a goss
+template is safe. Do not re-check without a new symptom.
+
+**Seventeen keys are now spent**: `time`, `order`, `identity`, `scale`,
 `authority`, `representation`, `vacuity`, `exclusivity`, `interruption`,
 `succession`, `residue`, `concurrency`, `plurality`, `dependency`,
-`granularity`, `locality`. The mint rate reads 5, 11, 12, 7, 2, 4, 1, 0, 2, 1,
-2, 2, 3, 1, 0, 2. A run that reuses one proves nothing. The keys that paid best
+`granularity`, `locality`, `repetition`. The mint rate reads 5, 11, 12, 7, 2, 4,
+1, 0, 2, 1, 2, 2, 3, 1, 0, 2, **2**. A run that reuses one proves nothing.
+**Two were proposed to the operator and not spent — `commensurability` (are both
+sides of this comparison in the same unit, base and reference frame?) and
+`reversibility` (does this mechanism have an inverse, and does the inverse
+restore the prior state?). Both are still available and both arrived with three
+unclassed precedents each.** The keys that paid best
 were found the same way: look for an instrument trap in `settled.md` that no
 class has adopted, or a pair of narrow classes in `classes.md` that are
 obviously two faces of a dimension nobody named.
+
+**What `repetition` proved, for whoever writes key eighteen.** It was the first
+key whose risk was stated to the operator BEFORE it was chosen, and the warning
+held exactly: Ansible idempotence is swept ground, and not one of the run's four
+register moves came from it. The key paid where a repeat is NOT the
+well-understood question — runbooks a human follows twice, a staging directory
+read back as authoritative, a store with no reaper. **Its sharpest finding was
+not an instance of itself**: the gate deployed that same afternoon was blind
+because its fail-on-purpose proof ran against a synthetic database. The general
+lesson is in `settled.md` and it outranks the key — *a gate proven against a
+fixture is proven against the fixture's model of the world.*
 
 **What `locality` proved, for whoever writes key seventeen.** It paid twice at
 the meta level, and both payments are instructive. The main session's own
@@ -72,12 +96,6 @@ version even when the unit declares it. Four domains refuted it. **Verify the
 premise with a positive control, and verify the LEAD the same way** — a null
 result from an unproven instrument is not a lead, and this one propagated to
 every agent.
-
-**The standing structural gap, and it is not a class**: the offsite host has no
-continuous posture assertion of any kind, because `offsite.yml` never plays the
-`observability` role. `/etc/goss` there holds ONE spec against three on homelab,
-measured 2026-09-13 night. Every fix that must cross hosts is therefore
-unverified there by construction.
 
 **Invent the key first, write it into the brief, and send the agents after it.**
 

@@ -24,6 +24,182 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-09-13 (late evening) — key `repetition`, one PR, deployed from the branch before merge
+
+The operator accepted every item of the lot except one, declined that one
+permanently (below), and asked for a single PR.
+
+**Deployed with `--tags observability,backup,ddns,claude-code,image-retention`,
+never a bare run**: the tags keep `compose.yml` out, so no `compose up` copied
+the stack definition and no pending image pin was armed for the heal timer.
+`ok=116 changed=8 failed=0`, then `ok=46 changed=1` for the follow-up.
+
+- **`h.status = 1` on both clauses of `no-kuma-report-was-lost-in-silence`.**
+  Re-proven off-host against a database that CONTAINS fabricated rows, five
+  scenarios, old and new side by side: a mute reporter fed only fabricated rows
+  goes from exit 0 to exit 1, and the discriminating twin — a reporter that
+  really recovered — still exits 0 on both. Verified on the host afterwards:
+  the assertion EVALUATES, no timeout, posture exit 0.
+- **`SuccessExitStatus=1` on `homelab-ddns`, `homelab-offsite-check` and
+  `homelab-feed-digest`**, the three of the five candidates that carry a single
+  `ExecStart`. **NOT on `homelab-backup` or `homelab-local-maintenance`**, and
+  this is the decision worth carrying: both declare TWO `ExecStart` lines whose
+  ordering guarantee depends on `Type=oneshot` stopping at the first failure —
+  no replication if the backup did not run, no `check` if the `prune` did not.
+  Making exit 1 a success would run the second command anyway. Their duplicate
+  notification is the cheaper of the two costs. The agent that proposed the lot
+  of five did not look at the `ExecStart` count.
+- **The Kuma repair runbook copies `kuma.db*`** — all three files — and reads
+  the throwaway copy plainly instead of through `?immutable=1`, which hides the
+  `-wal` by design. Its rollback set is timestamped, so a second repair cannot
+  overwrite the first one's; the restic exclusion became a GLOB in the same
+  change, because a literal path list would then have backed up every later
+  copy.
+- **Nine restore recipes clear `/mnt/data/tmp/restore` before staging**, with
+  one section saying why once. The deletion is a line in each recipe, not an
+  automatism: the person running it can see it.
+- **`fail2ban-client reload` chained to the UFW reload handler.**
+- **A monthly `homelab-image-retention` timer**, images only, `-a --filter
+  until=720h`, off the deploy path.
+- **calibre-web's ingest staging excluded from restic**; the live 3.3 GB is
+  untouched, because reclaiming bytes on disk is a decision and not a deploy's.
+- Three documentary corrections verified against the hosts.
+
+### The new timer turned a gate red, and the gate was right
+
+`offsite-parity-register-covers-every-control-timer` failed on the first posture
+run after the deploy. It derives the set of controls from the MACHINE — every
+`homelab-*.timer` with a unit file — and refuses to pass until a decision is
+recorded for each. A new timer appeared; it caught it within the minute.
+
+**That is the difference between a sweep and a gate, demonstrated on this
+session's own work.** The entry added is a fact about the host rather than an
+opinion about the check, which is the standard that register sets: docker is not
+installed on the offsite, re-verified that night (`command -v docker` empty, no
+`docker.service` unit file, against a `systemctl` control that answers) rather
+than inherited from the 2026-08-30 line above it.
+
+### Deployment note worth keeping
+
+**The deploy role's final "re-assert the posture" task is UNTAGGED**, so a
+tagged deploy does not run it. The posture spec was updated on the host and had
+not been evaluated; the check had to be started by hand to verify the fix. Any
+future tagged deploy that changes an assertion needs the same manual run, or
+the verification is of the file rather than of the behaviour.
+
+## Declined — added 2026-09-13 (late evening), NEVER propose again
+
+- **`OnFailure=` on the `homelab-*` units.** Raised after
+  `homelab-local-maintenance` failed at 07:00:01 on 2026-09-13 — it died on a
+  lock-wait timeout *before* the profile started, so no hook ran, and monitor 22
+  received no beat at all, neither up nor down. The measurement stands and is
+  recorded in `classes.md`: **`OnFailure=` is empty on 14 of 14 units**, and one
+  single unit on the whole host declares one, so every scheduled job depends on
+  its own script reaching its own notification code.
+  **The operator's answer is no, and the instruction is that it never be raised
+  again** — not with a new number, not with a fresh instance, not as part of a
+  larger lot. The silence fuse (C41) remains the backstop and the operator
+  carries the gap knowingly.
+  *Do not re-propose. Do not re-measure it to make the case better.*
+
+## The lesson of 2026-09-13 (late evening, key `repetition`) — a gate proven against a fixture
+
+**C03-T was promoted to GATED on the strength of six fail-on-purpose runs and it
+was blind the day it shipped.** The runs were real, the assertion was read
+verbatim, `docker`/`journalctl`/`sqlite3` were stubbed, and a discriminating twin
+was included. The proof was sincere.
+
+It ran against a **synthetic Kuma database**, which by construction contained
+only the rows the test itself wrote. Production contains rows nobody writes on
+purpose: Kuma 2.5.0 fabricates a DOWN beat carrying `No heartbeat in the time
+window`, once per interval, for any push monitor whose previous beat is not UP.
+C03-T counts `heartbeat` rows with no `status` filter, so those rows answer
+"something reached the dashboard" on behalf of a reporter that reached nothing.
+
+> **A gate proven against a fixture is proven against the fixture's model of the
+> world.** Before trusting a fail-on-purpose proof, ask what the real store
+> contains that the fixture cannot: rows the upstream writes itself, files
+> another process leaves, state that predates the test.
+
+The general form of the remedy is also recorded, because the obvious fix is the
+wrong one: **do not key an assertion on an upstream's human-readable message
+string.** `'No heartbeat in the time window'` is a literal from one version.
+Key on the structured field — `h.status = 1` — which is what C41 has done since
+2026-08-30 and precisely why C41 survives what breaks C03-T.
+
+## Instrument traps paid on 2026-09-13 (late evening) — two by the MAIN session
+
+1. **`systemctl show -p Result` reports the LAST run, not the cadence.** The
+   audit's own baseline read "14/14 `homelab-*` timer services at
+   `Result=success ExecMainStatus=0`" at 21:25 and called the surface clean. One
+   of those units had FAILED at 07:00:01 that morning; a hand-run at 12:24:27
+   overwrote the state. **A unit's current state is not its cadence's history** —
+   to audit a schedule, read the journal for the scheduled instant, or the
+   monitor's beats, not the unit's last result.
+2. **An un-`sudo`'d shell glob over a 0700 directory, paid for the THIRD time.**
+   `sudo ls -l /mnt/data/services/uptime-kuma/kuma.db*` answered "No such file"
+   in the same second that `sqlite3` opened that database successfully — the
+   glob expands in the unprivileged shell before `sudo` ever runs. `sudo sh -c
+   '...'` gave the real answer. This rule is already trap 5 of the secret section
+   below, and it was written into this run's own agent brief before being broken
+   by the person who wrote it.
+
+**Three disclosures by the agents, all unprompted, all worth the credibility they
+buy.** `services` corrected its own filed report to say that a `du -sh
+/mnt/data/docker` it had described as producing nothing had in fact completed at
+exit 0 — so a rule-6 walk did run over the whole store with seven agents on the
+board. It then refused to scale a measured 16.62 GB by a measured 51 G / 32.4 GB
+ratio, on the grounds that the gap was recorded and not attributed. `system`
+caught itself hitting the `logrotate -d` trap below before filing. `network`
+disproved its own instrument rather than reporting a hole.
+
+## Declined near-mints — added 2026-09-13 (late evening)
+
+Both were **offered rather than claimed** by the agents that found them, and that
+is what makes the two mints the same run kept credible.
+
+- **`system`'s "a periodic mechanism whose decision to act is read from a record
+  it rewrites on every run".** Derived and swept: logrotate state (22/19
+  entries), the gate library, heal latches, `pending.last`, 23 systemd stamps, 6
+  apt stamps. **Zero defective, anywhere.** A property with a cardinal and no
+  instance is a hunch with arithmetic. Re-raising needs an instance, not an
+  argument.
+- **`security`'s "a declarative apply step that adds but never retracts, so the
+  deployed set is the union of every value the variable has ever held".** Its own
+  agent rejected it as a re-mint of C88 under a different mechanism. Correct —
+  and it became the second independent derivation that REOPENED C88 off its
+  "file rendered into a directory" axis.
+
+## Measured and rejected — added 2026-09-13 (late evening)
+
+- **`/var/log/sudo.log` unrotated.** 88 168 entries back to 2026-07-18, 15.7 MB
+  on the SD card, no rotated sibling, same signature on the offsite — and it is
+  **not a defect**: `/etc/logrotate.d/sudo` was created 2026-09-12 15:10
+  (`8a4c186`), logrotate registered it at 00:00:08 on 09-13, and it falls due
+  2026-09-20. Do not re-report before that date.
+- **An ACME duplicate-order loop.** Refuted with numbers: 21 certificates, 21
+  names, **21 distinct serials**, 10 issuances in 4 days against Let's Encrypt's
+  50/week. No retry storm exists.
+- **NAT rule accumulation.** `DOCKER-USER` holds exactly 8 rules, wg-easy's
+  MASQUERADE appears once, every host `nat` rule counts 1. The `--noflush`
+  re-append is real and latent, not accumulating.
+- **Pi-hole gravity rebuilding rather than appending.** 79 963 rows == 79 963
+  distinct == the adlist number. It rebuilds.
+- **Entrypoints appending to configs they own.** Zero, over a derived set: file
+  mtime within 3 minutes of each container's own `StartedAt`, non-empty for 8 of
+  14 probed (positive control), every hit a fixed-size rewrite.
+- **The heal timer's exited ∩ unhealthy double-pass.** Safe: the second pass sees
+  `running`/`starting`.
+
+## An instrument with no discriminating power — added 2026-09-13 (late evening)
+
+**The `vpn-only` allow-list cannot be probed from the host.** `curl --interface
+172.17.0.1` and `--interface 172.19.0.1` — both addresses outside the allow-list
+— returned **200**, and the access log shows why: Docker masqueraded both to
+172.18.0.1, which is inside it. The test proves nothing in either direction, and
+a "hole" reported from it would be an artefact. Probe from a real client on the
+real path or do not probe.
+
 ## Declined — added 2026-09-13 (late evening), do not re-propose
 
 - **Removing or hedging the ISP references.** "SFR/Red" appears in six files as
