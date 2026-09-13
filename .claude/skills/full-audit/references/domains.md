@@ -15,45 +15,39 @@ earlier — which would have sent eight agents to re-derive settled work. Rebuil
 it from `classes.md`'s OPEN table at the start of every run; if the two
 disagree, `classes.md` wins.
 
-As of the run of 2026-09-12. **Rebuilt from `classes.md`'s OPEN table — do not
+As of the run of 2026-09-13. **Rebuilt from `classes.md`'s OPEN table — do not
 trust this copy if the two disagree.**
 
-**Three OPEN classes. C10 and C86 are CLOSED and must not be re-swept.**
+**Three OPEN classes. C26 and C87 are CLOSED and must not be re-swept.**
 
-- **C01 — `project-manager`, with every domain feeding it.** Property unchanged:
-  a documentary statement whose content contradicts the deployed artefact. The
-  restated space — a claim about a THIRD PARTY'S CAPABILITY — is now **bounded
-  at N = 87** (141 occurrences), derived by a tier-A modal grep over prose
-  surfaces and reproducible from the repo alone. **39 are swept; 48 remain**, and
-  the run report lists each with the exact instrument it needs. The reason it did
-  not close is structural and worth carrying: **this class has no shared
-  instrument** — every claim needs a different authority (`man`, `--help`, a JSON
-  schema, a container entrypoint, `strings`), so 39 claims cost ~20 host
-  round-trips. Group the 48 by instrument and one dense session finishes them.
-  The highest-yield stratum is the 27 "Alternatives considered" sections across
-  24 of 34 ADRs: a rejection written from memory rather than from the tool's
-  option surface is a C01 instance, and 1 of 1 examined failed.
-- **C26 — `ansible-deploy` and `security`.** REOPENED on its TRACE axis. The
-  live assertion, `ops/check-secret-in-environment.py`, derives 16 secret names
-  from `ansible/roles/deploy/tasks/secrets.yml`; the operator declares 22
-  secret-shaped variables in the example files. Close it by re-deriving over the
-  declared set with a floor, and by sweeping the trace axis — `auth.log`,
-  journald, `/proc`, shell history — for the names the old derivation could not
-  see.
-- **C87 — `system` minted it; the unswept slice belongs to `services` and
-  `backup`.** A hand-made artefact that outlives its operation. **16/16 swept in
-  the hosts' admin and scratch directories, 0/16 on offsite as the control.**
-  Unswept: every service DATA directory — two instances already sit there
-  (`acme.json.bak*`, `wg0.json`). The derivation is reusable as it stands:
-  `zero occurrences in the entire git history` ∩ `present on the host`.
+- **C01 — `project-manager`, with every domain feeding it.** 61/87, 4
+  contradicted cumulative. **26 remain, and the bound is now the rule set rather
+  than the budget: 9 of the 26 are claims about a REFUSAL TO START**, and the
+  only instrument that settles a refusal to start is a start, which rules 5 and
+  6 forbid. ~13 are settleable read-only; 4 are out of the space. **Do not
+  re-derive N = 87.** The "Alternatives considered" stratum is **SWEPT 29/29,
+  0 instances** — close it, do not re-sample it.
+- **C03 — `observability`, with `ansible-deploy` on the gate.** REOPENED for the
+  FIFTH time, in the same script as the fourth. The register's own standing
+  instruction applies: **a class that reopens five times does not need a sixth
+  sweep, it needs a gate, and it still has none.** Its instance is a false
+  positive feeding a live assertion.
+- **C90 — every domain, and that is the point.** Two or more independent
+  mutators of one object with nothing serialising them. Two sweeps returned
+  different cardinals (13 by arbiter, 14 by mechanism) and three further domains
+  produced instances in neither space. **Bind it by the (object, mutator-set)
+  relation, not by enumerating the things that provide mutual exclusion** — a
+  sweep of the latter cannot see an object that has none, which is the property.
 
-**C10 and C86 are CLOSED** — 29/29 + 32/32 and 363/363 over five domains. Do not
-re-derive either. **C88** (a file rendered into a host directory by a loop over a
-shrinking register) is ENUMERATED at 4/4.
+**C26 and C87 are CLOSED.** C26 all four axes, 340/340 ∪ 8 189 processes, 3
+instances, 2 of them in the argv the images ship. C87 at 1997/1997 with a stated
+depth plus a 112 895-entry unbounded cross-check. **C91** (aligned schedules
+degrading their own measurements) is ENUMERATED at 13/13. Do not re-derive any
+of them.
 
-**Eleven keys are now spent**: `time`, `order`, `identity`, `scale`, `authority`,
+**Twelve keys are now spent**: `time`, `order`, `identity`, `scale`, `authority`,
 `representation`, `vacuity`, `exclusivity`, `interruption`, `succession`,
-`residue`. The mint rate reads 5, 11, 12, 7, 2, 4, 1, 0, 2, 1, 2. A run that
+`residue`, `concurrency`. The mint rate reads 5, 11, 12, 7, 2, 4, 1, 0, 2, 1, 2, 2. A run that
 reuses one proves nothing. The keys that paid best were found the same way: look
 for an instrument trap in `settled.md` that no class has adopted, or a pair of
 narrow classes in `classes.md` that are obviously two faces of a dimension
