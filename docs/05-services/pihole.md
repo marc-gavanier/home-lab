@@ -163,9 +163,33 @@ fixed.
 
 ## Restore
 
-From Restic backup:
+**Stop both containers first. This costs the house its DNS for the length of
+the restore, and that is the cheaper of the two costs** — restoring
+`/mnt/data/services/pihole` underneath a running Pi-hole writes over files FTL
+holds open, and FTL then flushes its own copy on the way out. A `restart` is not
+a `down`: the process that is about to overwrite your restored bytes is still
+alive while you restore them.
+
 ```bash
+cd /opt/homelab
+# dnsproxy first: it lives in Pi-hole's network namespace, so it has to leave
+# before Pi-hole does.
+docker compose down dnsproxy pihole
+
 restic restore latest --target / --include /mnt/data/services/pihole
+
+# Bring them back with the RECREATE branch, not `docker restart` — `down`
+# removed both containers, so Pi-hole comes back with a new ID and dnsproxy has
+# to re-resolve `service:pihole` against it. See the note below.
+docker compose up -d pihole
+docker compose up -d --force-recreate dnsproxy
+```
+
+If you are not restoring — if Pi-hole was merely restarted in place and dnsproxy
+came back detached — then the pair below is the repair, and it is the only case
+where `docker restart` is right:
+
+```bash
 # Both, in this order, and never Pi-hole alone: dnsproxy runs with
 # `network_mode: service:pihole`, so bringing Pi-hole back destroys the
 # namespace dnsproxy is attached to. dnsproxy keeps running and stays healthy
