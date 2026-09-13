@@ -718,6 +718,16 @@ if [ $(( $(date +%s) - heal_installed )) -gt 900 ] &&
             [ "${heal_n:-0}" -ge 1 ] || problems+=("crash-heal examined 0 containers — recovery is off")
         elif [ "${heal_n:-0}" -lt "$heal_m" ]; then
             problems+=("crash-heal saw ${heal_n:-0} of $heal_m declared services — it is looking at a partial stack")
+        # MORE containers than declared, added 2026-09-13. The comparison above
+        # was one-directional and therefore could not see the fault it most
+        # needed to: a heal run that lands inside a Compose recreate counts
+        # Docker's rename-on-recreate temporary as a real container and reports
+        # `checked 30 of 29`. `30 -lt 29` is false, so both collisions of
+        # 2026-09-05 and 2026-09-12 passed straight through this assertion
+        # while the unit also exited 0. An assertion is not weak here, it is
+        # pointed the wrong way.
+        elif [ "${heal_n:-0}" -gt "$heal_m" ]; then
+            problems+=("crash-heal saw ${heal_n:-0} of $heal_m declared services — it collided with a recreate and may have restarted a transient")
         fi
     fi
 fi

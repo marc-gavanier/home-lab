@@ -185,6 +185,37 @@ while read -r name; do
     fi
     if [ "$rc" = 0 ]; then
         healed=$((healed + 1))
+        # Healing pihole detaches dnsproxy, and nothing else here would notice.
+        # Audit class C90, 2026-09-13. `dnsproxy` runs with
+        # `network_mode: service:pihole`, so it lives in pihole's network
+        # namespace: both branches above give pihole a NEW namespace, and
+        # dnsproxy keeps running, keeps reporting healthy, and is permanently
+        # unreachable — Pi-hole with no upstream, a LAN-wide DNS outage with
+        # both containers green.
+        #
+        # Six actors can restart pihole and only the two deploy paths re-attach
+        # dnsproxy. This is one of the four that did not. The healer is blind to
+        # the container it breaks, because dnsproxy declares no healthcheck and
+        # so never enters the unhealthy list.
+        #
+        # `--force-recreate` and NOT `docker restart` (#215): HostConfig.
+        # NetworkMode holds a container ID resolved once at creation, so a
+        # restart re-runs dnsproxy against the DEAD id — it exits 1 and leaves
+        # dnsproxy stopped, which is worse than the detached state. Only a
+        # recreate re-resolves `service:pihole`. Measured on a throwaway pair
+        # when deploy/tasks/compose.yml gained the same remedy.
+        #
+        # Unconditional rather than guarded on a namespace comparison: if pihole
+        # was just healed, dnsproxy is detached by construction, and the compare
+        # is twenty lines that can only ever answer yes here.
+        if [ "$svc" = pihole ]; then
+            if docker compose up -d --force-recreate dnsproxy >/dev/null 2>&1; then
+                log "re-attached dnsproxy to pihole's new network namespace"
+            else
+                log "ERROR: failed to re-attach dnsproxy after healing pihole"
+                rc=1
+            fi
+        fi
     else
         log "ERROR: failed to restart $svc"
     fi
