@@ -24,6 +24,30 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Declined — added 2026-09-13 (late evening), do not re-propose
+
+- **Removing or hedging the ISP references.** "SFR/Red" appears in six files as
+  operational knowledge — how to leave CGNAT, why port forwarding fails in
+  silence. It was raised as an identifying detail during the privacy pass, with
+  the option of rewriting it as "some ISPs, for example SFR/Red". **The operator
+  decided to leave it exactly as it is.** Removing it would cost a reader the
+  one piece of this repository they cannot easily find elsewhere, and the
+  identification it carries is worth less than that. Do not raise it again.
+
+## Instrument trap paid on 2026-09-13 (late evening)
+
+**`ansible-inventory` does not template.** It prints inventory values RAW, so a
+`hostvars[...]` or even a same-host `{{ }}` reference appears literally. A check
+built on it proves nothing in either direction — and its own output carries the
+control that shows this, rendering `backup_dir` as
+`{{ data_mount_point }}/backups`.
+
+The discriminating test for anything the inventory resolves is a CONNECTION:
+`ansible <hosts> -m ping`. It travels the real path, `ping` writes nothing, and
+a jump host is exercised rather than described. Used to verify that `homelab_ip`
+resolves from the gitignored `private.yml` and that the offsite's ProxyJump
+templates in its own scope — both `SUCCESS`.
+
 ## Shipped on 2026-09-13 (evening, second) — key `locality`, one PR
 
 The operator's instruction was "everything in one PR", and one constraint came
