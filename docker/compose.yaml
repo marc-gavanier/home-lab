@@ -105,6 +105,51 @@ x-nextcloud-hosts: &nextcloud-hosts
   - "drive.${DOMAIN}:${PI_LAN_IP}"
   - "office.${DOMAIN}:${PI_LAN_IP}"
 
+# Uptime Kuma's monitored names, pinned for a reason that has nothing to do with
+# performance: Kuma had exactly ONE resolver, Pi-hole, and its only notification
+# channel is a Discord webhook — which has to resolve `discord.com` before it can
+# be sent. Pi-hole is also one of the 37 monitors. So the alert that Pi-hole is
+# down was the one alert that could not be delivered: Kuma still DETECTS the
+# outage (a dns-type check bypasses the OS resolver) but cannot report it.
+# Measured 2026-09-13: 1 notification channel, 37 active monitors, 37 bindings,
+# 0 monitors without one.
+#
+# The fix is two halves and both are needed. The fallback resolver below is what
+# lets the Discord webhook resolve while Pi-hole is down. These pins are what
+# stop that fallback from turning one true alert into eighteen false ones: a
+# public resolver answers the internal names with the PUBLIC address (or
+# NXDOMAIN), and 80/443 are not forwarded, so every HTTP monitor would go red
+# during a DNS outage and say nothing true.
+#
+# Derived, not snapshotted: this is every name this file routes with a
+# `Host()` rule. A service added without a pin here simply resolves through
+# Pi-hole as before — the staleness degrades to the old behaviour rather than
+# to a wrong answer. Split-DNS resolution itself is still probed, by the
+# dedicated `Pi-hole DNS` monitor, which tests the function directly instead of
+# inferring it from an HTTP monitor's side effect.
+x-kuma-hosts: &kuma-hosts
+  - "books.${DOMAIN}:${PI_LAN_IP}"
+  - "dns.${DOMAIN}:${PI_LAN_IP}"
+  - "drive.${DOMAIN}:${PI_LAN_IP}"
+  - "films.${DOMAIN}:${PI_LAN_IP}"
+  - "git.${DOMAIN}:${PI_LAN_IP}"
+  - "indexers.${DOMAIN}:${PI_LAN_IP}"
+  - "logs.${DOMAIN}:${PI_LAN_IP}"
+  - "music.${DOMAIN}:${PI_LAN_IP}"
+  - "office.${DOMAIN}:${PI_LAN_IP}"
+  - "photos.${DOMAIN}:${PI_LAN_IP}"
+  - "proxy.${DOMAIN}:${PI_LAN_IP}"
+  - "rss.${DOMAIN}:${PI_LAN_IP}"
+  - "search.${DOMAIN}:${PI_LAN_IP}"
+  - "series.${DOMAIN}:${PI_LAN_IP}"
+  - "services.${DOMAIN}:${PI_LAN_IP}"
+  - "share.${DOMAIN}:${PI_LAN_IP}"
+  - "system.${DOMAIN}:${PI_LAN_IP}"
+  - "tools.${DOMAIN}:${PI_LAN_IP}"
+  - "vault.${DOMAIN}:${PI_LAN_IP}"
+  - "videos.${DOMAIN}:${PI_LAN_IP}"
+  - "vpn.${DOMAIN}:${PI_LAN_IP}"
+
 # Secrets injected as files rather than through `environment:` (ADR-016).
 # The socket-proxy permits GET /containers/{id}/json, and that response includes
 # every container's Env array — so an env-injected password is readable by
@@ -1817,8 +1862,15 @@ services:
       # "spawn EPERM" — while the container stays healthy and the web UI keeps
       # answering. Found by the monitoring, not by an HTTP probe.
       - NET_RAW
+    extra_hosts: *kuma-hosts    # see x-kuma-hosts — the pins and the fallback are one fix
     dns:
       - ${PI_LAN_IP}
+      # The fallback, and it exists solely so a Discord webhook can still be
+      # resolved while Pi-hole is down. Without it the alert about Pi-hole is
+      # the one alert this stack cannot deliver. Safe only because the names
+      # above are pinned: a bare fallback would answer the internal names with
+      # the public address and turn one true alert into eighteen false ones.
+      - 1.1.1.1
     volumes:
       - ${SERVICES_DATA_DIR}/uptime-kuma:/app/data
     # The image's own healthcheck PRINTS the status code and never compares it:
