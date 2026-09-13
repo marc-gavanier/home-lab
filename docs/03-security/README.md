@@ -63,9 +63,18 @@ Defense in depth — each layer is secured independently. If one layer falls, th
 
 ### 2. System (OS)
 - **SSH**: key-only, password disabled, non-standard port
+- **SSH reachability**: two independent things keep it off the internet, and it
+  is worth knowing which is which. The router forwards no port to SSH — that is
+  what has always made it true — and since 2026-09-13 the UFW rule is also
+  scoped to the LAN and the WireGuard subnet (`ssh_allowed_sources`, per host,
+  because the two hosts sit on different LANs). Until that date only the router
+  enforced it, while UFW printed `ALLOW IN Anywhere` and this page claimed the
+  opposite; both statements were true at once, which is exactly why nobody
+  noticed for weeks.
 - **fail2ban**: three jails — `sshd`, plus **Nextcloud and Vaultwarden**
-  (issue #35). SSH is not internet-reachable, so its jail guards the least
-  exposed door; the two application jails cover the attacker the threat model
+  (issue #35). SSH is not reachable from the internet (above), so its jail
+  guards the least exposed door; the two application jails cover the attacker
+  the threat model
   actually expects — a compromised VPN client or LAN device, already inside the
   `vpn-only` gate. Two details make the difference between a jail that works and
   one that reports itself healthy while catching nothing: the filters are

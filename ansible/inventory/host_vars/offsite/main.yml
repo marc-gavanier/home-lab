@@ -5,6 +5,20 @@
 # during preparation, then at the offsite location as a WireGuard client.
 # Receives nightly `restic copy` from the homelab via rest-server append-only.
 
+# --- Firewall ---
+# Sources allowed to reach SSH. Measured on this host before the rule was scoped
+# (2026-09-13, 30 days of `Accepted publickey`): 1162 from 10.8.0.5 (the homelab,
+# which is how `ssh offsite` arrives — ProxyJump through the tunnel), 22 from
+# 10.8.0.3, and 3 from 192.168.0.41 on the local network here.
+#
+# Note this host's LAN is 192.168.0.0/24, NOT the homelab's 192.168.1.0/24 —
+# which is the whole reason this is a host variable and not a group one. Getting
+# it wrong on THIS machine is not a service outage: it is a Pi at another
+# address with no console, whose only other route is the tunnel it just lost.
+ssh_allowed_sources:
+  - 192.168.0.0/24 # LAN at the offsite location
+  - 10.8.0.0/24 # WireGuard — the route `ssh offsite` actually takes
+
 # --- System ---
 hostname: backup
 free_port_53: false # No Pi-hole here — keep stock systemd-resolved

@@ -50,6 +50,17 @@ argument_specs:
         type: str
         required: false
         description: Time of day for the unattended auto-reboot when enabled (inline default "04:00").
+      ssh_allowed_sources:
+        type: list
+        elements: str
+        required: true
+        description: >-
+          IPv4 CIDRs allowed to reach SSH on this host. REQUIRED and deliberately
+          without a default: every plausible default is either wrong for one of
+          the two hosts (their LANs differ) or wide enough to be no scoping at
+          all, and the failure mode of guessing is losing the only route to a
+          machine in another building. Measured per host — see the comment above
+          the value in host_vars.
       ufw_service_rules:
         type: list
         elements: dict

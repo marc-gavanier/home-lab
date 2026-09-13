@@ -82,16 +82,45 @@
 # IPv4 only, and deliberately. A bare `rule: allow` with no from_ip emits the
 # rule for BOTH families, which on a host with a global IPv6 address and no NAT
 # in front of it puts SSH on the internet — the offsite Pi is exactly that.
-# Every SSH connection either host has seen in 30 days came from the WireGuard
-# subnet or a LAN, over v4; none came from a v6 source, and the homelab has no
-# IPv6 egress at all. So the v6 half protects nothing and is removed below.
-- name: firewall | Allow SSH through UFW (IPv4 only)
+# None of the SSH either host has seen in 30 days came from a v6 source, and the
+# homelab has no IPv6 egress at all. So the v6 half protects nothing and is
+# removed below.
+#
+# SCOPED TO `ssh_allowed_sources` SINCE 2026-09-13, and the reason is that the
+# claim and the rule had drifted apart: `docs/03-security/README.md` said "SSH
+# is not internet-reachable" while ufw printed `ALLOW IN Anywhere`. Both were
+# true at once — the router forwards no port for SSH — but that made the router
+# the only thing enforcing it, with nothing here saying so and nothing checking
+# it. One box swap and the sentence silently becomes false.
+#
+# The old comment here also asserted that every connection came from the
+# WireGuard subnet or a LAN. That was wrong, and the host_vars carry the
+# measurement that shows it: 144 came from a docker bridge. It is excluded on
+# purpose — see `ssh_allowed_sources` in host_vars for both hosts.
+#
+# ORDER MATTERS AND IT IS NOT COSMETIC. The allows come first and the unscoped
+# rule is retracted only after, so the v4 path is never absent, not even between
+# two tasks. This runs against hosts whose only route is a tunnel, and one of
+# them is in another building.
+- name: firewall | Allow SSH through UFW from the permitted sources (IPv4 only)
+  community.general.ufw:
+    rule: allow
+    port: "{{ ssh_port_hardened }}"
+    proto: tcp
+    from_ip: "{{ item }}"
+    comment: SSH
+  loop: "{{ ssh_allowed_sources }}"
+
+# Retracting the unscoped rule is what makes the scoping real — ufw keys a rule
+# on its (port, proto, source) tuple, so the rules added above sit BESIDE the
+# old `Anywhere` one rather than replacing it, and `Anywhere` keeps winning.
+- name: firewall | Remove the unscoped IPv4 SSH rule the scoped ones replace
   community.general.ufw:
     rule: allow
     port: "{{ ssh_port_hardened }}"
     proto: tcp
     from_ip: 0.0.0.0/0
-    comment: SSH
+    delete: true
 
 # Adding the scoped rule above does NOT retract the unscoped one: ufw sees an
 # identical v4 entry and skips it, leaving the v6 entry in place. It has to go
