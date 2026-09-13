@@ -15,65 +15,60 @@ earlier — which would have sent eight agents to re-derive settled work. Rebuil
 it from `classes.md`'s OPEN table at the start of every run; if the two
 disagree, `classes.md` wins.
 
-As of the run of 2026-09-13 (evening). **Rebuilt from `classes.md`'s OPEN table —
+As of the run of 2026-09-13 (night). **Rebuilt from `classes.md`'s OPEN table —
 do not trust this copy if the two disagree.**
 
-**Four OPEN classes. C90 is CLOSED and must not be re-swept.**
+**TWO OPEN classes — C92 and C95. C01, C03 and C94 are all closed; do not
+re-sweep any of them.**
 
-- **C01 — `project-manager`.** 72/87. **Do not re-derive N = 87, and do not
-  re-sample the 15 that remain.** 9 are claims about a REFUSAL TO START and 2
-  more were reclassified into that set on 09-13; the only instrument that settles
-  them is forbidden by rules 5 and 6. 4 are out of the space. **The decidable
-  space is swept.** What is left is a DECISION for the operator — close it the
-  way C57 and C66 were closed, or accept a class no permitted instrument can
-  finish. An agent sent here should put that choice, not sample again.
-- **C03 — `observability`, with `ansible-deploy` on the gate.** Its instance
-  population is CLOSED 10/10 (PR #352). The class stays open because it has no
-  gate. The assertion is designed and proven discriminating on live data —
-  `no-loss-marker-contradicts-kuma`, reconciling each marker against Kuma's own
-  `heartbeat` table rather than auditing curl, 3 raised / 10 silent with both
-  controls. **It is not deployed.** Deploying and proving it fail on purpose is
-  the whole remaining job. Read `observability`'s C03-T / C03-R split first.
 - **C92 — every domain, and nobody owns it.** A correction that reached one
-  member of a population whose others share the property. Four instances in one
-  day from three domains. **The space is derived per correction**; bounding it is
-  the open work. Start with the commits of 2026-09-11 to 09-13, which are known
-  to contain four.
-- **C94 — `system` has 18/18 for its own read sites; the other seven domains
-  have nothing.** Cardinality CEILINGS — the upper twin of C83, which guards
-  floors and has a deployed gate. Greppable in principle: `head -1`, `tail -1`,
-  `grep -m1`, `jq '.[0]'`, `awk 'NR==1'`, unanchored `--filter name=`, `pgrep -f`,
-  and substring containment used as equality. **Measure the live cardinality; a
-  site is only an instance if the set can exceed one TODAY.**
+  member of a population whose others share the property. 4/4 known instances
+  re-verified on 2026-09-13: 2 remediated, 1 fully deployed, 1 in DECLINED
+  territory. **It stays OPEN because no propagation gate exists** — nothing
+  derives "the population this fix's property defines". Its standing structural
+  cause: the offsite host has no continuous posture assertion of any kind.
+- **C95 — `observability` and `network` jointly.** An alerting path whose
+  precondition set intersects what it alerts about. Its founding instance
+  (Kuma → Discord → Pi-hole) was FIXED on 2026-09-13 — a fallback resolver plus
+  21 derived `extra_hosts` pins. **The CLASS is open because its space is not
+  bounded**: neither domain derived the full set of paths by which a verdict
+  reaches a human. netdata's alarm path, the feed digest and `homelab-health.sh`
+  are unswept. That derivation is the open work, and it is the next run's
+  obvious mandate.
 
-**C90 is CLOSED** by six independent derivations of the (object, mutator-set)
-relation — 191/191, 106/106, 31/31, 18/18, 12/12 and 17 runbooks → 4. The
-cardinal is derivation-relative; do not quote one as "the" number and do not
-re-derive it. **C93** (a template or backup file the consumer loads as live
-input) is ENUMERATED 3/3 and its only live instance is DECLINED — the
-`*.example.yml` files stay in `host_vars/`.
+**C01 is CLOSED by the operator's arbitration** (2026-09-13), the way C57 and
+C66 were. Do not re-sample the 15; re-raising needs a new fact, not a new
+argument. **C03 is SPLIT**: C03-T is GATED — made to fail on purpose in six runs
+off-host, including a discriminating twin — and C03-R is closed by decision as a
+review rule.
 
-**Thirteen keys are now spent**: `time`, `order`, `identity`, `scale`,
+**C94 is CLOSED** by eight per-domain slices (18/18+, 26/26, 12/12, 12/12, 5/5,
+0/0, `ansible/` swept, n/a) with 0 new confirmed instances. The cardinal is
+derivation-relative; do not re-derive it.
+
+**Fourteen keys are now spent**: `time`, `order`, `identity`, `scale`,
 `authority`, `representation`, `vacuity`, `exclusivity`, `interruption`,
-`succession`, `residue`, `concurrency`, `plurality`. The mint rate reads
-5, 11, 12, 7, 2, 4, 1, 0, 2, 1, 2, 2, 3. A run that reuses one proves nothing.
-The keys that paid best were found the same way: look for an instrument trap in
-`settled.md` that no class has adopted, or a pair of narrow classes in
+`succession`, `residue`, `concurrency`, `plurality`, `dependency`. The mint rate
+reads 5, 11, 12, 7, 2, 4, 1, 0, 2, 1, 2, 2, 3, 1. A run that reuses one proves
+nothing. The keys that paid best were found the same way: look for an instrument
+trap in `settled.md` that no class has adopted, or a pair of narrow classes in
 `classes.md` that are obviously two faces of a dimension nobody named.
 
-**What `plurality` proved, for whoever writes key fourteen.** It was the first
-key whose premise was verified with a positive control BEFORE the agents were
-sent (`--filter name=nextcloud` returns 5, `^nextcloud$` returns 1), and that
-five-second check is what made eight briefs concrete instead of speculative.
-Do that again. It also minted three from a register that had just been worked
-down twice in one day, which says the decay hoped for in early September has not
-arrived.
+**What `dependency` proved, for whoever writes key fifteen.** Its premise check
+paid twice over — once by confirming the key had territory, and once by being
+WRONG in a way that cost eight briefs. The lead it produced
+(`homelab-ddns.service` lacking a mount guard) came from
+`systemctl show -p ConditionPathExists`, which returns empty on this systemd
+version even when the unit declares it. Four domains refuted it. **Verify the
+premise with a positive control, and verify the LEAD the same way** — a null
+result from an unproven instrument is not a lead, and this one propagated to
+every agent.
 
 **The standing structural gap, and it is not a class**: the offsite host has no
 continuous posture assertion of any kind, because `offsite.yml` never plays the
-`observability` role. Every fix that must cross hosts is therefore unverified
-there by construction. That is the reason C74 could read CLOSED for two days
-with a live instance on the second machine.
+`observability` role. `/etc/goss` there holds ONE spec against three on homelab,
+measured 2026-09-13 night. Every fix that must cross hosts is therefore
+unverified there by construction.
 
 **Invent the key first, write it into the brief, and send the agents after it.**
 
