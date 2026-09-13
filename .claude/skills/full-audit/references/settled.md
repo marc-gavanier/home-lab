@@ -24,6 +24,101 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Arbitrated and shipped on 2026-09-13 (night) — one PR
+
+**The operator's three decisions.** C01 closed by arbitration; C03 split, its
+decidable half gated and its review half closed by decision; the `*arr`
+`logs.db` siblings left undumped. All three are in `classes.md`'s DECLINED
+table with their reasoning. **Do not re-propose any of them.**
+
+**What shipped.** A fallback resolver and 21 `extra_hosts` pins for
+`uptime-kuma`; four documentary corrections (the WireGuard restore recipe, the
+`*arr` restore procedure, the `*arr` backup section, the backup coverage table).
+
+**How C03-T was made to fail on purpose, because the method generalises.** The
+run was read-only and the assertion reads the live journal and the live Kuma
+database, so it could not be exercised in place without writing a marker — which
+would have tripped a real monitor and is the "no test heartbeats" rule. Instead
+the deployed `exec` was extracted verbatim and run **off-host** with `docker`,
+`journalctl` and `sqlite3` replaced by stubs and a synthetic Kuma database.
+Six runs, both directions, including a **discriminating twin**: the same clock
+and the same marker, changing only whether the reporter had beaten since the
+loss, which isolates the variable instead of demonstrating two unrelated
+outcomes. Nothing was written on either host.
+
+**One caveat recorded with it**: this proves the SCRIPT discriminates, not that
+the deployed instance is wired to the right journal and database. The wiring is
+evidenced separately — the assertion is present at `posture.yaml:2995` and
+executed in the 13:03 run — and that pair of facts is what the GATED entry
+rests on.
+
+**And a trap paid inside the proof itself.** The first run of all five scenarios
+returned the same early exit, because the `docker` stub passed `$1` after
+`shift 3` where the query is `$2` — so every SQL call received the connection
+URI as its statement. **A harness is an instrument.** The tell was that all five
+scenarios agreed, which no discriminating test should ever do; the fix was a
+one-line instrument check (`does the floor query return an epoch?`) before
+trusting any scenario. A second scenario then failed for a different and better
+reason: the loss was dated 30 minutes back while the reporter's cadence is
+3600 s, so the assertion correctly refused to judge a reporter not yet past its
+own interval. **The test was wrong, not the gate** — and distinguishing those
+two took re-reading the assertion's own comment.
+
+---
+
+## Instrument traps paid for on 2026-09-13 (night) — one by the MAIN session, and it reached all eight briefs
+
+- **`systemctl show -p ConditionPathExists` returns EMPTY even when the unit
+  declares it.** On this systemd version the property is not exposed that way.
+  The main session read that silence as "the unit has no guard", wrote it into
+  the shared brief as a live lead, and four domains spent budget refuting it.
+  `homelab-ddns.service` carries `ConditionPathExists=/mnt/data/secrets/ddns.env`
+  at line 5, plus `After=mnt-data.mount`, and is wired into
+  `mnt-data.mount.wants`. **Read the unit file.** And the general rule, which
+  this file has carried since 2026-08-15 and which applies to the verifier as
+  much as to the agents: **a null result from an instrument you have not
+  controlled is not a finding.** The premise of the key was controlled; the lead
+  drawn from it was not.
+- **`RequiresMountsFor=` is silent for a FUSE path and hard for a real mount
+  unit.** In `claude-remote-control.service` it names `/home/claude/vault`, an
+  rclone mount with no `.mount` unit, and resolves to nothing. In
+  `homelab-feed-digest.service` it names `/mnt/data`, which has one, and
+  resolves to `Requires=mnt-data.mount`. Two units that look inconsistent are
+  not. This is what made an agent read a comment as contradicted when the
+  comment's own cross-reference proves it means the vault in both files.
+- **Proving a `pgrep -f` self-match needs the pattern OFF the argv.** Passing it
+  as an argument makes every test positive, including the control — the invoking
+  `sh -c` carries the pattern itself. The correct instrument feeds the pattern on
+  **stdin**: `printf '%s\n' "$pat" | docker exec -i <c> sh -c 'read p; pgrep -f "$p"'`.
+  With that, a nonexistent process correctly returns no-match and a real one
+  returns MATCH, so the argv form's SELF-MATCH is proven rather than assumed.
+  The main session's first negative control was contaminated this way and was
+  re-run.
+
+---
+
+## Deployed on 2026-09-13 between 14:15 and 14:21 — and the audit's baseline missed it
+
+A deploy landed **eleven minutes before** this run's baseline and eighteen before
+the agents were sent. It carried three things the register recorded as pending:
+
+- **The C03 gate**, `no-kuma-report-was-lost-in-silence`, into
+  `/etc/goss/posture.yaml` (spec mtime 14:15:44). Derived, and it names its own
+  unknown: it takes its floor from Kuma's `StartedAt`, refuses to judge when it
+  cannot read that floor or when no beat exists, and caps the lookback at 26 h
+  for a reason written in the file.
+- **The offsite sysctl residual**, `net.ipv6.conf.eth0.accept_redirects`, now 0
+  with `99-homelab.conf` at 30 lines on both hosts (mtime 14:21:20).
+- **The dump assertions**, 46 live on the deployed spec.
+
+**The lesson is about the baseline, not the deploy.** A baseline that reads
+failed units, container states, timer codes and monitor colours cannot see a
+spec file that changed minutes earlier. When the register says "not deployed",
+**check the artefact's mtime before writing it into a brief** — it costs one
+`stat` and it would have saved a whole agent's mandate here.
+
+---
+
 ## Instrument traps paid for on 2026-09-13 (evening) — three by the MAIN session, all while verifying
 
 Every one of them produced a wrong verdict that survived until a control was
