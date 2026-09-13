@@ -425,6 +425,44 @@ command:
       tr '\0' ' ' < "/proc/$pid/cmdline" | grep -qE -- '(^| )--append-only( |$)'
     exit-status: 0
 
+  # --- A lock nobody will ever clear ----------------------------------------
+  # Added 2026-09-13 (audit class C90). The homelab has carried
+  # `restic-repo-has-no-stale-lock` since #331, and it scans
+  # `<backup_dir>/restic-repo/locks` — the LOCAL repository. This repository,
+  # the one where a collision is PERMANENT because append-only forbids the
+  # cleanup, had no lock assertion at all. The asymmetry was backwards: the
+  # guard sat on the repo that can be pruned.
+  #
+  # Why an age bound is safe here even though a deep check runs for hours:
+  # restic REFRESHES its lock while it holds it (every 5 minutes by default), so
+  # a live multi-hour `check --read-data-subset` keeps its lock's mtime moving.
+  # An hour of no refresh means the holder is gone, not slow. That is the same
+  # reasoning and the same 3600 s as the homelab sibling, and it is why this
+  # does not become the false positive that `no-kuma-report-was-lost-in-silence`
+  # just cost us.
+  #
+  # `pgrep -x restic` covers a restic started ON this host (a manual prune from
+  # the relative's LAN). It cannot see one running on the homelab — that one is
+  # covered by the refresh argument above, not by this line.
+  #
+  # The directory is asserted to EXIST before anything is counted, so an empty
+  # `locks/` proves the place is real rather than that the set is empty — a
+  # repository whose locks/ is gone fails instead of passing. Same floor as the
+  # sibling, same reason (class C83).
+  offsite-restic-repo-has-no-stale-lock:
+    exec: |
+      d={{ rest_server_data_dir }}/locks
+      [ -d "$d" ] || { echo "$d absent - this is no longer a restic repository"; exit 1; }
+      pgrep -x restic >/dev/null 2>&1 && exit 0
+      now=$(date +%s); stale=""
+      for f in "$d"/*; do
+        [ -f "$f" ] || continue
+        age=$(( now - $(stat -c %Y "$f") ))
+        [ "$age" -gt 3600 ] && stale="$stale ${f##*/} (${age}s)"
+      done
+      [ -z "$stale" ] || { echo "stale lock(s), no local restic running:$stale"; exit 1; }
+    exit-status: 0
+
   # --- A report that reached nobody: this host's half ------------------------
   # `offsite-health.sh` used to end its push in `2>&1 || true`, so a beat that
   # never arrived was indistinguishable from one that did — the run exited 0 and
