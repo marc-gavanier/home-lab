@@ -71,7 +71,13 @@ set -uo pipefail
 
 CONTAINER="netdata"
 API="http://127.0.0.1:19999/api/v1/alarms?all=true"
-TIMEOUT=10
+# 30, raised from 10 on 2026-09-13. The budget was sized against an idle host
+# and the host is not always idle: on 2026-09-13 at 01:25 three timers plus a
+# heal-triggered container restart were live at once, and Kuma's push latency
+# went 274 ms -> 10.9 s / 12.0 s / 3.3 s. A 10 s budget under a 12.0 s reply is
+# not a failure, it is a ruler that is too short. 30 s is 2.5x the worst
+# latency ever measured here, and the unit's own period is 300 s.
+TIMEOUT=30
 
 log() { echo "$*"; }   # stdout -> journal
 
@@ -212,10 +218,37 @@ push() {   # $1 url, $2 up|down, $3 message
     # the branch below is unreachable, `log "ERROR: push failed"` can never be
     # written, and a beat that was never recorded reports as sent. Measured on
     # the Pi with an invalid token, no write reaching the database.
-    if printf 'url = "%s"\n' "$url" |
+    # THE OUTCOME OF A TIMEOUT IS NOT A LOSS, AND SAYING SO COST C03 ITS FIFTH
+    # REOPENING. Until 2026-09-13 every non-zero curl status wrote
+    # `kuma-push-failed: this report reached nobody`. That sentence asserts
+    # something this side of the wire cannot know: whether the beat LANDED is
+    # decided by the server, while curl only reports whether a reply came back
+    # inside its own budget. Under load the two disagree.
+    #
+    # Measured, both sides, on 2026-09-13:
+    #
+    #     Kuma committed the beat   23:25:29.334 UTC, status UP
+    #     this script wrote "reached nobody"  23:25:39 UTC
+    #     gap                       exactly TIMEOUT
+    #     payloads                  byte-identical
+    #
+    # A false positive, and it fed a LIVE assertion: `no-kuma-report-was-lost-
+    # in-silence` greps '^kuma-push-failed:' and has no other input.
+    #
+    # So the two cases are now named differently. curl exit 28 is "operation
+    # timed out" — the request may or may not have been processed — and gets
+    # `kuma-push-unconfirmed:`, which the assertion's anchored grep does NOT
+    # match. Everything else (22 from --fail on a 4xx/5xx, 7 on a refused
+    # connection, 6 on DNS) is a beat that provably did not land, and keeps the
+    # original marker and the original words.
+    printf 'url = "%s"\n' "$url" |
         curl -fsS --max-time "$TIMEOUT" --retry 2 -K - -G \
-            --data-urlencode "status=$2" --data-urlencode "msg=$3" >/dev/null; then
-        return 0
+            --data-urlencode "status=$2" --data-urlencode "msg=$3" >/dev/null
+    local rc=${PIPESTATUS[1]}
+    [ "$rc" -eq 0 ] && return 0
+    if [ "$rc" -eq 28 ]; then
+        log "kuma-push-unconfirmed: no reply within ${TIMEOUT}s, the beat may have landed — $3"
+        return 1
     fi
     log "kuma-push-failed: this report reached nobody — $3"
     return 1
