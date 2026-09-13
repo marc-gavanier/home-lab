@@ -24,7 +24,7 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
-## Handling secrets DURING an audit — seven traps, five of them paid on 2026-09-12
+## Handling secrets DURING an audit — eight traps, five paid on 2026-09-12 and one on 2026-09-13
 
 The dedicated secret audit of 2026-09-12 found two real defects and caused five
 exposures of its own. The exposures were not bad luck; each is a specific,
@@ -68,6 +68,15 @@ three iterations (63 → 51 → 36) and two of them looked right while producing
 mostly noise. Assert that a handful of known secrets are present in V before the
 sweep runs; a sweep over a bad V is worse than no sweep, because it looks
 thorough.
+
+**8. Never `head`/`cat` a credential store to learn its SHAPE.** Paid on
+2026-09-13: an agent ran `head -c 400 /etc/wireguard/wg0.json` to find out
+whether the store carried an IPv6 field. That file is plain JSON with the
+**WireGuard server private key first**, followed by the first client's private
+key, so the probe printed both into the session transcript. A key-name listing
+answers the shape question and reveals nothing:
+`python3 -c 'import json,sys; print(list(json.load(open(sys.argv[1]))))'`.
+The v14 `wg0.json` is the specific trap because the secret is the first field.
 
 ## The exposure of 2026-09-12, and the operator's arbitration
 
@@ -143,6 +152,83 @@ control.
 bearing either.** The 2026-09-12 run left a 412 KB dump world-readable in `/tmp`;
 its 13 secret-shaped matches were all `*_FILE=` **paths** and public GPG key ids.
 Check before alarming — and before dismissing.
+
+## Instrument traps paid for on 2026-09-13 — carry these
+
+**A `docker logs --since/--until` window in the wrong frame returns silence, not
+an error.** `--since`/`--until` parse in host LOCAL time while `-t` prints UTC.
+The main session queried a crash window in UTC against a container whose event
+was logged at that same wall-clock in UTC and got nothing back, then nearly
+recorded "the logs are gone". Logs reached back six days. **Find the signature
+first with a grep over the whole log, and only then narrow the window** — a null
+from a time window proves nothing about the window OR the data.
+
+**`grep -c` over a repo counts text, not behaviour.** Two agents reported the
+lab's `flock` usage as "none anywhere" and "one hit". The truth is four textual
+occurrences — every one a comment or a line of prose — and **zero live
+invocations**. Before reporting a mechanism absent or present from a grep count,
+separate the call sites from the places that merely name it.
+
+**An agent timestamp is not a measurement.** A report stated its host work
+"finished 02:57" and that it had avoided the 03:00 window; the run ended at
+02:19. Nothing downstream depended on it, but it is a reminder that a subagent's
+narrated times are prose. Re-measure any timing that carries a conclusion.
+
+**A one-sided comparison cannot see the event it was written for.**
+`homelab-health.sh.j2:719` asserts `heal_n -lt heal_m` — fewer containers
+examined than declared. The failure it needed to catch produces `checked 30 of
+29`, one *more* than declared. The assertion is not weak, it is pointed the
+wrong way, and it passed through two real collisions. When writing a floor, ask
+what the defect's signature actually looks like before choosing the operator.
+
+**A poll rate is an instrument and it needs its own control.** `security`'s
+first `/proc` sweep at 50 ms missed a target process **six times out of six**; a
+last-pid-counter sweep at 500 Hz caught it twice in 90 s. A null result from the
+first would have closed C26's argv axis wrongly. **A sampling sweep must prove
+it can catch a known-present instance before any null from it is believed.**
+
+## Closed by the run of 2026-09-13
+
+- **C26 — a credential reaching a command line, a child process, a scheduled job
+  or a trace.** All four axes closed. The argv axis was swept from both sides
+  independently and **2 of its 3 instances are in the argv the IMAGES ship**, a
+  sub-space no previous sweep had enumerated and that no grep over this repo can
+  reach: `transmission`'s own s6 stop hook runs
+  `transmission-remote -n "$USER":"$PASS" --exit` on **every container stop**,
+  and `/app/blocklist-update.sh` carries the same form (inert only because
+  `blocklist-enabled: false`). The third is this repo's own
+  `ansible/roles/deploy/tasks/pihole.yml:117`, where `sh -c` expands
+  `$(cat /run/secrets/…)` **inside** the container and execs
+  `pihole setpassword <plaintext>`. `transmission.yml:55-70` documents this exact
+  defect and fixes itself with `TR_AUTH`; 6 of 7 sites use the env form, that one
+  does not.
+- **C87 — a hand-made artefact that outlives its operation.** Closed with a
+  stated depth AND an unbounded-depth cross-check that agreed instance for
+  instance. The method is the keeper: **state the depth limit as part of the
+  cardinal**, because an unstated depth limit is how a directory bound gets
+  mistaken for a property bound.
+
+## Measured and rejected — added 2026-09-13
+
+- **The heal timer self-overlapping.** Refuted three ways: p50 0.8 s against a
+  120 s period, `Type=oneshot` (systemd merges the job rather than starting a
+  second), and 8 977 runs in 14 days with no instance. The 513 "missing" ticks
+  are `PartOf=homelab-services.target` doing its job across a reboot. **Do not
+  re-raise the 2-minute period as a cost** — 1.05 s CPU per run is 0.9 % of one
+  core per day.
+- **`copytruncate` + `rotate 0` on the Traefik access log vs the redactor's
+  busybox `tail -F`.** The run's best lead, refuted on the machine: output
+  continued across the 22:00 UTC truncate at 4 199 lines, in the busiest hour.
+- **Transmission vs the `*arr` importers.** Two independent serialisations, one
+  of them this repo's own hard-link mount layout. Not a race.
+- **`stop_grace_period` as a general gap.** 5 of 32 declare one and 27 sit on the
+  10 s default, but a 32-container × 14-day log sweep returns exactly one hit.
+  No extension proposed.
+- **A15, open since 2026-09-11, RESOLVED and not a defect.** `MANAGE_BUILTINS=no`
+  and `delete_chains` is ufw-scoped, so a `ufw reload` destroys neither
+  `DOCKER-USER` nor the `f2b-*` chains: **no ban is lost.** What
+  `iptables-restore --noflush` collides with is itself — the 8 `DOCKER-USER`
+  rules are re-appended per reload.
 
 ## Closed by the run of 2026-09-12
 
