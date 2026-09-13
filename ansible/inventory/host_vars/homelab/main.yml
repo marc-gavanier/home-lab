@@ -3,6 +3,18 @@
 # =============================================================================
 
 # --- Firewall ---
+# Sources allowed to reach SSH. Measured on this host before the rule was
+# scoped (2026-09-13, 30 days of `Accepted publickey` in the ssh journal):
+# 8597 from 192.168.1.250 (the workstation, LAN) and 144 from 172.18.0.3 — the
+# `proxy` docker bridge, all of them on 24-25 August and none since. The bridge
+# is DELIBERATELY not in this list: putting it back would let any container on
+# `proxy` reach the host's sshd, and nothing has needed it for three weeks. If a
+# container ever needs it again, that is the line to revisit, and this comment
+# is why it is missing.
+ssh_allowed_sources:
+  - 192.168.1.0/24 # LAN
+  - 10.8.0.0/24 # WireGuard
+
 # Service ports opened by the security role (SSH is always allowed separately).
 ufw_service_rules:
   - { port: "80", proto: tcp, comment: "HTTP (Traefik)" }
