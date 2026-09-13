@@ -500,6 +500,27 @@ not a tunnel that works.
 
 ## Full disaster recovery
 
+> **Stop the scheduled timers first, and re-enable them in step 4.** This
+> procedure takes 7-33 hours, so it *will* span 03:00, and the nightly backup's
+> own `run-after` ends with `rm -rf /mnt/data/backups/dumps` — the directory
+> step 2 restores and step 3 reads. It fires on SUCCESS, so a backup that runs
+> happily over a half-restored host is exactly the case that destroys the dumps.
+> The next run's `run-before` then **recreates the directory empty**, so step 3
+> finds an empty directory rather than a missing one and the loss looks like a
+> successful restore.
+>
+> ```bash
+> sudo systemctl disable --now homelab-backup.timer homelab-stack-heal.timer
+> ```
+>
+> `homelab-stack-heal.timer` goes with it for the reason step 1 already gives
+> below: it restarts whatever crashed mid-restore. `offsite-backup.md` has said
+> to disable the backup timer for a multi-hour seed since 2026-08-29; this page
+> is the one where forgetting it costs the restore itself.
+>
+> *(Added 2026-09-13, audit class C90 — two mutators of one object with nothing
+> serialising them.)*
+
 1. **Re-provision the OS** with Ansible (the OS isn't backed up — it's reproducible): flash
    Ubuntu, then run **phase 1 only**, from `ansible/`:
    ```bash
@@ -555,6 +576,15 @@ not a tunnel that works.
    ansible-playbook playbooks/site.yml --ask-vault-pass
    ```
 4. Sanity-check services; re-run `occ files:scan` if media browsing looks stale.
+5. **Re-enable the timers stopped at the top of this section**, and confirm they
+   are actually armed rather than merely enabled:
+   ```bash
+   sudo systemctl enable --now homelab-backup.timer homelab-stack-heal.timer
+   systemctl list-timers homelab-backup.timer homelab-stack-heal.timer
+   ```
+   A restore that leaves the backup timer disabled is a host with no backups and
+   a green dashboard — `homelab-health.sh` asserts the timers' last run, not
+   their enablement.
 
 ## Drill record
 
