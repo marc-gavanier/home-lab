@@ -101,6 +101,25 @@ the web UI is reverted on the next deploy, on purpose.
 | `/mnt/data/services/wireguard/` | `wg-easy.db` (server key, peers), `wg0.conf` |
 | `/mnt/data/backups/wg-easy-v14/` | Pre-migration `wg0.json`, kept as a rollback |
 
+## Backup
+
+No new path: `/mnt/data/services` is already backed up wholesale by restic, and
+that covers the table above.
+
+`wg-easy.db` gets one extra step on top of that — a `backup_sqlite_dumps` entry
+run from a resticprofile hook (ADR-031) — for the same reason as Vaultwarden,
+Forgejo and the `*arr` trio. It is a live SQLite database in WAL mode, so a
+restic snapshot of the file alone can capture a torn state: the committed
+transactions sitting in the `-wal` beside it are not in the file restic copied.
+Restoring the dump, not the raw file, is what § Restore below insists on.
+
+What that does **not** cover is the way back in. The tunnel is the only route to
+this Pi and to the offsite one, and `/etc/wireguard/wg0.conf` is a symlink onto
+the encrypted volume — so reaching this backup at all presupposes an unlocked
+volume, which presupposes the tunnel. The backstop for that circle is not here:
+it is the offline recovery copy described in
+[`luks-header-backup.md`](../../knowledge/runbooks/luks-header-backup.md).
+
 ## Restore
 
 **Follow [`restore-from-backup.md` § Restore wg-easy (SQLite)](../../knowledge/runbooks/restore-from-backup.md#restore-wg-easy-sqlite).**
