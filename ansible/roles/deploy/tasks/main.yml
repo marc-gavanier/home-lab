@@ -128,6 +128,10 @@
 # tagged the same way when they need it — `backup.yml` and `offsite.yml` were,
 # on 2026-09-13, when a timer reschedule deployed cleanly and changed nothing on
 # the host because the tag did not reach them.
+- name: Install the Jellyfin Live TV playlist
+  ansible.builtin.import_tasks: jellyfin.yml
+  tags: [jellyfin]
+
 - name: Set up the Cloudflare DDNS updater for the vpn record
   ansible.builtin.import_tasks: ddns.yml
   tags: [ddns]

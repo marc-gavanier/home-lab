@@ -1,0 +1,37 @@
+---
+# Jellyfin's Live TV playlist, brought under Ansible on 2026-09-13.
+#
+# Audit class C87 — a hand-made artefact that outlives its operation. This file
+# was the ONLY acting instance of that class in the container layer: it is the
+# `<Url>` of Jellyfin's single Live TV tuner, it had zero occurrences in the
+# entire git history, and it appeared in no document. A reflash or a restore
+# would have brought back a Jellyfin with a tuner pointing at a file that does
+# not exist, and nothing would have said so.
+#
+# It is safe in a public repository and that was checked rather than assumed:
+# 63 lines of French free-to-air (TNT) stream URLs, and a grep for
+# token/key/password/user query parameters returns 0. If a provider playlist
+# with a passkey ever replaces it, this task must move to a template fed from
+# the vault — see [no secrets in the repo] in the project conventions.
+#
+# Written into the service DATA directory rather than bind-mounted from
+# docker/configs/: the mount layout is Jellyfin's own and changing compose.yaml
+# would recreate the container for a static file it reads at scan time.
+# transmission.yml sets the precedent for touching services/<svc>/config/.
+- name: jellyfin | Install the Live TV playlist
+  ansible.builtin.copy:
+    src: jellyfin/iptv-fr.m3u
+    dest: "{{ services_data_dir }}/jellyfin/config/iptv-fr.m3u"
+    # root:root, matching what is on the host rather than what looked tidy.
+    # The first draft of this task used `{{ operator_uid | default(1000) }}`,
+    # and neither operator_uid nor operator_gid exists in this inventory — the
+    # default would have silently taken effect and chowned the file from
+    # root:root to 1000:1000. That is class C29, a construct that disables (or
+    # here, redefines) a value without a word, and it was caught by comparing
+    # against `stat` rather than by reading the task back.
+    #
+    # 0644 and not the 0664 currently on disk: Jellyfin only READS this file,
+    # at library-scan time, and nothing needs group write.
+    owner: root
+    group: root
+    mode: "0644"
