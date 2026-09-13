@@ -127,17 +127,31 @@ notify() { # $1=up|down  $2=message
     # to this shape and never reached this role, which holds the twelfth notify()
     # (#188). printf is a shell builtin, so the value never reaches an argv there
     # either, and the pipe keeps it off the filesystem a heredoc would use.
+    # A TIMEOUT IS NOT A LOSS — see homelab-netdata-kuma.sh for the measurement.
+    # curl exit 28 gets `kuma-push-unconfirmed:`, which the live assertion's
+    # anchored grep does NOT match. `|| rc=$?` keeps the guard the old `|| {`
+    # provided: this script runs under `set -e`, where an unguarded failing
+    # pipeline would abort the digest over a report that may well have landed.
+    local rc=0
     printf 'url = "%s"\n' "$url" |
         curl -fsS -m 10 -o /dev/null -K - -G \
             --data-urlencode "status=$1" --data-urlencode "msg=$2" \
-            2>>"$LOG" || {
-                log "WARNING: Kuma push failed"
-                # Unprefixed and on stderr, for the same reason as the eight
-                # siblings: `log` stamps a timestamp, and the assertion that
-                # reads this anchors at ^. Keep the string in step with
-                # `no-kuma-report-was-lost-in-silence` in the posture spec.
-                echo "kuma-push-failed: this report reached nobody — $2" >&2
-            }
+            2>>"$LOG" || rc=$?
+    case "$rc" in
+        0) ;;
+        28)
+            log "WARNING: Kuma push unconfirmed"
+            echo "kuma-push-unconfirmed: no reply within 10s, the beat may have landed — $2" >&2
+            ;;
+        *)
+            log "WARNING: Kuma push failed"
+            # Unprefixed and on stderr, for the same reason as the eight
+            # siblings: `log` stamps a timestamp, and the assertion that
+            # reads this anchors at ^. Keep the string in step with
+            # `no-kuma-report-was-lost-in-silence` in the posture spec.
+            echo "kuma-push-failed: this report reached nobody — $2" >&2
+            ;;
+    esac
 }
 
 fail() { log "ERROR: $*"; notify down "$*"; exit 1; }
