@@ -60,9 +60,17 @@ Uses Pi-hole as DNS (`dns: [${PI_LAN_IP}]` in compose) so that domain lookups fo
 | Pi security posture       | Push     | `homelab-posture.sh`, daily 11:00                                                             |
 | Veille quotidienne        | Push     | `feed-digest/digest.sh`, daily 06:30                                                          |
 
-Defaults for the active checks: 60s interval, 3 retries, accepted codes `200-299`,
-TLS expiry notification on. Since #191 no active monitor accepts anything outside that
-set — Transmission's `401` was the last exception. The push monitors are dead-man's switches: the job pushes
+Defaults for the active checks: 60s interval, 3 retries, accepted codes `200-299`.
+Since #191 no active monitor accepts anything outside that set — Transmission's
+`401` was the last exception.
+
+**TLS expiry notification is on for 15 of the 18 active HTTPS monitors, not all
+of them.** Prowlarr, Sonarr and Radarr were created on 2026-09-13 without it;
+this line used to say "on" without qualification and was wrong from the day those
+three appeared. Nothing is left unwatched — `homelab-health.sh` reads `acme.json`
+directly and covers all 21 certificates — so the gap costs no coverage, only the
+accuracy of this sentence. Turning the flag on for the three is a one-click
+change in the Kuma UI, where monitors are maintained by hand. The push monitors are dead-man's switches: the job pushes
 on success, and Kuma alarms when the push does not arrive.
 
 **`Pi-hole DNS + split-DNS` is shaped the way it is because of what it replaced.**

@@ -128,18 +128,41 @@
 # not this unit. Nothing can order the initramfs after a clock that lives on the
 # filesystem being checked.
 #
-# So e2fsck stamps `Last checked` with the pre-NTP clock, which is the mtime of
-# the systemd binary and therefore a FIXED date. Measured on the offsite,
-# 2026-09-04:
+# So e2fsck stamps `Last checked` with whatever the pre-NTP clock reads. Measured
+# on the offsite, 2026-09-04:
 #
 #   /lib/systemd/systemd mtime   2026-07-28 17:04:45
 #   Last checked                 Tue Jul 28 17:04:59 2026   <- 14 s later
 #   Next check after             Thu Aug 27 17:04:59 2026
-#   the clock at every boot      ~2026-07-28 17:04
 #
-# `Next check after` is a month past a clock that never advances past it, so the
-# interval is never due and never will be. The trigger is inert, silently — the
-# exact shape this file's own header describes as worse than no trigger at all.
+# CORRECTED 2026-09-13. The paragraph that stood here drew two conclusions from
+# those four lines and BOTH are wrong. It said the pre-NTP clock "is the mtime of
+# the systemd binary and therefore a FIXED date", and that "the interval is never
+# due and never will be. The trigger is inert, silently."
+#
+# The 14-second gap was a coincidence, not a mechanism. Re-measured on both
+# hosts, 2026-09-13:
+#
+#                                homelab                offsite
+#   /lib/systemd/systemd mtime   2026-07-28 17:04:45    2026-07-28 17:04:45
+#   Last checked                 2026-09-05 22:56:03    2026-09-06 04:00:00
+#   Next check after             2026-10-05 22:56:03    2026-10-06 04:00:00
+#
+# The named source has not moved in six weeks; `Last checked` has moved five and
+# a half. So the clock the initramfs hands e2fsck comes from somewhere else, it
+# ADVANCES, and the interval trigger is live rather than inert — due in early
+# October on both hosts.
+#
+# What that source actually is has NOT been identified, and this comment does not
+# guess: the candidates all live behind a boot, and an audit that may not reboot
+# cannot discriminate between them. What is established is only what the table
+# above shows. If you ever do settle it, replace this paragraph with the answer
+# rather than adding a third theory beside it.
+#
+# The practical consequence is the opposite of what was written here: the check
+# is NOT silently disabled, it will fire, and it will fire in the initramfs with
+# a clock that is days behind real time — which is the condition under which
+# `e2fsck` once rewrote (`FIXED.`) a superblock from a wrong date.
 #
 # The homelab's root reads `Last checked Sun Aug 30 17:28:54 2026`, a real date,
 # equal to the second to the start of boot -2 in `journalctl --list-boots`. Its
