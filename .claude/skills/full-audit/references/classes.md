@@ -140,9 +140,25 @@ parts that need a thought experiment.
 
 # The register
 
-Runs of 2026-08-15 through 2026-09-13 (evening, key `granularity`).
-**95 classes: 1 OPEN, 10 GATED, 77 ENUMERATED, 8 closed by decision, plus the
-DECLINED list.** (OPEN = **C95 only**. **C92 was CLOSED BY THE OPERATOR'S
+Runs of 2026-08-15 through 2026-09-13 (late evening, key `repetition`).
+**99 classes: 4 OPEN, 10 GATED (one of them RED), 77 ENUMERATED, 8 closed by
+decision, plus the DECLINED list.**
+
+**The run of 2026-09-13 (late evening) used `repetition` — what if this runs
+again? — and the counter went 0 -> 4.** C98 and C99 were minted ENUMERATED; C37
+and C88 REOPENED, both because their sweeps were bounded by a MECHANISM while
+their properties are not. That is the eighth payment of the same trap.
+
+**C03-T IS RED and it was red on the day it shipped.** The gate promoted to GATED
+on 2026-09-13 afternoon, after being made to fail on purpose in six runs, cannot
+detect a mute reporter: Kuma fabricates a DOWN beat every interval for any push
+monitor that is not UP, and C03-T's clauses count `heartbeat` rows with no
+`status` filter. C41 filters `h.status = 1` and is immune. **The six-run proof
+ran against a synthetic database, which by construction held only the rows the
+test itself wrote** — a gate proven against a fixture is proven against the
+fixture's model of the world. See that run's section.
+
+(Before this run, OPEN = **C95 only**. **C92 was CLOSED BY THE OPERATOR'S
 ARBITRATION on 2026-09-13 (evening)** — as a review rule, the way C03-R was,
 because the run proved its space is not mechanically derivable; see that run's
 section. **C01 was CLOSED BY THE
@@ -295,25 +311,70 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
-## OPEN — 0 (after the run of 2026-09-13 evening, key `locality`)
+## OPEN — 4 (after the run of 2026-09-13 late evening, key `repetition`)
 
-**The counter reaches ZERO for the first time in this register's life.** C95 was
-the last one, and it closed the way C90 did: not by a better sweep of the same
-space, but by three domains re-deriving the space from the PROPERTY after being
-told, in the brief, exactly which bound had failed and why.
+**The counter went 0 -> 4 and the termination clock RESETS for the seventeenth
+time.** Two classes were minted and two reopened. That is the honest outcome and
+it was not the convenient one: this run's entire job was to come back empty, and
+declining all four moves would have produced the second consecutive zero-mint run
+the criterion needs. The register exists to stop anyone manufacturing that number.
 
-**`locality` minted TWO, so the termination clock RESETS to zero.** The mint rate
-across sixteen keys now reads 5, 11, 12, 7, 2, 4, 1, 0, 2, 1, 2, 2, 3, 1, 0,
-**2**. `granularity`'s zero is spent. Two consecutive zero-mint runs on two new
-keys are still what ends this, and nothing is closer to that than it was
-yesterday — which is the honest reading of a run that emptied the OPEN table.
+Mint rate across seventeen keys: 5, 11, 12, 7, 2, 4, 1, 0, 2, 1, 2, 2, 3, 1, 0,
+2, **2**. `repetition` was arbitrated by the operator over `commensurability` and
+`reversibility`, with its own risk stated in advance — that Ansible idempotence
+is swept ground and would return re-derivations. The warning held: not one of the
+four moves below came from an Ansible idempotence finding.
 
-**Zero OPEN does not mean finished, and the criterion says so in its own words.**
-The known perimeter is worked down; whether the perimeter is complete is what the
-two zero-mint runs test, and this run answered that question in the negative for
-the sixteenth time.
+| ID | Property | Space, and what bounds it | State |
+|---|---|---|---|
+| C98 | **A repeated procedure reuses a fixed, run-invariant NAME for the artefact it later reads back as authoritative, so run N is served by run N−1's residue** | derived per-domain, two independent slices: `project-manager` 8 runbook reference points (4 defective), `backup` 12 (repeatable operation × fixed path written-then-read-back; 1 confirmed, 1 latent, 10 clean) | ENUMERATED |
+| C99 | **A declarative in-place write keyed on the VALUE it writes rather than on the record's IDENTITY, so a changed value appends a second record instead of replacing the first** | 31 in-place write tasks (22 `lineinfile` + 3 `blockinfile` + 6 `replace`), swept 31/31, 27 identity-keyed, **4 defective, 0 live duplicates today** | ENUMERATED |
+| C37 | A WAL-mode SQLite copied without its `-wal` | **REOPENED.** The 08-29 sweep (3 dumped / 4 declined / 3 ephemeral) was bounded by the DUMP MECHANISM; a copy prescribed by a RUNBOOK is outside it by construction | OPEN |
+| C88 | A store that ADDS on each run with no counterpart removing what its register no longer names | **REOPENED off its file axis.** Bounded to "a file rendered into a host DIRECTORY by Ansible"; two domains independently hit the identical property in NON-file stores | OPEN |
 
-*(No OPEN rows. The table returns when a class is minted or reopened.)*
+### Why C98 is one class and not two
+
+`project-manager` derived it from runbook reference points — the rollback copy or
+before-value a procedure captures from the object it is about to change. `backup`
+derived it from shared workspaces — a fixed path a procedure writes and a later
+step reads as authoritative. Neither read the other's report.
+
+They are the same property seen from its two ends: **the name does not carry the
+run**, so the second run finds the first one's artefact where it expects its own.
+PM's `$BEFORE_ASSETS` check passes against its own previous output;
+`/mnt/data/tmp/restore` is never cleared and two restore blocks then
+`rsync -a --delete` **from** it into live service directories.
+
+Minted once with per-domain slices, on the C90 and C97 precedent. **The cardinals
+differ (8 and 12) and that is not a defect** — the property is
+derivation-relative, as C74, C90 and C95 all record. Do not quote either as "the"
+number.
+
+### Why C37 and C88 reopened rather than being recorded as instances
+
+Both for the reason this file has now paid **eight** times: **the derivation is
+sound and it keys on the wrong axis.**
+
+C37's sweep enumerated the databases the DUMP mechanism knows about. The Kuma
+repair runbook reads `kuma.db` with `?immutable=1` — which deliberately HIDES the
+WAL — and `cp`s the bare file twice as its rollback point. `kuma.db-wal` held
+**4 181 832 bytes** while this run was measuring, the base is in `wal` mode, and
+the runbook's own premise is a crash-looping Kuma, which is exactly the state
+where the WAL has not been checkpointed. The 37 monitors exist only in that
+database.
+
+C88's sweep enumerated FILES RENDERED INTO A DIRECTORY. `security` found the ufw
+rule set — a register that can shrink, whose retraction is three hardcoded
+`delete: true` tasks each written after an instance had already shipped — and
+**rejected its own candidate as a re-mint of C88**, filing it as an instance with
+the bound named. `services` found the Docker image store — the compose pin list is
+a register that shrinks and nothing removes what it stops naming — and offered it
+for arbitration as possibly C88 reopened. Two domains, no contact, same property
+in two non-file stores. The register's own rule names that as the strongest
+evidence available.
+
+**Both agents reached the right answer and neither claimed it**, which is why
+this is recorded as their finding rather than the main session's.
 
 ### C95 — CLOSED as ENUMERATED, by three derivations that finally share a relation
 
@@ -431,6 +492,217 @@ are largely covered by `system` and `services`, but that is an argument, not a
 sweep, and it is the residual risk on this closure. C90 is therefore ENUMERATED,
 **not GATED**: nothing derives the (object, mutator-set) relation continuously,
 so the next deploy can repopulate it.
+
+## The run of 2026-09-13 (late evening) — the key was `repetition`, and the gate deployed that afternoon was already blind
+
+The seventeenth key, chosen by the operator from three the main session proposed
+(`commensurability`, `reversibility`, `repetition`) with each one's weakness
+stated first. The six-word question no class had asked: **what if this runs
+again?** Note the distinction that was written into all eight briefs, because it
+is the one that made the key productive: `concurrency` asked what happens when
+two run AT ONCE; this asks what the SECOND run does to the result of the first.
+
+Three admissible shapes were given so agents returned measurements rather than
+philosophy: (a) a retry that duplicates rather than replaces, (b) an append where
+a rewrite was meant, (c) a second run that consumes what the first produced.
+
+**The stated risk held exactly as written.** The brief warned that Ansible
+idempotence is swept ground and that a finding there would be a re-derivation
+rather than a mint. Not one of the four register moves came from an idempotence
+finding, and `ansible-deploy` re-derived C28, C29 and 21 notify sites clean while
+minting on a different axis entirely.
+
+### The headline is a BROKEN GATE, and it is C03 defeated for the sixth time on the same axis
+
+**C03-T** — `no-kuma-report-was-lost-in-silence`, deployed 2026-09-13 14:15:44,
+promoted to GATED that same afternoon after being **made to fail on purpose in
+six runs including a discriminating twin**. It is blind, and it was blind on the
+day it shipped.
+
+Uptime Kuma 2.5.0 (`monitor.js:755-760`) FABRICATES a DOWN beat carrying the
+message `No heartbeat in the time window`, once per interval, for any push
+monitor whose previous beat is not UP. There is no time term in the disjunct.
+C03-T's two clauses both count rows in `heartbeat` with **no `status` and no
+`msg` filter**:
+
+```
+beats=$(kq "select count(*) from heartbeat h join monitor m ...
+            where m.type='push' and m.active=1 and h.time > '$loss_utc';")
+silent=$(kq "... left join (select monitor_id, max(time) t from heartbeat ...")
+```
+
+So a genuinely mute reporter can never satisfy either clause: Kuma keeps writing
+its rows for it. Verified live by the main session — **39 fabricated rows on
+2026-09-13, 36 of them for monitor 20 (`Pi health`), all at `status=0`**, against
+164 real `status=1` rows for the same monitor the same day. Both kinds coexist,
+which is what makes a row count meaningless.
+
+**C41 is immune and the reason is one predicate.** It filters `h.status = 1`
+(`posture.yaml:2048`) and the file's own comment at :2016 argues for it. C03-T
+does not. That is the whole difference between the two gates.
+
+**Why the six-run proof passed anyway, and this is the lesson worth carrying.**
+The fixture was a SYNTHETIC Kuma database, which by construction contained only
+the rows the test itself wrote. It could not contain rows the upstream writes on
+its own. **A gate proven against a fixture is proven against the fixture's model
+of the world, not against the world.** The proof was sincere and the gate is
+still blind.
+
+**The remedy is NOT the one first proposed.** Matching the English literal
+`'No heartbeat in the time window'` makes the gate depend on an upstream string
+a Kuma upgrade can change without warning — the `succession` axis, already paid
+here. The correct predicate is `h.status = 1`, which C41 has used since
+2026-08-30.
+
+### The second headline: a scheduled job failed at 07:00 and told nobody, and the audit's own baseline said it was green
+
+`homelab-local-maintenance` waited **1h55m** for the resticprofile lock held since
+03:00:09, gave up at its 2 h ceiling, and exited 1 at 07:00:01 — **before the
+profile started, so no hook ran**. Monitor 22 (`Pi restic prune+check`, push)
+received **no beat at all that morning, neither up nor down**. Its only beat since
+the previous evening is 10:25:04 UTC — the hand-run at 12:24:27 that also reset
+the unit to `Result=success`.
+
+This is **C95's "lock-wait timeout" mute emitter**, one of the five kinds
+`backup` enumerated when it closed C95 six hours earlier the same day. The class
+predicted the shape and the shape fired.
+
+**`OnFailure=` is empty on 14 of 14 `homelab-*` units**, and exactly one unit on
+the whole host declares one. So every scheduled job depends on its own script
+reaching its own notification code. When the script dies first, the failure is
+silent. C41's silence fuse is the backstop, but it fires on the monitor's own
+window rather than on the failure.
+
+> **DECLINED BY THE OPERATOR, 2026-09-13 (late evening), with the instruction
+> that it NEVER be raised again** — not with a new number, not with a fresh
+> instance, not folded into a larger lot. The measurement above stands as a
+> record of the gap; the gap is carried knowingly. See `settled.md`. Every other
+> finding in this run's lot was accepted and shipped; this one alone was refused,
+> which is why the refusal is recorded next to the evidence rather than only in
+> the decline list.
+
+**The main session's baseline was the lying instrument**, and it is recorded here
+rather than in `settled.md` because it is evidence about the METHOD:
+`systemctl show -p Result` reports the LAST run. The baseline read "14/14 at
+`Result=success ExecMainStatus=0`" at 21:25 over a unit whose *scheduled* run had
+failed that morning. **A unit's current state is not its cadence's history.**
+
+### Minted — 2, from 5 proposals
+
+| ID | From | Arbitration |
+|---|---|---|
+| C98 | `project-manager` (8 reference points) + `backup` (12 workspaces) | **MERGED into one class.** Two ends of one property, derived independently with no contact. C90/C97 precedent |
+| C99 | `ansible-deploy` (31 in-place writes) | **KEPT.** Distinct from C88: C88 fails to REMOVE, C99 fails to MATCH |
+
+**Declined — 2, and both were offered rather than claimed by their own agents,
+which is what makes the other two credible.**
+
+- `system`'s *"a periodic mechanism whose decision to act is read from a record it
+  rewrites on every run"*. Swept over logrotate state (22/19), the gate library,
+  heal latches, `pending.last`, 23 systemd stamps and 6 apt stamps: **0
+  defective, anywhere, ever**. A property with a cardinal and no instance is a
+  hunch with arithmetic. Recorded in `settled.md` as a swept-clean property.
+- `security`'s *"a declarative apply step that adds but never retracts"*. Its own
+  agent rejected it as a re-mint of C88 and filed it as an instance with the
+  bound named. Correct — and it became the second derivation that REOPENED C88.
+
+### Rejected from the agents, and why
+
+- **`system`'s `/var/log/sudo.log`** — 88 168 entries, 15.7 MB, no rotated
+  sibling, same signature on the offsite. Refuted by its own agent before filing:
+  `/etc/logrotate.d/sudo` was born 2026-09-12 15:10 (`8a4c186`), logrotate
+  registered it at 00:00:08 today, and it falls due 2026-09-20. It also caught
+  itself hitting `settled.md:491` — a single-file `logrotate -d` bypasses the
+  global `su root adm`.
+- **`network`'s host-side probe of the `vpn-only` allowlist.** `curl --interface`
+  from 172.17.0.1 and 172.19.0.1 both returned 200, but the access log shows
+  Docker masqueraded them to 172.18.0.1. **The instrument has no discriminating
+  power in either direction** and the agent said so rather than reporting a hole.
+- **`services`' "no output" disclosure**, corrected by the agent itself after
+  filing: its `du -sh /mnt/data/docker` did complete, at exit 0, so the rule-6
+  walk ran over the whole store with seven agents on the board. It also refused
+  to scale 16.62 GB by the 51 G / 32.4 GB ratio it had just measured, on the
+  grounds that the gap is recorded and not attributed. Both refusals are the
+  standard this register asks for.
+- **The `kuma-pre-2.6.0.db` "no dedup partner" claim** (`project-manager`). The
+  exclusion by literal path is verified and real (`resticprofile.yaml.j2:292-293`,
+  `data_dirs.yml:316-317`), so the NEXT migration's residue is not excluded. The
+  dedup half was not verified and is not relayed.
+
+### Register corrections — 4, and three were rows going stale under a working gate
+
+1. **C19's derived floor is at `homelab-health.sh:665`, not `:592`.** Verified.
+2. **C14's cardinal is 21/21, not 18/18.** And the growth from 18 with **zero
+   edits to the script** is positive proof of derivation, which is worth more
+   than the number. Its "silent ACME failure" half is a PROXY — expiry < 21 d plus
+   a one-directional count ratchet. A name that never obtains a certificate is
+   invisible by construction, and the script says so itself.
+3. **C12's row is STALE and the class is STRONGER than recorded.** "No live
+   assertion at all" is false since #333: `posture.yaml:225
+   secret-mounts-carry-the-current-value` asserts the property, generated from
+   `compose.services[*].secrets`, 14/14, with a live starvation guard. Candidate
+   for re-promotion to GATED. Its runtime floor `read_pairs -eq 14` is
+   tautological — both sides come from one render — so the floor is decoration.
+   Its blind spot is 3 of 17 mounts bind-mounted at arbitrary paths; all 3
+   measured MATCH tonight.
+4. **C21's description is stale for the THIRD time, and the stale word is
+   "monitor"** — there is no retention monitor. The guarantee is structural
+   (`copy:` carries no bound, in the deployed file and in `resticprofile show`)
+   plus the copy push monitor. 91 offsite / 34 local snapshots, 0 locks.
+
+**And one correction the register should stop needing**: `services` reports the
+2026-09-05 "C11 BROKEN" verdict wrong for the **third** time. C11 is derived 9/9,
+emitted inside `{% for … compose.services.items() %}`. Retire the comparison.
+
+### Gates re-read — 9, and 8 held
+
+C15 DERIVED (keys on `/proc/<pid>/cmdline` of the live rest-server; evaluated
+DAILY, not weekly as its own comments say). C18 DERIVED, the PR #352 repair is
+live at 46 assertions, and **no new database has appeared outside the gate** —
+20 SQLite stores enumerated at depth 6, all gate members, DECLINED, or migration
+residue. C21 sound. C41 DERIVED and immune. C07 DERIVED, confirmed at source —
+one Jinja expression over `netdata_docker_update_every`, four consumers. C11
+DERIVED 9/9. C14 DERIVED. C81 NOT BROKEN, both blind spots still empty, exercised
+in a sandbox with a `.yaml` control that passed on the file the hook was invoked
+for. C96 unchanged — homelab 20/20, offsite 9/9, zero orphans.
+
+**C19 is the one that did not hold, and it is not new**: the goss half is A LIST
+— 6 named `service:` entries + 8 named `command:` assertions, **1 of 15 derived**,
+and that one still exits 0 with the binary absent. Byte-identical to 2026-09-05.
+`systemctl --failed` also cannot see an auto-restart loop (`fail2ban` and
+`claude-remote-control` both carry `StartLimitIntervalSec=0`), so that half of
+the property lives only in the script.
+
+**Template-vs-deployed verified clean in both directions, 317 assertion names
+over 4 specs** — posture 221, units 14, backup-dumps 46, offsite-health 36; 0
+template names missing from a host, 0 deployed names a template cannot generate.
+**Every "derived" verdict in this file that rests on a goss template is therefore
+safe.** `--max-concurrent 8` is live.
+
+### The remediation turned a gate red, and the gate was right
+
+`offsite-parity-register-covers-every-control-timer` failed on the first posture
+run after the fixes deployed. The new `homelab-image-retention.timer` had no
+entry in `homelab_control_timers`, and that assertion derives the set of
+controls from the MACHINE — every `homelab-*.timer` with a unit file — refusing
+to pass until a decision exists for each.
+
+**It caught this session's own work within the minute.** It is the clearest
+demonstration in this register of what separates a gate from a sweep, and it
+arrived unprompted, on the people writing the register. The entry added is a
+fact about the host and not an opinion about the check — docker absent from the
+offsite, re-verified rather than inherited from the line above it.
+
+### Instrument errors by the main session — 2, both caught by a control
+
+1. **The baseline itself** — `systemctl show -p Result` over the last run, read
+   as a statement about the cadence. See the second headline.
+2. **An un-`sudo`'d glob over a 0700 directory**, paid for the third time in this
+   file: `sudo ls -l /mnt/data/services/uptime-kuma/kuma.db*` returned "No such
+   file" while `sqlite3` opened the same database in the same second. The glob
+   expands in the unprivileged shell. `sudo sh -c '...'` gave 11 436 032 / 32 768
+   / 4 181 832 bytes. **The rule was already written in `settled.md` trap 5 and in
+   the brief this session wrote**, and it was broken anyway.
 
 ## The run of 2026-09-13 (evening, second) — the key was `locality`, and it emptied the OPEN table
 
@@ -3326,19 +3598,19 @@ check, and it is stated as one.
 |-----|------------------------------------------------------|--------------------------------------------------------|
 | C10 | A credential store readable beyond its service | **Left this table on 2026-09-11 — REOPENED, see the OPEN table.** The gate is genuinely derived and it still holds over the space it derives: the runtime set from `docker inspect`, plus a floor derived from `compose.yaml` since 09-05, plus two named assertions that are a list because the derivation cannot see what they cover. What reopened the class is that the derivation keys on **container mounts**, so a credential file no container mounts is outside it by construction — and two are |
 | C11 | A container whose running `Config.User` differs from what compose declares | posture assertion, 9 services (#145). **NOT broken — the "BROKEN" verdict of 2026-09-05 midday measured a property C11 does not state, and was corrected the same evening.** The figures stand (9 assertions, 11 containers with a non-empty `Config.User`), but `socket-proxy` and `collabora` DECLARE nothing, so there is nothing for the assertion to disagree with: `Config.User` carries the IMAGE's user when compose is silent, and asserting the complement would write upstream's values into this repo. The deployed template argues exactly this at `goss-posture.yaml.j2:322-340`. Under its own property the gate is derived 9/9. A service that loses its `user:` is caught by review of `compose.yaml`, not by a probe of the result |
-| C12 | A rotated secret no consumer restarts to read | **Left this table on 2026-09-03 — downgraded to ENUMERATED.** There is no live assertion at all: nothing in the three deployed goss specs mentions handler coverage. The 51 notify sites and 0 orphans of #145 were a sweep, not a gate |
+| C12 | A rotated secret no consumer restarts to read | **ROW CORRECTED 2026-09-13 (late evening): "no live assertion at all" is FALSE since #333, and the class is STRONGER than this row recorded.** `posture.yaml:225 secret-mounts-carry-the-current-value` asserts the property — it hashes the host file against `/proc/<pid>/root/run/secrets/<name>` for a pair list GENERATED from `compose.services[*].secrets`, 14/14, with a live starvation guard. Repo side re-swept: 14 secret write tasks, 13 notify a handler, 1 documented exception. **Candidate for re-promotion to GATED.** Two caveats: its runtime floor `read_pairs -eq 14` is TAUTOLOGICAL (both sides from one render, so it cannot see the source shrink), and 3 of 17 mounts are bind-mounted at arbitrary paths outside the derivation (`searxng_settings`, `dozzle_users.yml`, `nextcloud_redis.conf` — all 3 measured MATCH) |
 | C13 | A declared environment value shadowed by a persisted config file | **Left this table on 2026-08-30 — see the downgrade above.** The assertion is hardcoded to vaultwarden (#124, #159); a list of one is not a gate |
-| C14 | A certificate with no expiry watch, or a silent ACME failure | `homelab-health.sh` parses `acme.json` directly, 21-day threshold, 18/18 (#157) |
+| C14 | A certificate with no expiry watch, or a silent ACME failure | `homelab-health.sh` parses `acme.json` directly, 21-day threshold. **21/21 live, not the 18/18 this row carried — and the growth from 18 with ZERO edits to the script is positive proof of derivation, which is worth more than the number.** Three-way set equality holds at 21 (acme.json = Traefik `/api/overview` = distinct `Host()` names = split-DNS records) and it is delivered (Kuma monitor 20 read `certs 30d/21` at 21:31:43). **The "silent ACME failure" half is a PROXY only**: expiry < 21 d plus a one-directional count ratchet. A name that never OBTAINS a certificate is invisible by construction, and the script says so in its own comment (#157) |
 | C15 | The offsite repository losing the one property that makes it a backup | goss assertion on the live rest-server process, proven to fail in both modes (#278) |
 | C16 | A read-write bind mount its container cannot create files in | **Left this table on 2026-09-11 — downgraded to ENUMERATED.** The enumeration is derived; the PREDICATE is a proxy (`owner == OPERATOR_UID`). 15 of 27 mounts reach the test and 0 of the 15 can ever fail it |
 | C17 | A filesystem never checked, and boot triggers reset every boot | **Left this table on 2026-09-05 evening — downgraded to ENUMERATED.** The three assertions are hardwired to `/`: one filesystem of four, and `Last checked` is asserted nowhere, six days after this file first recorded that omission. Nothing is proposed — the only live instance is the offsite root, and the operator DECLINED it on 2026-09-02 |
 | C18 | A database dump absent, stale, or empty | **BROKEN on 2026-09-13 and repaired the same evening — see the run section.** Its derivation keys on the dump VARIABLES rather than on the databases present, so three services deployed that night were backed up live, in WAL mode, with no dump and no assertion. PR #352 adds them (15 assertions, 31 → 46). **The wrong-axis defect itself is untouched, and 2026-09-13 night DEMONSTRATED it rather than arguing it**: `sonarr/logs.db`, `radarr/logs.db` and `prowlarr/logs.db` sit under a backed-up path with no dump and no assertion, and the deployed spec mentions `logs` zero times (46 assertions live, verified). They hold app logs, so the impact is low — their value is as proof that a database outside `backup_sqlite_dumps` is invisible to this gate by construction, which is the same shape that reopened C10. goss `backup-dumps`, now **26** checks (2x3 + 3x5 + 5, counted on the deployed spec 2026-09-05 evening), generated from the dump variables so a database cannot get a dump without a check (#177, ADR-032). **The `empty` word is no longer an overstatement** — the derived `-content` floor shipped 2026-09-05 10:39 and 2x3+3x4+4 = 22 matches the host. The derivation half recorded as defective that morning is **FIXED**: `-container-present` is now generated in the same loop, and the residue is a list of one (Immich) |
-| C19 | A failed systemd unit, or a timer whose service did not succeed | goss `units.yaml` plus the health script's last-run check — **homelab only; the offsite half is C02**. **Only the GOSS half is vacuous at zero** — corrected 2026-09-05 evening by two agents independently: the script half now carries a derived floor (`timers_seen -eq 0`, `homelab-health.sh:592`, shipped 2026-09-05). The goss half still exits 0 with the binary absent (positive control: `PATH=/nonexistent`), rescued by composition rather than by assertion |
+| C19 | A failed systemd unit, or a timer whose service did not succeed | **QUANTIFIED 2026-09-13 (late evening): the goss half is A LIST — 6 named `service:` entries + 8 named `command:` assertions, 1 of 15 DERIVED (`systemd-no-failed-units`, from `systemctl --failed`), and that one still exits 0 with the binary absent, byte-identical to 2026-09-05.** The script half is genuinely derived and its floor fires (`timers_seen` 13 healthy, 0 under `PATH=/nonexistent`) — **at `homelab-health.sh:665`, not the `:592` this row used to give.** Also structural: `systemctl --failed` cannot see an auto-restart loop, and `fail2ban` and `claude-remote-control` both carry `StartLimitIntervalSec=0`, so that half of the property lives only in the script. goss `units.yaml` plus the health script's last-run check — **homelab only; the offsite half is C02**. **Only the GOSS half is vacuous at zero** — corrected 2026-09-05 evening by two agents independently: the script half now carries a derived floor (`timers_seen -eq 0`, `homelab-health.sh:592`, shipped 2026-09-05). The goss half still exits 0 with the binary absent (positive control: `PATH=/nonexistent`), rescued by composition rather than by assertion |
 | C20 | A secret that a deploy reports as rotated without rotating it | **Left this table on 2026-09-03 — downgraded to ENUMERATED.** 4 hand-written probes over a space of 16 secret files; a list of four is not a gate (#159 fixed the case-mismatch bug, which is a different question) |
-| C21 | A snapshot that missed its offsite copy and is never retried | retention monitor (#158, #168). **The "time-window filter" this row used to name no longer exists** — re-verified 2026-09-03: `copy:` carries no bound, every snapshot is re-offered nightly, 31 local / 81 offsite with no gaps. The class holds; the description was stale for the second time |
+| C21 | A snapshot that missed its offsite copy and is never retried | **ROW STALE FOR THE THIRD TIME, and the stale word is "monitor" — there IS no retention monitor.** The guarantee is STRUCTURAL (`copy:` carries no bound, verified in the deployed file AND in `resticprofile show`) plus the copy push monitor. 91 offsite / 34 local snapshots, 0 locks on either, 2026-09-13. The class holds; the description has now been wrong three times. Formerly cited as the retention monitor (#158, #168). **The "time-window filter" this row used to name no longer exists** — re-verified 2026-09-03: `copy:` carries no bound, every snapshot is re-offered nightly, 31 local / 81 offsite with no gaps. The class holds; the description was stale for the second time |
 | C81 | A byte written into a file whose consumer reads it back through a narrower encoding than the producer's | `ops/check-ascii-system-files.py` in pre-commit, proven to fail in both directions (2026-09-04); re-exercised 2026-09-05 evening in a sandbox, 3 flags with both negative controls passing. **Its `marker:` half is derived; its path filter is a LIST OF ONE** — `ASCII_STRICT_PREFIXES = ("/etc/ufw/",)`. Kept GATED rather than downgraded because, unlike C17, no live instance has ever existed outside that prefix; its two blind spots (`*.yaml`, `.j2` into `/etc/ufw/`) are empty today |
 | C41 | A dead-man's fuse re-armed from zero by the restart of its own watchdog | `kuma-no-push-monitor-silent-past-its-own-window`, derived from Kuma's own monitor table and each monitor's `interval`, with a starvation guard; discriminates on 54 historical silences against 16 (2026-08-30) |
-| C03-T | A validation whose instrument answers a different question from the one its comment claims — **the decidable half, where the instrument can name its own "unknown"** | `no-kuma-report-was-lost-in-silence`, `/etc/goss/posture.yaml:2995`, deployed 2026-09-13 14:15:44. Derived: the floor comes from Kuma's own `StartedAt`, the lookback cap from the timer's own period, and the silence test from each monitor's own `interval` — the same source C41 uses. **Made to fail on purpose 2026-09-13, off-host, against the deployed script verbatim with `docker`/`journalctl`/`sqlite3` stubbed and a synthetic Kuma database — six runs**: no marker -> exit 0; loss fully recovered -> exit 0; loss with nothing since -> exit 1, naming it; loss with a reporter past its own cadence -> exit 1, naming the reporter; **the discriminating twin — same clock, that reporter recovered -> exit 0**; floor unreadable -> exit 1, "refusing to judge" rather than passing. Nothing was written on either host and no heartbeat was sent |
+| C03-T | A validation whose instrument answers a different question from the one its comment claims — **the decidable half, where the instrument can name its own "unknown"** | **REPAIRED AND RE-PROVEN 2026-09-13 (late evening): `h.status = 1` on both clauses, deployed and verified evaluating on the host (posture exit 0, no timeout). Re-proven off-host against a database that CONTAINS fabricated rows — five scenarios, old and new side by side: the mute reporter goes exit 0 -> exit 1, the discriminating twin stays exit 0 on both. The gate is GATED again.** It had been **RED SINCE THE DAY IT SHIPPED — see the run of 2026-09-13 (late evening). Kuma fabricates a DOWN beat every interval for any push monitor that is not UP; both clauses count `heartbeat` rows with NO `status` filter, so a mute reporter can never satisfy either. Verified live: 39 fabricated rows on 09-13, 36 for monitor 20, all `status=0`, against 164 real `status=1` rows the same day. The six-run fail-on-purpose proof used a SYNTHETIC database that by construction held only the rows the test wrote. Fix is `h.status = 1` — what C41 has used since 08-30 — NOT a match on the upstream English literal.** `no-kuma-report-was-lost-in-silence`, `/etc/goss/posture.yaml:2995`, deployed 2026-09-13 14:15:44. Derived: the floor comes from Kuma's own `StartedAt`, the lookback cap from the timer's own period, and the silence test from each monitor's own `interval` — the same source C41 uses. **Made to fail on purpose 2026-09-13, off-host, against the deployed script verbatim with `docker`/`journalctl`/`sqlite3` stubbed and a synthetic Kuma database — six runs**: no marker -> exit 0; loss fully recovered -> exit 0; loss with nothing since -> exit 1, naming it; loss with a reporter past its own cadence -> exit 1, naming the reporter; **the discriminating twin — same clock, that reporter recovered -> exit 0**; floor unreadable -> exit 1, "refusing to judge" rather than passing. Nothing was written on either host and no heartbeat was sent |
 
 ### Broken gates found on 2026-08-30 — these are red tests, not audit results
 
