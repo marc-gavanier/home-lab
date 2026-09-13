@@ -817,6 +817,21 @@ not as a finding.
   two services currently reach out through it and would break. A real piece of
   work to be scoped, not a quick fix, and not an audit finding to repeat.
 
+- **Moving the audit register out of the public repository.** `classes.md` and
+  `settled.md` are ~460 KB describing one installation in more detail than
+  anything else here — its containers, paths, schedules, failures and accounts.
+  Raised during the privacy pass of 2026-09-13 alongside the MAC address and the
+  LAN topology, which were fixed; this one was not, and the difference is that
+  the register is also the engineering log that gives the repository its value.
+
+  **The operator's decision, 2026-09-13: it stays where it is WHILE THIS WORK IS
+  ONGOING.** That is a condition, not a verdict — which is why this sits here and
+  not under Declined. Do not re-propose it run after run; do raise it once when
+  the condition changes, i.e. when the audit cycle stops being active work.
+  Whoever raises it then should bring the three options as they stood: leave it,
+  move it to a private repository, or sanitise it the way the rest of the repo
+  was sanitised.
+
 ---
 
 ## Closed by the run of 2026-08-16 — proven, not assumed
