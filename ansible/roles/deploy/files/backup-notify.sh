@@ -184,8 +184,11 @@ else
         # Same three-step guard as homelab-posture.sh, homelab-health.sh and
         # offsite-health.sh, for the same reason (#156, #177).
         dump_total=$(sed -n 's/^1\.\.\([0-9]*\)$/\1/p' "$DUMP_TAP")
+        dump_seen=$(grep -cE '^(not )?ok [0-9]+ ' "$DUMP_TAP") || true
         if [ -z "$dump_total" ] || [ "$dump_total" -eq 0 ]; then
             problems+=("goss asserted nothing about the dumps — spec unreadable, empty, or goss missing")
+        elif [ "$dump_seen" -ne "$dump_total" ]; then
+            problems+=("goss declared $dump_total dump checks and produced $dump_seen — the run was cut short")
         else
             failed=$(sed -n 's/^not ok [0-9]* - Command: \([^:]*\):.*/\1/p' "$DUMP_TAP" |
                      sort -u | tr '\n' ' ')

@@ -1182,6 +1182,17 @@ command:
   # catch one missed month, loose enough never to fire on a normal one.
   restic-deep-check-not-stale:
     exec: |
+      sources=$(docker exec uptime-kuma sqlite3 "file:/app/data/kuma.db?mode=ro" \
+            "select count(distinct monitor_id)
+             from heartbeat where status = 1 and msg like '%deep check%'")
+      case "$sources" in
+        ''|*[!0-9]*) echo "Kuma cannot be read — refusing to judge the deep-verification clock"; exit 1 ;;
+        0) echo "no deep verification has ever reached the monitor"; exit 1 ;;
+      esac
+      [ "$sources" -eq 1 ] || {
+        echo "'deep check' appears in the messages of $sources monitors — the 45-day clock no longer identifies one reporter"
+        exit 1
+      }
       last=$(docker exec uptime-kuma sqlite3 "file:/app/data/kuma.db?mode=ro" \
             "select cast((strftime('%s','now') - strftime('%s', max(time))) / 86400 as int)
              from heartbeat where status = 1 and msg like '%deep check%'")

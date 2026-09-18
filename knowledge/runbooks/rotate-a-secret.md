@@ -24,6 +24,8 @@ stronger while the operation stayed impossible (#159).
 | `pihole_password`              | pihole                       | **yes** — a single task sets it and flushes the handler, so the container sees it (`d3ba112`, #333) |
 | `restic_password`              | resticprofile, `restic init` | **no, and never rotate it alone** — see the restic procedure below                                  |
 | `offsite_restic_password`      | resticprofile (offsite)      | **no, and never rotate it alone** — see the restic procedure below                                  |
+| `luks_passphrase`              | cryptsetup / `luks_device`   | **no, and the deploy reports `ok`** — see the LUKS procedure below                                  |
+| `wg_password`                  | wg-easy admin UI             | **no** — nothing in the deploy ever sets it; see the wg-easy procedure below                        |
 | `vaultwarden_admin_token_hash` | vaultwarden                  | **no** — `config.json` overrides the environment                                                    |
 | `nextcloud_db_password`        | nextcloud-db + config.php    | **no** — `initdb` only                                                                              |
 | `nextcloud_db_root_password`   | nextcloud-db                 | **no** — `initdb` only                                                                              |
@@ -64,6 +66,59 @@ it.
 This rule lived only inside an Ansible `fail_msg` (`d6d602e`) until 2026-09-11,
 which is to say it existed everywhere except the page that teaches secret
 rotation.
+
+### The LUKS passphrase: a green deploy is not evidence
+
+`luks_passphrase` is the passphrase of the encrypted data volume, and changing
+it in the vault does **not** change it on the disk. `community.crypto.luks_device`
+with `state: opened` returns `ok` for a volume that is already open: it never
+opens the device, so it never validates the passphrase it was handed. The run is
+green, the keyslot is untouched, and the vault and the disk now disagree.
+
+Two facts make that worse than an ordinary stale secret. The disk carries
+**exactly one keyslot**, so the old passphrase is the only way in. And the
+disagreement surfaces at the next unlock, which is the one moment nothing can be
+repaired remotely: `/etc/wireguard/wg0.conf` is a symlink onto the encrypted
+volume, so there is no tunnel until the volume is open and no remote access
+until the tunnel is up.
+
+The order is therefore the restic order — put the new key on the disk first,
+prove it opens, and only then change what the deploy writes.
+
+```bash
+# 1. add the new passphrase as a SECOND keyslot, while the old one still works
+sudo cryptsetup luksAddKey /dev/sda1
+
+# 2. prove it opens the volume, without closing anything (safe while mounted)
+sudo cryptsetup luksOpen --test-passphrase /dev/sda1 && echo "new passphrase accepted"
+
+# 3. re-take the header backup — the keyslots just changed, and an old header
+#    restore would reinstate the superseded passphrase
+#    (knowledge/runbooks/luks-header-backup.md)
+
+# 4. only now put the new value in the vault and deploy
+
+# 5. remove the old keyslot ONLY after an attended reboot has unlocked with the
+#    new one, then re-take the header backup again
+sudo cryptsetup luksKillSlot /dev/sda1 <old-slot>
+```
+
+Do not collapse steps 4 and 5. Until an unlock has actually succeeded with the
+new passphrase, the old keyslot is the only tested way into the volume — and a
+reboot is an attended operation here, for the reason above.
+
+### `wg_password`: the deploy never sets it at all
+
+Nothing in the deploy writes the wg-easy admin password. The secret file is
+rendered from the vault, and the re-assertion script only *logs in* with it, so
+a new value produces a `changed` file, a successful run and no rotation. Its
+guard makes this quieter still: when wg-easy is not running the script exits 0,
+so the deploy reports success without having tried.
+
+Change it in the wg-easy UI first, then put the same value in the vault so the
+next deploy stops disagreeing with the running service. Do not restart or
+upgrade wg-easy to force the issue while nobody is on site — it is the only path
+to the host.
 
 ### Why the database ones cannot work
 

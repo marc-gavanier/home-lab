@@ -21,7 +21,7 @@ Home lab on Raspberry Pi 4 (8GB, Ubuntu Server 24.04 LTS). Security posture was 
 
 ## Do NOT re-propose (already evaluated and rejected)
 
-livepatch, CrowdSec, Authelia/SSO, userns-remap, auditd. Residual backlog is tracked in GitHub issue #11 — check it before proposing new work.
+livepatch, CrowdSec, Authelia/SSO, userns-remap, auditd. Check the open issues (`gh issue list`) before proposing new work.
 
 ## Non-negotiable Principles
 

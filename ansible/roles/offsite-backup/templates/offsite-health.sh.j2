@@ -103,8 +103,11 @@ elif ! command -v goss >/dev/null 2>&1; then
 else
     tap=$(goss -g "$SPEC" validate --format tap 2>&1) || true
     total=$(printf '%s\n' "$tap" | sed -n 's/^1\.\.\([0-9]*\)$/\1/p')
+    seen=$(printf '%s\n' "$tap" | grep -cE '^(not )?ok [0-9]+ ') || true
     if [ -z "$total" ] || [ "$total" -eq 0 ]; then
         problems+=("goss produced no assertions — spec unreadable or empty")
+    elif [ "$seen" -ne "$total" ]; then
+        problems+=("goss declared $total assertions and produced $seen — the run was cut short")
     else
         failed=$(printf '%s\n' "$tap" | sed -n 's/^not ok [0-9]* - [A-Za-z]*: \([^:]*\):.*/\1/p' |
                  sort -u | tr '\n' ' ')
