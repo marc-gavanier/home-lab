@@ -1247,8 +1247,15 @@ command:
   # at something that no longer exists, and the next reader would trust it.
   #
   # `list-unit-files` rather than `list-units`: a control timer that exists but
-  # is not loaded must still be classified. Whether it is ARMED is C19's
-  # question and goss-units.yaml already asks it.
+  # is not loaded must still be classified. Whether it is ARMED is asserted
+  # HERE, on the set this assertion already built. It used to say that
+  # goss-units.yaml asked that question. It does not: units.yaml declares
+  # services and no timer, and its own header records that the timer check
+  # "stays in the script" — where homelab-health.sh reads each timer's LAST
+  # RESULT and accepts the empty value, which is exactly what a unit that has
+  # never run reports. Three artefacts each deferred to another and nobody
+  # asked. homelab-image-retention has never run and has no Kuma push, so it
+  # was the one instance with no other detector at all.
   #
   # The floor is a measurement (13 on 2026-08-30), not a target. It fails if the
   # enumeration stops matching — a renamed prefix, a systemctl output change —
@@ -1268,9 +1275,16 @@ command:
       for t in $declared; do
         case " $deployed " in *" $t "*) ;; *) stale="$stale $t" ;; esac
       done
+      disarmed=""
+      for t in $deployed; do
+        [ "$(systemctl is-enabled "$t.timer" 2>/dev/null)" = "enabled" ] &&
+        [ "$(systemctl is-active "$t.timer" 2>/dev/null)" = "active" ] ||
+          disarmed="$disarmed $t"
+      done
       rc=0
       [ -z "$unclassified" ] || { echo "control timer(s) with no offsite decision:$unclassified"; rc=1; }
       [ -z "$stale" ] || { echo "register names timer(s) that are not deployed:$stale"; rc=1; }
+      [ -z "$disarmed" ] || { echo "control timer(s) present but not armed:$disarmed"; rc=1; }
       exit $rc
     timeout: 60000
     exit-status: 0
