@@ -24,6 +24,75 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-09-19 — key `collision`, one PR, deployed from the branch before merge
+
+The operator took five items of the eight put to them, declined three, and asked
+for one PR.
+
+- **The heal timer's blind spot on `Interval = 0`.** A container declaring
+  `start_period` and no interval reports `Interval=0s` while the daemon probes it
+  at its own default — `immich-server` and `immich-ml`, the two heaviest on the
+  machine, measured 31 s apart in `State.Health.Log`. The guard skipped them
+  without a word. Now it falls back to the daemon's 30 s default and logs which
+  containers are aged that way. **`HEALTH_INTERVAL_DEFAULT` is the knob.**
+- **The posture beat carries its provenance** — `scheduled run` / `manual run`,
+  decided by comparing the service's start against the timer's last trigger, and
+  saying `provenance unreadable` rather than guessing. A green from a hand-run and
+  a green from the timer are no longer the same line.
+- **A timer that FIRED SINCE THIS BOOT and whose service never started** is now
+  reported by the health script, off the monotonic pair — the only slice of
+  `Result`'s ambiguity that is decidable without crying wolf on every weekly
+  timer.
+- **`exit 2` means "could not measure", `exit 1` means "the property is
+  violated".** Applied to five branches of the three posture checks that have
+  actually fired this month, and documented once at the head of the spec's
+  `command:` section. The exit status is the only field that reaches the alert —
+  see the instrument trap below for why the obvious alternative does not exist.
+- **Nextcloud's app store is off and its log is bounded.** The nightly fetch had
+  failed with cURL error 23 since at least 2026-09-01, writing a 10 MB Guzzle
+  trace each time into the file the fail2ban `[nextcloud]` jail re-reads.
+  `appstoreenabled=false` removes the writer, `log_rotate_size` 10 MiB bounds what
+  any writer can leave. The idempotence guard now case-folds both sides, because
+  occ renders a boolean whose Jinja `string` is `"False"`.
+- **Three documentary corrections**: the ADR count in `.claude/agents/project-manager.md`
+  (16 claimed, 36 on disk) replaced by the command that regenerates it rather than
+  by a fresher number; what the heal timer actually restarts, in the runbook read
+  during a failed boot; and "Six of the conditions below" where nine is the count.
+
+## Declined — added 2026-09-19, do not re-propose
+
+- **A second, restricted SSH key for the sshfs mount.** One key covers four roles
+  — admin on both hosts, the music mount, Ansible — with no restriction options,
+  and at VERBOSE the journal shows no `sftp-server` line, so the mount and an
+  intruder holding the key are the same entry. **The operator assumes this.** Do
+  not offer `restrict,command="internal-sftp"` again.
+- **Annotating the 16 documented procedures that trip a live assertion**
+  (C105). A restore is an exceptional event and a surveillance outage during one
+  is acceptable to the operator. The class stays in the register; the annotation
+  does not.
+- **Asserting on an empty `deploy_services`** (C106). The operator does not read
+  the full-stack deploy it silently produces as a risk worth a guard. The
+  measurement stands, the guard does not.
+
+## Instrument traps paid on 2026-09-19 — four, and the first one removes a remedy
+
+- **goss never prints what a check wrote.** Verified on the host against the
+  deployed binary: a failing check renders its exit status, and a declared
+  `stdout:` renders the literal `"object: *bytes.Reader"`. Any plan that involves
+  "declare `stdout:` so the message shows up" is dead on arrival; the exit status
+  is the only field that survives into the alert.
+- **`--timestamp=unix` is not honoured by every timestamp property.** It works on
+  `ExecMainStartTimestamp` and is ignored by `LastTriggerUSec`, which renders
+  human whatever you ask. The locale-free route is the monotonic pair, and it
+  resets at boot on both sides together — which is what makes a comparison across
+  the two objects reboot-safe. Verify it on the offsite, whose last trigger
+  predates its boot.
+- **A wrong path returns empty, not an error** — the same family as the
+  un-`sudo`'d glob. A Nextcloud log read one directory too high produced silence,
+  one step from concluding there was no log.
+- **A count that agrees with itself proves nothing.** Two independent methods, or
+  the number is not usable.
+
 ## Shipped on 2026-09-18 — key `quiescence`, PR #361, deployed from the branch before merge
 
 The operator took five items of the lot, declined one permanently, deferred one
