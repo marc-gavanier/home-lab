@@ -620,7 +620,7 @@ internet except WireGuard.
 ### Host health (push, every 5 min)
 
 `homelab-health.sh` pushes one monitor covering the host-level signals that
-need a human. Six of the conditions below are no longer evaluated by that
+need a human. Nine of the conditions below are no longer evaluated by that
 script — ADR-030 moved them to curated Netdata alarms and ADR-032 to a goss
 spec — so the third column names what actually watches each one. Without it the
 table reads as coverage, which is how a deleted check sat in it unnoticed:

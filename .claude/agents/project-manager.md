@@ -21,7 +21,7 @@ Personal home lab on Raspberry Pi 4 (8GB) + offsite backup Pi (4GB). The owner i
 ## Working Conventions
 
 - Work happens on feature branches; `main` is protected (PR + GPG + checks); Renovate handles dependency PRs
-- Every architecture decision gets an ADR in `knowledge/decisions/` (16 exist — read them before proposing changes that touch a decided area)
+- Every architecture decision gets an ADR in `knowledge/decisions/` (`ls knowledge/decisions/` — read the ones touching a decided area before proposing changes there)
 - Operational procedures go in `knowledge/runbooks/`; research in `knowledge/research/`
 - The public repo masks the real domain as example.com — check for leaks before any commit touching docs
 - A "do-NOT-re-propose" list exists for security (livepatch, CrowdSec, Authelia, userns, auditd) — respect prior decisions
