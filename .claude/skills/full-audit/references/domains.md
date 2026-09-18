@@ -15,18 +15,24 @@ earlier — which would have sent eight agents to re-derive settled work. Rebuil
 it from `classes.md`'s OPEN table at the start of every run; if the two
 disagree, `classes.md` wins.
 
-As of the run of 2026-09-18, key `quiescence`. **Rebuilt from `classes.md`'s OPEN
+As of the run of 2026-09-19, key `collision`. **Rebuilt from `classes.md`'s OPEN
 table — do not trust this copy if the two disagree.**
 
-**NO OPEN CLASS.** The counter went 1 -> 0 and the class total 100 -> 102. C88
-closed as ENUMERATED (80/80 + 21/21 + 16/16); C101 and C102 were minted. **The
-termination clock RESET** — two mints means the two consecutive zero-mint runs
-start again from zero.
+**FIVE OPEN CLASSES, and every one of them names its owner.** The counter went
+0 -> 5 and the class total 102 -> 106.
 
-**So no domain carries a mandate to close anything.** Every domain's job this time
-is the one that demoted C02, C13, C20, C26 and C17: re-read the GATED assertions
-in its area and ask whether each is DERIVED from the thing it guards or is merely
-a list of the instances once found.
+| Class | Owner | What is left to do |
+|---|---|---|
+| C103 | `observability` (+ `system`) | the systemd slice is swept 14/14; the KUMA slice is not — a heartbeat carries no provenance either |
+| C105 | `project-manager` (+ `network`) | 16 documentary sites swept; the inverse direction — a procedure that ERASES a discriminator, like an SD reflash re-seeding the certificate ratchet — sits outside them |
+| C01 | `project-manager` | its space was bounded by a directory; `.claude/agents/*.md` and `CLAUDE.md` have never been in it, and they are what all eight agents read first |
+| C20 | `security` | the space is 59 measured values against the 16 recorded; re-derive the cardinal before anything else |
+| C44 | `services` (+ `ansible-deploy`) | the 13/13 sweep was bounded by timers; the deploy-tag sub-space is where the live instance is |
+
+**A domain with no OPEN class still has the job that demoted C02, C13, C20, C26
+and C17**: re-read the GATED assertions in its area and ask whether each is
+DERIVED from the thing it guards or is merely a list of the instances once
+found.
 
 **ONE GATE IS RED — C07, and it is `observability`'s.** Its assertion is derived
 and bounded by ONE COLLECTOR: a single Jinja expression renders the alarm
@@ -60,12 +66,16 @@ were written had cleared the only red, which had been pushed on each of the thre
 previous SCHEDULED runs. **Before quoting a monitor's colour, ask when its last
 SCHEDULED execution was and what that one reported.**
 
-**Nineteen keys are now spent**: `time`, `order`, `identity`, `scale`,
+**Twenty keys are now spent**: `time`, `order`, `identity`, `scale`,
 `authority`, `representation`, `vacuity`, `exclusivity`, `interruption`,
 `succession`, `residue`, `concurrency`, `plurality`, `dependency`,
-`granularity`, `locality`, `repetition`, `reversibility`, `quiescence`. The mint
-rate reads 5, 11, 12, 7, 2, 4, 1, 0, 2, 1, 2, 2, 3, 1, 0, 2, 2, 1, **2**. A run
-that reuses one proves nothing. **Two remain proposed and unspent —
+`granularity`, `locality`, `repetition`, `reversibility`, `quiescence`,
+`collision`. The mint rate reads 5, 11, 12, 7, 2, 4, 1, 0, 2, 1, 2, 2, 3, 1, 0,
+2, 2, 1, 2, **4**. A run that reuses one proves nothing. **`collision` is the
+first key since `order` to pay four**, and the reason is the one that pays every
+time: all 102 classes on file asked whether ONE thing was right, none asked
+whether TWO were distinguishable. `asymmetry` and `cost` were proposed beside it
+and remain unspent, as do `commensurability` and `staleness`. **Two remain proposed and unspent —
 `commensurability` (are both sides of this comparison in the same unit, base and
 reference frame?) and `staleness` (what is the maximum age of the value this
 decision rests on, and what bounds it?).** `commensurability` arrived with three
