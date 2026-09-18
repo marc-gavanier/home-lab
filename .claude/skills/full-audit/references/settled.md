@@ -51,6 +51,22 @@ for investigation, and the seventh dissolved under measurement.
    assertion that already built the set. Six lines, 14/14 green.
 5. **Five documentary statements** that counted something other than what they say.
 
+**Verified after the run — `ok=202 changed=9 failed=0`.** Exactly 2 of the 32
+containers were recreated, miniflux and netdata, and nothing else moved.
+`POLLING_PARSING_ERROR_LIMIT=15` is live in the container. **netdata fell from
+42.74 % of a core to 20.61 %**, fleet total 85.59 % -> 60.90 %, measured with the
+same 30 s cgroup window as the before figure so the two are comparable — about 22
+points of a core recovered, slightly more than the 4.5 % predicted. The spec
+validates at **400 assertions, 0 failures, 35 s**, and the armed branch was given
+a negative control rather than assumed: a masked timer (`e2scrub_all`) is flagged,
+an armed one is not.
+
+**The posture check was NOT run through `homelab-posture.sh` to verify any of
+this**, on purpose. That wrapper pushes a heartbeat, and a heartbeat pushed by
+hand is exactly what made this run's baseline a false clean. `goss -g … validate`
+executes the same assertions and pushes nothing. **The first real test of the
+deadline fix is the scheduled run at 11:05**, not anything typed tonight.
+
 **The deploy was `--tags observability,deploy -e '{"deploy_services": "miniflux"}'`,
 never a bare run.** Checked first, and worth repeating as a habit: the 32 running
 services carried **exactly** the images the repo pins, so no pending pin was armed
