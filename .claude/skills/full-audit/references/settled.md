@@ -104,17 +104,58 @@ it is not.
   against 85.59 % for all 32 containers, on an independent 30 s cgroup window.
   Quote "about half"; the agent's "more than the other 31 combined" does not hold.
 
-## Deferred on 2026-09-18, NOT declined — the heal timer's asymmetric bound
+## Arbitrated on 2026-09-18 — the heal timer's asymmetric bound, investigated then bounded
 
-The `running`+`unhealthy` branch of the crash-heal timer carries a
-one-restart-per-hour lock with a comment explaining it. The `exited`/`created`/
-`dead` branch carries none — **and it is the branch that executes.** Confirmed
-from the journal: on 2026-09-06 between 01:03 and 01:07+, seven containers
-including `immich-db`, `miniflux-db` and `nextcloud-db` were restarted every two
-minutes with repeated `ERROR: failed to restart`. The operator's words: *"il
-faudrait investiguer, on le fera à la fin, parce que dans l'état je ne sais pas
-quoi faire"*. **Investigate before proposing anything**; the asymmetry is the
-finding, not the value of the lock.
+**The investigation changed the diagnosis, which is why it was worth doing before
+proposing anything.** It is not a runaway healer. On 2026-09-06 an **Ansible
+deploy was running** — 679 traces in the journal, a session open 23:00 to 03:01,
+the `chmod 0444` of the secrets — recreating containers while the heal timer,
+sampling every two minutes, saw them as `created` or `exited` and raced it with a
+second `compose up`. The `ERROR: failed to restart` lines are two `compose up`
+colliding. **131 attempts, 51 failures, 54 minutes, seven containers of which
+three were databases.**
+
+**The race itself is already settled and was NOT reopened.** `classes.md` records
+it as a confirmed C90 instance seen twice (2026-09-05, 2026-09-12), and this file
+already carries *"the heal-loop-versus-operator shape has no interlock and does
+not need a new class — it is a convention, documented in five places, settled via
+#126"*. What was new is the DURATION, and its cause: the `unhealthy` branch has a
+one-restart-per-hour latch whose own comment describes this failure mode, and the
+`exited`/`created`/`dead` branches — **the ones that actually execute** — had
+none.
+
+**Two things had already changed by the time this was investigated**, and both
+belong in the record because they bound how much the remaining gap is worth:
+- **Detection was shipped on 2026-09-13.** A collision makes the heal run count
+  MORE containers than are declared, and `homelab-health.sh` gained the `-gt`
+  branch for exactly that. On 09-06 three instruments were blind at once; they are
+  not now.
+- **The convention works when followed.** The targeted deploy of 2026-09-18
+  recreated two containers at 23:02, and the heal run at **23:02:48 landed inside
+  it and reported `0 restarted`.** The window is only wide for a full-stack
+  deploy, which is already discouraged.
+
+**The operator chose the short latch: ten minutes, not the neighbouring hour.**
+The asymmetry is deliberate and is the whole reason the question was worth asking:
+the exited branch is the only recovery path for the 23 of 32 services running
+`restart: "no"`, so refusing to retry costs more there than it does on the
+unhealthy branch. Ten minutes breaks a collision loop without delaying a real
+recovery by anything a human would notice — the same event becomes six attempts
+per container instead of twenty-eight.
+
+**The interlock stays declined.** This bounds the race, it does not prevent it.
+Do not re-propose a lock between the deploy path and the heal timer.
+
+**Verified**: the logic was exercised in both directions before shipping — it
+abstains, it reopens at eleven minutes, and each container carries its own stamp,
+so one container's latch cannot delay another's genuine recovery. Deployed
+`--tags stack-startup`, `ok=20 changed=1 failed=0`, and the run at 23:22:29 — the
+first on the new script — reported `checked 32 of 32, 0 restarted`.
+
+**Not related, recorded so it is not rediscovered as a consequence**: the backup
+of 2026-09-06 failed at 03:13, an hour after the loop ended, at the RETENTION
+step and after the snapshot was saved. It pushed DOWN at the time, so it was not
+silent, and the following night was clean.
 
 ## Instrument traps paid on 2026-09-18 — four by the MAIN session, and one retires a rule written five days earlier
 
