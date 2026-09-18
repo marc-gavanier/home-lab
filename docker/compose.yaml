@@ -1133,7 +1133,7 @@ services:
 
   # --- Collabora Online (collaborative editing inside Nextcloud) ---
   collabora:
-    image: collabora/code:26.04.3.2.1
+    image: collabora/code:26.04.4.1.1
     # Only start_period and start_interval are declared. `test` is deliberately
     # absent so the image's own healthcheck is kept — this file has no business
     # re-implementing it, and #156 is the reminder of what happens when a
@@ -1206,7 +1206,7 @@ services:
 
   # --- Vaultwarden ---
   vaultwarden:
-    image: vaultwarden/server:1.37.2
+    image: vaultwarden/server:1.37.3
     container_name: vaultwarden
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
@@ -1781,7 +1781,7 @@ services:
   # precedent and it is brutal: 90 s warm, 7 min 49 s cold, unhealthy on two
   # consecutive boots before its own budget went to 600 s.
   prowlarr:
-    image: lscr.io/linuxserver/prowlarr:2.5.2
+    image: lscr.io/linuxserver/prowlarr:2.6.5
     container_name: prowlarr
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
@@ -1824,7 +1824,7 @@ services:
       - "traefik.http.services.prowlarr.loadbalancer.server.port=9696"
 
   sonarr:
-    image: lscr.io/linuxserver/sonarr:4.0.19
+    image: lscr.io/linuxserver/sonarr:4.0.20
     container_name: sonarr
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
@@ -1865,7 +1865,7 @@ services:
       - "traefik.http.services.sonarr.loadbalancer.server.port=8989"
 
   radarr:
-    image: lscr.io/linuxserver/radarr:6.3.0
+    image: lscr.io/linuxserver/radarr:6.4.4
     container_name: radarr
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
@@ -2019,7 +2019,7 @@ services:
 
   # --- Netdata ---
   netdata:
-    image: netdata/netdata:v2.11.0
+    image: netdata/netdata:v2.11.1
     container_name: netdata
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     # Netdata's plugins are **setuid root** (4755: apps.plugin, cgroup-network,
@@ -2231,7 +2231,7 @@ services:
   # without SSH, logs were not. Reads the daemon through the same read-only
   # socket-proxy as Traefik and Netdata — never the raw docker.sock.
   dozzle:
-    image: amir20/dozzle:v11.0.1
+    image: amir20/dozzle:v11.1.0
     container_name: dozzle
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
@@ -2608,7 +2608,7 @@ services:
     # It pays for that with a different data path: /var/lib/gitea, NOT the /data
     # that every tutorial mounts, which would store every repository in a layer
     # the next `compose up` discards (ADR-028).
-    image: codeberg.org/forgejo/forgejo:16.0.4-rootless
+    image: codeberg.org/forgejo/forgejo:16.0.5-rootless
     container_name: forgejo
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
