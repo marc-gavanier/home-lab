@@ -68,6 +68,27 @@ notify() {
     esac
 }
 
+# Which run produced this beat. A heartbeat carries no provenance, so a green
+# from a hand-run and a green from the scheduled one are the same line in Kuma —
+# which is how this monitor, having pushed DOWN on each of its three previous
+# SCHEDULED runs, was read as part of "37/37 green" on 2026-09-18. The timer
+# records when it last fired and systemd records when this service started;
+# within five seconds of each other means the timer started us, and a run
+# launched by hand — through systemd or straight from a shell — does not match.
+# Unparseable says so rather than guessing: a wrong provenance is worse than
+# none, because it would be believed.
+origin() {
+    local started triggered delta
+    started=$(systemctl show homelab-posture.service -P ExecMainStartTimestamp --timestamp=unix 2>/dev/null)
+    started=${started#@}
+    triggered=$(systemctl show homelab-posture.timer -P LastTriggerUSec 2>/dev/null)
+    triggered=$(date -d "$triggered" +%s 2>/dev/null)
+    case "$started" in ''|*[!0-9]*) echo "provenance unreadable"; return ;; esac
+    case "$triggered" in ''|*[!0-9]*) echo "manual run, timer never fired"; return ;; esac
+    delta=$(( started > triggered ? started - triggered : triggered - started ))
+    [ "$delta" -le 5 ] && echo "scheduled run" || echo "manual run"
+}
+
 problems=()
 checked=0
 # --- What was COUNTED must be what was EXAMINED ------------------------------
@@ -98,7 +119,7 @@ OPERATOR_UID=$(id -u '{{ ansible_user }}' 2>/dev/null)
 # legitimately down and there is nothing to assert. The health report already
 # covers that window, and alarming here would cry wolf on every boot.
 if ! mountpoint -q /mnt/data; then
-    notify up "/mnt/data locked — posture not checked"
+    notify up "/mnt/data locked — posture not checked ($(origin))"
     exit 0
 fi
 
@@ -366,8 +387,8 @@ fi
 {# bash ${#array[@]} reads as a Jinja comment opener — shield it #}
 if [ {% raw %}${#problems[@]}{% endraw %} -gt 0 ]; then
     printf '%s\n' "${problems[@]}" >&2
-    notify down "$(printf '%s; ' "${problems[@]}")"
+    notify down "$(printf '%s; ' "${problems[@]}")($(origin))"
     exit 1
 fi
 
-notify up "posture OK — $checked checks (goss $goss_total, ${containers_seen} containers/${mounts_seen} mounts, ${creds_probed} credential probes)"
+notify up "posture OK — $checked checks (goss $goss_total, ${containers_seen} containers/${mounts_seen} mounts, ${creds_probed} credential probes) — $(origin)"
