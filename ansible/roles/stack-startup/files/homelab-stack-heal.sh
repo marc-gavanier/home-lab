@@ -30,6 +30,9 @@ UNHEALTHY_LATCH=${UNHEALTHY_LATCH:-3600}
 # breaks a collision loop without delaying a real recovery by anything a human
 # would notice.
 EXITED_LATCH=${EXITED_LATCH:-600}
+# Docker's own default probe interval, used when a container declares a
+# healthcheck without one — see the fallback in the unhealthy branch.
+HEALTH_INTERVAL_DEFAULT=${HEALTH_INTERVAL_DEFAULT:-30}
 STAMP_DIR=${STAMP_DIR:-/run/homelab/heal}
 
 COMPOSE_DIR=/opt/homelab
@@ -152,8 +155,21 @@ while read -r name; do
             iv=$(docker inspect -f '{{if .Config.Healthcheck}}{{.Config.Healthcheck.Interval.Seconds}}{{end}}' "$name" 2>/dev/null)
             iv=${iv%%.*}
             case "${streak:-x}" in ''|*[!0-9]*) continue ;; esac
-            case "${iv:-x}" in ''|*[!0-9]*) continue ;; esac
-            [ "$iv" -gt 0 ] || continue
+            # A container that declares `start_period` and no `interval` reports
+            # `Interval=0`, and the daemon probes it at its own default anyway:
+            # measured on immich-server and immich-ml, 31 s apart in
+            # `State.Health.Log`. This guard used to `continue` on that value,
+            # without a word, so the two heaviest containers on the machine sat
+            # outside the only automatic recovery they have, for any duration of
+            # failure. An unreadable cadence is a reason to age the streak
+            # carefully, not a reason to do nothing — fall back to the daemon's
+            # default and say which containers are being aged that way.
+            case "${iv:-x}" in
+                ''|*[!0-9]*|0)
+                    iv=$HEALTH_INTERVAL_DEFAULT
+                    log "container $name declares no healthcheck interval — aging its $streak failed probes at the daemon default of ${iv}s"
+                    ;;
+            esac
             [ $(( streak * iv )) -ge "$UNHEALTHY_SECONDS" ] || continue
 
             # One restart per container per hour. Without the latch a container
