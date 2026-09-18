@@ -31,6 +31,22 @@
 # templates. Everything below goes through `jq` instead, which is also more
 # readable.
 #
+# --- How the deadlines are sized, and why they are all explicit --------------
+# A deadline here exists to stop a hung check from hanging the run. It is NOT a
+# speed limit: goss renders an expired deadline as a FAILURE, so a check that is
+# merely slow pushes the same red as a check that is wrong, and the colour stops
+# carrying information. That happened on three consecutive scheduled runs
+# (2026-09-16 to 09-18) before the access-log deadline was resized.
+#
+# So: every deadline is at least three times the worst runtime observed for its
+# own check, with a floor of 60 s, and the whole run is bounded by the sum
+# rather than by any one value — the unit has no TimeoutStartSec and the timer
+# fires daily, so there is room. Real runs take 40-55 s in total.
+#
+# Every exec assertion declares one. Thirty of them did not, which meant they
+# ran on goss's implicit 10 s — the tightest deadline in this file was the one
+# nobody had written down.
+#
 # The rule is stricter than it looks: it applies to COMMENTS too. The first
 # version of this header spelled the offending syntax out to warn about it, and
 # goss died on the warning — "can't evaluate field HostConfig in type
@@ -144,7 +160,7 @@ command:
     # them as they bite is sampling; the systemic answer is `--retry-timeout` on
     # the runner, which is a decision about what "green" means and belongs to
     # the operator.
-    timeout: 30000
+    timeout: 90000
     exit-status: 0
 
   # The same derivation, asserted for the set it DROPS. `awk '$1 == 1'` above
@@ -171,7 +187,7 @@ command:
       got=${got% }
       [ "$got" = "$want" ] || { echo "shared stores are [$got], declared [$want]"; exit 1; }
     # Same population and same disk as the assertion above, so the same budget.
-    timeout: 30000
+    timeout: 90000
     exit-status: 0
 
   # The same derivation, asserted for SIZE rather than for modes, and it is a
@@ -216,6 +232,7 @@ command:
         n=$((n + 1))
       done
       [ "$n" -ge {{ _cred_min }} ] || { echo "derivation returned $n stores, compose.yaml declares {{ _cred_min }}"; exit 1; }
+    timeout: 60000
     exit-status: 0
 
 {%- set _secret_pairs = [] %}
@@ -304,7 +321,7 @@ command:
     # false`, deliberately), so the whole visible effect is a red push to Kuma
     # minutes after an ordinary deploy, reporting a stale secret where there is
     # none — the false alarm this check exists to make credible.
-    timeout: 30000
+    timeout: 90000
 
   # --- dnsproxy lives in Pi-hole's namespace, and only the CURRENT one --------
   # `network_mode: "service:pihole"` is what makes dnsproxy reachable at
@@ -335,6 +352,7 @@ command:
       ns_dnsproxy=$(readlink "/proc/$dp/ns/net")
       [ -n "$ns_pihole" ] && [ -n "$ns_dnsproxy" ] || { echo "cannot read the network namespaces (needs root) — two empty strings would have compared EQUAL and passed"; exit 1; }
       [ "$ns_pihole" = "$ns_dnsproxy" ] || { echo "dnsproxy is in $ns_dnsproxy, pihole is in $ns_pihole — dnsproxy was orphaned by a pihole recreate, so nothing listens on 127.0.0.1#5053 and external resolution is dead while both containers report healthy"; exit 1; }
+    timeout: 60000
     exit-status: 0
 
   # The dump directory is EPHEMERAL: the backup creates it, the snapshot takes
@@ -344,6 +362,7 @@ command:
   # is a valid state, a wrong mode is not.
   backup-dumps-mode:
     exec: stat -c %a {{ backup_dir }}/dumps 2>/dev/null || echo absent
+    timeout: 60000
     exit-status: 0
     stdout: ["/^(700|absent)$/"]
 
@@ -366,6 +385,7 @@ command:
   #   sudo find {{ backup_dir }} -maxdepth 2 -type f -perm /o+r -printf '%m %p\n'
   backup-root-nothing-world-readable:
     exec: find {{ backup_dir }} -maxdepth 2 -type f -perm /o+r -printf '%m %p\n'
+    timeout: 60000
     exit-status: 0
     stdout: ["!/./"]
 
@@ -391,6 +411,7 @@ command:
   # not a `stat` that found nothing.
   immich-dump-dir-closed:
     exec: stat -c %a {{ immich_backup_dir }}
+    timeout: 60000
     exit-status: 0
     stdout: ["/^700$/"]
 
@@ -435,6 +456,7 @@ command:
         esac
       done
       [ -z "$missing" ] || { echo "declared in compose.yaml with no container:$missing"; exit 1; }
+    timeout: 60000
     exit-status: 0
 
 {% for name, svc in compose.services.items() %}
@@ -551,6 +573,7 @@ command:
             | jq -r '.[] | select([.Mounts[]?.Source] | index("/var/run/docker.sock")) | .Name' \
             | tr -d '/' | sort | tr '\n' ' ')
       [ "$n" = "socket-proxy " ] || { echo "docker.sock is mounted by: $n"; exit 1; }
+    timeout: 60000
     exit-status: 0
 
   # And nothing publishes a host port compose does not declare. Same shape as
@@ -576,6 +599,7 @@ command:
           *) echo "a container publishes host port $p, which compose.yaml does not declare"; exit 1 ;;
         esac
       done
+    timeout: 60000
     exit-status: 0
 
   # --- netdata: the three axes its failures actually show up on --------------
@@ -584,10 +608,12 @@ command:
   # every chart stays present. So the uid is the signal, not the charts.
   netdata-runs-as-201:
     exec: docker exec netdata awk '/^Uid:/ {print $2}' /proc/1/status
+    timeout: 60000
     exit-status: 0
     stdout: ["/^201$/"]
   netdata-plugins-present:
     exec: docker exec netdata ps -eo comm
+    timeout: 60000
     exit-status: 0
     stdout:
 {% for plugin in netdata_expected_plugins %}
@@ -599,6 +625,7 @@ command:
     exec: |
       n=$(docker exec netdata curl -s --max-time 10 http://127.0.0.1:19999/api/v3/contexts | jq -r '.contexts | length')
       test "${n:-0}" -ge {{ netdata_min_contexts }}
+    timeout: 60000
     exit-status: 0
   netdata-apparmor-matches-dockerd:
     # This container runs a scoped replacement for docker-default rather than
@@ -645,7 +672,7 @@ command:
     # profile that genuinely diverged — the same channel for the expiry and for
     # the condition — so the deadline is set from the measurement with margin
     # rather than left at a default nobody chose.
-    timeout: 60000
+    timeout: 180000
     exit-status: 0
 
   # --- The hole the adapter's startup grace leaves, closed here (#289) --------
@@ -679,7 +706,7 @@ command:
         echo "netdata evaluates no alarm — the two adapter monitors report on nothing"
         exit 1 ;;
       esac
-    timeout: 60000
+    timeout: 180000
     exit-status: 0
 
   # --- Every library category reaches the backup (2026-09-12, ADR-035) -------
@@ -748,6 +775,7 @@ command:
         exit 1
       fi
       [ "$wrong" -eq 0 ]
+    timeout: 60000
     exit-status: 0
 
   # --- Retention delivered against retention declared (class C68) ------------
@@ -823,7 +851,7 @@ command:
         echo "netdata declares more retention than it will deliver:$bad"
         exit 1
       }
-    timeout: 60000
+    timeout: 180000
     exit-status: 0
 
   # --- The resolution the container-unhealthy floor is built on (#262) -------
@@ -848,6 +876,7 @@ command:
         echo "docker collector update_every=$n, expected {{ netdata_docker_update_every }} — the sample floor in homelab_container_unhealthy is derived from it"
         exit 1
       }
+    timeout: 60000
     exit-status: 0
 
   # And the property the proxy was standing in for: the floor is REACHABLE. Read
@@ -867,6 +896,7 @@ command:
         echo "highest container_health_samples=$max, floor=$floor — homelab_container_unhealthy cannot fire"
         exit 1
       }
+    timeout: 60000
     exit-status: 0
 
   # --- Pi-hole: the property that actually protects its store ----------------
@@ -923,6 +953,7 @@ command:
         exit 1
       fi
       [ -z "$bad" ] || { echo "world-readable:$bad"; exit 1; }
+    timeout: 60000
     exit-status: 0
 
   # The gate the two mechanisms above cannot revert, and the one that makes the
@@ -940,6 +971,7 @@ command:
   # bit that was ever load bearing.
   pihole-store-not-traversable-by-others:
     exec: stat -c %a {{ services_data_dir }}/pihole
+    timeout: 60000
     exit-status: 0
     stdout: ["/^750$/"]
 
@@ -979,6 +1011,7 @@ command:
       case "$v" in ''|*[!0-9]*) echo "gravity.info.updated unreadable: [$v]"; exit 1 ;; esac
       age=$(( ( $(date +%s) - v ) / 86400 ))
       [ "$age" -le 14 ] || { echo "gravity last rebuilt $age days ago"; exit 1; }
+    timeout: 60000
     exit-status: 0
 
   pihole-ftl-writes-the-current-log:
@@ -986,6 +1019,7 @@ command:
       open=$(for p in $(pgrep -x pihole-FTL); do readlink /proc/$p/fd/* 2>/dev/null; done \
              | grep '^/var/log/pihole/pihole\.log' | sort -u)
       [ "$open" = "/var/log/pihole/pihole.log" ] || { echo "FTL holds: ${open:-nothing}"; exit 1; }
+    timeout: 60000
     exit-status: 0
 
   # --- Uptime Kuma: an incident that notifies once is an incident nobody is
@@ -1010,6 +1044,7 @@ command:
       n=$(docker exec uptime-kuma sqlite3 "file:/app/data/kuma.db?mode=ro" \
             "select count(*) from monitor where active = 1 and resend_interval = 0")
       [ "${n:-1}" -eq 0 ] || { echo "$n active monitors never resend"; exit 1; }
+    timeout: 60000
     exit-status: 0
 
   # --- The dead-man's fuse that a restart of its own watchdog re-arms (#289) --
@@ -1063,7 +1098,7 @@ command:
       [ -z "$bad" ] || { echo "$bad" | sed 's/^/  /'; exit 1; }
     # Two round trips into the container, against a default of 10 s. The pihole
     # and miniflux assertions above pay the same cost for the same reason.
-    timeout: 20000
+    timeout: 60000
     exit-status: 0
 
   # --- The only check that re-reads backed-up bytes (#290, class C39) --------
@@ -1111,7 +1146,7 @@ command:
         echo "last deep verification $last days ago — a twelfth of the repository is going unverified"
         exit 1
       }
-    timeout: 20000
+    timeout: 60000
     exit-status: 0
 
   # The assertion above believes the beat, and the beat believes the calendar.
@@ -1186,7 +1221,7 @@ command:
           exit 1
         }
       fi
-    timeout: 20000
+    timeout: 60000
     exit-status: 0
 
   # --- Offsite parity, and the gate that makes it one (#291, class C02) ------
@@ -1237,6 +1272,7 @@ command:
       [ -z "$unclassified" ] || { echo "control timer(s) with no offsite decision:$unclassified"; rc=1; }
       [ -z "$stale" ] || { echo "register names timer(s) that are not deployed:$stale"; rc=1; }
       exit $rc
+    timeout: 60000
     exit-status: 0
 
   # --- The clock before the clock (#292, class C42) --------------------------
@@ -1276,6 +1312,7 @@ command:
         echo "fake-hwclock last saved ${age}s ago — the restored clock is drifting back toward the systemd build date"
         exit 1
       }
+    timeout: 60000
     exit-status: 0
 
   # --- Addresses this host does not control (#292, class C43) ----------------
@@ -1299,6 +1336,7 @@ command:
         echo "the host holds $live while the configuration hardcodes {{ homelab_ip }} in 19 places"
         exit 1
       }
+    timeout: 60000
     exit-status: 0
 
   # Docker allocates these, not us — no `ipam_config` anywhere in compose.yaml.
@@ -1313,6 +1351,7 @@ command:
       [ "$live" = "{{ cidr }}" ] || bad="$bad {{ name }}=${live:-absent}(expected {{ cidr }})"
 {% endfor %}
       [ -z "$bad" ] || { echo "docker moved a network under the configuration:$bad"; exit 1; }
+    timeout: 60000
     exit-status: 0
 
   # The one that is load-bearing rather than merely tidy, and the only one of the
@@ -1336,6 +1375,7 @@ command:
         echo "vpn-only does not admit the live proxy subnet $live — every VPN client loses access"
         exit 1
       }
+    timeout: 60000
     exit-status: 0
 
   # --- fail2ban: every configured jail is actually loaded --------------------
@@ -1355,6 +1395,7 @@ command:
       [ -n "$want" ] || { echo "no jail parsed from /etc/fail2ban/jail.local — absent or unreadable"; exit 1; }
       [ -n "$have" ] || { echo "fail2ban-client returned no jail list — the server is not answering"; exit 1; }
       test "$want" = "$have"
+    timeout: 60000
     exit-status: 0
 
   # --- The VPN's IPv6 cannot be removed, so it has to be caught arriving ------
@@ -1395,6 +1436,7 @@ command:
       f={{ services_data_dir }}/wireguard/wg0.conf
       grep -q '^\[Interface\]' "$f" 2>/dev/null || { echo "wg0.conf carries no [Interface] section"; exit 2; }
       grep -cE '([0-9a-f]{0,4}:){2,}' "$f"
+    timeout: 60000
     exit-status: 1
     stdout: ["/^0$/"]
 
@@ -1445,6 +1487,7 @@ command:
         403) echo "vpn-only refuses the proxy network — every VPN client is locked out"; exit 1 ;;
         ""|000) echo "no answer from traefik at $ip"; exit 1 ;;
       esac
+    timeout: 60000
     exit-status: 0
 
   # --- And the entry the first assertion cannot see (#259) ------------------
@@ -1475,6 +1518,7 @@ command:
         403) echo "vpn-only refuses 10.8.0.0/24 — the offsite host cannot report"; exit 1 ;;
         ""|000) echo "no answer from traefik at {{ homelab_wg_ip }}"; exit 1 ;;
       esac
+    timeout: 60000
     exit-status: 0
 
   # --- The credential the access log must not carry (#287, ADR-034) ---------
@@ -1566,7 +1610,7 @@ command:
         echo "$bad credential value(s) reached a durable container log"
         exit 1
       fi
-    timeout: 90000
+    timeout: 300000
     exit-status: 0
 
   # The raw line still exists, and these are the two properties that make that
@@ -1585,6 +1629,7 @@ command:
         echo "/run/traefik is '$m', expected '750 root:root'"
         exit 1
       fi
+    timeout: 60000
     exit-status: 0
 
   # --- The PHP JIT, which an image bump turns back on without a word ---------
@@ -1644,7 +1689,7 @@ command:
           echo "unexpected reply from $ip:6379: $reply"
           exit 1 ;;
       esac
-    timeout: 30000
+    timeout: 90000
     exit-status: 0
 
   nextcloud-php-jit-is-disabled:
@@ -1683,7 +1728,7 @@ command:
     # 193 assertions in the deployed spec, 9 declare a timeout. The other 184
     # run on the 10 s default and can each report `not ok` for having been slow,
     # which goss cannot distinguish from a real failure.
-    timeout: 60000
+    timeout: 180000
     exit-status: 0
 
   # --- The perimeter is the peer set, and nothing said so until 2026-08-29 ----
@@ -1728,7 +1773,7 @@ command:
         exit 1
       }
     # `docker exec` into wg-easy plus a sqlite3 read, same reason.
-    timeout: 30000
+    timeout: 90000
     exit-status: 0
 
   # --- A feed reader that stops reading some feeds and keeps showing them ------
@@ -1791,7 +1836,7 @@ command:
       }
     # Two `docker exec` plus a psql round trip, for the same reason as
     # no-container-came-back-recovering below.
-    timeout: 30000
+    timeout: 90000
     exit-status: 0
 
   # --- The shutdown budget, and the recovery that proves it was too small -----
@@ -1819,6 +1864,7 @@ command:
         echo "systemd would kill the daemon while containers are still draining"
         exit 1
       }
+    timeout: 60000
     exit-status: 0
 
   # C74, and it is the assertion the repo did not have on 2026-09-11: the only
@@ -1900,7 +1946,7 @@ command:
       done
       [ "$seen" -gt 0 ] || { echo "swept ZERO interface/knob pairs — vacuous"; exit 1; }
       [ "$bad" -eq 0 ] || { echo "$bad declared knob(s) never reached the interface they name"; exit 1; }
-    timeout: 20000
+    timeout: 60000
     exit-status: 0
 
   # The property that makes #288 hard to see: a container killed mid-shutdown
@@ -1945,7 +1991,7 @@ command:
     # timeout is not about that figure, it is about the load THIS SPEC creates:
     # 337 checks, many shelling out to docker, and the run that timed out came
     # minutes after a daemon restart. 30 s is ~28x the idle cost.
-    timeout: 30000
+    timeout: 90000
     exit-status: 0
 
   # --- A report that reached nobody (audit of 2026-08-30) --------------------
@@ -2008,7 +2054,7 @@ command:
         rm -f "$t" 2>/dev/null || { echo "vault mount: remove failed"; exit 1; }
       '
     exit-status: 0
-    timeout: 20000
+    timeout: 60000
 
   no-kuma-report-was-lost-in-silence:
     exec: |
@@ -2197,5 +2243,5 @@ command:
     # is not evidence that nothing failed; it is evidence that the filter cannot
     # see the marker. If a priority filter is ever wanted, the marker has to be
     # EMITTED at that priority first, in the same change.
-    timeout: 45000
+    timeout: 120000
     exit-status: 0
