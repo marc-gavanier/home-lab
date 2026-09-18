@@ -24,6 +24,114 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-09-18 — key `quiescence`, PR #361, deployed from the branch before merge
+
+The operator took five items of the lot, declined one permanently, deferred one
+for investigation, and the seventh dissolved under measurement.
+
+1. **Every deadline in the posture spec is now explicit and generous.** A timeout
+   renders as a FAILURE in goss, so a check that is merely slow pushes the same
+   red as a check that is wrong. **Thirty of the forty-eight `exec` assertions
+   declared no deadline at all** and ran on goss's implicit 10 s — the tightest
+   bound in the file was the one nobody had written down. The eighteen explicit
+   ones are tripled with a 60 s floor; the access-log walk goes to 300 s. The rule
+   is written into the header so the next addition follows it: **at least three
+   times the worst observed runtime, floor 60 s, and the run is bounded by the sum**
+   (the unit has no `TimeoutStartSec`, the timer is daily, real runs take 40-55 s).
+2. **`POLLING_PARSING_ERROR_LIMIT` is declared at 15.** It had never been chosen,
+   so Miniflux ran on its upstream default of 3 and three transient fetch failures
+   retired a feed permanently while the UI kept showing it active. The operator's
+   instruction was "lengthen the delays, nothing needs to be tight, and I do not
+   care about the feed that stopped being followed", and delegated the judgement on
+   how far. **The assertion now reads that value from the container** instead of
+   carrying its own copy of the number — same reasoning as fake-hwclock's 900 s.
+3. **`[plugin:apps] update every = 5`.** The file declared `[db]` and nothing else:
+   the retention had been argued and written down, the sampling rate never had.
+4. **The armed state of every control timer is asserted**, inside the parity
+   assertion that already built the set. Six lines, 14/14 green.
+5. **Five documentary statements** that counted something other than what they say.
+
+**The deploy was `--tags observability,deploy -e '{"deploy_services": "miniflux"}'`,
+never a bare run.** Checked first, and worth repeating as a habit: the 32 running
+services carried **exactly** the images the repo pins, so no pending pin was armed
+for the heal timer. `docker ps` abbreviates a digest pin to its tag — compare
+`Config.Image`, not the `docker ps` column, or one service reads as pending when
+it is not.
+
+## Declined — added 2026-09-18, do not re-propose
+
+- **Anything about the offsite tunnel re-resolving onto a wrong address.** On
+  2026-09-16 `offsite-wg-reresolve.sh` installed the parents' box's wildcard answer
+  as the endpoint of the only tunnel to that host, and corrected itself 67 seconds
+  later. The operator's decision, in their words: it repaired itself, the box is
+  the likely cause, and a durable failure would surface as a backup failure. **The
+  class (C102) stays in the register; the authenticated-resolution fix does not.**
+- **Reclaiming the frozen snapshot groups — for the FOURTH time.** This file
+  already carried three refusals, including the sentence *"A third proposal needs a
+  new consequence, not a new number."* An agent brought a fourth number, and it was
+  wrong as well. See the measurement below. Nothing about `group-by`, `forget`, or
+  pruning those groups is to be raised again without a new CONSEQUENCE.
+
+## Measured and rejected — added 2026-09-18
+
+- **Deleting the Transmission downloads frees nothing.** `du` reports 71 GB under
+  `library/downloads/complete`, and **42 of its 52 files are hardlinks into the
+  library — same inode, verified** (`Outlander - S08E02.mkv` resolves to one block
+  from both paths). The single-link remainder is 0.0 GiB. Deleting them would
+  reclaim no space and only stop seeding. **`du` counts a hardlinked file once per
+  path**; that is the whole illusion.
+- **The frozen snapshot groups are 71.7 GiB, not 253 GB.** Repo 414.4 GiB raw
+  against 342.7 GiB for the live group alone. Four path groups: 12 live, 12 frozen
+  on 2026-07-13 when `secrets` joined the set, 9 frozen on 2026-05-25 when `media`
+  did, and 1 from 2026-09-13. `/mnt/data` is 20 % full with 3.5 TB free.
+- **Netdata is about HALF the fleet's CPU, not more than it.** 42.74 % of a core
+  against 85.59 % for all 32 containers, on an independent 30 s cgroup window.
+  Quote "about half"; the agent's "more than the other 31 combined" does not hold.
+
+## Deferred on 2026-09-18, NOT declined — the heal timer's asymmetric bound
+
+The `running`+`unhealthy` branch of the crash-heal timer carries a
+one-restart-per-hour lock with a comment explaining it. The `exited`/`created`/
+`dead` branch carries none — **and it is the branch that executes.** Confirmed
+from the journal: on 2026-09-06 between 01:03 and 01:07+, seven containers
+including `immich-db`, `miniflux-db` and `nextcloud-db` were restarted every two
+minutes with repeated `ERROR: failed to restart`. The operator's words: *"il
+faudrait investiguer, on le fera à la fin, parce que dans l'état je ne sais pas
+quoi faire"*. **Investigate before proposing anything**; the asymmetry is the
+finding, not the value of the lock.
+
+## Instrument traps paid on 2026-09-18 — four by the MAIN session, and one retires a rule written five days earlier
+
+1. **Kuma prunes raw heartbeats after about 48 hours, while its setting says 180
+   days.** 57 295 rows span 2026-06-22 to now, but the per-day counts are 26 189
+   (today), 30 177 (yesterday), then **31 per day** beyond. `keepDataPeriodDays` is
+   180 and governs the AGGREGATES. What survives past two days is `important = 1`
+   plus `stat_minutely` / `stat_hourly` / `stat_daily`. **So the rule this file
+   wrote on 2026-09-13 — "before recording that a failure was unobserved, query the
+   monitor's own beats" — expires after two days.** Beyond that the question is
+   answerable at the hour and not at the minute, and a run that answers it must say
+   which store it read. `stat_hourly` did answer it here: 2 650 UP and 2 DOWN over
+   the hour of the 09-16 tunnel outage.
+2. **An empty enumeration returned the healthy value, in the main session's own
+   instrument.** A per-container CPU loop built the cgroup path from `docker ps -q`
+   — the 12-character id — where the path needs the full 64. It matched nothing and
+   printed `0.00 % over 0 containers`. **Only the control line caught it.** Put a
+   cardinal in every measurement loop and print it.
+3. **A wrong field name reads as a zero, not as an error.** `expiryNotification`
+   where the Kuma column is `expiry_notification`: 0 of 18, one step from filing a
+   true documentary claim as false. **A zero from a named field must be controlled
+   against a field known to be populated.**
+4. **PostgreSQL has SQLite's double-quoted-string misfeature too.**
+   `to_char(checked_at, "YYYY-MM-DD")` fails with `column "YYYY-MM-DD" does not
+   exist`. Single quotes in every SQL, in both engines.
+
+Two more, cheaper but repeatable: **a control chosen on the homelab proves nothing
+on the offsite** (`/etc/goss/units.yaml` does not exist there, so its absence
+"failed" a test that was never valid); and **`docker exec cat` is not a way to read
+a container's `resolv.conf`** — Dozzle and Collabora ship no `cat`, so reading from
+inside them answers "no embedded resolver" for two containers that have one. Read
+`ResolvConfPath` from the host.
+
 ## The correction of 2026-09-13 (night-second) — "told nobody" was false, and it justified two decisions
 
 The late-evening run's second headline reads *"a scheduled job failed at 07:00

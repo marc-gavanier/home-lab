@@ -15,68 +15,70 @@ earlier — which would have sent eight agents to re-derive settled work. Rebuil
 it from `classes.md`'s OPEN table at the start of every run; if the two
 disagree, `classes.md` wins.
 
-As of the run of 2026-09-13 (night, second), key `reversibility`. **Rebuilt from
-`classes.md`'s OPEN table — do not trust this copy if the two disagree.**
+As of the run of 2026-09-18, key `quiescence`. **Rebuilt from `classes.md`'s OPEN
+table — do not trust this copy if the two disagree.**
 
-**ONE OPEN class.** The counter went 2 -> 1. Ownership:
+**NO OPEN CLASS.** The counter went 1 -> 0 and the class total 100 -> 102. C88
+closed as ENUMERATED (80/80 + 21/21 + 16/16); C101 and C102 were minted. **The
+termination clock RESET** — two mints means the two consecutive zero-mint runs
+start again from zero.
 
-| Class | Owner(s) | What closing it needs |
-|---|---|---|
-| **C88** (OPEN, advanced) — a store that ADDS with no counterpart removing what its register no longer names | `ansible-deploy` (the 61 unswept `/etc` drop-ins), with `backup` and `network` on the two newly counted non-file stores | 105 stores are swept and 0 carry live residue. What remains is a bound over the 61 single-file drop-ins whose real detector is a git-history walk that does not exist, plus the offsite snapshot register and `acme.json`. **Do not re-sweep the three closed slices** — `security` 22/22, `services` 15/15, `ansible-deploy` 68/68 over 188 creating tasks |
+**So no domain carries a mandate to close anything.** Every domain's job this time
+is the one that demoted C02, C13, C20, C26 and C17: re-read the GATED assertions
+in its area and ask whether each is DERIVED from the thing it guards or is merely
+a list of the instances once found.
 
-**Three classes sit ENUMERATED with live instances, which is not the same as
-open** — a run does not re-derive them, it verifies the instances are gone:
-**C98** (2 of 4 reference points still unrepaired: `$BEFORE_ASSETS`, the
-unguarded `compose.yaml.bak`), **C99** (same 4 defective `lineinfile` sites, 0
-live duplicates, the correct form already ships at
-`offsite-backup/tasks/wireguard.yml:69`), and **C100**, minted this run.
+**ONE GATE IS RED — C07, and it is `observability`'s.** Its assertion is derived
+and bounded by ONE COLLECTOR: a single Jinja expression renders the alarm
+threshold and the goss floor for the *docker* collector, so `apps.plugin` — which
+held 22.4 % of a core inside netdata's 42.7 %, machine at rest — was outside the
+space it covers and had never been declared at all. `update every = 5` shipped on
+2026-09-18; **the gate itself was not widened, so the row stays red** until a
+floor covers the collectors as a set. That is the work, and it is not a rediscovery.
 
-**C37 IS CLOSED** — 65/65 (`backup`) and 31/31 (`project-manager`), both bounded
-by the property rather than by a mechanism, 0 defective on either. Do not
-re-derive it.
+**Three classes sit ENUMERATED with live instances** — a run does not re-derive
+them, it verifies the instances are gone: **C98** (still the same 2 of 4:
+`$BEFORE_ASSETS` and the unguarded `compose.yaml.bak`), **C99** (still the same 4
+of 31, 0 live duplicates), and **C100**, whose new instance — the posture monitor
+green only by an out-of-schedule run — was shipped against on 2026-09-18 and
+**has not yet been exercised by a scheduled run**. Verify that before anything
+else: the next scheduled posture run after the fix is the first real test of it.
 
-**NO GATE IS RED.** C03-T's repair is live and its repaired branch has actually
-executed. Its one residual is that it has never completed a SCHEDULED run — next
-2026-09-14 11:04. **Read the run section before re-testing it**; the fixture
-lesson has already been re-applied to the real store.
+**Do not re-derive**: C88's three closed slices, C37 (65/65 and 31/31), C90, C94,
+C95. **C102's fix is DECLINED** — the class stays, the authenticated resolution
+does not.
 
-**Rows corrected this run; do not re-derive them.** C30 is **24/24 and 22/22**,
-not 19/19 and 18/18, and its "proven both ways" is struck. C19's auto-restart
-half **is derived** (`homelab-health.sh.j2:615-616`); 33/33 units at `NRestarts=0`
-on both hosts. C14's blind spot is **measured empty with a control**. C23 re-swept
-74/74 both hosts. C32 re-derived as every `0.0.0.0` TCP listener, 5/5.
+**Rows corrected this run; do not re-derive them.** C19's script half enumerates
+**14** timers, not 13, with zero edits — positive proof of derivation. C40 is
+**26** containers at the 10 s default, not 25, because the fleet went 29 -> 32.
 
-**The OPEN counter itself was wrong going into this run** — it read 4 where two of
-the four were minted ENUMERATED. A move is not a state, and that error reached
-all eight briefs. Rebuild this table from the OPEN table's **State** column, not
-from its row count.
+**The baseline is part of the brief, and this run's was wrong.** "15/15
+`homelab-*` services at `Result=success`" counted a unit that has **never run**,
+and `Result=success` is what a never-run unit reports. Worse, "37/37 monitors
+green" was true and worthless: a manual run seventeen minutes before the briefs
+were written had cleared the only red, which had been pushed on each of the three
+previous SCHEDULED runs. **Before quoting a monitor's colour, ask when its last
+SCHEDULED execution was and what that one reported.**
 
-**Eighteen keys are now spent**: `time`, `order`, `identity`, `scale`,
+**Nineteen keys are now spent**: `time`, `order`, `identity`, `scale`,
 `authority`, `representation`, `vacuity`, `exclusivity`, `interruption`,
 `succession`, `residue`, `concurrency`, `plurality`, `dependency`,
-`granularity`, `locality`, `repetition`, `reversibility`. The mint rate reads
-5, 11, 12, 7, 2, 4, 1, 0, 2, 1, 2, 2, 3, 1, 0, 2, 2, **1**. A run that reuses one
-proves nothing. **Two remain proposed and unspent — `commensurability` (are both
-sides of this comparison in the same unit, base and reference frame?) and the
-invented `indeterminacy` (what does this do when it CANNOT tell — does it fall to
-the permissive side, or refuse to judge?).** `commensurability` arrived with
-three unclassed precedents; `indeterminacy` was declined this round on the stated
-ground that it overlaps C29 and C83, two large swept classes.
+`granularity`, `locality`, `repetition`, `reversibility`, `quiescence`. The mint
+rate reads 5, 11, 12, 7, 2, 4, 1, 0, 2, 1, 2, 2, 3, 1, 0, 2, 2, 1, **2**. A run
+that reuses one proves nothing. **Two remain proposed and unspent —
+`commensurability` (are both sides of this comparison in the same unit, base and
+reference frame?) and `staleness` (what is the maximum age of the value this
+decision rests on, and what bounds it?).** `commensurability` arrived with three
+unclassed precedents and has now been passed over four times; `staleness` was
+proposed on 2026-09-18 with its overlap on C39, C44 and C76 stated.
 
-**What `reversibility` proved, for whoever writes key nineteen.** Its risk was
-stated to the operator before it was chosen — C88 was OPEN on exactly this axis —
-and the warning did its job: **five domains filed C88 instances and not one tried
-to re-mint it.** A key that overlaps an open class is not wasted; it is how the
-class gets measured. But its sharpest finding was not an instance of itself. It
-was that **the previous night's remediation was shipped on a premise the register
-itself had recorded wrongly** — "told nobody", when a monitor had named the cause
-in seven minutes. The general lesson outranks the key: *before recording that a
-failure was unobserved, query the monitor's own beats, not the unit's journal.*
-
-**And one warning this run earned the hard way.** `sqlite3 "file:X?mode=ro"` is
-read-only at the SQL level, **not** at the filesystem level — the observability
-mandate below prescribes it as the safe form and that is not sufficient. It
-writes `-wal` and `-shm`.
+**What `quiescence` proved, for whoever writes key twenty.** It was invented, it
+minted two, and its sharpest finding was not an instance of itself — it was that
+**the audit's own baseline was a false clean**, produced by the same mechanism the
+skill exists to catch. A key that turns on the instrument is worth more than one
+that only turns on the estate. And one warning it earned: Kuma's raw heartbeats
+are pruned after about two days, so the rule "query the monitor's own beats"
+cannot be executed at minute granularity for anything older than that.
 
 **Six domains own no OPEN class and are not idle.** Their job is the one that
 demoted C02, C13, C20, C26 and, on 2026-09-05 evening, C17: re-read the GATED

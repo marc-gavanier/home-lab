@@ -140,9 +140,26 @@ parts that need a thought experiment.
 
 # The register
 
-Runs of 2026-08-15 through 2026-09-13 (night-second, key `reversibility`).
-**100 classes: 1 OPEN, 10 GATED (none red — C03-T was repaired and verified live),
-80 ENUMERATED, 8 closed by decision, plus the DECLINED list.**
+Runs of 2026-08-15 through 2026-09-18 (key `quiescence`).
+**102 classes: 0 OPEN, 10 GATED (C07 is RED — see the run section), 84 ENUMERATED,
+8 closed by decision, plus the DECLINED list.**
+
+**The run of 2026-09-18 used `quiescence` — what does this do when nothing
+happens? — and the counter went 1 -> 0 while the class total went 100 -> 102.**
+C88 CLOSED as ENUMERATED by three slices that between them dissolved its named
+blind spot: the git-history walk it was waiting for is not necessary, because
+`{files under /etc carrying the Ansible marker} ⊆ {the /etc destinations of the
+repo's tasks}` answers the same question and was verified file by file rather
+than by counting. C101 and C102 were minted. **The termination clock therefore
+RESETS**: no OPEN class remains, but this run minted two, so the two consecutive
+zero-mint runs the criterion requires start again from zero.
+
+**The run's headline is that the audit's own baseline was a false clean, and it
+took seventeen minutes to become one.** The posture monitor was green when the
+eight briefs were written; it had pushed DOWN on each of its three previous
+SCHEDULED runs, and a manual run at 21:18 had cleared the last red at 21:18:41.
+The key found the shape it was written for: **a check whose verdict depends on
+the hour it is observed, and which is always observed at a quiet one.**
 
 **The run of 2026-09-13 (night-second) used `reversibility` — does this have an
 inverse, and does the inverse restore the prior state? — and the counter went
@@ -323,35 +340,108 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
-## OPEN — 1 (after the run of 2026-09-13 night-second, key `reversibility`)
+## OPEN — 0 (after the run of 2026-09-18, key `quiescence`)
 
-**The counter went 2 -> 1 and the termination clock does NOT reset: `reversibility`
-minted ONE.** C37 CLOSED by two independent derivations bounded by the property
-rather than by a mechanism, which is the trap that reopened it. C88 did not close
-— but three domains swept 105 stores between them against the old bound of 4, and
-two more added stores nobody had counted, so its space is now mostly measured
-rather than mostly asserted.
+**The table is empty for the second time in this register's life.** The first was
+2026-09-03; this one differs in that the class that closed had been open on a
+blind spot the previous run described as needing an instrument that does not
+exist. It did not need it.
 
-**A register correction first, because it propagated into this run's own briefs.**
-The header this replaces read `OPEN — 4`. Two of those four — C98 and C99 — were
-minted ENUMERATED, which is not OPEN. **The genuinely open count going in was 2.**
-The four were register *moves*, and the table conflated a move with a state. That
-is the third time a counter in these files has been wrong in a way that reached
-eight agents.
+**C88 — CLOSED as ENUMERATED.** Three slices, each stating its own derivation and
+its own blind spot, against the 105 stores the previous run had already swept:
 
-Mint rate across eighteen keys: 5, 11, 12, 7, 2, 4, 1, 0, 2, 1, 2, 2, 3, 1, 0,
-2, 2, **1**. `reversibility` was chosen by the operator over `commensurability`
-and an invented `indeterminacy`, with its own risk stated in advance — that C88
-was OPEN on exactly this axis, so growing-store findings would be instances
-rather than mints. **The warning held and it paid the way it was meant to**: five
-domains filed C88 instances and not one tried to re-mint it.
+| Domain | Cardinal | How the space was derived |
+|---|---|---|
+| `ansible-deploy` | 80/80 `/etc` paths + 5 in-file registers | the repo's `/etc` write destinations, closed against the host by two independent set differences: the Ansible-marker set, and a dpkg ownership diff (`*.list` ∪ `*.conffiles`) with a 112-entry distro whitelist |
+| `network` | 21/21 | every `Host()` name Traefik's live API serves = every certificate in `acme.json` = every split-DNS record |
+| `backup` | 16/16 | the snapshot registers of both repositories, local and offsite |
 
-| ID | Property | Space, and what bounds it | State |
-|---|---|---|---|
-| C88 | A store that ADDS on each run with no counterpart removing what its register no longer names | **ADVANCED, not closed. 105 stores swept across three slices against an old bound of 4**: `security` 22/22, `services` 15/15, `ansible-deploy` 68/68 over the re-derived file axis (188 creating tasks; the old bound was 5.9 % of it). **0 live residue anywhere on either host.** Only 2 of 68 + 3 of 15 have a remover DERIVED from the register. Still open on a stated blind spot: 61 unswept single-file `/etc` drop-ins whose real detector is a git-history walk that does not exist, plus two non-file stores counted for the first time by `backup` (the offsite snapshot register, 91 against a local 34) and `network` (`acme.json`, residue 0 only because the store was replaced wholesale at the DNS-01 migration) | OPEN |
-| C100 | **A recovery condition asserted from a mechanism's CURRENT STATE when its failure was a property of its CADENCE — so one out-of-band run clears the alarm while the schedule stays unrepaired** | 20/20, derived by `observability` over the recovery conditions of the deployed health paths. 1 live instance, measured end to end | ENUMERATED |
-| C98 | A repeated procedure reuses a fixed, run-invariant NAME for the artefact it later reads back as authoritative | Both slices re-verified and the shipped repairs landed (timestamped `$R`; `rm -rf` ahead of 9/9 staging, `/mnt/data/tmp` empty on the host). **2 of the 4 defective reference points are still unrepaired** — `$BEFORE_ASSETS` and the unguarded `compose.yaml.bak`. Nothing derives the (procedure, artefact-name) relation: 7 pre-commit hooks and 8 `ops/` tools read, none parses a runbook | ENUMERATED |
-| C99 | A declarative in-place write keyed on the VALUE it writes rather than on the record's IDENTITY | Recounted 31/31, the same 4 defective, **0 live duplicates** on both hosts. Nothing asserts the identity key — 13 pre-commit hooks, none touches in-place writes. The correct form already ships at `offsite-backup/tasks/wireguard.yml:69` | ENUMERATED |
+**What dissolved the blind spot.** The previous run left 61 single-file `/etc`
+drop-ins unswept because "the real detector is a git-history walk that does not
+exist". It is not the detector the question needs: `{files carrying the Ansible
+marker} ⊆ {the repo's /etc destinations}` answers it, and the inclusion was
+checked with `comm` file by file — empty output on both hosts — not by comparing
+counts. **0 live residue anywhere on either host.**
+
+**The marker cardinal is derivation-relative and the two derivations disagree,
+which is recorded rather than resolved.** The agent's regex unions three spellings
+and returns 34/18; the main session's single `Ansible managed` returns 23/14 and
+is a strict subset. The inclusion that carries the closure holds under both.
+**The coverage figure moves with it, and the cautious one is the right one to
+quote: 28.7 %, not 42.5 %.** That is why the marker is NOT the gate to build —
+the dpkg diff is, since it covers 100 % of the 80.
+
+**Removers are still the weak half**: 2 of 68 + 3 of 15 + 2 of 80 have a remover
+DERIVED from the register. Three live instances are recorded below. ENUMERATED,
+not GATED: nothing derives the (store, remover) relation continuously.
+
+### The three classes that sit ENUMERATED with live instances
+
+| ID | Property | State after this run |
+|---|---|---|
+| C100 | A recovery condition asserted from a mechanism's CURRENT STATE when its failure was a property of its CADENCE | **1 NEW live instance, confirmed and re-measured by the main session** — the posture monitor, below. The founding instance is resolved (`homelab-local-maintenance` ran on cadence 2026-09-15 01:01) |
+| C98 | A repeated procedure reuses a fixed, run-invariant NAME for the artefact it later reads back as authoritative | **Unchanged: the same 2 of 4 reference points are unrepaired** (`$BEFORE_ASSETS`, the unguarded `compose.yaml.bak`). The 3 shipped repairs have held 5 days. No fifth point exists |
+| C99 | A declarative in-place write keyed on the VALUE it writes rather than on the record's IDENTITY | **Unchanged: still the same 4 of 31, 0 live duplicates** on both hosts |
+
+### C101 — MINTED, ENUMERATED 5/5
+
+**Property**: *a component declines a duty on the written ground that a NAMED
+sibling asserts it, and the sibling declines it too.*
+
+**Space**: the written delegations between verification artefacts — every comment
+that names another artefact as the one asking a question. 5/5 swept by `system`,
+4 true with positive controls, **1 false**.
+
+The false one, verified independently by the main session: `goss-posture.yaml.j2`
+said *"Whether it is ARMED is C19's question and goss-units.yaml already asks
+it"*. `/etc/goss/units.yaml` declares 15 services and no timer, and its own header
+records that the timer check *"stays in the script"*. The script
+(`homelab-health.sh:640-663`) enumerates the timers and tests each one's LAST
+RESULT with `case "$r" in ""|success|exec-condition) continue` — **the empty value
+is accepted, and empty is exactly what a unit that has never run reports.** Its
+only floor is `timers_seen -eq 0`, so disarming one of fourteen crosses nothing.
+
+**Why it is a mint and not an instance of C05** (*something a reader would
+reasonably assume the posture check asserts, and which it does not*, ENUMERATED
+104/104): C05's space is what a reader assumes, which is not mechanically
+derivable. This one's is, and that is the whole value — an explicit written
+delegation is a grep away. This is an arbitration by the main session, recorded
+as such, and it can be overturned in one edit.
+
+**Live consequence, measured**: 12 of the 14 control timers would eventually
+surface through their own Kuma push, `homelab-smart-test` through its
+power-on-hour dead-man, and **`homelab-image-retention` through nothing at all** —
+it has never run, its next elapse is 2026-10-04, and no monitor names it.
+**Shipped the same evening**: the armed set is now asserted inside the parity
+assertion that already built it. 14/14 `enabled` + `active`.
+
+### C102 — MINTED, OPEN space stated, 1 live instance
+
+**Property**: *a repair mechanism whose TRIGGER and whose INPUT share a failure
+cause, so it never executes under conditions where its input can be trusted.*
+
+**Space**: the self-healing mechanisms that read an external input. Derivable and
+not yet derived — that is the honest state, and it is why this row says so rather
+than carrying a cardinal.
+
+**The instance, re-measured by the main session from the offsite journal.** On
+2026-09-16 at 11:32:22, `offsite-wg-reresolve.sh` wrote `endpoint now
+212.27.38.252:51820` — the wildcard answer the parents' box was returning to every
+question — as the endpoint of the only tunnel that reaches that host. At 11:33:29
+it re-resolved correctly. **Self-healed in 67 seconds.** The script asserts in
+writing that it *"Fails CLOSED by construction"*: true of a resolution that
+FAILS, false of one that succeeds and is wrong. The eth0 outage staled the
+handshake AND broke the resolver, which is the property.
+
+**Nobody saw it, and that is measured rather than assumed**: `stat_hourly` over
+09:00-10:00 UTC gives **2 650 UP and 2 DOWN**, the two being the posture monitor.
+No active probe watches the offsite at all — its three monitors are pushes at
+90 000 s and 700 000 s. Had the resolver kept lying, the first signal would have
+been a missing daily push, up to ~25 h later.
+
+**DECLINED by the operator the same evening**, and the reasoning is recorded in
+`settled.md`: it repaired itself, a box fault is the likely cause, and a durable
+failure would surface as a backup failure. The class stays; the fix does not.
 
 ### C37 — CLOSED, by two derivations that were bounded by the property
 
@@ -548,6 +638,174 @@ are largely covered by `system` and `services`, but that is an argument, not a
 sweep, and it is the residual risk on this closure. C90 is therefore ENUMERATED,
 **not GATED**: nothing derives the (object, mutator-set) relation continuously,
 so the next deploy can repopulate it.
+
+## The run of 2026-09-18 — the key was `quiescence`, and the audit's own baseline was a false clean
+
+The nineteenth key, invented rather than taken off a list, chosen by the operator
+from three the main session proposed (`commensurability`, an invented
+`quiescence`, `staleness`) with each one's weakness stated first. The six-word
+question no class had asked: **what does this do when nothing happens?** All 100
+classes then on file asked what happens when something ACTS.
+
+Three admissible shapes were written into all eight briefs so agents returned
+measurements rather than philosophy: (a) a detector that needs an EVENT to notice
+an ABSENCE, (b) a state that decays while IDLE because nothing exercises it,
+(c) a branch normal operation never takes, run for the first time on the day it
+matters.
+
+**The stated risk held.** The brief warned that the key overlaps C83 (empty-set
+floors, GATED), C41 and C44, and that a finding there is an instance or a broken
+gate, never a mint. Five domains filed into those classes and not one tried to
+re-mint them.
+
+### The headline — the baseline said 37/37 green, and it had been true for seventeen minutes
+
+`Pi security posture` pushed DOWN on **each of its three previous SCHEDULED runs**
+— 2026-09-16 09:08:39, 09-17 09:11:03, 09-18 09:06:19 UTC, all the 11:0x CEST
+slot — with the same two assertions failing both times:
+
+- `miniflux-no-feed-silently-unscheduled`, and
+- `traefik-access-log-carries-no-credential`, **timed out at 30 s**.
+
+It is green because a run started at **21:18:03** by hand, while the timer's last
+trigger was 11:05:30. And `/etc/goss/posture.yaml` was replaced at **21:23:31**,
+five minutes AFTER that run, so **the green beat does not test the deployed
+spec**. The operator had committed the deadline fix at 21:13 the same evening; its
+own message reads *"has timed out on every posture run since 2026-09-16"*.
+
+The main session took its baseline at 21:35 and wrote "37/37 green" into all eight
+briefs. **That is the founding defect of this skill, committed by the skill
+itself**: a mechanism that looks like it works, observed at the one moment it
+does. `observability` found it from the monitor side; the main session re-measured
+it from the raw beats.
+
+A timeout renders as a FAILURE in goss, so a check that is merely SLOW pushes the
+same red as a check that is WRONG. That is the general form, and it is what the
+remediation addresses.
+
+### Minted — 2, from 4 proposals
+
+| Candidate | Origin | Verdict |
+|---|---|---|
+| C101 | `system`, 5/5 swept, offered as "a mint OR a C03 instance" | **KEPT**, and re-verified by the main session in all three artefacts |
+| C102 | `network`, offered as a C29 instance with a mint as second choice | **KEPT as the mint.** C29 is *a construct that disables a feature silently*; this is a repair whose trigger and input share a cause, which no class names |
+| The single terminal link (the Discord webhook, covered by no assertion) | `observability`, **offered as a candidate and not claimed** | **DECLINED**: no defective instance. The agent proved the link live without writing a test heartbeat |
+| The heal timer's asymmetric rate limit | `services`, filed SUSPECTED | **NOT a mint** — it is an instance, and the operator deferred the investigation |
+
+### Instances that matter, all re-measured by the main session
+
+1. **C100 — the posture monitor**, above. Half of it was already fixed by the
+   operator at 21:13 and is **deployed but unexercised**; the Miniflux half was
+   not covered by that fix and recurs.
+2. **C101 — nothing asserted that a control timer is armed**, above.
+3. **C102 — the offsite tunnel pinned on a wildcard address**, above.
+4. **C07 IS RED — a broken gate, reported as a red test and not as a finding.**
+   `services` measured netdata at **41.9 % of a core continuously with the machine
+   at rest**, `apps.plugin` alone at 22.4 %, walking `/proc` for 259 processes once
+   a second. The main session confirmed it by a different method — an independent
+   30 s cgroup window — at **42.74 %, against 85.59 % for all 32 containers**, so
+   netdata is about half of the fleet's CPU. Four windows agree. **The gate derives
+   the DOCKER collector's cadence only** (`((600 / netdata_docker_update_every) *
+   0.833)` renders both the alarm threshold and the goss floor), so `apps.plugin`
+   is outside the space it covers. The class is defined by polling cost
+   disproportionate to the granularity of what it feeds; the gate is bounded by one
+   collector. **Same shape as the eight previous payments: the derivation is sound
+   and it keys on the wrong axis.**
+5. **C88 instances, 3 live and latent** — `restic forget` groups by `host,paths`
+   with no `group-by` in the deployed profile, so changing `source:` freezes the
+   old group forever (22 of 34 local snapshots, and the offsite profile carries no
+   `retention:` block at all); netdata's group removal is all-or-nothing while its
+   install is per group; a sysctl key contains a FACT (`ansible_default_ipv4.
+   interface`), so renaming the interface strands the old line.
+6. **The heal timer bounds the branch that never ran.** `services` filed it
+   SUSPECTED; the main session confirmed it from the journal. On 2026-09-06 between
+   01:03 and 01:07+, seven containers including `immich-db`, `miniflux-db` and
+   `nextcloud-db` were restarted every ~2 minutes with repeated `ERROR: failed to
+   restart`. The `running`+`unhealthy` branch carries a one-restart-per-hour lock
+   with a comment explaining it; the `exited`/`created`/`dead` branch carries none,
+   and it is the one that executes. **Deferred by the operator for investigation.**
+7. **The apt feed has no freshness assertion** (`security`). Both hosts' stamps
+   were fresh when measured (10 h and 16 h) and `apt-daily.service` reports
+   `Result=success` either way, because `apt.systemd.daily` swallows a failed
+   `apt-get update`. A dead update feed and a fully-patched host are the same
+   observable. Outside C83's reach by design — its gate keys on ITERATIONS.
+
+### Rejected from the agents, and why
+
+- **`backup`'s proposal to reclaim the frozen snapshot groups.** The instance is
+  real and confirmed; the proposal is the FOURTH pass at a declined decision.
+  `settled.md` carries three entries and this sentence: *"A third proposal needs a
+  new consequence, not a new number."* The agent brought a number — 253 GB — and
+  the number was also wrong. Measured by the main session: repo 414.4 GiB, live
+  group alone 342.7 GiB, so **71.7 GiB**, which is the figure already declined.
+  **Its third proposal survives**: the dual assertion *no path group whose set the
+  profile no longer declares*, which would have fired on 2026-05-25, 2026-07-13 and
+  2026-09-13. That is the gate C88 has never had.
+- **`observability`'s "one of the two assertions fails by timeout".** There are
+  two, and the second is Miniflux, which no commit addressed.
+- **`services`' "netdata costs more than the other 31 combined".** Measured 42.74
+  against 42.85. It is half, not more.
+- **`system`'s "units.yaml names six services and no timer".** It names fifteen;
+  the "no timer assertion" conclusion holds and is what carries the mint.
+- **`ansible-deploy`'s marker cardinal.** Reconciled rather than rejected — see
+  the C88 closure. The agent's derivation is broader and its blind spot is worse
+  than it reported.
+
+### Register corrections — 3
+
+1. **C19's script half enumerates 14 timers, not the 13 this file recorded**, with
+   zero edits to the script, which is positive proof of derivation.
+2. **C40 is 26 containers at the 10 s default, not 25** — the fleet went from 29 to
+   32 and the three new arrivals came in at the default.
+3. **This run's own baseline was wrong in a way that reached all eight briefs**,
+   for the fourth time a counter in these files has done so. "15/15 `homelab-*`
+   services at `Result=success`" counted `homelab-image-retention.service`, which
+   **has never run** — and `Result=success` is also what a unit that has never run
+   reports. The measurement that corrects it is C101's.
+
+### Instrument traps paid — 4, all by the main session, and one is aimed at last week's rule
+
+1. **Kuma prunes raw heartbeats after about 48 hours.** 57 295 rows span
+   2026-06-22 to now, but the daily counts read 26 189 (today), 30 177 (yesterday),
+   then **31 per day** beyond — while `keepDataPeriodDays` is **180**, which reads
+   as six months. What survives is `important = 1` plus `stat_minutely` (from
+   2026-09-14 22:36), `stat_hourly` and `stat_daily`. **`settled.md`'s rule of
+   2026-09-13 — "before recording that a failure was unobserved, query the
+   monitor's own beats" — therefore has a shelf life of two days.** Past that, the
+   question is answerable at the hour, never at the minute. Every run that asks it
+   must say which store it read.
+2. **An empty enumeration returned the healthy value, in the main session's own
+   instrument.** A per-container CPU loop built the cgroup path from
+   `docker ps -q`, which is the 12-character id, while the path needs the full 64.
+   It matched nothing and printed `0.00 % over 0 containers`. Only the control line
+   (`wc -l` on the collected set) caught it. This is the exact defect C83 exists
+   for, committed while measuring.
+3. **A wrong field name reads as a zero, not as an error.** Checking whether Kuma
+   monitors carry TLS expiry notification, the main session read `expiryNotification`
+   where the column is `expiry_notification`, got 0 of 18, and was one step from
+   filing a documentary claim of "15 of 18" as false. It is true. **A count of zero
+   from a named field must be controlled against a field known to be populated.**
+4. **PostgreSQL has the same double-quote misfeature as SQLite.**
+   `to_char(checked_at, "YYYY-MM-DD")` fails with `column "YYYY-MM-DD" does not
+   exist`. Single quotes in every SQL, in both engines. The SQLite half of this was
+   paid on 2026-09-13; this is its sibling.
+
+Two more, lower cost, recorded because they are repeatable: a control chosen on
+the homelab (`/etc/goss/units.yaml`) proves nothing on the offsite, where that
+file does not exist; and `du` counts a hardlinked file once per path, which is how
+71 GB of Transmission downloads looked like reclaimable space.
+
+### Disclosures by agents, all unprompted
+
+`security` printed **two live Kuma push tokens** into its transcript through a
+`grep -B4 -A25`, and wrote one ERROR line into `/var/log/fail2ban.log`;
+`observability` created and deleted `/tmp/wh.<pid>` holding the Discord webhook
+token; `ansible-deploy` left five path-list files under `/tmp` on each host;
+`backup` ran `restic snapshots --no-lock` against the LOCAL repository only and
+nothing at all against the offsite. All four reported themselves before being
+asked, which is why the rest of their reports were believed. The token exposure
+falls under the operator's arbitration of 2026-09-12 — LAN- and tunnel-reachable
+only — and was reported as a fact, not re-proposed as a rotation.
 
 ## The run of 2026-09-13 (night, second) — the key was `reversibility`, and the previous night's fix had deleted a working detector
 
@@ -3849,10 +4107,10 @@ Seven in the morning, C09 in the evening. C02's row records its downgrade.
 | C03 | A validation whose instrument answers a different question from the one its comment claims | **ENUMERATED, and its space restated on 2026-08-30 (#289).** It had been scoped to *the four goss specs on both hosts* — the directory the first sweep happened to be reading — rather than to the property, which is the scope trap this register already records from 2026-08-22. Restated: **every guard in the repo that decides whether a downstream step may trust a value**, swept as 20 shell artefacts × their guard sites. First sweep (goss specs): `zcat \| tail` swallowing the CRC verdict, and `redis-cli ping` exiting 0 on an error reply. Re-sweep under the restated space, **3 more**: the netdata adapter's retry, guarded on "the body is not empty" while the caller needed "the alarms parsed" — the only one **observed**, one run logging `answered on attempt 3` and `unreachable or unparseable` together; and two latent siblings, `feed-digest.sh` reading a 200 that is not an entries page as "nothing unread" and pushing UP, and `cloudflare-ddns.sh` guarding a raw body for emptiness while consuming a derivation of it, which answers a malformed 200 by creating a duplicate record. All five fixed, all five proven to fail on purpose first |
 | C04 | A working detector whose delivery path cannot reach a human | **Closed by decision.** smartd's mail channel was dead — and redundant: every alert it carried was already covered, more carefully, by the daily disk report. Silenced deliberately, with the measurement written into `smartd.conf`. Pi-hole's `gravity.info.updated` gained an assertion |
 | C06 | A `start_period` whose real startup cost has never been measured | **ENUMERATED**, 13/13, after the first attempt closed at its instrument's edge. netdata cannot observe the wave that starts before netdata; re-measured from `State.StartedAt` to the first listen line, two more had overshot |
-| C07 | A collector whose polling cost is disproportionate to the granularity of what it feeds | **GATED** by #285, and the gate is two assertions because one was a proxy. The floor is now derived from the resolution rather than written twice |
+| C07 | A collector whose polling cost is disproportionate to the granularity of what it feeds | **RED as of 2026-09-18 — a broken gate, handled as a red test.** The gate is genuinely derived, and it is bounded by ONE COLLECTOR: `((600 / netdata_docker_update_every) * 0.833)` renders both the alarm threshold and the goss floor, for the docker collector. `apps.plugin` is outside it and was never declared at all — measured at 22.4 % of a core inside netdata's 42.7 %, machine at rest, against 85.6 % for all 32 containers. The ninth payment of the same trap: the derivation is sound and it keys on the wrong axis. `update every = 5` shipped 2026-09-18; the gate itself is NOT yet widened, so the row stays red until a floor covers the collectors as a set |
 | C08 | A threshold probe that samples at an instant which cannot contain the peak it guards | **Closed by decision.** The homelab reads `Power Cycle Min/Max`, which resets each boot. The offsite keeps the instantaneous reading and reports its peak instead — its only maximum is lifetime, and a threshold on a figure that cannot come back down latches red forever |
 
-## GATED — 9 here, plus C07 recorded above
+## GATED — 9 here, plus C07 recorded above, which is RED since 2026-09-18
 
 A finding in any of these is a broken gate, not an audit result.
 
@@ -3962,7 +4220,9 @@ them; do not re-derive without a new symptom.
 | C16 | A read-write bind mount its container cannot create files in | **Downgraded from GATED 09-11** — the enumeration is derived, the PREDICATE is a proxy (`owner == OPERATOR_UID`): 11 of 27 mounts skipped for `CAP_DAC_OVERRIDE`, 1 for a matching uid, **15 reach the test and 0 of the 15 can ever fail it**. The CLASS is clean — 27/27 swept under the real property (uid/gid/caps against owner/group/mode, no `test -w`) | 08-16, 09-11 |
 | C10 | A credential store readable beyond its service | **CLOSED 2026-09-12** — 29/29 declared runtime stores (`security`) and 32/32 write sites, 26 module writes + 6 `environment:` blocks swept across all of `ansible/` (`ansible-deploy`). 0 instances; the two restic passwords that reopened it are `0400`, all 17 world-readable secrets are Compose bind mounts under a `0700` parent, both `0440` groups empty. Its gate is restored (`b761450`), not deleted as this file once recorded | 08-16, 09-05, 09-12 |
 | C86 | A configuration value written to RESTATE an upstream default in order to freeze it, which therefore silently excludes every element that default has GAINED since | **CLOSED 2026-09-12** — 363/363 over five domains, each deriving its own slice: 5 `network` (09-11) + 12 `security` + 172 `system` + 138 `services` + 36 `ansible-deploy`. 3 confirmed, 0 exploitable today: sshd `Ciphers` (pure restatement, latent until OpenSSH ≥ 9.9), the netdata AppArmor profile (missing dockerd 29.8.0's powercap denial; `/sys/devices/virtual/powercap` does not exist on a Pi 4), `ansible.cfg` `ssh_args` (33.7 % payload cost). Positive control: the repo does NOT restate `Unattended-Upgrade::Allowed-Origins` | 09-11, 09-12 |
-| C88 | **REOPENED off its file axis 2026-09-13 late evening — see the OPEN table. Advanced 2026-09-13 night-second to 105 stores swept** (`security` 22/22, `services` 15/15, `ansible-deploy` 68/68 over 188 creating tasks), 0 live residue on either host, and still OPEN on 61 unswept `/etc` drop-ins plus two newly counted non-file stores. Original row: a file rendered into a host DIRECTORY by a loop over a register that can shrink, with no counterpart removing what the register no longer names | 4/4 (looped render tasks ∩ directory bind mounts), 1 carrying residue. **NOT C87** — C88's artefacts are made BY Ansible and orphaned by it; C87's are made outside it. The cleanup today is 20 hand-written `state: absent` tasks, 5 removals of 8 got one: a list, not a derivation | 09-12 |
+| C88 | A store that ADDS on each run with no counterpart removing what its register no longer names | **CLOSED 2026-09-18** as ENUMERATED, by three slices over the 105 stores of the previous run: `ansible-deploy` 80/80 `/etc` paths + 5 in-file registers, `network` 21/21 on `acme.json`, `backup` 16/16 on the two snapshot registers. The named blind spot dissolved rather than being swept: the git-history walk is unnecessary, because the marker set is INCLUDED in the repo's `/etc` destinations, checked file by file with `comm` (empty on both hosts). **0 live residue anywhere.** Marker coverage is derivation-relative — 42.5 % on the agent's three-spelling regex, **28.7 % on the stricter single string, and the cautious figure is the one to quote** — which is why the gate to build is the dpkg diff, not the marker. Removers derived from the register: 2 of 68 + 3 of 15 + 2 of 80. 3 live-or-latent instances | ENUMERATED |
+| C101 | A component declines a duty on the written ground that a NAMED sibling asserts it, and the sibling declines it too | **MINTED 2026-09-18, 5/5** written delegations between verification artefacts, 4 true with positive controls, 1 false. The false one cost the estate any assertion that a control timer is ARMED; `homelab-image-retention` was the one instance with no other detector. Gate shipped for the instance — the armed set is asserted inside the parity assertion that already builds it, 14/14 green. ENUMERATED and not GATED: nothing derives the (claim, sibling) relation, so a new comment reopens it | ENUMERATED |
+| C102 | A repair mechanism whose TRIGGER and whose INPUT share a failure cause, so it never runs under conditions where its input can be trusted | **MINTED 2026-09-18. Space stated and NOT derived**: the self-healing mechanisms that read an external input. 1 live instance, measured end to end from the offsite journal — `offsite-wg-reresolve.sh` installed a resolver's wildcard answer as the endpoint of the only tunnel to that host on 2026-09-16 11:32:22, and re-resolved correctly 67 s later. Nobody saw it: `stat_hourly` gives 2 650 UP / 2 DOWN over the hour, the 2 being the posture monitor. **The fix is DECLINED by the operator**; the class stays | ENUMERATED, space unbounded |
 | C87 | A hand-made artefact that outlives its operation — created outside Ansible by a repair, a migration or a measurement, maintained by nothing, and invisible to C27, C10 and C16 BY CONSTRUCTION | **CLOSED 2026-09-13.** 16/16 admin+scratch (09-12) plus the service-data slice: **1997/1997 at a STATED depth of 3**, cross-checked by a second, *unbounded-depth* property-keyed pass over **112 895/112 895** entries across `/mnt/data/services`, `/mnt/data/tmp`, `/mnt/data/backups` — both passes returning the same instances, which is what makes the number believable. Offsite control still 0. Derivation: `zero occurrences in the entire git history` ∩ `present on the host`. **5 instances, 1 ACTING**: `jellyfin/config/iptv-fr.m3u`, the `<Url>` of Jellyfin's only Live TV tuner, in no commit and no doc — the container layer's one reproducibility gap. Inert: `/mnt/data/tmp/nextcloud-db-pre12/` (235 MB full MariaDB datadir, 48 days, 0700 uid 999), `backups/pre-navidrome-0.64.0/navidrome.db` (20 MB, made 8 min before the upgrade), `/mnt/data/tmp/dnsprobe.sh` (an empty DIRECTORY named like a script), pihole's logrotate decoy. **The three `acme.json.bak*` are gone** — last run's finding was acted on | 09-12, 09-13 |
 | C91 | **A set of periodic mechanisms whose schedules are ALIGNED, so their executions coincide and the contention degrades what each measures past its own fixed budget** | **13/13**, derived: every `homelab-*` timer's `OnCalendar` falls on a 5-minute boundary, so alignment is structural rather than accidental. Two units sharing `OnCalendar=*:0/5` measured overlapping on **43 of 77 runs (56 %)**. 1 material instance, and it is C03's fifth reopening: Kuma push latency went 274 ms → 10.9 s / 12.0 s / 3.3 s against a fixed `--max-time 10`. **NOT C67** (a deadline sized against an input that has since grown) — nothing grew; the mechanism's own schedule creates the load that breaks its own budget. **NOT C69** (a periodic control whose own runtime nothing measures) — the runtimes are measured; it is their coincidence that is not | 09-13 |
 | C90 | Two or more independent mutators of the same object, with nothing establishing mutual exclusion between them | **CLOSED 2026-09-13 evening by SIX independent derivations** of the (object, mutator-set) relation: 191/191 (`ansible-deploy`), 106/106 (`services`), 31/31 (`system`), 18/18 (`network`), 12/12 (`backup`), 17 runbooks → 4 (`project-manager`). The cardinal is derivation-relative — do not quote one as "the" number; what makes it believable is that each slice states its own derivation and its own blind spot. 3 mutator generators nobody had counted turned up. **ENUMERATED, not GATED**: nothing derives the relation continuously. Residual: `security` and `observability` produced no slice | 09-13 |
