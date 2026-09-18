@@ -86,6 +86,32 @@ rather than inferred from the recap.
   script lives in `/usr/local/sbin`, the first grep looked in `/usr/local/bin`,
   and the empty result read as "not deployed".
 
+### The follow-up deploy, 2026-09-19 01:14 — the sample floor against netdata's age
+
+The Renovate bumps recreated netdata at 00:55:45; the posture run that deploy
+triggered at 01:02:05 read 76 health samples against a hard floor of 100 and
+pushed DOWN; at 01:07:31 the count was 110 and the monitor was green again,
+nothing having been repaired. A routine procedure had produced exactly the state
+an assertion calls a failure — C105, found and shipped against within the hour.
+
+The floor now derives from netdata's uptime, capped at the window's figure.
+**Made to fail on purpose against the DEPLOYED text**, extracted verbatim from
+`/etc/goss/posture.yaml` and run with its value sources stubbed: a mute collector
+exits 1 at 900 s (floor 100) AND at 380 s (floor 63), so the young-netdata case
+is not a blind window; the 01:02 situation and a healthy estate exit 0. The
+failure sentence now carries the uptime and the cap, so "the collector is mute"
+and "netdata just restarted" no longer read alike.
+
+### What the Renovate deploy produced, measured 2026-09-19 00:48-01:02
+
+Six image bumps — collabora, vaultwarden, prowlarr, sonarr, radarr, netdata —
+verified image by image on the host rather than from the recap. `update every = 5`
+survived netdata's recreation and the cost after the bump measures 19.48 % of a
+core against 18.33 % before it. MariaDB 12 -> 13 (#364) was NOT merged: the
+Nextcloud admin manual lists 10.11 / 11.4 / 11.8 / 12.3 and not 13, a major
+MariaDB upgrade rewrites the data directory in place with no downgrade, and the
+freshest dump was 21 h old. The PR stays open until Nextcloud lists it.
+
 ## Declined — added 2026-09-19, do not re-propose
 
 - **A second, restricted SSH key for the sshfs mount.** One key covers four roles
@@ -119,6 +145,16 @@ rather than inferred from the recap.
   one step from concluding there was no log.
 - **A count that agrees with itself proves nothing.** Two independent methods, or
   the number is not usable.
+- **`-e key="a b c"` keeps only the first token.** Ansible's key=value parser
+  splits extra-vars on whitespace, so
+  `-e deploy_services="collabora vaultwarden prowlarr sonarr radarr netdata"`
+  sets `deploy_services=collabora` and the playbook succeeds, reporting changes,
+  having deployed one service of six. Proven with
+  `ansible localhost -m debug -a 'var=deploy_services'` in both forms. The form
+  that works is JSON: `-e '{"deploy_services": "a b c"}'`. **A deploy that did
+  the work and a deploy that did one sixth of it print the same PLAY RECAP** —
+  which is this run's own key, paid by the main session while remediating it.
+  Verify the images in place, never the recap.
 
 ## Shipped on 2026-09-18 — key `quiescence`, PR #361, deployed from the branch before merge
 
