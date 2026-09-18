@@ -24,6 +24,12 @@ set -uo pipefail
 UNHEALTHY_SECONDS=${UNHEALTHY_SECONDS:-900}
 # At most one restart per container per hour — see the latch below.
 UNHEALTHY_LATCH=${UNHEALTHY_LATCH:-3600}
+# The same idea for the exited branches, but ten times shorter. That branch is
+# the ONLY recovery path for the 23 of 32 services that run `restart: "no"`, so
+# an hour of refusing to retry costs more here than it does above; ten minutes
+# breaks a collision loop without delaying a real recovery by anything a human
+# would notice.
+EXITED_LATCH=${EXITED_LATCH:-600}
 STAMP_DIR=${STAMP_DIR:-/run/homelab/heal}
 
 COMPOSE_DIR=/opt/homelab
@@ -170,6 +176,32 @@ while read -r name; do
             continue
             ;;
     esac
+    # The exited branches get a latch of their own, for a cause the unhealthy
+    # branch does not have: a DEPLOY. `compose up` recreates containers, and a
+    # heal run landing inside one sees them as `created` or `exited` and races
+    # it with a second `compose up`. Measured on 2026-09-06, during an Ansible
+    # run: 131 restart attempts and 51 failures over 54 minutes, against seven
+    # containers of which three were databases. The two collisions already on
+    # file (2026-09-05, 2026-09-12) each lasted a single pass; what made this one
+    # last an hour is that nothing here said "I already tried".
+    #
+    # This does not prevent the race — the interlock was considered and declined,
+    # the convention is #126 — it bounds it. The same event under this latch is
+    # seven attempts. Detection is elsewhere and already shipped: a collision
+    # makes the heal run count MORE containers than are declared, which
+    # homelab-health.sh has reported since 2026-09-13.
+    if [ "$state" != running ]; then
+        stamp="$STAMP_DIR/exited-$name"
+        if [ -f "$stamp" ]; then
+            last=$(stat -c %Y "$stamp" 2>/dev/null || echo 0)
+            if [ $(( $(date +%s) - last )) -lt "$EXITED_LATCH" ]; then
+                log "container $name $why — already restarted within the last $((EXITED_LATCH / 60)) min, leaving it alone"
+                continue
+            fi
+        fi
+        mkdir -p "$STAMP_DIR" 2>/dev/null
+        : > "$stamp"
+    fi
     svc=$(docker inspect -f '{{index .Config.Labels "com.docker.compose.service"}}' "$name" 2>/dev/null)
     [ -n "$svc" ] || continue
     log "container $name (service $svc) $why — restarting"
