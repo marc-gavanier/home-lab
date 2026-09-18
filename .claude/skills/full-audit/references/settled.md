@@ -59,6 +59,33 @@ for one PR.
   by a fresher number; what the heal timer actually restarts, in the runbook read
   during a failed boot; and "Six of the conditions below" where nine is the count.
 
+### What the deploy produced, measured 2026-09-19 00:30-00:35
+
+215 tasks, 11 changed, 0 failed, and every claim below was checked on the host
+rather than inferred from the recap.
+
+- **The heal fallback is live** and was exercised against the real value:
+  `immich-ml` reads `Interval=0s`, the fallback puts it at 30 s, so 30 failed
+  probes — about 15 minutes at the daemon's real 31 s cadence — now reach the
+  restart. `jellyfin`, which declares 30 s, takes no fallback. Positive and
+  negative control, one command.
+- **The posture beat now reads `— manual run`**, confirmed in the heartbeat table
+  on the run the deploy itself triggered and on a hand-started one. **The
+  `scheduled run` branch has NOT been exercised by a timer yet** — first chance
+  2026-09-19 11:02. Both branches were proven in isolation instead, at the
+  boundary: 5 s apart reads scheduled, 6 s apart reads manual, an absent trigger
+  reads "timer never fired", an unreadable start refuses to guess.
+- **The never-started check is deployed and silent**, which proves nothing on its
+  own, so it was made to fire on purpose in isolation: a trigger since boot with
+  no start fires; a trigger since boot with a start does not; and the case that
+  must stay quiet — the offsite's 2026-09-01 trigger against its 09-12 boot —
+  does not.
+- **Nextcloud** reads `appstoreenabled=false` and `log_rotate_size=10485760`
+  live. The next nightly fetch is the test of whether the 10 MB line stops.
+- **An instrument trap paid a third time in one evening**: the deployed heal
+  script lives in `/usr/local/sbin`, the first grep looked in `/usr/local/bin`,
+  and the empty result read as "not deployed".
+
 ## Declined — added 2026-09-19, do not re-propose
 
 - **A second, restricted SSH key for the sshfs mount.** One key covers four roles
