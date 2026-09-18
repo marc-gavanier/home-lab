@@ -60,3 +60,4 @@
     owner: root
     group: root
     mode: "0700"
+  tags: always

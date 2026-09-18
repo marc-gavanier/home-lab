@@ -34,6 +34,7 @@
       ansible/roles/stack-startup/files/homelab-stack-startup.sh to match.
     success_msg: "Tier 0 agrees: {{ compose_tier0 | join(' ') }}"
     quiet: true
+  tags: always
 
 - name: startup | Deploy the staged-startup orchestrator script
   ansible.builtin.copy:

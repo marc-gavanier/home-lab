@@ -20,6 +20,7 @@
     owner: root
     group: root
     mode: "0400"
+  tags: always
 
 # Read by homelab-health.sh every five minutes, not by posture.sh: unit state is
 # an acute signal and the posture spec runs daily. Same mode as the other specs.

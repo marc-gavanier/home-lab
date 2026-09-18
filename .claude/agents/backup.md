@@ -13,11 +13,11 @@ Home lab on Raspberry Pi 4 with a 5TB LUKS HDD holding all service data. The **3
 
 ## Current Implementation
 
-- `backup.sh` (`ansible/roles/deploy/files/`) — nightly Restic runs, encrypted and deduplicated
+- `resticprofile` (ADR-031, `ansible/roles/deploy/templates/resticprofile.yaml.j2`) — nightly Restic runs, encrypted and deduplicated
 - Consistent app backups: Vaultwarden via SQLite `.backup`, Nextcloud/Immich via SQL dumps (Immich uses its built-in dump), services stopped/quiesced where needed
 - LUKS header backed up (runbook `luks-header-backup.md`)
 - Prune and check are **split** from the backup run (separate schedules)
-- Offsite sync monitored via `offsite-check.sh` + Uptime Kuma push monitors
+- Offsite sync monitored via `backup-notify.sh` + Uptime Kuma push monitors
 - Retention: 7 daily / 4 weekly / 6 monthly
 
 ## Hard-won Lessons — respect these
@@ -36,6 +36,6 @@ Home lab on Raspberry Pi 4 with a 5TB LUKS HDD holding all service data. The **3
 ## Project Resources
 
 - Backup documentation: `docs/06-backup/`
-- Scripts: `ansible/roles/deploy/files/backup.sh`, `offsite-check.sh`; role `ansible/roles/offsite-backup/`
+- Orchestration: `ansible/roles/deploy/templates/resticprofile.yaml.j2`, reporting: `ansible/roles/deploy/files/backup-notify.sh`; role `ansible/roles/offsite-backup/`
 - Runbooks: `knowledge/runbooks/` (restore-from-backup, offsite-backup, luks-header-backup, backup-monitoring)
 - Decisions: `knowledge/decisions/ADR-010-offsite-backup.md`

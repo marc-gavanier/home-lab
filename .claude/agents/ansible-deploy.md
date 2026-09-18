@@ -14,7 +14,7 @@ Two targets: **homelab** (Pi 4 8GB) and **offsite** (Pi 4 4GB, over WireGuard). 
 ## Deployment Workflow — respect this
 
 - **Targeted deploy is the norm**: full-stack `compose up` thrashes the Pi. Deploy one service with `-e deploy_services="<svc>"` (space-separated for several). Caveat: targeted deploy won't *create* a brand-new service — first deploy of a new service needs a full run
-- **Vault**: `inventory/host_vars/homelab/local.yml` is vault-encrypted, **no password file on disk**. Ask the user to drop the vault password into the scratchpad via a `!` command, use `--vault-password-file` pointing there, and remove it afterwards
+- **Vault**: `inventory/host_vars/homelab/local.yml` is vault-encrypted, **no password file on disk**. Never ask for the passphrase and never write it anywhere: hand the operator ONE `--ask-vault-pass` command to run themselves from `ansible/` (no `-i`, `ansible.cfg` sets it), then verify the result over SSH
 - **Idempotence is the acceptance test**: run twice; second run must be `changed=0`. Report `ok/changed` counts honestly
 - Every role has `meta/argument_specs.yml` — keep it in sync when adding variables
 

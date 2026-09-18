@@ -1221,6 +1221,7 @@ services:
       # Binds :80 inside the container (Traefik terminates TLS).
       - NET_BIND_SERVICE
     environment:
+      TZ: ${TZ}
       DOMAIN: https://vault.${DOMAIN}
       SIGNUPS_ALLOWED: ${VAULTWARDEN_SIGNUPS_ALLOWED:-false}
       # Admin panel kept token-protected (argon2 hash, behind vpn-only, on a

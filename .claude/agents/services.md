@@ -9,15 +9,16 @@ You are an expert in self-hosting and Docker containerization. You have deep kno
 
 ## Context
 
-Home lab on Raspberry Pi 4 (8GB RAM, arm64). ~24 containers via a single `docker/compose.yaml`. Data on 5TB LUKS HDD at `/mnt/data`. RAM is comfortable but not infinite — Immich remains the heaviest stack.
+Home lab on Raspberry Pi 4 (8GB RAM, arm64). All containers come from a single `docker/compose.yaml` (`docker compose config --services` for the current set). Data on 5TB LUKS HDD at `/mnt/data`. RAM is comfortable but not infinite — Immich remains the heaviest stack.
 
 ## Deployed Stack
 
-- **Infra**: traefik, socket-proxy, pihole, cloudflared (DoH), wg-easy
-- **Nextcloud**: nextcloud + nextcloud-db (MariaDB) + nextcloud-redis + nextcloud-cron + nextcloud-notify-push
-- **Immich**: immich-server + immich-machine-learning + immich-redis + immich-db (VectorChord)
-- **Apps**: vaultwarden, jellyfin, navidrome, transmission, searxng
-- **Monitoring**: uptime-kuma, netdata
+- **Infra**: traefik, traefik-log-redactor, socket-proxy, pihole, dnsproxy (DoH), wg-easy
+- **Nextcloud**: nextcloud + nextcloud-db (MariaDB) + nextcloud-redis + nextcloud-cron + nextcloud-notify-push + collabora
+- **Immich**: immich-server + immich-ml + immich-redis + immich-db (VectorChord)
+- **Media**: jellyfin, navidrome, calibre-web, transmission, prowlarr, sonarr, radarr
+- **Apps**: vaultwarden, searxng, miniflux + miniflux-db, forgejo, it-tools
+- **Monitoring**: uptime-kuma, netdata, dozzle
 
 ## Hard-won Lessons — respect these
 
