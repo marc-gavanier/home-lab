@@ -167,9 +167,12 @@ A transient cause — a database still replaying its WAL, a disk still saturated
 by the previous wave — is usually gone by the second attempt. A structural one
 (the table above) will fail all three times and needs the fix in the table.
 
-Do not confuse the retries with the crash-heal: `homelab-stack-heal` only
-restarts containers that **exited** non-zero, so it can do nothing about a wave
-that never dispatched and whose containers therefore do not exist. That was the
+Do not confuse the retries with the crash-heal: `homelab-stack-heal` acts on
+containers the engine already knows about — `exited`, `created` or `dead` since
+2026-09-05, and `running` but unhealthy since 2026-09-12 — so it can do nothing
+about a wave that never dispatched and whose containers therefore do not exist.
+Note the first two of those carry exit code 0, so "exited non-zero" is not the
+test, and a container the heal run finds mid-deploy is one it will restart. That was the
 gap on 2026-08-26, and the retry is what closes it. Heal deliberately stays out
 of the way while the unit is `activating`, and starts working once it is
 `failed`.
@@ -177,7 +180,9 @@ of the way while the unit is `activating`, and starts working once it is
 ## Crash recovery & maintenance
 
 While unlocked, `homelab-stack-heal.timer` (every 2 min) restarts any compose
-container that exited non-zero — traces in `journalctl -t homelab-heal`.
+container that is not running — whatever its exit code — and any that has been
+unhealthy for 15 min, at most once per 10 min and per hour respectively — traces
+in `journalctl -t homelab-heal`.
 
 Consequence: a manually **stopped** container often exits 137/143 and will be
 resurrected within 2 minutes. For maintenance, either:
