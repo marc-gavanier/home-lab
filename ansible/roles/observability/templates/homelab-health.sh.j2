@@ -636,11 +636,32 @@ if command -v systemctl >/dev/null 2>&1 && mountpoint -q /mnt/data; then
     # to separate an empty enumeration from a clean one, not to hardcode a
     # count that a new timer would falsify.
     badrun=""
+    notrun=""
     timers_seen=0
     for t in $(systemctl list-timers 'homelab-*' --all --no-legend --no-pager 2>/dev/null | awk '{print $NF}'); do
         case "$t" in *.service) ;; *) continue ;; esac
         timers_seen=$((timers_seen + 1))
         r=$(systemctl show "$t" -p Result --value 2>/dev/null)
+        # `Result` does not say WHICH run it describes, and four histories read
+        # `success`: never started in this unit's life, started before the last
+        # boot — the service timestamps are cleared by it, the timer's are not —
+        # started and ended non-zero under `SuccessExitStatus=1`, which seven of
+        # the fourteen control units carry on purpose, and started a minute ago
+        # and passed. Measured 2026-09-18: offsite-smart-test last ran on 09-01
+        # and reads byte-identical to homelab-image-retention, which has never
+        # run at all.
+        #
+        # One case is decidable here without crying wolf on every weekly timer:
+        # the timer FIRED SINCE THIS BOOT and its service never started. Both
+        # fields are monotonic, so the boot resets the pair together and there is
+        # no clock arithmetic and no timezone to get wrong — verified on the
+        # offsite, whose 09-01 trigger reads 0 against a 09-12 boot. It catches
+        # what `Result` structurally cannot: a trigger that produced no run.
+        fired=$(systemctl show "${t%.service}.timer" -p LastTriggerUSecMonotonic --value 2>/dev/null)
+        began=$(systemctl show "$t" -p ExecMainStartTimestampMonotonic --value 2>/dev/null)
+        if [ -n "$fired" ] && [ "$fired" != "0" ] && [ "${began:-0}" = "0" ]; then
+            notrun="$notrun $t"
+        fi
         # `exec-condition` is a RUN THAT DECIDED IT HAD NOTHING TO DO, not a
         # failure — systemd's own word for an ExecCondition that declined. It
         # became reachable on 2026-08-26 when the SMART self-test grew from two
@@ -662,6 +683,9 @@ if command -v systemctl >/dev/null 2>&1 && mountpoint -q /mnt/data; then
     # shellcheck disable=SC2086
     badrun=$(gate systemd-timer-result 240 $badrun)
     [ -n "$badrun" ] && problems+=("last run failed: $(printf '%s ' $badrun | sed 's/ $//')")
+    # shellcheck disable=SC2086
+    notrun=$(gate systemd-timer-never-started 240 $notrun)
+    [ -n "$notrun" ] && problems+=("triggered but never started: $(printf '%s ' $notrun | sed 's/ $//')")
     [ "$timers_seen" -eq 0 ] && problems+=("no homelab-* timer was enumerated — the unit check asserted nothing")
 fi
 
