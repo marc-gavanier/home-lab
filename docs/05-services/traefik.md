@@ -51,8 +51,8 @@ ssh homelab "sudo tail -20 /run/traefik/access.log"
 It does not survive a reboot or the daily rotation, and that is deliberate.
 
 **Before reaching for `acme.json`, read the health message.** Since #157 the health
-script parses that file directly and reports `certs Nd/18` — the days left on the
-nearest expiry. That names the failing certificate without destroying anything.
+script parses that file directly and reports `certs Nd/C` — the days left on the
+nearest expiry, over the number of certificates the file holds. That names the failing certificate without destroying anything.
 
 Deleting the file is a **last resort**, and it is no longer free:
 
@@ -60,8 +60,9 @@ Deleting the file is a **last resort**, and it is no longer free:
 ssh homelab "sudo rm -f /mnt/data/services/traefik/acme/acme.json && docker restart traefik"
 ```
 
-It holds the ACME **account key** and all 18 certificates, not a cache. Removing it
-triggers 18 simultaneous ACME orders and makes the health check push a problem
+It holds the ACME **account key** and every certificate the proxy serves, not a
+cache. Removing it triggers one simultaneous ACME order per certificate — the
+health message names the current count — and makes the health check push a problem
 (`no certificate expiry is being watched`) until they are reissued, so expect
 `Pi health` to go DOWN during the operation.
 
@@ -69,5 +70,5 @@ triggers 18 simultaneous ACME orders and makes the health check push a problem
 
 Traefik is stateless except for `acme.json`, which is in the restic set with the
 rest of `/mnt/data/services`. Restoring it is the fast path; letting Let's Encrypt
-reissue all 18 certificates also works, but it is not free — see the warning above,
+reissue every certificate also works, but it is not free — see the warning above,
 and note that rate limits apply to a set this size if it has to be repeated.

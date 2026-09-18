@@ -32,9 +32,9 @@ the service *does* beyond answering.
    docker exec "$c" sh -c 'getcap -r /usr/bin /usr/sbin /bin /sbin'
    ```
 
-   — is blind on 25 of this stack's 29 containers: 24 ship no `getcap`, and 2
-   (Collabora among them) have no shell at all, so the command fails and the
-   loop moves on. Combined with the rule below — *an image whose sweep comes
+   — is blind on 27 of this stack's 32 containers: 27 ship no `getcap`, two of
+   them (Dozzle and Collabora) with no shell at all, so the command fails and
+   the loop moves on. Combined with the rule below — *an image whose sweep comes
    back empty can take the flag safely* — a container that could not be
    inspected reads as a container with nothing to find. That is backwards, and
    it is how a capability gets dropped on the one image that needed it.
