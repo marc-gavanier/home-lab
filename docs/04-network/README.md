@@ -65,9 +65,12 @@ All services are **VPN-only**. The `vpn-only` middleware is applied globally on 
   (RFC 8484 / HTTP2). Queries **that go through Pi-hole** — i.e. the LAN clients
   and the VPN clients — no longer leave in cleartext to the ISP. The host's own
   lookups and the containers' do: they use `/etc/resolv.conf` (`1.1.1.1`,
-  `8.8.8.8`) via Docker's embedded resolver, measured 28 of 29 containers — the
-  29th, `traefik-log-redactor`, runs on `network_mode: none` and therefore has
-  no embedded resolver and no socket to resolve through at all. See
+  `8.8.8.8`) via Docker's embedded resolver, measured 31 of 32 containers — the
+  32nd, `traefik-log-redactor`, runs on `network_mode: none` and therefore has
+  no embedded resolver and no socket to resolve through at all. Measure it from
+  the host, on each container's `ResolvConfPath`: Dozzle and Collabora ship no
+  `cat`, so reading that file from inside them answers "no embedded resolver"
+  for two containers that have one. See
   the consequences section of ADR-015, which used to claim the wider perimeter.
 - The upstream is pinned in `compose.yaml` (`FTLCONF_dns_upstreams`), not the
   manual `pihole.toml` — version-controlled, no drift. See ADR-015.

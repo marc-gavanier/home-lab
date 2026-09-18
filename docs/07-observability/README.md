@@ -643,7 +643,8 @@ table reads as coverage, which is how a deleted check sat in it unnoticed:
 | Expected unit down   | docker, containerd, fail2ban, ssh, claude-remote-control or wg-quick@wg0 not `active`                                                                | goss `units.yaml` ²                   |
 | Timer last run       | a `homelab-*` timer whose triggered service did not end in `success`                                                                                 | `homelab-health.sh`                   |
 | Git mirror stale     | the mirror's `next_update_unix` is more than **1 h** in the past — so > 9 h since the last completed sync — or its state is unreadable for **240 s** | `homelab-health.sh`                   |
-| Certificate expiry   | the soonest of the 18 certificates is under **21 days**, unreadable, or `acme.json` is absent                                                        | `homelab-health.sh`                   |
+| Certificate expiry   | the soonest certificate in `acme.json` is under **21 days**, unreadable, or the file is absent                                                       | `homelab-health.sh`                   |
+| Timer disarmed       | a `homelab-*` control timer is present but not `enabled` and `active`                                                                                | goss `posture.yaml`                   |
 
 ¹ Both, deliberately. ADR-030's migration rule is that no bash line is deleted
 until its replacement has been **observed** firing, and an undervoltage alarm
