@@ -68,11 +68,23 @@
   loop:
     - { key: default_phone_region, type: string, value: FR }
     - { key: maintenance_window_start, type: integer, value: "4" }
+    # The app store fetch fails every night around 04:45 with cURL error 23 and
+    # writes the whole failed request into the log as a Guzzle trace: measured
+    # 2026-09-18, three entries and 30.5 MB in a file holding THREE LINES, the
+    # longest of them 10.17 MB, plus a 105 MB rotation. That file is what the
+    # fail2ban [nextcloud] jail re-reads. Nothing here installs apps from the
+    # store — they are pinned in the image and the runbook updates them with
+    # occ — so the fetch buys nothing and costs a 10 MB line a day.
+    - { key: appstoreenabled, type: boolean, value: "false" }
+    # And a bound under it, because disabling one writer does not bound a log:
+    # 10 MiB rather than the 100 MB default, so no single entry can leave a
+    # hundred megabytes for fail2ban to walk.
+    - { key: log_rotate_size, type: integer, value: "10485760" }
   register: nc_sys_set
   changed_when: true
   when:
     - nextcloud_up
-    - (nc_sysconf.stdout | from_json).system[item.key] | default('') | string != item.value | string
+    - (nc_sysconf.stdout | from_json).system[item.key] | default('') | string | lower != item.value | string | lower
 
 # files_lock ships a cron job that releases stale locks and a setting that
 # disables it. The default `lock_timeout` is -1 — ETA_INFINITE — and
