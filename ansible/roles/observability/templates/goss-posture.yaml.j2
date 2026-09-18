@@ -94,6 +94,29 @@ file:
     exists: true
     mode: "0700"
 
+# --- Exit codes: 1 is a verdict, 2 is an instrument that could not measure ----
+# goss NEVER prints what a check wrote. Verified on the host against the
+# deployed binary: a failing check renders its exit status and, if `stdout:` is
+# declared, the literal string "object: *bytes.Reader" — never the message. So
+# every branch of a multi-branch check pushes the same sentence to Kuma, and on
+# 2026-09-16..18 `miniflux-no-feed-silently-unscheduled` pushed
+# "Expected 1 to be numerically eq 0" three days running, for one of three
+# causes it could not name: an unreachable database, an unreadable count, or
+# three feeds genuinely retired from scheduling. The first two are repaired by
+# fixing the probe, the third by touching the feeds — opposite work, one line.
+#
+# The exit status is the only field that survives into the alert, so it carries
+# the distinction:
+#
+#   exit 1   the property is violated — the thing this check guards is wrong.
+#   exit 2   the check could not measure — a value missing, unparseable, or an
+#            enumeration that came back empty. Repair the instrument, not the
+#            estate. The alert then reads "Expected 2 to be numerically eq 0".
+#
+# Applied so far to the five branches of the three checks that have actually
+# fired this month; the remaining multi-branch checks still collapse. 28 of the
+# 219 checks here carry two or more `exit 1` branches, so this convention has
+# somewhere to go, one check at a time, as each one next proves it matters.
 command:
 
   # --- Credential stores: the property, not a list of them (#217) ------------
@@ -592,7 +615,7 @@ command:
       # derivation as this check's model; that derivation carries a floor at
       # `>= 12` and this one had none. Six ports are published today, and a
       # stack with none is a stack that is not serving.
-      [ -n "$live" ] || { echo "no published host port was found at all — the derivation asserted nothing"; exit 1; }
+      [ -n "$live" ] || { echo "no published host port was found at all — the derivation asserted nothing"; exit 2; }
       for p in $live; do
         case " $declared " in
           *" $p "*) ;;
@@ -1210,9 +1233,9 @@ command:
         echo "recording its run, or the status file shape moved"
         exit 1
       fi
-      day=$(date -d "$t" +%-d 2>/dev/null) || { echo "cannot parse check time '$t'"; exit 1; }
+      day=$(date -d "$t" +%-d 2>/dev/null) || { echo "cannot parse check time '$t'"; exit 2; }
       secs=${d%%.*}
-      case "$secs" in ''|*[!0-9]*) echo "duration '$d' is not a number"; exit 1 ;; esac
+      case "$secs" in ''|*[!0-9]*) echo "duration '$d' is not a number"; exit 2 ;; esac
       if [ "$day" -le 7 ]; then
         [ "$secs" -ge 300 ] || {
           echo "the check of $t fell in the deep window (day $day) but took ${secs}s"
@@ -1838,7 +1861,7 @@ command:
     exec: |
       u=$(docker exec miniflux-db env 2>/dev/null | sed -n 's/^POSTGRES_USER=//p')
       d=$(docker exec miniflux-db env 2>/dev/null | sed -n 's/^POSTGRES_DB=//p')
-      [ -n "$u" ] && [ -n "$d" ] || { echo "miniflux-db exposes no POSTGRES_USER/DB"; exit 1; }
+      [ -n "$u" ] && [ -n "$d" ] || { echo "miniflux-db exposes no POSTGRES_USER/DB"; exit 2; }
       lim=$(docker exec miniflux env 2>/dev/null | sed -n 's/^POLLING_PARSING_ERROR_LIMIT=//p')
       case "$lim" in ''|*[!0-9]*) lim=3 ;; esac
       if [ "$lim" -eq 0 ]; then
@@ -1847,7 +1870,7 @@ command:
       fi
       q="from feeds where parsing_error_count >= $lim and disabled = false"
       n=$(docker exec miniflux-db psql -U "$u" -d "$d" -t -A -c "select count(*) $q;" 2>/dev/null)
-      case "$n" in ''|*[!0-9]*) echo "feed error counts unreadable: [$n]"; exit 1 ;; esac
+      case "$n" in ''|*[!0-9]*) echo "feed error counts unreadable: [$n]"; exit 2 ;; esac
       [ "$n" -eq 0 ] || {
         echo "$n feed(s) dropped from scheduling while still shown as active:"
         docker exec miniflux-db psql -U "$u" -d "$d" -t -A -F' | ' \
