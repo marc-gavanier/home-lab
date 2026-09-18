@@ -1502,11 +1502,18 @@ command:
   # subject disappears is the failure this spec keeps being written to avoid.
   #
   # timeout because goss allows a command 10 s and a timeout renders as a
-  # FAILURE, not as a skip (the lesson of 2026-08-30). Measured at 1.4 s over
-  # 40 807 retained lines, so 30 s is headroom, not a guess. The grep walks the
-  # whole retained log rather than a --since window, deliberately: json-file
-  # keeps about 3.5 days and a credential that reached it on day one is still
-  # being served today.
+  # FAILURE, not as a skip (the lesson of 2026-08-30). 90 s since 2026-09-18,
+  # and it is sized on a measurement: the assertion body costs 8.7 s with the
+  # page cache warm, and the redactor's read alone cost 16.5 s cold, over
+  # 581 089 retained lines in eight files. The posture run adds the contention
+  # of eight concurrent tests on one dockerd on top of that. The 30 s it
+  # replaces timed out on every run from 2026-09-16 and intermittently before,
+  # which is a red that carries no information about what it asserts.
+  #
+  # The window below bounds what awk EXAMINES, not what is read: `docker logs
+  # --since` walks the whole retained set before filtering. So the deadline has
+  # to be sized against the retention — 20m x 10 for the redactor, where the
+  # rest of the stack runs on the daemon's 10m x 3 — and not against the window.
   traefik-access-log-carries-no-credential:
     exec: |
       up=$(docker inspect traefik-log-redactor 2>/dev/null | jq -r '.[0].State.Running')
@@ -1559,7 +1566,7 @@ command:
         echo "$bad credential value(s) reached a durable container log"
         exit 1
       fi
-    timeout: 30000
+    timeout: 90000
     exit-status: 0
 
   # The raw line still exists, and these are the two properties that make that
