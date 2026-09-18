@@ -2464,6 +2464,18 @@ services:
       CREATE_ADMIN: "1"
       ADMIN_USERNAME: ${MINIFLUX_ADMIN_USER}
       ADMIN_PASSWORD_FILE: /run/secrets/miniflux_admin_password
+      # Upstream's default is 3, and it had never been chosen. Three consecutive
+      # fetch failures drop a feed from the scheduler permanently while the UI
+      # still shows it as active — measured on 2026-09-15, when heartofagile
+      # failed at 06:43, 08:43 and 10:43 UTC and was never polled again. The
+      # posture check then reported it on every scheduled run for three days,
+      # and only a manual refresh cleared it.
+      #
+      # 15 is a feed that has failed for most of a day at the default hourly
+      # polling, which is dead rather than flaky. The posture assertion reads
+      # THIS value rather than carrying its own copy of it: a tolerance that
+      # does not track the thing it tolerates is how a check goes vacuous.
+      POLLING_PARSING_ERROR_LIMIT: "15"
       # Upstream's default is 127.0.0.1:8080, which inside a container means the
       # process answers only itself and Traefik gets connection refused.
       LISTEN_ADDR: 0.0.0.0:8080
