@@ -914,9 +914,32 @@ command:
               "http://127.0.0.1:19999/api/v1/alarms?all=true" \
               | jq '[.alarms[] | select(.name=="homelab_container_health_samples") | .value] | max // 0')
       max=${max%%.*}
-      floor={{ ((600 / netdata_docker_update_every) * 0.833) | round | int }}
-      [ -n "$max" ] && [ "$max" -gt "$floor" ] || {
-        echo "highest container_health_samples=$max, floor=$floor — homelab_container_unhealthy cannot fire"
+      case "${max:-x}" in ''|*[!0-9]*) echo "container_health_samples unreadable: [$max]"; exit 2 ;; esac
+      # The floor has to be what netdata has HAD TIME to collect, not a constant.
+      # A recreate resets the counter, so the full floor is unreachable for its
+      # own accumulation time — measured 2026-09-19: a deploy recreated netdata
+      # at 00:55:45 and the posture run it triggered at 01:02:05 found 76 samples
+      # against a floor of 100, went red, and was green again nine minutes later
+      # having changed nothing. A deploy is not a fault, and an assertion that
+      # calls one a fault teaches the operator to ignore it.
+      #
+      # `docker inspect` WITHOUT `-f`: goss renders this spec as a Go template and
+      # would eat the format string — the rule this file states above, applied.
+      su=$(docker inspect netdata | sed -n 's/.*"StartedAt": "\([^"]*\)".*/\1/p' | head -1)
+      st=$(date -d "$su" +%s 2>/dev/null)
+      case "${st:-x}" in ''|*[!0-9]*) echo "cannot read netdata's start time: [$su]"; exit 2 ;; esac
+      up=$(( $(date +%s) - st ))
+      # Under two intervals there is nothing to compare and a verdict would be
+      # noise; netdata being absent or restarting is carried by its own container
+      # alarms, not by this one.
+      [ "$up" -lt $(( {{ netdata_docker_update_every }} * 2 )) ] && exit 0
+      cap={{ ((600 / netdata_docker_update_every) * 0.833) | round | int }}
+      # The same 0.833 margin the alarm threshold uses, applied to the age rather
+      # than to the window: what a healthy collector should have by now.
+      floor=$(( up * 833 / 1000 / {{ netdata_docker_update_every }} ))
+      [ "$floor" -gt "$cap" ] && floor=$cap
+      [ "$max" -gt "$floor" ] || {
+        echo "highest container_health_samples=$max, floor=$floor after ${up}s of netdata uptime (cap $cap) — homelab_container_unhealthy cannot fire"
         exit 1
       }
     timeout: 60000
