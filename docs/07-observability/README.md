@@ -151,13 +151,15 @@ respect.
 "One alert = one action needed" is about an **action**. Conditions that would
 send you to the same place therefore share a monitor:
 
-| Monitor | What it carries | What you would do |
-|--------------------|----------------------------------------------------|------------------------------|
-| **Pi resources** | temperature, undervoltage, memory, swap, disk | look at load or capacity |
-| **Pi services** | containers, systemd units, restart loops, DNS, mirror | look at the stack |
-| **Pi pending action** | reboot pending, certificate expiry, marginal sector | schedule an intervention |
+| Monitor                 | What it carries                                                               | Fed by                              | What you would do        |
+|-------------------------|-------------------------------------------------------------------------------|-------------------------------------|--------------------------|
+| **Pi health**           | journal skew and fill, `/` and `/mnt/data` usage, DNS, mirror, certificates     | `homelab-health.sh`                 | look at the host         |
+| **Pi resources**        | temperature, undervoltage, memory, swap                                         | curated alarms via the Kuma adapter | look at load             |
+| **Pi disk health**      | `/mnt/data` usage, SMART, drive temperature, pending sectors, ext4 state        | `homelab-disk.sh`                   | look at the disk         |
+| **Pi pending action**   | reboot pending, journal skew, security updates, certificate expiry              | `homelab-health.sh`                 | schedule an intervention |
+| **Netdata — containers**| containers down, containers unhealthy                                           | curated alarms via the Kuma adapter | look at the stack        |
 
-Three to create by hand, not thirty — `health.yml` records why that matters:
+Five to create by hand, not thirty — `health.yml` records why that matters:
 "Kuma v2 monitors are created by hand, so folding host-level signals into one
 push keeps the alerting surface flat."
 

@@ -31,7 +31,7 @@ new string on every run and report `changed` forever. Regenerate the hash with t
 own CLI and paste it into `dozzle_admin_password_hash` in the vaulted `local.yml`:
 
 ```bash
-docker run -it --rm amir20/dozzle:v10.6.14 \
+docker run -it --rm amir20/dozzle:v11.1.0 \
   generate admin --email admin@localhost --name 'Admin'
 ```
 

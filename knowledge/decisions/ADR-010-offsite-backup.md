@@ -45,13 +45,16 @@ Consequences of the no-password-on-offsite rule:
   slow because media is mostly append-only.
 - Repo integrity (`restic check`) runs weekly FROM the homelab through the
   tunnel (systemd timer `homelab-offsite-check`, Tuesday 02:00).
-- The offsite Pi only self-reports disk health (df + SMART) to Uptime Kuma.
+- The offsite Pi runs its own goss spec daily and pushes the verdict to Uptime
+  Kuma. It began as df + SMART; it now also asserts properties of the repository
+  host itself, including that the REST server is still append-only. Read
+  `/etc/goss/offsite-health.yaml` for the current set rather than a count here.
 
 ## Monitoring
 
 Three Uptime Kuma push monitors (dead-man's switches): nightly local backup
-(existing), nightly offsite copy, weekly offsite check. Plus the weekly
-disk-health push from the offsite Pi itself.
+(existing), nightly offsite copy, weekly offsite check. Plus the daily
+health push from the offsite Pi itself.
 
 ## Disaster recovery
 
