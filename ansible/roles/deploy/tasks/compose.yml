@@ -112,6 +112,7 @@
       ansible.builtin.systemd:
         name: homelab-stack-heal.timer
         state: stopped
+      changed_when: false
 
     - name: compose | Deploy services
       community.docker.docker_compose_v2:
@@ -124,6 +125,7 @@
       ansible.builtin.systemd:
         name: homelab-stack-heal.timer
         state: started
+      changed_when: false
 
 - name: compose | Show deployment actions
   ansible.builtin.debug:
