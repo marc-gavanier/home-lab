@@ -767,7 +767,7 @@ them stays green. **Both are true about different failure modes**: `OK`
 discriminates a broken service and fails to discriminate a misdirected one.
 Recorded as one finding with two halves.
 
-### Instrument traps paid — 3, and two were the main session's own
+### Instrument traps paid — 4, and three were the main session's own
 
 1. **A `grep -A4` context window on a 5-line block silently truncated the line
    under investigation** and returned a false "`logtimezone` not deployed". **A
@@ -784,6 +784,16 @@ Recorded as one finding with two halves.
    Counting `-read-only-rootfs` expectations by proximity gave "1 false + 2 true"
    per service — arithmetically impossible against one check per service. Re-done
    by parsing each block to its own `stdout:` line: 9 false, 23 true, 32 total.
+
+4. **An un-`sudo`'d glob over a root-only directory expands to nothing — third
+   payment, and this one by the session that had put the warning in its own
+   brief.** Verifying the deployed context check, the main session ran the
+   extracted body as the normal user; `health.d/` is root-only, the glob matched
+   nothing, and the check reported "no curated alarm declares a context". Under
+   root — how goss runs it — all six contexts derive and it exits 0. **The check's
+   empty-set floor caught the condition and failed loudly rather than passing
+   vacuously, which is a stronger proof that it works than the three deliberate
+   controls written before it.**
 
 ### Disclosures by agents, all unprompted — 2 of 8
 
