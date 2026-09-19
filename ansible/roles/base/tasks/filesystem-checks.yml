@@ -276,6 +276,8 @@
   register: extra_fs_superblocks
   changed_when: false
   check_mode: false
+  # floor: none needed — an empty extra_fsck_filesystems is this option's DESIGNED
+  # state. Hosts with no extra filesystem declare nothing and must iterate nothing.
   loop: "{{ extra_fsck_filesystems }}"
   loop_control:
     label: "{{ item.device }}"
@@ -296,6 +298,8 @@
   when:
     - current_max_mounts != wanted_max_mounts
       or current_interval != (item.item.interval_days | int * 86400) | string
+  # floor: inherited — this iterates the results of the loop above, so it is empty
+  # exactly when extra_fsck_filesystems is, which is that option's designed state.
   loop: "{{ extra_fs_superblocks.results }}"
   loop_control:
     label: "{{ item.item.device }}"

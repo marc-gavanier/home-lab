@@ -62,6 +62,8 @@
   ansible.builtin.file:
     path: "{{ item.path }}"
     state: absent
+  # floor: none needed — this is a PURGE. An empty find means there is nothing
+  # stale to remove, which is the correct state on a host deployed from scratch.
   loop: "{{ host_commands.files }}"
   loop_control:
     label: "{{ item.path | basename }}"
@@ -77,6 +79,7 @@
   ansible.builtin.file:
     path: "{{ item.path }}"
     state: absent
+  # floor: none needed — a PURGE, as above. Nothing found means nothing to remove.
   loop: "{{ host_agents.files }}"
   loop_control:
     label: "{{ item.path | basename }}"

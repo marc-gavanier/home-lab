@@ -156,6 +156,8 @@
     proto: "{{ item.proto | default('tcp') }}"
     from_ip: "{{ item.from_ip | default('any') }}"
     comment: "{{ item.comment | default(omit) }}"
+  # floor: none needed — a host may legitimately publish no service port. What must
+  # never be empty is ssh_allowed_sources, and that carries its own assert above.
   loop: "{{ ufw_service_rules | default([]) }}"
 
 # Same shape as the legacy IPv6 SSH rule above, and for the same reason: adding

@@ -8,12 +8,28 @@ swept 976 sites for it and found ~30 live instances across goss specs, shell
 reports and Ansible tasks; the remedy had already been written into this repo by
 hand six separate times without ever being generalised.
 
+The Ansible arm was missing until 2026-09-19 -- this docstring named it and the
+scanner did not reach it, which is why the firewall lockout had to be found by
+hand. A gate narrower than its own stated property is the disease this file
+exists to treat, and it had it.
+
 WHAT IS FLAGGED
 
 An iteration whose source is derived at run time --
 
     for x in $(cmd ...)      for x in `cmd ...`      for x in $VAR
     while read ... done < <(cmd)   |   ... | while read ...   |   done <<EOF
+
+-- and, in an Ansible task, a `loop:`/`with_items:` whose source is a variable
+or an expression rather than a literal inline list:
+
+    loop: "{{ ssh_allowed_sources }}"        loop: "{{ x.results | select(...) }}"
+
+`| default([])` is NOT a floor there. It turns "undefined" into "iterate
+nothing", which is the defect itself wearing a seatbelt: the play goes green
+having done none of the work. The lockout found on 2026-09-19 was exactly this
+-- an empty `ssh_allowed_sources` adding no allow rule while the retractions and
+`ufw enable` below it ran anyway.
 
 -- unless the same unit also carries one of:
 
@@ -77,6 +93,7 @@ FLOOR_NOTE = re.compile(r"#\s*floor:\s*(\S.*?)\s*$", re.MULTILINE)
 
 SPEC_GLOBS = ("goss-*.yaml.j2",)
 SHELL_SUFFIXES = (".sh", ".sh.j2")
+ANSIBLE_GLOBS = ("roles/*/tasks/*.yml", "roles/*/handlers/*.yml", "playbooks/*.yml")
 
 
 def strip_comments(text):
@@ -145,6 +162,61 @@ def check_spec(path, text):
             )
             continue
         findings.append((line, name, "iterates a derived set with no floor and no `# floor:` note"))
+    return findings
+
+
+# `[^\\S\\n]` and not `\\s`: \\s crosses the newline, so a block list on the
+# following lines was read as an inline source and every such loop was flagged
+# on the variable inside its FIRST ITEM. Caught by a finding on
+# `ssh_port_hardened`, which is a port and not a list.
+ANSIBLE_LOOP = re.compile(r"^([^\S\n]*)(?:loop|with_items):[^\S\n]*(\S.*?)[^\S\n]*$", re.MULTILINE)
+ANSIBLE_ROOT_VAR = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_]*)")
+ANSIBLE_BARE_VAR = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)$")
+
+
+def ansible_floor(window, var):
+    """A floor for `var` in this window: an assert, a when:, or a `# floor:` note.
+
+    `| default([])` deliberately does not count -- see the docstring.
+    """
+    if re.search(r"#\s*floor:\s*\S", window):
+        return True
+    cardinality = re.compile(
+        r"\b" + re.escape(var) + r"\b[^\n]*\|\s*length\s*(?:>|>=|!=)"
+    )
+    return bool(cardinality.search(window))
+
+
+def check_ansible(path, text):
+    findings = []
+    lines = text.splitlines()
+    for m in ANSIBLE_LOOP.finditer(text):
+        source = m.group(2)
+        # A literal inline list, or a block list on the following lines, is
+        # bounded by construction and is not the defect.
+        if source.startswith("[") or source in ("", ">-", "|"):
+            continue
+        quoted = source.strip().strip('"').strip("'")
+        root = ANSIBLE_ROOT_VAR.search(source)
+        if root:
+            var = root.group(1)
+        elif ANSIBLE_BARE_VAR.match(quoted):
+            var = quoted
+        else:
+            continue
+        line = text[: m.start()].count("\n") + 1
+        # The unit here is the file up to the loop, not a fixed window, and the
+        # reason is semantic rather than convenient: a task file is a sequential
+        # play, so an assert placed earlier really does gate everything after it.
+        # A shell guard may sit in a branch that was not taken, which is why
+        # check_shell keeps its window. The floor must still name THIS variable.
+        hi = min(len(lines), line + WINDOW_AFTER)
+        window = "\n".join(lines[:hi])
+        if ansible_floor(window, var):
+            continue
+        findings.append(
+            (line, var, "loops a variable source with no cardinality floor in the surrounding task")
+        )
     return findings
 
 
@@ -248,6 +320,65 @@ EOF
         True,
     ),
     (
+        "must FLAG: an Ansible loop over a required list with no floor",
+        "ansible",
+        '''- name: firewall | Allow SSH from the permitted sources
+  community.general.ufw:
+    rule: allow
+    from_ip: "{{ item }}"
+  loop: "{{ ssh_allowed_sources }}"
+''',
+        True,
+    ),
+    (
+        "must FLAG: `| default([])` is not a floor, it is the defect wearing a seatbelt",
+        "ansible",
+        '''- name: firewall | Allow service ports
+  community.general.ufw:
+    rule: allow
+    port: "{{ item.port }}"
+  loop: "{{ ufw_service_rules | default([]) }}"
+''',
+        True,
+    ),
+    (
+        "must PASS: an assert above the loop floors it",
+        "ansible",
+        '''- name: firewall | Refuse to proceed with no SSH source to allow
+  ansible.builtin.assert:
+    that:
+      - ssh_allowed_sources | default([]) | length > 0
+    fail_msg: the host would become unreachable
+
+- name: firewall | Allow SSH from the permitted sources
+  community.general.ufw:
+    rule: allow
+    from_ip: "{{ item }}"
+  loop: "{{ ssh_allowed_sources }}"
+''',
+        False,
+    ),
+    (
+        "must PASS: a literal inline list is bounded by construction",
+        "ansible",
+        '''- name: nextcloud | Enable the apps this deployment uses
+  ansible.builtin.command: occ app:enable {{ item }}
+  loop: [calendar, contacts, tasks]
+''',
+        False,
+    ),
+    (
+        "must PASS: a block list on the following lines is a literal too",
+        "ansible",
+        '''- name: system | Configure kernel parameters
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+  loop:
+    - { key: "vm.swappiness", value: "10" }
+''',
+        False,
+    ),
+    (
         "must PASS: prose that merely contains the words (the first false positive)",
         "shell",
         """#!/usr/bin/env bash
@@ -263,7 +394,7 @@ echo ok
 def selftest():
     failures = 0
     for label, kind, body, want_flag in CONTROLS:
-        fn = check_spec if kind == "spec" else check_shell
+        fn = {"spec": check_spec, "ansible": check_ansible}.get(kind, check_shell)
         got = bool(fn(Path("<control>"), body))
         ok = got == want_flag
         print(f"  {'ok  ' if ok else 'FAIL'}  {label}")
@@ -284,6 +415,8 @@ def main(argv):
         targets += [(p, check_spec) for p in root.rglob(g)]
     for suf in SHELL_SUFFIXES:
         targets += [(p, check_shell) for p in root.rglob(f"*{suf}")]
+    for g in ANSIBLE_GLOBS:
+        targets += [(p, check_ansible) for p in root.rglob(g)]
     for p in root.rglob("roles/*/files/*"):
         if p.is_file() and p.suffix == "" and p.read_bytes()[:2] == b"#!":
             targets.append((p, check_shell))
