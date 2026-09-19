@@ -5,7 +5,7 @@ VPN for secure remote access to the home lab.
 ## Access
 
 - VPN port: 51820/UDP (exposed to internet)
-- Admin UI: `http://localhost:51821` via SSH tunnel only
+- Admin UI: `https://vpn.example.com` from the LAN or over the VPN (Traefik, behind `vpn-only`), or `http://localhost:51821` through an SSH tunnel
 
 ```bash
 ssh -L 51821:127.0.0.1:51821 homelab

@@ -185,8 +185,8 @@
     daemon_reload: true
 
 # Weekly local repo maintenance: prune (moved out of the nightly forget) + a
-# rotating read-data integrity check. Sunday 05:00 — clear of the 03:00 nightly
-# backup (both touch the LOCAL repo) and the 06:00 offsite check (different repo).
+# rotating read-data integrity check. Tuesday 01:00 — clear of the 03:00 nightly
+# backup (both touch the LOCAL repo) and the 02:00 offsite check (different repo).
 # local-maintenance.sh is gone (ADR-031): resticprofile's own `prune` and
 # `check` do the work, and the rotating one-twelfth deep check the script
 # computed in shell is now a Go template in the profile.

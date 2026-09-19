@@ -22,9 +22,14 @@ append-only mode. The repo password is deliberately NOT stored on it.
   reading the beat:
 
   ```bash
-  ls /mnt/data/backups/restic-repo/snapshots | wc -l       # local
-  ssh offsite 'ls /mnt/backup/restic/snapshots | wc -l'    # offsite, filesystem only
+  ls /mnt/data/backups/restic-repo/snapshots | wc -l            # local
+  ssh offsite 'sudo ls /mnt/backup/restic/snapshots | wc -l'    # offsite, filesystem only
   ```
+
+  The `sudo` on the offsite side is load-bearing: `snapshots/` is `0700
+  rest-server`, so without it `ls` is denied and `wc -l` still prints a small
+  number rather than an error. A count that looks like an almost-empty
+  repository is the worst possible answer on this page.
 - Tuesday 02:00 — homelab `homelab-offsite-check.timer`: `restic check` of the
   offsite repo through the tunnel (Kuma push monitor "offsite check").
 - Daily 08:00 — offsite `offsite-health.timer`: disk/SMART/power self-report,

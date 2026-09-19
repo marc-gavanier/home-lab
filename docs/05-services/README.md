@@ -32,6 +32,12 @@ All services run as Docker containers, orchestrated by Docker Compose. Persisten
 | [Sonarr](arr-stack.md)          | Series: search and import         | Secondary      | Phase 6 |
 | [Radarr](arr-stack.md)          | Films: search and import          | Secondary      | Phase 6 |
 
+> This table lists the services with a page of their own. Three infrastructure
+> sidecars run beside them and have none: `dnsproxy` (DoH upstream, shares
+> Pi-hole's network namespace), `socket-proxy` (filtered Docker API for
+> Traefik and Dozzle) and `traefik-log-redactor`. They are documented in
+> `docs/04-network/` and `docs/03-security/`, not here.
+
 > Notes live in **Obsidian** (a client app on PC/mobile, synced via Nextcloud), managed by
 > Claude Code on the Pi — see [ADR-005](../../knowledge/decisions/ADR-005-obsidian-notes-system.md).
 
@@ -59,16 +65,23 @@ All services run as Docker containers, orchestrated by Docker Compose. Persisten
 | Calibre-Web           | 353 MB        |
 | Miniflux + PostgreSQL | 77 MB         |
 | Forgejo               | 101 MB        |
-| **Total**             | **~4.5 GB**   |
+| Prowlarr              | 85 MB         |
+| Sonarr                | 143 MB        |
+| Radarr                | 87 MB         |
+| **Total**             | **~4.8 GB**   |
 
-Every figure above is an estimate except six, all measured at idle: Collabora's
+Every figure above is an estimate except nine, all measured at idle: Collabora's
 573 MB (ADR-021), which grows with the number of documents open at once; Dozzle's
 30 MB (ADR-023), which does not — it holds no logs, it streams them; IT-Tools'
 4 MB (ADR-024), which is nginx serving static files and nothing else;
 Calibre-Web's 353 MB (ADR-025); and Miniflux's 77 MB (ADR-026), of which the Go
 binary is only **14 MB** — the Postgres beside it costs four times the reader;
 and Forgejo's **101 MB** (ADR-028), below the 120-160 MB the shortlist budgeted,
-for a forge holding a full mirror in 6.9 MB of disk.
+for a forge holding a full mirror in 6.9 MB of disk. And the three `arr`
+figures, measured 2026-09-19 as cgroup `anon` plus `memory.swap.current` — the
+page cache each one also holds (82-96 MB apiece) is reclaimable and is
+deliberately not counted, and `docker stats` would have understated all three
+because it reports resident pages only.
 IT-Tools and Calibre-Web are where estimates went furthest wrong in opposite
 directions — the shortlist budgeted 50 MB for IT-Tools and 150-250 MB for
 Calibre-Web.

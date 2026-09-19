@@ -74,8 +74,10 @@ weekly in the local maintenance job, not in the backup window.
   does not already hold, with no time bound — so a failed night is recovered by the
   next run whenever that happens (#158, and the 7-day window removed by ADR-031:
   `restic copy` is idempotent, so the bound was an optimisation, not a guarantee). Distinct repo password, never stored on the offsite host. Weekly
-  `restic check` from the homelab + weekly disk/SMART/power self-report and a
-  monthly SMART long self-test. Runbook: `knowledge/runbooks/offsite-backup.md`.
+  `restic check` from the homelab + a daily disk/SMART/power self-report and a
+  monthly SMART long self-test. For the schedules as deployed rather than as
+  written here, run `systemctl list-timers 'homelab-*'` and, on the offsite
+  host, `systemctl list-timers 'offsite-*'`. Runbook: `knowledge/runbooks/offsite-backup.md`.
 
 > A backup that shares the originals' physical disk only covers deletion/corruption, not
 > physical loss — hence the offsite repository (3-2-1 rule).

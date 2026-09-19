@@ -154,6 +154,13 @@ The script is fail-fast on purpose; the message says which guard fired:
 > directory. Restarting Docker *after* the mount reloads the real store with
 > all containers and images (the 2026-07-04 wipe was an avoidable full re-pull).
 
+> Since 2026-09-13 a thinned image list has a **second**, benign cause:
+> `homelab-image-retention.timer` runs `docker image prune -af --filter
+> until=720h` on the first Sunday of each month at 04:30, so images no container
+> references and older than 30 days are gone on purpose. A *ghost* store shows
+> an empty list; retention leaves the images in use. Check `docker images | wc -l`
+> against `docker ps -q | wc -l` before concluding anything.
+
 Since #241 a FATAL is no longer terminal: the unit retries **twice more, 60 s
 apart**, then stays `failed`. So before intervening, check whether it is still
 trying:
