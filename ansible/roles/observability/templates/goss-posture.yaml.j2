@@ -1060,6 +1060,23 @@ command:
     timeout: 60000
     exit-status: 0
 
+  pihole-gravity-lists-all-downloaded:
+    exec: |
+      db="{{ services_data_dir }}/pihole/etc/gravity.db"
+      n=$(sqlite3 -readonly "file:${db}?mode=ro" \
+            'select count(*) from adlist where enabled=1;' 2>/dev/null)
+      case "$n" in ''|*[!0-9]*) echo "adlist table unreadable: [$n]"; exit 1 ;; esac
+      [ "$n" -ge 1 ] || { echo "no adlist is enabled: the blocklist has no source"; exit 1; }
+      bad=$(sqlite3 -readonly "file:${db}?mode=ro" \
+            'select group_concat(id) from adlist where enabled=1 and status in (3,4);' 2>/dev/null)
+      [ -z "$bad" ] || { echo "adlist(s) $bad: download failed at the last rebuild, cached copy or nothing"; exit 1; }
+      d=$(sqlite3 -readonly "file:${db}?mode=ro" \
+            'select count(*) from gravity;' 2>/dev/null)
+      case "$d" in ''|*[!0-9]*) echo "gravity table unreadable: [$d]"; exit 1 ;; esac
+      [ "$d" -ge 1 ] || { echo "gravity holds no domains"; exit 1; }
+    timeout: 60000
+    exit-status: 0
+
   pihole-ftl-writes-the-current-log:
     exec: |
       open=$(for p in $(pgrep -x pihole-FTL); do readlink /proc/$p/fd/* 2>/dev/null; done \
@@ -1386,6 +1403,26 @@ command:
     timeout: 60000
     exit-status: 0
 
+  sshd-applies-the-directives-the-managed-file-sets:
+    exec: |
+      n=0
+      bad=""
+      while read -r k v; do
+        case "$k" in ''|\#*) continue ;; esac
+        case "$v" in -*) continue ;; esac
+        lk=$(printf '%s' "$k" | tr 'A-Z' 'a-z')
+        case "$lk" in include|match|hostkey|subsystem|acceptenv|authorizedkeysfile|hostkeyalgorithms) continue ;; esac
+        eff=$(sshd -T 2>/dev/null | awk -v k="$lk" '$1==k {sub(/^[^ ]* /,""); print; exit}')
+        n=$((n+1))
+        a=$(printf '%s' "$eff" | tr 'A-Z' 'a-z')
+        b=$(printf '%s' "$v" | tr 'A-Z' 'a-z')
+        [ "$a" = "$b" ] || bad="$bad ${k}(file=${v},effective=${eff:-unset})"
+      done < /etc/ssh/sshd_config
+      [ "$n" -ge 1 ] || { echo "no directive parsed out of sshd_config"; exit 1; }
+      [ -z "$bad" ] || { echo "sshd_config sets one value and sshd applies another:$bad"; exit 1; }
+    timeout: 60000
+    exit-status: 0
+
   # --- Addresses this host does not control (#292, class C43) ----------------
   # The board holds no fixed address on the LAN side: the router hands it a
   # one-day DHCP lease, and <pi-lan-ip> is written into the repository
@@ -1405,6 +1442,28 @@ command:
       [ -n "$live" ] || { echo "eth0 holds no global IPv4 — the check cannot run"; exit 1; }
       [ "$live" = "{{ homelab_ip }}" ] || {
         echo "the host holds $live while the configuration hardcodes {{ homelab_ip }} in 19 places"
+        exit 1
+      }
+    timeout: 60000
+    exit-status: 0
+
+{% set _compose_raw = lookup('file', playbook_dir + '/../../docker/compose.yaml') %}
+{%- set _proxied_hosts = [] %}
+{%- for _frag in _compose_raw.split('Host(`')[1:] %}
+{%- set _h = _frag.split('`')[0] | replace('${DOMAIN}', domain) %}
+{%- if _h not in _proxied_hosts %}{% set _ = _proxied_hosts.append(_h) %}{% endif %}
+{%- endfor %}
+  pihole-answers-for-every-proxied-host:
+    exec: |
+      n={{ _proxied_hosts | length }}
+      [ "$n" -ge 1 ] || { echo "the Host() derivation over compose.yaml returned nothing"; exit 1; }
+      bad=""
+      for h in {{ _proxied_hosts | join(' ') }}; do
+        a=$(dig +short +time=2 +tries=1 @127.0.0.1 "$h" A 2>/dev/null | head -1)
+        [ "$a" = "{{ homelab_ip }}" ] || bad="$bad $h=${a:-nothing}"
+      done
+      [ -z "$bad" ] || {
+        echo "routed by Traefik, not resolved to {{ homelab_ip }} by Pi-hole:$bad"
         exit 1
       }
     timeout: 60000
