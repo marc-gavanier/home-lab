@@ -673,6 +673,22 @@ command:
       test "${n:-0}" -ge {{ netdata_min_contexts }}
     timeout: 60000
     exit-status: 0
+  netdata-serves-every-context-a-curated-alarm-reads:
+    exec: |
+      contexts=$(docker exec netdata curl -s --max-time 10 http://127.0.0.1:19999/api/v3/contexts | jq -r '.contexts | keys[]')
+      [ -n "$contexts" ] && [ "$(printf '%s\n' "$contexts" | wc -l)" -ge 1 ] || {
+        echo "the contexts API returned nothing — a dead collector and a dead API would both pass a floor here"; exit 1; }
+      wanted=$(grep -hE '^[[:space:]]+on:[[:space:]]+' {{ services_data_dir }}/netdata/health.d/homelab-*.conf 2>/dev/null | awk '{print $2}' | sort -u)
+      [ -n "$wanted" ] || {
+        echo "no curated alarm declares a context — this check would be vacuously true"; exit 1; }
+      missing=''
+      for c in $wanted; do
+        printf '%s\n' "$contexts" | grep -qxF "$c" || missing="$missing $c"
+      done
+      [ -z "$missing" ] || {
+        echo "curated alarms read contexts netdata no longer serves:$missing — the alarm still loads and can never fire"; exit 1; }
+    timeout: 60000
+    exit-status: 0
   netdata-apparmor-matches-dockerd:
     # This container runs a scoped replacement for docker-default rather than
     # `apparmor:unconfined`, and that replacement is a COPY of the daemon's own
@@ -1924,6 +1940,16 @@ command:
     timeout: 90000
     exit-status: 0
 
+  nextcloud-background-jobs-have-run-recently:
+    exec: |
+      last=$(docker exec -u www-data nextcloud php occ config:app:get core lastcron 2>/dev/null | tr -dc '0-9')
+      [ -n "$last" ] || {
+        echo "Nextcloud returned no lastcron value — a stopped cron and an unanswerable query read the same here"; exit 1; }
+      age=$(( $(date +%s) - last ))
+      [ "$age" -lt 3600 ] || {
+        echo "Nextcloud background jobs last ran ${age}s ago — nextcloud-cron declares no healthcheck and is the subject of no monitor, so nothing else observes this"; exit 1; }
+    timeout: 60000
+    exit-status: 0
   nextcloud-php-jit-is-disabled:
     exec: |
       for c in nextcloud nextcloud-cron; do
