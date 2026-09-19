@@ -141,10 +141,15 @@ parts that need a thought experiment.
 # The register
 
 Runs of 2026-08-15 through 2026-09-19 (third run, key `aggregation`).
-**106 classes: 1 OPEN, 10 GATED (C07 is RED; C03-T's NAMED defect is REPAIRED —
-read its row before quoting it as red), 88 ENUMERATED, 7 closed by decision, plus
-the DECLINED list. One mint is PROPOSED and awaiting the operator's arbitration;
-it would arrive OPEN and take the total to 107.**
+**107 classes: 2 OPEN, 10 GATED (C07 is RED; C03-T's NAMED defect is REPAIRED and
+its SCHEDULED-run residual RETIRED — read its row before quoting it as red),
+88 ENUMERATED, 7 closed by decision, plus the DECLINED list.**
+
+**C107 was MINTED on the operator's arbitration, 2026-09-19.** It arrives OPEN
+because its space is not bounded, and the run records the bound worth trying: key
+on the INSTRUMENT rather than on the assertion. **The termination clock therefore
+RESETS** — `commensurability` was the first of the two consecutive zero-mint runs
+the criterion needs, and `aggregation` is not the second.
 
 **The third run of 2026-09-19 used `aggregation` — what does the collapse to one
 hide? — and the counter went 1 -> 1 with SEVEN of eight domains returning an
@@ -394,6 +399,7 @@ over 337 assertions rather than a machine derivation.
 | ID | Property | What bounds the space, and what stopped the sweep |
 |---|---|---|
 | C44 | A verification whose cadence cannot observe the event it guards | **TIMER 13/13, DEPLOY-TAG 26/26, HOST-HARDENING 20/20 — all closed, do not re-derive.** Still OPEN on the general external-writer space: Factor A is not the set of paths an assertion NAMES but the set it REACHES through the tools it invokes, which no agent could derive mechanically. Named, not swept |
+| C107 | **An assertion that consumes its own instrument's output at a COARSER GRAIN than the instrument produced it** — the finer signal is collected, rendered as prose, and never gates | **NOT BOUNDED, and the bound to try is stated.** `security` measured 181 of 274 goss checks carrying `stdout:`, but most match a single-valued `docker inspect -f`, so bounding by ASSERTION is 337 per-predicate judgements. **Bound by INSTRUMENT instead**: the checks invoke ~16 external tools, and the question "does this tool emit a finer signal than its readers consume" is asked once per tool, not once per assertion. That is a stateable cardinal and nobody has derived it |
 
 ### A ROUTE TO CLOSING C44 THAT DOES NOT NEED THE MISSING INSTRUMENT
 
@@ -532,7 +538,7 @@ on evidence.
 - **`homelab-disk.sh`'s ext4 anti-vacuity floor is 0, not 2** — pre-unlock the daily
   report pushes UP with `ext4 clean (1)`, green over the SD card only.
 
-### MINT PROPOSED, AWAITING THE OPERATOR'S ARBITRATION
+### C107 — MINTED on the operator's arbitration
 
 **Property**: *an assertion that consumes its own instrument's output at a coarser
 grain than the instrument produced it* — the finer signal is collected, rendered as
@@ -542,10 +548,28 @@ the cardinal is not stateable and the class would arrive OPEN. **Exemplars 2/2**
 the lynis index against its suggestion set; `ufw-enforcing` against the rule
 listing.
 
-**The arbitration is not under pressure, and that is deliberate**: C44 stays OPEN
-regardless, so declining this mint could not manufacture the `0 OPEN` the
+**The arbitration was not under pressure, and that is deliberate**: C44 stays OPEN
+regardless, so declining this mint could not have manufactured the `0 OPEN` the
 termination criterion needs. Distinct from C03 (what the comment claims), C05 (what
-a reader assumes) and C58 (the permitting direction).
+a reader assumes) and C58 (the permitting direction). **The operator accepted it on
+2026-09-19; the counter goes 1 -> 2 and the class total 106 -> 107.**
+
+**The bound to try next, and it is not the one that defeated this run.** Bounding by
+ASSERTION means 337 per-predicate judgements. Bounding by INSTRUMENT is a different
+and much smaller question: the deployed checks invoke roughly sixteen external tools,
+and "does this tool emit a finer signal than its readers consume" is asked once per
+tool. `lynis` answers yes loudly — 41 suggestions against one index. `docker inspect
+-f` answers no, which is why 181 `stdout:` matches inflate the assertion-side count
+without belonging to the class.
+
+**One of the two exemplars was partly remedied the same day, and the remedy is not
+the class.** `ufw-enforces-every-rule-the-inventory-declares` now reads the rule
+LISTING for every declared rule, so the coarse `^Status: active$` grep is no longer
+the only reader of that instrument. **The 8 `DOCKER-USER` rules remain unasserted**
+— `security`'s P2, not shipped — so the exemplar survives in reduced form. The lynis
+exemplar is untouched and is the sharper of the two: a revoked SSH directive is
+printed verbatim by the instrument every week and cannot move the number its reader
+consumes.
 
 ### Rejected from the agents, and why — 4
 

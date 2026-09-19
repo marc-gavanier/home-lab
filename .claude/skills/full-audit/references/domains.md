@@ -18,14 +18,16 @@ disagree, `classes.md` wins.
 As of the THIRD run of 2026-09-19, key `aggregation`. **Rebuilt from
 `classes.md`'s OPEN table — do not trust this copy if the two disagree.**
 
-**ONE OPEN CLASS. The counter went 1 -> 1, seven of eight domains minted nothing,
-and one mint awaits the operator's arbitration.**
+**TWO OPEN CLASSES. The counter went 1 -> 2: seven of eight domains minted nothing,
+and the eighth's proposal was ACCEPTED by the operator. The class total is 107 and
+the termination clock RESETS.**
 
 | Class | Owner | What is left to do |
 |---|---|---|
+| C107 | `observability` + `security` | **MINTED 2026-09-19, arrives OPEN.** An assertion that reads its own instrument's output at a COARSER GRAIN than the instrument produced it. **Do not bound it by assertion** — that is 337 per-predicate judgements and it is what stopped the minting run. **Bound it by INSTRUMENT**: the deployed checks invoke ~16 external tools, and "does this tool emit a finer signal than its readers consume" is asked once per tool. `lynis` answers yes (41 suggestions against one index); `docker inspect -f` answers no, which is why the 181 `stdout:` matches inflate the count without belonging to the class. Exemplars: the weekly lynis verdict, and `ufw-enforcing`'s `^Status: active$` — the latter partly remedied on the day, with the 8 `DOCKER-USER` rules still unasserted |
 | C44 | `system` | **THREE sub-spaces are closed — TIMER 13/13, DEPLOY-TAG 26/26, HOST-HARDENING 20/20. Do not re-derive any of them.** What remains is the general external-writer space, and `system` established why it resists: Factor A is not the set of paths an assertion NAMES but the set it REACHES through the 16 external tools the checks invoke (279 docker, 45 sqlite3, 33 wg …). `/usr/lib/sysctl.d` appears in ZERO assertions yet governs asserted values. Bounding it is a per-predicate judgement over 337 assertions. Anyone reopening this needs a new instrument, not another sweep |
 
-**Seven domains own no OPEN class, and that is the normal state now.** Their job is
+**Six domains own no OPEN class, and that is the normal state now.** Their job is
 the one that demoted C02, C13, C20, C26 and C17: re-read the GATED assertions in
 their area and ask whether each is DERIVED from the thing it guards or is merely a
 list of the instances once found. `backup` did exactly that on 2026-08-31 and again
@@ -97,8 +99,10 @@ cost two conclusions, one of which reached the operator as a suspected intrusion
 `succession`, `residue`, `concurrency`, `plurality`, `dependency`, `granularity`,
 `locality`, `repetition`, `reversibility`, `quiescence`, `collision`,
 `commensurability`, `aggregation`. The mint rate reads 5, 11, 12, 7, 2, 4, 1, 0, 2,
-1, 2, 2, 3, 1, 0, 2, 2, 1, 2, 4, 0, **0 or 1 depending on the pending
-arbitration**. A run that reuses one proves nothing. Still proposed and unspent:
+1, 2, 2, 3, 1, 0, 2, 2, 1, 2, 4, 0, **1**. A run that reuses one proves nothing.
+**`commensurability` was the first of the two consecutive zero-mint runs the
+criterion needs; `aggregation` minted one, so the clock resets and the next key
+starts the pair again.** Still proposed and unspent:
 `staleness` (overlaps C39, C44 and C76), `asymmetry` and `cost` — the register
 records that `cost` shares `scale`'s weakness, little of it leaving a trace you can
 measure tonight.

@@ -166,8 +166,9 @@ Not declined — put to them and not yet answered. Do not treat as settled eithe
   operator's standing rule forbids writing comments without explicit authorisation;
   this repository otherwise explains its reasoning directly above the code. The
   reasoning currently lives in the failure messages and the commit messages.
-- **The proposed mint** — see `classes.md`. It would arrive OPEN, and C44 stays OPEN
-  regardless, so the arbitration carries no pressure toward a convenient number.
+- ~~The proposed mint.~~ **ACCEPTED as C107 on 2026-09-19.** See `classes.md` for the
+  property and the bound worth trying. Note for the next run: bounding it by
+  ASSERTION is what defeated the minting run; bound it by INSTRUMENT instead.
 
 ## Shipped on 2026-09-19 (second run) — key `commensurability`, one PR, deployed from the branch before merge
 
