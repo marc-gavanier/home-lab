@@ -24,6 +24,104 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-09-19 (FIFTH run) — key `attendance`, one PR, deployed from the branch before merge
+
+The operator answered all five findings put to them and asked for a single PR.
+**Two were declined outright and are in `classes.md`'s DECLINED list.** What
+shipped, and the rule each one encodes:
+
+- **Uptime Kuma 2.5.0 -> 2.5.5.** It had sat in Renovate's "Pending Approval"
+  list for **24 days**, and the package is the supervision itself. **Rule: a bot
+  that rewrites its own dashboard every day destroys the only freshness signal
+  that queue has** — issue #8's `updatedAt` was the day of the audit, dating the
+  rewrite and never the wait. Bumped directly in `compose.yaml` rather than
+  through the bot's branch, so the whole run stays in one PR.
+- **The offsite deep check stops claiming a cadence.** The runbook heading said
+  "quarterly, manual" and nothing ever implemented it: no timer, no unit, no
+  trace, journal complete back to 2026-05-14. **Rule: a heading that states a
+  cadence is a promise; if nothing implements it, the heading is the defect.**
+  The scheduled check is metadata-only **by written design** — that part is not
+  a gap and was requalified before it reached the operator. Automating the deep
+  read stays next to the declined restore drill.
+- **The Nextcloud app counter was NOT shipped, and the reason is the run's best
+  finding.** See below.
+- **Six self-contradictions in the register**, corrected — and the failure mode
+  is identical to the fourth run's: **cardinal corrections get written into the
+  run narration and never reach the tables.** The worst was C44, the register's
+  only OPEN class, sitting in the ENUMERATED table with a stale cardinal and
+  without the "left this table" pointer its peers carry.
+
+## The Nextcloud app counter — declined by measurement, 2026-09-19 (fifth run)
+
+The operator chose "a counter in the existing beat" to close the app-update gap.
+**Implementing it proved the counter would have published a permanent, green,
+meaningless value**, and stopping to say so is the point of this file.
+
+- `appstoreenabled` is **false**, set deliberately at
+  `ansible/roles/deploy/tasks/nextcloud.yml:78` on 2026-09-18, for a measured
+  reason: the nightly fetch failed with cURL 23 and wrote a 10.17 MB Guzzle
+  trace into the very file the fail2ban `[nextcloud]` jail re-reads.
+- Therefore `occ app:update --all --showonly` can **never** report an update.
+  Its output — *"All apps are up-to-date or no updates could be found"* — is
+  always the second clause. **Rule: when a tool names its own ambiguity in its
+  output string, that string is not a measurement.**
+- The repo's own comment excuses this with *"they are pinned in the image and
+  the runbook updates them with occ"*. **False for exactly the two that
+  matter**: `richdocuments` 11.1.1 and `libresign` 14.1.0 live in
+  `custom_apps` — persisted on disk, not in the image — verified inside the
+  container. ADR-022:179 had already recorded *"Renovate does not see this"*.
+- `collabora.yml:80` runs `occ app:install richdocuments`, which needs the
+  appstore that is now off: **a rebuild-from-scratch hazard**, not a running
+  fault.
+
+**Net: those two apps are updated by nothing and watched by nothing, and the
+written mechanism that would excuse it does not apply to them.** The remedy is a
+real decision, not a counter, and it was put back to the operator rather than
+guessed at.
+
+## Instrument traps paid on 2026-09-19 (fifth run) — seven, and two were the main session's own
+
+1. **An alternation regex is only as precise as its loosest term.** The main
+   session grepped `tamper|armed|disarm` and matched control-timer and fsck
+   vocabulary, returning 6 where the strict answer is 0 — briefly contradicting
+   an agent that was right.
+2. **The main session broke its own rule 6**, running a `journalctl` over four
+   months on a Pi carrying eight agents; it exceeded 120 s. The result was
+   discarded and the evidence taken from the configuration instead.
+3. **`git branch --no-merged` lies in a rebase-only repository.** It announced 10
+   branches and 48 commits ahead; `git cherry` proved 48/48 already landed.
+4. **`last -x reboot` is corrupted by the absent RTC.** Only lines cross-checked
+   against `dpkg.log` are usable; real kernel latency measured at 1 h 11 and
+   ~1.6 d, nowhere near the 14 d bound.
+5. **netdata's light endpoints do not carry `update_every`** — 383/383 missing on
+   `/api/v1|v2|v3/contexts`. No cheap route exists; it is `/api/v1/charts`,
+   5.3 MB, 0.74 s.
+6. **`grep -c " 429 "` over a CLF log overcounts 2.1x** — the trailing 429 is the
+   request count, not the status. The anchored `'" 429 [0-9]+ '` gives 14 in
+   17.7 days.
+7. **`sudo grep /etc/goss/*.yaml` fails with "No such file"** — the glob resolves
+   before `sudo`. Already on file; re-paid live.
+
+## A rule-5 violation, self-declared — 2026-09-19 (fifth run)
+
+`observability` wrote 5.3 MB into the netdata container's `/tmp`, removed it, and
+re-derived the single result it could have biased. **It disclosed this
+unprompted.** The main session re-measured the load-bearing conclusion after the
+cleanup and it held. Recorded because the disclosure is the behaviour these
+briefs are written to produce, not because the write did harm.
+
+## Measured and rejected — added 2026-09-19 (fifth run)
+
+- **The missing `--read-data` on the offsite check, as a gap.** It is a written,
+  deliberate decision with its cost stated. Two agents framed it as an oversight
+  before the main session read the profile verbatim. The documentation was the
+  defect; the configuration was not.
+- **`(context -> update_every)` as the basis for a C07 floor.** The fourth run
+  recorded it as a FUNCTION and it is not: `disk.space` and `disk.inodes` each
+  carry 1 and 5. **A per-plugin floor is the replacement** — 4 plugins over 100
+  charts, red on exactly one member, against 1712 of 3838 charts for a naive
+  `>= 5`.
+
 ## Shipped on 2026-09-19 (FOURTH run) — key `staleness`, one PR, deployed from the branch before merge
 
 The operator answered all six findings and asked for one PR. What shipped, and
@@ -1702,8 +1800,11 @@ not as a finding.
   work to be scoped, not a quick fix, and not an audit finding to repeat.
 
 - **Moving the audit register out of the public repository.** `classes.md` and
-  `settled.md` are ~460 KB describing one installation in more detail than
-  anything else here — its containers, paths, schedules, failures and accounts.
+  `settled.md` are **658 KB** — measured 2026-09-19, fifth run; this line said
+  "~460 KB" for long enough that the figure understated the argument it exists
+  to make by 43 %, and the figure IS the argument — describing one installation
+  in more detail than anything else here: its containers, paths, schedules,
+  failures and accounts.
   Raised during the privacy pass of 2026-09-13 alongside the MAC address and the
   LAN topology, which were fixed; this one was not, and the difference is that
   the register is also the engineering log that gives the repository its value.
