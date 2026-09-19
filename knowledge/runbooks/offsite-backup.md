@@ -194,7 +194,18 @@ sudo systemctl start rest-server
 Enter the password at restic's interactive prompt (never export it into a
 shell variable or file on this host).
 
-## Deep integrity check (quarterly, manual, from the homelab)
+## Deep integrity check (on demand — never yet performed)
+
+**"Quarterly" is what this heading used to say, and nothing ever implemented
+it.** There is no timer, no unit and no schedule behind the deep read: it
+happens when someone runs the commands below, and as of 2026-09-19 nobody has,
+with the journal complete back to 2026-05-14. The scheduled
+`homelab-offsite-check.service` is a **metadata** check by design — the
+`offsite` profile in `resticprofile.yaml` carries no `read-data` flag and says
+why: reading the data back would pull hundreds of gigabytes across a domestic
+uplink to verify bytes the remote host can verify itself. Automating the deep
+read sits next to the declined restore drill and is not proposed. Treat what
+follows as a procedure available on demand, not as a cadence anyone is keeping.
 
 > **Disable the backup timer for the duration. The profile locks do NOT cover
 > this.** The two facts that make it necessary, both verified 2026-09-13:
