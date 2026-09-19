@@ -140,10 +140,22 @@ parts that need a thought experiment.
 
 # The register
 
-Runs of 2026-08-15 through 2026-09-19 (second run, key `commensurability`).
+Runs of 2026-08-15 through 2026-09-19 (third run, key `aggregation`).
 **106 classes: 1 OPEN, 10 GATED (C07 is RED; C03-T's NAMED defect is REPAIRED —
 read its row before quoting it as red), 88 ENUMERATED, 7 closed by decision, plus
-the DECLINED list.**
+the DECLINED list. One mint is PROPOSED and awaiting the operator's arbitration;
+it would arrive OPEN and take the total to 107.**
+
+**The third run of 2026-09-19 used `aggregation` — what does the collapse to one
+hide? — and the counter went 1 -> 1 with SEVEN of eight domains returning an
+explicit "no mint".** C100 CLOSED on an observed scheduled run; C44 lost a third
+sub-space (20/20 host-hardening) and stays OPEN on a space `system` showed is not
+mechanically derivable. Five live defects shipped as #368, each made to fail on
+purpose before it was written. **The run's headline is that the audit's own
+baseline manufactured a false clean for the second consecutive run**, and that two
+agent conclusions died to the same trap: a `grep` run under `sudo` writes the
+string it is hunting into the log it is reading. **A15's resolution is WITHDRAWN on
+that basis — do not record C74's last mechanism as closed.**
 
 **The second run of 2026-09-19 used `commensurability` — same unit, same base,
 same frame? — and the counter went 5 -> 1 with ZERO mints.** C20, C103, C105 and
@@ -359,7 +371,213 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
-## OPEN — 1 (after the second run of 2026-09-19, key `commensurability`)
+## OPEN — 1 (after the third run of 2026-09-19, key `aggregation`)
+
+**C44 only, and it lost another sub-space without closing.** `security` swept the
+host-hardening half **20/20** — security-role in-place edits and mode assertions,
+crossed with `dpkg -S` and maintainer-script generators — and found **0 of 20
+carrying a continuous assertion**, with drift measured at 0/20 today. The writer
+fired live and unattended during the audit window: `pam-auth-update` regenerated
+`/etc/pam.d/common-auth` on 2026-08-29, `/var/lib/pam/auth` records the generated
+form **with `nullok`** and the live file has none — the hardening survived on
+pam-auth-update's three-way merge, not on anything this estate does, and nothing
+observed either outcome.
+
+`system` kept the class OPEN and stated why, which is the right call: two clean
+derivations (14/14 artefacts named by an assertion that have a non-Ansible writer;
+6/6 deferred-effect pairs) plus the demonstration that **the path-spelling
+derivation is the wrong bound** — `/usr/lib/sysctl.d` appears in ZERO assertions
+yet governs asserted values. The right Factor A is artefacts *reached* through the
+16 external tools the checks invoke, and bounding that is a per-predicate judgement
+over 337 assertions rather than a machine derivation.
+
+| ID | Property | What bounds the space, and what stopped the sweep |
+|---|---|---|
+| C44 | A verification whose cadence cannot observe the event it guards | **TIMER 13/13, DEPLOY-TAG 26/26, HOST-HARDENING 20/20 — all closed, do not re-derive.** Still OPEN on the general external-writer space: Factor A is not the set of paths an assertion NAMES but the set it REACHES through the tools it invokes, which no agent could derive mechanically. Named, not swept |
+
+## The run of 2026-09-19 (third) — the key was `aggregation`, and the estate answered while the audit's own baseline lied again
+
+The twenty-second key, and the first invented rather than taken from the proposed
+list. The six-word question: **what does the collapse to one hide?** All 106
+classes asked whether ONE thing is correct, whether TWO are distinguishable
+(`collision`), or whether two are comparable (`commensurability`). Not one asked
+whether a verdict computed OVER N readings preserves the failure of one.
+
+Three admissible shapes went into all eight briefs: (a) a failure-absorbing
+reduction — `any`/`all`/`max`/`min`/`avg`, a pipeline exit code, a `&&` chain,
+`grep -q` over multi-line output — where one failing reading maps to a passing
+verdict; (b) an aggregate that loses identity, reporting "ok on 32 instances"
+without stating WHICH 32; (c) an N that varies, so the same verdict means
+different coverage on different days.
+
+Five overlaps were declared so agents returned instances rather than mints —
+C83, C94, C104, C58, C22 — and the discipline held: **seven of eight domains
+returned an explicit "no mint"**.
+
+### The headline is that the audit's own baseline manufactured a false clean for the SECOND consecutive run
+
+The main session wrote into all eight briefs that `homelab-posture.service` had
+run ON ITS SCHEDULE at 03:10:17 and that C100's residual was therefore retired.
+**False.** `LastTriggerUSec` was `Fri 2026-09-18 11:05:30`, `OnCalendar` is
+`11:00`, and the 03:10:17 run was one of **thirteen** hand-runs from the previous
+night's remediation, started by Ansible at `deploy/tasks/main.yml:187`.
+
+**Three agents demolished it independently**: `backup` from the timer, `system`
+from the journal, `observability` from the beat's own content — it reads
+`— manual run` verbatim. The 2026-09-18 provenance fix WORKS and the baseline
+simply did not read it. 2026-09-18's false clean was a hand-run 17 minutes before
+the briefs; this one was a hand-run 7 hours before.
+
+**Add to the baseline recipe: `systemctl show <unit>.timer -p LastTriggerUSec`,
+beside `ExecMainStartTimestamp`.** `Result=success` already could not distinguish
+succeeded / never ran / absent; it also cannot distinguish scheduled from manual.
+
+### C100 is CLOSED, by observation rather than by assumption
+
+The main session armed a watch and observed the next scheduled firing.
+`LastTriggerUSec=Sat 2026-09-19 11:07:08`, service exit 0 in 66 s, and the beat at
+09:08:14 UTC reads **`posture OK — 423 checks (...) — scheduled run`**, against the
+01:11:17 beat's `— manual run`. **The first green SCHEDULED posture run this
+register has ever recorded.** The residual that stood through three audits retires
+on evidence.
+
+### The live defects, ranked by what was happening without anyone knowing
+
+1. **The TAP plan guard shipped eight hours earlier had reached 2 of 4 consumers,
+   and not the two largest.** `homelab-posture.sh:180-185` (**400 assertions**) and
+   `homelab-health.sh:579-583` (9) still floored at `-eq 0`; `backup-notify.sh` and
+   `offsite-health.sh` carry the comparison. With `|| true` and
+   `TimeoutStartUSec=infinity`, a goss killed mid-plan yields `posture OK — 423
+   checks` green with 400−k security assertions unevaluated, on a host whose own
+   comment records 12.4 % of beats timing out from contention. **The main session's
+   control was sharper than the finding**: `backup-notify.sh`'s comment claims
+   *"Same three-step guard as homelab-posture.sh, homelab-health.sh and
+   offsite-health.sh"* — two of the three it names did not have it. **Shipped in
+   #368, which makes the comment true rather than correcting it.**
+2. **Pi-hole's freshness check could never go red.** `gravity.sh:873-887`: on a
+   failed download with a readable cache it prints "using previously cached list",
+   sets `adlist.status=3`, **parses the cached copy** and returns normally, so
+   `update_gravity_timestamp` at :1210 stamps `updated=now`. `adlist.status` had
+   **zero readers** across `ansible/`, `docker/`, `ops/` and the deployed spec, and
+   nothing floored the domain count. **One adlist carries all 79 963 domains.**
+   `network`'s wording "stamps unconditionally" is imprecise — it is conditional on
+   a phase the fallback satisfies — but the consequence is exactly as claimed.
+   **Shipped in #368.**
+3. **Split-DNS: 21 records, 1 asserted.** `pihole-05-homelab.conf.j2` is a
+   hand-written list of 21, not derived from the Traefik labels. Only Kuma monitor 8
+   checks DNS, on one name. A 22nd service gets a router, a certificate and
+   middlewares automatically and a split-DNS record only if someone remembers —
+   otherwise it resolves to the public IPv4 where 80/443 are not forwarded: dead
+   from LAN and VPN, 37/37 green. **Shipped in #368**, derived from compose.yaml's
+   own `Host()` rules (21 derived = 21 served today).
+4. **A fresh provision can lock the operator out.** `ssh_allowed_sources` is
+   `required: true` on a `type: list`, which bounds presence and not cardinality —
+   `[]` validates with zero errors against ansible-core 2.21.2's own
+   `ArgumentSpecValidator`. The allow loop adds nothing while the three retractions
+   and `ufw enable` run regardless. The comment above the retraction reasons about
+   the order — *"so the v4 path is never absent, not even between two tasks"* —
+   while silently assuming the loop produced at least one rule. **Shipped in #368.**
+5. **Nothing asserted any of the 22 hardened SSH directives.** The only standing
+   check over that surface is the weekly lynis index, and **every SSH finding lynis
+   emits is a suggestion** (4x SSH-7408 today, 41 suggestions against 1 warning),
+   which the deployed script never parses. **Shipped in #368**, derived from the
+   managed file against `sshd -T`, so it also covers a drop-in under
+   `sshd_config.d` overriding all 22.
+
+### The key's own instances, not shipped
+
+- **The weekly lynis verdict is the index alone** — the finer signal is collected,
+  printed as prose and never gates. This is the exemplar of the proposed mint below.
+- **`ufw-enforcing` matches `^Status: active$`** out of the full rule listing; the
+  8 `DOCKER-USER` rules are unasserted.
+- **`creds_probed` is the one counter in `homelab-posture.sh` with no floor** while
+  `containers_seen` and `mounts_seen` have one at :230/:232.
+- **`homelab-disk.sh`'s ext4 anti-vacuity floor is 0, not 2** — pre-unlock the daily
+  report pushes UP with `ext4 clean (1)`, green over the SD card only.
+
+### MINT PROPOSED, AWAITING THE OPERATOR'S ARBITRATION
+
+**Property**: *an assertion that consumes its own instrument's output at a coarser
+grain than the instrument produced it* — the finer signal is collected, rendered as
+prose, and never gates. **Space**: NOT BOUNDED. `security` measured 181 of 274 goss
+checks carrying `stdout:`, but most match a single-valued `docker inspect -f`, so
+the cardinal is not stateable and the class would arrive OPEN. **Exemplars 2/2**:
+the lynis index against its suggestion set; `ufw-enforcing` against the rule
+listing.
+
+**The arbitration is not under pressure, and that is deliberate**: C44 stays OPEN
+regardless, so declining this mint could not manufacture the `0 OPEN` the
+termination criterion needs. Distinct from C03 (what the comment claims), C05 (what
+a reader assumes) and C58 (the permitting direction).
+
+### Rejected from the agents, and why — 4
+
+- **The main session's own baseline.** The largest rejection of the run, and it had
+  already reached all eight briefs. See above.
+- **`security`'s A15 resolution — WITHDRAWN, and the register must not record it as
+  closed.** The claim was that `iptables -L DOCKER-USER | wc -l` reads 8 rather than
+  16 "across two `sudo ufw reload`s on 2026-09-13 02:31". **Those two reloads never
+  happened.** A `zgrep` for `COMMAND=.*ufw reload` across the whole retained
+  rotation, excluding grep lines, returns **nothing**, and the 02:20-02:40 window
+  holds only read commands. The control never ran: reading 8 with no reload having
+  occurred says nothing about whether a reload appends. **C74's last open mechanism
+  stays open.**
+- **`security`'s report of a third `ufw reload` at 10:28 inside the audit window,
+  attributed to the operator.** The operator confirmed it was not them, and it was
+  not anyone: at 10:28:00 the agent ran
+  `sudo sh -c 'grep -hE "ufw reload" /var/log/auth.log* | sed -E "s/COMMAND=.*/COMMAND=ufw reload/"'`.
+  `sudo` journals the command it runs, so the search wrote the string it was looking
+  for, and the `sed` rewrote the tail to read literally `COMMAND=ufw reload`,
+  rendering its own record indistinguishable from a real one. **The instrument
+  fabricated the measurement it then read.** `/etc/ufw/user.rules` unchanged since
+  2026-09-13 19:53:40.
+- **The previous run's "C105's twelfth instance is the most consequential of the
+  twelve".** `backup` prices it at essentially zero: the deploy recreates the
+  directory, both settle idioms treat absence as "not yet", and the deep-check clock
+  has a second backed-up source in Kuma. Residual: a ≤8-day window after a reflash.
+  Also, the restic source set is **five** entries, not four — `/opt/homelab` is in it.
+
+### Register corrections — 6
+
+- **Seven classes carry cardinals frozen at a 28-container estate; it is 32.**
+  Re-counted independently by the main session: **C25 62 → 80** bind mounts,
+  **C36 37 → 41** tmpfs, **C50's Docker half 25 → 28** healthchecks. C22/C24/C38 move
+  28 → 32. Not a mint — this is the definition of ENUMERATED, which the register
+  states explicitly.
+- **C53's row records 34 handlers / 1 flush point; counted today 41 / 3.**
+- **C21 is neither DERIVED nor a LIST — it is an ARGUMENT.** The guarantee is that
+  the deployed `copy:` carries no bound, and **nothing would notice a bound being
+  added**. Fourth correction that row has needed.
+- **C74's offsite residual, which `settled.md` records as unfixed, is FIXED** —
+  30 lines, `eth0 accept_redirects=0`.
+- **A15 is NOT resolved.** See the withdrawal above.
+- **C100 is CLOSED**, by the observed scheduled run of 11:07:08.
+
+### Instrument traps paid — 5, and three were the main session's own
+
+1. **A `grep` run under `sudo` writes into the log the string it is searching for.**
+   Two false conclusions in one run, one of them relayed to the operator as a
+   possible intrusion. Worse with a `sed` that rewrites the matched tail into the
+   exact form being hunted. **Never count occurrences of a command string in
+   `auth.log` without excluding the searching process's own record.**
+2. **`systemctl show -p Result --value` returns `success` for a unit that does not
+   exist** — paid again, live, when the main session's first baseline probe appended
+   `.service` to names that already carried it and fourteen non-existent units all
+   answered `success`, exit 0, `LoadState=not-found`.
+3. **A grep pattern narrower than the code it is looking for.** The main session
+   searched the offsite script for `_total\|_seen` and found nothing, nearly
+   contradicting a correct agent: the variables there are `total` and `seen`,
+   unprefixed. Always read the block, not the pattern's verdict.
+4. **`docker inspect --format` with a mis-shaped range returns 0 silently.** The
+   main session's first tmpfs count returned 0; the corrected form returned 41 and
+   agreed with `services` exactly. The disagreement between two of one's own probes
+   is the control.
+5. **Querying the Traefik API from the host without a control.** The main session's
+   `curl localhost:8080/api/http/routers` returned 0 routers; `network` had measured
+   24 from the live API. The main session's own figure was discarded rather than used
+   to contradict, because it carried no control.
+
+## SUPERSEDED — OPEN table of the second run of 2026-09-19, key `commensurability`
 
 **The table holds one class, and it holds it for the right reason: the two
 sub-spaces that could be bounded were bounded, and the third was NAMED rather

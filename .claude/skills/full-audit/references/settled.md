@@ -24,6 +24,99 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-09-19 (third run) — key `aggregation`, PR #368, deployed from the branch before merge
+
+The operator took all five items put to them and asked for one PR. What shipped,
+and the rule each one encodes:
+
+- **The floor is the DECLARED count, not zero — in all four consumers now.**
+  `homelab-posture.sh` (400 assertions) and `homelab-health.sh` (9) compared the
+  goss TAP plan line against nothing. The correction shipped the previous night to
+  `backup-notify.sh` and `offsite-health.sh` had not travelled, **and
+  `backup-notify.sh`'s own comment already claimed all four carried it** — so the
+  fix makes the comment true rather than correcting it. Second recorded instance of
+  a correction that stopped before its siblings.
+- **A cached blocklist is not a fresh one.** On a failed download gravity parses
+  the cached copy, records `adlist.status=3` and stamps `info.updated` with now, so
+  a freshness check reading only the timestamp can never go red. `adlist.status` had
+  zero readers anywhere in the estate, and nothing floored the domain count, with a
+  single adlist carrying all 79 963 domains.
+- **A name Traefik routes must resolve to the Pi.** The 21 split-DNS records were a
+  hand-kept list; the new assertion derives the expected set from `compose.yaml`'s
+  own `Host()` rules. A service added without a record resolves to the public IPv4
+  where 80/443 are not forwarded — dead from LAN and VPN with every monitor green.
+- **An empty list is not a permitted source.** `required: true` on a `type: list`
+  bounds presence, not cardinality: `[]` validates with zero errors. The allow loop
+  would add nothing while the retractions and `ufw enable` ran regardless.
+- **A hardening nobody asserts is a hardening nobody keeps.** Nothing checked any of
+  the 22 SSH directives continuously; the only standing signal was the weekly lynis
+  index, which does not parse the suggestions where every SSH finding lands. The new
+  check compares the managed file against what `sshd` actually applies, so a drop-in
+  under `sshd_config.d` is covered too.
+
+### What the deploy produced, measured 2026-09-19 11:20
+
+`ok=100 changed=3 failed=0` on homelab — exactly the three modified files, nothing
+else. Verified on the host rather than from the recap: both guards present at
+`homelab-posture.sh:188` and `homelab-health.sh:584`; the three assertions at
+`/etc/goss/posture.yaml:2050,2393,2437`; and the full spec re-run gives
+**plan 403 / 403 results / 0 failures**, with the three new checks passing as
+`ok 203`, `ok 240`, `ok 305`. The plan moved 400 -> 403, which is the quantity the
+new guard compares, so it is working on real data.
+
+**Every new assertion was made to fail on purpose before being written**, which is
+the rule this file adopted after a gate proven against a fixture turned out to be
+proven against the fixture's model of the world. The sshd check was run against a
+fabricated config on the host: a revoked `PermitRootLogin`/`PasswordAuthentication`
+pair is named in the message, a conforming config passes, an empty file trips the
+floor. The gravity check's failure branch was demonstrated read-only by widening
+the predicate to the status the live list actually holds.
+
+### Deployed with `--tags security,observability`, and why that matters
+
+Those tags do not invoke the `deploy` role, so `compose.yaml` is not copied and
+**no pending image pin is armed**. Four were pending on the day: dozzle
+11.0.1 -> 11.1.0, forgejo 16.0.4 -> 16.0.5, and the two Nextcloud sidecars running
+a base layer four days behind the tag they share with `nextcloud`.
+
+## Instrument traps paid on 2026-09-19 (third run) — five, and three were the main session's own
+
+- **A `grep` run under `sudo` writes into the log the string it is searching for.**
+  It cost two conclusions in one run. One was relayed to the operator as a possible
+  unexplained `ufw reload`; the operator confirmed it was not them, and it was not
+  anyone — the 10:28 entry WAS the search. A `sed` rewriting the matched tail into
+  `COMMAND=ufw reload` made the record indistinguishable from the real thing. The
+  same artefact killed the A15 resolution, which claimed two reloads on 2026-09-13
+  that never happened. **Never count occurrences of a command string in `auth.log`
+  without excluding the searching process's own record.**
+- **`systemctl show -p Result --value` returns `success` for a unit that does not
+  exist** — paid again, live, in the audit's own opening baseline.
+- **`Result` cannot distinguish scheduled from manual either.** Read
+  `systemctl show <unit>.timer -p LastTriggerUSec` beside `ExecMainStartTimestamp`.
+  Two consecutive runs have now opened on a false clean built from a hand-run.
+- **A grep pattern narrower than the code it hunts.** `_total\|_seen` found nothing
+  in the offsite script, whose variables are `total` and `seen` unprefixed; it nearly
+  contradicted a correct agent. Read the block, not the pattern's verdict.
+- **A `docker inspect --format` range that returns 0 silently**, and a Traefik API
+  `curl` that returned 0 routers with no control. In both cases the main session's
+  own figure was discarded rather than used to contradict an agent.
+
+## Open decisions left with the operator on 2026-09-19 (third run)
+
+Not declined — put to them and not yet answered. Do not treat as settled either way.
+
+- **Widening `ops/check-empty-set-floors.py` to Ansible tasks.** Its docstring names
+  Ansible tasks as part of this defect's space; its scanner reaches only goss specs
+  and shell. That gap is why the firewall lockout survived to be found by hand.
+  Widening changes pre-commit behaviour for every future commit and may flag
+  legitimate loops, so it was deliberately not bundled into #368.
+- **Whether the three new assertions should carry explanatory comments.** The
+  operator's standing rule forbids writing comments without explicit authorisation;
+  this repository otherwise explains its reasoning directly above the code. The
+  reasoning currently lives in the failure messages and the commit messages.
+- **The proposed mint** — see `classes.md`. It would arrive OPEN, and C44 stays OPEN
+  regardless, so the arbitration carries no pressure toward a convenient number.
+
 ## Shipped on 2026-09-19 (second run) — key `commensurability`, one PR, deployed from the branch before merge
 
 The operator took four lots of five and asked for one PR. What shipped, and the
