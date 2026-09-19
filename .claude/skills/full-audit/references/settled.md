@@ -24,6 +24,97 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-09-19 (second run) — key `commensurability`, one PR, deployed from the branch before merge
+
+The operator took four lots of five and asked for one PR. What shipped, and the
+rule each one now encodes:
+
+- **No tag selection can ship a service the posture checks have never heard of.**
+  The spec render, its parent directory and the Tier 0 assert are `tags: always`.
+  The spec is generated from `docker/compose.yaml` by the `observability` role
+  while `deploy` ships that file, and **nothing on the host reads `compose.yaml` at
+  run time** — the host-side mentions are comments and frozen constants, which is
+  what makes the generation the only link. Cost of the trade, stated to the
+  operator and accepted: the render now runs on light deploys too, `--tags ddns`
+  included.
+- **A green Ansible run is not evidence that a passphrase rotated.**
+  `community.crypto.luks_device` with `state: opened` returns `ok` for an
+  already-open volume — it never opens the device, so it never validates what it
+  was handed. The rotation runbook now carries the LUKS procedure in the restic
+  order: add the keyslot, prove it with `cryptsetup luksOpen --test-passphrase`
+  (works while mounted), re-take the header backup, deploy, and only kill the old
+  slot after an ATTENDED unlock. `wg_password` got its own row: nothing in the
+  deploy ever sets it.
+- **An assertion that matches on message text must fail closed when the text stops
+  identifying one reporter.** `restic-deep-check-not-stale` took `max(time)` over
+  every monitor's messages matching `'%deep check%'`.
+- **The floor is the DECLARED count, not zero.** `backup-notify.sh` and
+  `offsite-health.sh` now compare the TAP plan line against the number of result
+  lines. The corrected form already existed at `homelab-health.sh:747` and had not
+  travelled to its two siblings.
+- **A container that writes timestamps must be told the host's timezone.**
+  `vaultwarden` had no `TZ`, wrote UTC on a CEST host, and fail2ban's own remedy —
+  re-stamping entries to *now* — turned `findtime = 600` into "3 failures since the
+  last restart".
+- **The agent instruction files are in C01's space from now on.** They had never
+  been, and they are what every session reads first. Corrected by REMOVING counts
+  and stale references rather than updating them — the same move the ADR count got.
+
+### What the deploy produced, measured 2026-09-19 01:57-02:08
+
+`ok=202 changed=6 failed=0` on homelab. Verified on the host, not assumed:
+`/etc/goss/posture.yaml` re-rendered at 01:57:43; the new guard present at
+`:2173`; `backup-notify.sh` carrying the comparison at `:187`; `vaultwarden`
+reporting `2026-09-19 02:08:04 CEST +0200` against a host second-for-second
+identical, with `TZ=Europe/Paris` in its environment. The regenerated spec
+validates **400 plan / 400 results / 0 failures**.
+
+**Both new clauses were made to fail on purpose.** A TAP with plan 3, one result
+and zero `not ok` is caught as "the run was cut short"; a complete plan-3 TAP stays
+green. The deep-check guard reports one distinct reporter and proceeds, 12 days
+against a 45-day threshold.
+
+### A deploy-time trap worth carrying
+
+Deploying `compose.yaml` ARMS every pending image pin for the heal timer even when
+the `compose up` is scoped to one service. This run armed dozzle 11.0.1 -> 11.1.0
+and forgejo 16.0.4 -> 16.0.5, both from an already-merged Renovate PR that had
+never been applied. Neither applied on the day — the containers were 6 and 7 days
+old after the deploy — but they will on the next recreate. **Check
+`repo image pin vs running image` before any deploy that copies `compose.yaml`, and
+tell the operator what the deploy arms.**
+
+## Instrument traps paid on 2026-09-19 (second run) — four, and two were the main session's own
+
+- **`systemctl show -p Result --value` returns `success` for a unit that does not
+  exist**, exit 0, `LoadState=not-found`. Measured with a control. Succeeded, never
+  ran and absent are one value to anything reading `Result`. Never treat `Result`
+  as evidence that something ran; read `ExecMainStartTimestamp` beside it.
+- **GitHub's branch-protection API returns 404 for a branch protected by a
+  RULESET.** The main session read that 404 as "not protected at all" and nearly
+  contradicted a correct agent finding on the strength of it. The instrument is
+  `repos/:owner/:repo/rulesets`.
+- **`fail2ban.log` must be read across its rotation.** A grep of the current file
+  alone returned zero occurrences of a warning that had fired seven times, and
+  nearly killed a true finding. `zgrep` over `fail2ban.log*`.
+- **A DF ping probe whose control returns nothing proves nothing.** The main
+  session's counter-probe of the `wg0` MTU passed at every size because it targeted
+  an address that never leaves the box. The disagreement is recorded unresolved
+  rather than decided — which is the correct outcome for an instrument that failed
+  its own control.
+
+## Measured and rejected — added 2026-09-19 (second run)
+
+- **"The Traefik access-log rate doubled to 9.99 MB/day."** Re-measured from the
+  file's own first and last timestamps — 429 316 bytes over 1 h 44 — gives
+  **5.95 MB/day**, the documented rate, and measured during an eight-agent audit
+  that should have inflated it. The retention constant needs a quiet-period
+  re-measure before anyone edits it, not a correction on this basis.
+- **"The posture provenance probe compares nothing."** False. The deployed script
+  compares start against trigger with a 5 s tolerance and today's beat says
+  `manual run` verbatim. Two agents made the same conflation between
+  `homelab-posture.sh` and `homelab-health.sh`; the real defect is in the latter.
+
 ## Shipped on 2026-09-19 — key `collision`, one PR, deployed from the branch before merge
 
 The operator took five items of the eight put to them, declined three, and asked
