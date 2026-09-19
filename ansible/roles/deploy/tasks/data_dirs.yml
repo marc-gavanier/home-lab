@@ -353,6 +353,8 @@
     path: "{{ item.stat.path }}"
     state: file
     mode: "0600"
+  # floor: the assert directly above, which fails when the selectattr returns zero
+  # existing credential files and says the play is looking in the wrong place.
   loop: "{{ credential_files.results | selectattr('stat.exists') | list }}"
   loop_control:
     label: "{{ item.item }}"

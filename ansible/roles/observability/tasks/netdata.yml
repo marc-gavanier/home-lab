@@ -79,6 +79,8 @@
       Create a Push monitor in Kuma, copy its push URL, and set it in the
       vaulted host_vars — see local.example.yml.
     quiet: true
+  # floor: main.yml, which gates this entire file on at least one group carrying a
+  # push URL — the same condition this derivation selects on.
   loop: "{{ netdata_active_groups }}"
   loop_control:
     label: "{{ item.name }}"
