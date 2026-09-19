@@ -1403,6 +1403,75 @@ command:
     timeout: 60000
     exit-status: 0
 
+{% set _fw_ports = [] %}
+{%- for _r in ufw_service_rules | default([]) %}
+{%- set _pp = _r.port ~ '/' ~ (_r.proto | default('tcp')) %}
+{%- if _pp not in _fw_ports %}{% set _ = _fw_ports.append(_pp) %}{% endif %}
+{%- endfor %}
+  sysctl-declared-values-are-the-effective-ones:
+    exec: |
+      decl=/etc/sysctl.d/99-homelab.conf
+      [ -r "$decl" ] || { echo "$decl unreadable — the comparison has no source"; exit 1; }
+      n=0
+      bad=""
+      while IFS= read -r line; do
+        case "$line" in ''|\#*|\;*) continue ;; esac
+        case "$line" in *=*) : ;; *) continue ;; esac
+        k=$(printf '%s' "${line%%=*}" | tr -d ' \t')
+        v=$(printf '%s' "${line#*=}" | tr -s ' \t' ' ' | sed 's/^ //;s/ $//')
+        eff=$(sysctl -n "$k" 2>/dev/null | tr -s ' \t' ' ' | sed 's/^ //;s/ $//')
+        n=$((n+1))
+        [ "$eff" = "$v" ] || bad="$bad ${k}(declared=${v},effective=${eff:-unset})"
+      done < "$decl"
+      declared=$(grep -cE '^[a-z].*=' "$decl")
+      [ "$n" -ge 1 ] || { echo "no key parsed out of $decl"; exit 1; }
+      [ "$n" -eq "$declared" ] || {
+        echo "compared $n key(s) against $declared declaration(s) in $decl — the parse is losing lines"
+        exit 1
+      }
+      [ -z "$bad" ] || { echo "declared in $decl, not what the kernel holds:$bad"; exit 1; }
+    timeout: 60000
+    exit-status: 0
+
+  postfix-applies-the-directives-the-managed-file-sets:
+    exec: |
+      command -v postconf >/dev/null 2>&1 || { echo "postconf absent — the comparison cannot run"; exit 1; }
+      n=0
+      bad=""
+      while IFS= read -r line; do
+        case "$line" in ''|\#*|' '*|'	'*) continue ;; esac
+        case "$line" in *=*) : ;; *) continue ;; esac
+        k=$(printf '%s' "${line%%=*}" | tr -d ' \t')
+        v=$(printf '%s' "${line#*=}" | sed 's/^[ \t]*//;s/[ \t]*$//')
+        eff=$(postconf -h "$k" 2>/dev/null)
+        n=$((n+1))
+        [ "$eff" = "$v" ] || bad="$bad ${k}(file=${v},effective=${eff:-unset})"
+      done < /etc/postfix/main.cf
+      [ "$n" -ge 1 ] || { echo "no directive parsed out of main.cf"; exit 1; }
+      [ -z "$bad" ] || { echo "main.cf sets one value and postfix applies another:$bad"; exit 1; }
+    timeout: 60000
+    exit-status: 0
+
+  ufw-enforces-every-rule-the-inventory-declares:
+    exec: |
+      status=$(ufw status 2>/dev/null)
+      printf '%s\n' "$status" | grep -qE '^Status: active$' || { echo "ufw is not active"; exit 1; }
+      n=0
+      bad=""
+      for pp in {{ _fw_ports | join(' ') }}; do
+        n=$((n+1))
+        printf '%s\n' "$status" | grep -qE "^${pp} +ALLOW" || bad="$bad $pp"
+      done
+      for src in {{ ssh_allowed_sources | join(' ') }}; do
+        n=$((n+1))
+        printf '%s\n' "$status" | grep -qE "^{{ ssh_port_hardened }}/tcp +ALLOW +${src}" ||
+          bad="$bad ssh-from-${src}"
+      done
+      [ "$n" -ge 1 ] || { echo "the inventory declares no rule — the derivation returned nothing"; exit 1; }
+      [ -z "$bad" ] || { echo "declared in the inventory, absent from ufw:$bad"; exit 1; }
+    timeout: 60000
+    exit-status: 0
+
   sshd-applies-the-directives-the-managed-file-sets:
     exec: |
       n=0
