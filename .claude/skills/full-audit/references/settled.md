@@ -140,11 +140,28 @@ a base layer four days behind the tag they share with `nextcloud`.
 
 Not declined — put to them and not yet answered. Do not treat as settled either way.
 
-- **Widening `ops/check-empty-set-floors.py` to Ansible tasks.** Its docstring names
-  Ansible tasks as part of this defect's space; its scanner reaches only goss specs
-  and shell. That gap is why the firewall lockout survived to be found by hand.
-  Widening changes pre-commit behaviour for every future commit and may flag
-  legitimate loops, so it was deliberately not bundled into #368.
+- ~~Widening `ops/check-empty-set-floors.py` to Ansible tasks.~~ **APPROVED and
+  SHIPPED in #368.** The gate now reaches `loop:`/`with_items:` whose source is a
+  variable or expression. **`| default([])` is explicitly not a floor** — it turns
+  "undefined" into "iterate nothing", the defect wearing a seatbelt.
+
+  **The unit for Ansible is the file up to the loop, not a fixed window, and the
+  reason is semantic**: a task file is a sequential play, so an earlier assert
+  really does gate what follows, while a shell guard may sit in a branch that was
+  not taken. `check_shell` keeps its window for that reason.
+
+  Five controls added; the selftest discriminates in both directions, and the
+  decisive check is that the gate flags `firewall.yml` **as it stood that morning**.
+  Run over the repository it leaves **seven** sites, and the useful finding is that
+  **every one already had a floor — living in another file, in a ternary, or in the
+  option's designed-empty state.** The repository was right; it had simply never
+  recorded WHERE the floors were. Each now says so. No behaviour change, no deploy.
+
+  **Trap paid writing it**: `\s` crosses the newline in a MULTILINE regex, so
+  `loop:` followed by a block list was read as an inline source and every such loop
+  was flagged on the variable inside its FIRST ITEM. The tell was a finding on
+  `ssh_port_hardened`, which is a port and not a list. **An implausible subject is
+  the cheapest signal that a pattern is matching the wrong thing.**
 - **Whether the three new assertions should carry explanatory comments.** The
   operator's standing rule forbids writing comments without explicit authorisation;
   this repository otherwise explains its reasoning directly above the code. The
