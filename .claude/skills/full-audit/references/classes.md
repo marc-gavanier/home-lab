@@ -395,6 +395,43 @@ over 337 assertions rather than a machine derivation.
 |---|---|---|
 | C44 | A verification whose cadence cannot observe the event it guards | **TIMER 13/13, DEPLOY-TAG 26/26, HOST-HARDENING 20/20 — all closed, do not re-derive.** Still OPEN on the general external-writer space: Factor A is not the set of paths an assertion NAMES but the set it REACHES through the tools it invokes, which no agent could derive mechanically. Named, not swept |
 
+### A ROUTE TO CLOSING C44 THAT DOES NOT NEED THE MISSING INSTRUMENT
+
+**The instrument C44 is waiting for is a provenance map from effective state back
+to every writer that can set it**, including writers acting at another time through
+another mechanism. Syscall tracing does not supply it: it records that the
+assertion read `/proc/sys/...` and stops at the proximate read, never crossing the
+boot-time boundary where `systemd-sysctl` applied a file a package had rewritten.
+That map would have to be written by hand, per subsystem, which is why `system`
+called the space non-derivable and was right to.
+
+**But the class may not need it.** `sshd-applies-the-directives-the-managed-file-sets`,
+shipped in #368, names no writer and catches them all: it compares DECLARED INTENT
+against EFFECTIVE STATE. Any writer — a package, a hand-dropped `.d` file, one
+nobody has imagined — appears as a divergence. That converts an enumeration
+problem into a set of comparators, and **the cardinal of THAT set is stateable**:
+the subsystems whose effective state is readable by a command resolving all its
+inputs.
+
+**Four of the five are now deployed.** sshd (`sshd -T`, 21 directives), sysctl
+(`/etc/sysctl.d/99-homelab.conf` against the kernel, 30 keys, double-floored),
+postfix (`main.cf` against `postconf -h`, 22 directives), ufw (the inventory's
+declared rules against `ufw status`). Live: 406 assertions, 0 failures.
+
+**systemd is the one that resists, and its refusal is recorded rather than
+deferred.** Comparing unit files to `systemctl show` founders on normalisation —
+`TimeoutStartSec=600` reads back as `10min`, so a literal comparison is all false
+positives. Asserting that no unexpected drop-in exists needs a seven-entry
+exemption list, which is a list dressed as a derivation. **All seven live drop-ins
+were checked and all seven ARE declared in this repository**; six carry no
+`ansible_managed` marker because they are deployed by `copy: content:`, which is a
+separate correction — **the marker is not a provenance instrument.**
+
+**What closing C44 this way would require is the operator's arbitration**, the way
+C92 and C03-R were closed as review rules once their spaces proved non-derivable.
+The question to put is not "have all writers been enumerated" but "is every
+subsystem with a resolve-everything readout covered". Do not close it silently.
+
 ## The run of 2026-09-19 (third) — the key was `aggregation`, and the estate answered while the audit's own baseline lied again
 
 The twenty-second key, and the first invented rather than taken from the proposed
