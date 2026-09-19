@@ -673,6 +673,59 @@ command:
       test "${n:-0}" -ge {{ netdata_min_contexts }}
     timeout: 60000
     exit-status: 0
+  # C07's widening, 2026-09-19. The gate this replaces certified ONE collector
+  # (go.d docker) against a fleet, so it could not see a plugin that is not that
+  # collector running far hotter. Keying on the CONTEXT does not work and was
+  # measured not to: (context -> update_every) is not a function, because
+  # disk.space and disk.inodes each carry both 1 and 5 (the /tmp charts run at
+  # 5 s). Keying on the PLUGIN does, and it needs no hand-chosen constant.
+  #
+  # The rule: no plugin whose charts feed no curated alarm may collect more
+  # samples per second than the busiest plugin that does. Both sides are derived
+  # live -- the consumers from the `on:` lines of health.d, which is the same
+  # source the check above already reads, and the rates from the charts API.
+  # Nothing here has an author who can go absent.
+  #
+  # Retroactive positive control: applied on 2026-09-17 it marks apps.plugin,
+  # which is the defect that was found by hand on 2026-09-18 -- 2082 charts at
+  # 1 s, 2082 samples/s against proc.plugin's 536.2. It came back green when
+  # that was fixed to 5 s, without the rule being touched.
+  #
+  # Cost measured 2026-09-19: /api/v1/charts is 5.42 MB and the whole pipeline
+  # runs in 1.14 s for 31 MB RSS, against a posture run of 66 s.
+  netdata-runs-no-hotter-for-what-nothing-reads:
+    exec: |
+      charts=$(docker exec netdata curl -s --max-time 30 http://127.0.0.1:19999/api/v1/charts)
+      [ -n "$charts" ] || {
+        echo "the charts API returned nothing - a dead collector and a dead API would both pass a floor here"; exit 1; }
+      wanted=$(grep -hE '^[[:space:]]+on:[[:space:]]+' {{ services_data_dir }}/netdata/health.d/homelab-*.conf 2>/dev/null | awk '{print $2}' | sort -u)
+      [ -n "$wanted" ] || {
+        echo "no curated alarm declares a context - this check would be vacuously true"; exit 1; }
+      wjson=$(printf '%s\n' "$wanted" | jq -R . | jq -s .)
+      verdict=$(printf '%s' "$charts" | jq -r --argjson w "$wjson" '
+        .charts | to_entries
+        | map({p: .value.plugin, c: .value.context, u: .value.update_every})
+        | group_by(.p)
+        | map({plugin: .[0].p,
+               rate: (map(1/.u) | add),
+               serves: (any(.[]; .c as $x | $w | index($x) != null))})
+        | (map(select(.serves)) | map(.rate) | max) as $ceiling
+        | if $ceiling == null then "NOFLOOR"
+          else (map(select(.serves | not) | select(.rate > $ceiling))
+                | if length == 0 then "OK"
+                  else "HOT " + ($ceiling | floor | tostring) + " " +
+                       (map(.plugin + "@" + (.rate | floor | tostring)) | join(" "))
+                  end)
+          end')
+      case "$verdict" in
+        OK) : ;;
+        NOFLOOR) echo "no plugin serves any curated alarm - the ceiling is undefined and this check would be vacuous"; exit 1 ;;
+        HOT*) echo "collecting faster than the busiest consumed plugin (${verdict#HOT }) - pure cost, and nothing reads it"; exit 1 ;;
+        *) echo "the derivation produced no verdict: '$verdict'"; exit 1 ;;
+      esac
+    timeout: 90000
+    exit-status: 0
+
   netdata-serves-every-context-a-curated-alarm-reads:
     exec: |
       contexts=$(docker exec netdata curl -s --max-time 10 http://127.0.0.1:19999/api/v3/contexts | jq -r '.contexts | keys[]')
