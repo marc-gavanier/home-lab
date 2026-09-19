@@ -7,19 +7,28 @@
 # classic silent Pi killer, and the most likely cause behind an "unexplained
 # poweroff", which the runbook answers with an SD reflash.
 #
-# The firmware LATCHES the event into an alarm bit rather than exposing a
-# voltage, which is why `sensors` shows `in0: N/A` and why an earlier attempt
-# concluded this could not be migrated at all. It can: Netdata surfaces the bit
-# as a chart with `clear`, `critical` and `fault` dimensions — verified reading
-# clear=1 critical=0 fault=0, i.e. no event latched.
+# The firmware exposes an alarm BIT rather than a voltage, which is why
+# `sensors` shows `in0: N/A` and why an earlier attempt concluded this could not
+# be migrated at all. It can: Netdata surfaces the bit as a chart with `clear`,
+# `critical` and `fault` dimensions — verified reading clear=1 critical=0
+# fault=0.
 #
 # `critical` is the dimension that corresponds to what the script reads at
-# /sys/class/hwmon/hwmon*/in0_lcrit_alarm. A `lookup` over one minute rather
-# than an instantaneous read, because the bit is latched: once set it stays set
-# until cleared, so any sample within the window is the event.
+# /sys/class/hwmon/hwmon*/in0_lcrit_alarm.
 #
-# No hysteresis and no `up` delay: a latched bit is not a noisy measurement, and
-# waiting to report an electrical fault would be the wrong trade.
+# The `lookup` window is what makes this alarm work, and the reason written here
+# until 2026-09-19 was wrong. It said the bit "is latched: once set it stays set
+# until cleared". It is not: raspberrypi-hwmon.c asks the firmware to clear the
+# sticky bits on every poll and polls every 2 s, so the bit is a pulse at most
+# 2 s wide. What saves this alarm is that the chart's update_every is 1 and the
+# lookup takes `max` over a whole minute, so a 2 s pulse is sampled with
+# probability ~1 and survives until the alarm next evaluates. An instantaneous
+# read at a one-minute cadence would have had a 3% chance of seeing the event.
+# Do not lengthen the collection interval on the strength of the old sentence.
+#
+# No hysteresis and no `up` delay: waiting to report an electrical fault would
+# be the wrong trade. `down 15m` is what holds the verdict long enough to
+# outlive the pulse and reach the Kuma adapter, which runs every 5 minutes.
 #
 # `units: events` rather than `status`, because the units travel into the Kuma
 # message and from there into a Discord notification. "undervoltage 0 status"
@@ -36,6 +45,6 @@ component: Power supply
     every: 1m
      warn: $this > 0
     delay: up 0 down 15m
-  summary: Homelab undervoltage latched by the firmware
-     info: The firmware latched an undervoltage event — check the PSU and cable
+  summary: Homelab undervoltage reported by the firmware
+     info: The firmware reported an undervoltage event — check the PSU and cable
        to: silent

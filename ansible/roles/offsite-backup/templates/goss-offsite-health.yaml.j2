@@ -393,19 +393,42 @@ command:
     exec: '[ $(( $(cat /sys/class/thermal/thermal_zone0/temp) / 1000 )) -lt 70 ]'
     exit-status: 0
 
-  # A sagging power supply silently corrupts disks; the firmware latches
-  # undervoltage into the rpi_volt hwmon alarm. `seen` is asserted for the same
-  # reason as ext4: a kernel that stops exposing rpi_volt would otherwise turn
-  # this into a check that always passes.
+  # A sagging power supply silently corrupts disks. This used to read
+  # in0_lcrit_alarm directly, on the written premise that "the firmware latches
+  # undervoltage into the rpi_volt hwmon alarm". That premise is false, and it
+  # was the premise that made a low cadence look safe.
+  #
+  # raspberrypi-hwmon.c passes value = 0xffff to RPI_FIRMWARE_GET_THROTTLED
+  # under its own comment "Request firmware to clear sticky bits", on EVERY
+  # poll, and it polls every 2 * HZ. The show function returns
+  # !!(last_throttled & UNDERVOLTAGE_STICKY_BIT), i.e. the last poll only. So
+  # the attribute is a pulse at most 2 s wide, not a latch, and a daily sample
+  # of it had a 2/86400 chance of landing on an event: 0.002%. It is also why
+  # `vcgencmd get_throttled` reads 0x0 on a host that has throttled -- the
+  # driver cleared the bits before anything else could read them.
+  #
+  # The journal is the durable record of the same event: the driver logs on
+  # every TRANSITION, and both strings were verified present in the shipped
+  # 6.8.0-1064-raspi module rather than taken from upstream source. Note the
+  # absence of `-k`: it implies `-b`, which would hide an event that happened
+  # before the last reboot, and a power problem is a plausible cause of that
+  # reboot.
+  #
+  # Two guards, both there to stop this passing vacuously: `seen` (as for ext4,
+  # a kernel that stops exposing rpi_volt must not turn this green) and a
+  # journal that actually carries entries for the window it is being asked
+  # about.
   offsite-undervoltage:
     exec: |
       seen=0
       for h in /sys/class/hwmon/hwmon*; do
         [ "$(cat "$h/name" 2>/dev/null)" = rpi_volt ] || continue
         seen=1
-        [ "$(cat "$h/in0_lcrit_alarm" 2>/dev/null)" = 1 ] && exit 1
       done
-      [ "$seen" -eq 1 ]
+      [ "$seen" -eq 1 ] || exit 1
+      [ -n "$(journalctl --since=-25h -n 1 -o cat 2>/dev/null)" ] || exit 1
+      ! journalctl _TRANSPORT=kernel --since=-25h -o cat 2>/dev/null \
+        | grep -q 'Undervoltage detected'
     exit-status: 0
 
   # Reported, not relied on for detection: the push carrying this verdict
