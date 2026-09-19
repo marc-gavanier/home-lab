@@ -1902,7 +1902,7 @@ services:
       - "traefik.http.services.radarr.loadbalancer.server.port=7878"
 
   uptime-kuma:
-    image: louislam/uptime-kuma:2.5.0
+    image: louislam/uptime-kuma:2.5.5
     container_name: uptime-kuma
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
     security_opt: *no-new-privs
