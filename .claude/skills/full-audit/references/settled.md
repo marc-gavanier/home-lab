@@ -74,6 +74,30 @@ and the rule each one encodes:
   all** (`grep '^| C10[89] |'` returned 0 against a positive control of ≥1 for all
   107 others).
 
+## Deployed and verified — 2026-09-19 (sixth run)
+
+`ansible-playbook playbooks/site.yml --ask-vault-pass --tags security,observability,deploy -e deploy_services=dozzle`
+— `ok=256 changed=5 failed=0`. Verified on the host afterwards, function rather
+than status each time:
+
+- `logtimezone` gone from `jail.local` (count 0, positive control: the
+  `[vaultwarden]` block still present at 1, so the directive went and the jail
+  did not).
+- fail2ban loads **3 jails** — nextcloud, sshd, vaultwarden. Not "the service is
+  active"; the jails are up.
+- Dozzle reports **`v11.1.0`** from `/dozzle --version`, and declares it. The
+  running binary, not the tag.
+- Both new assertions present in the deployed spec, and a full posture run:
+  **exit 0 in 42 s, `posture OK — 432 checks (goss 409, ...)`** against 406
+  before. Each new check re-executed on its own, as root, from the DEPLOYED
+  text rather than the draft: 6 contexts derived and present, exit 0; lastcron
+  age within bound, exit 0.
+
+**No idempotence re-run was made** — it needs the vault passphrase a second time
+and that is the operator's to run. `changed=5` is consistent with the five real
+writes in this change set, but a `changed=0` second pass has not been observed
+and should not be assumed.
+
 ## What was NOT shipped, and why it is the run's best discipline result
 
 **`ansible-deploy` proposed "~6 lines fix all 11" for the posture checks that
@@ -120,7 +144,7 @@ operator as such, and nothing was built on a guess.
   and of the four containers with no healthcheck, three have a dedicated monitor
   or a daily assertion. Only `nextcloud-cron` was uncovered.
 
-## Instrument traps paid on 2026-09-19 (sixth run) — three, and two were the main session's own
+## Instrument traps paid on 2026-09-19 (sixth run) — four, and three were the main session's own
 
 1. **A `grep -A<n>` context window is as wrong as a loose regex, and it fails
    silently in the direction of a clean result.** `-A4` on a 5-line block cut off
@@ -135,6 +159,22 @@ operator as such, and nothing was built on a guess.
    Counting expectations by proximity gave "1 false + 2 true" per service —
    arithmetically impossible against one check per service. **An impossible
    total is the cheapest signal that a parser is straddling its unit.**
+
+4. **An un-`sudo`'d glob over a root-only directory expands to nothing — paid
+   for the THIRD time, and this time by the session that had written the warning
+   into its own brief.** Verifying the new context check after deployment, the
+   main session extracted the check body from the deployed spec and ran it as
+   the normal user. `/mnt/data/services/netdata/health.d/` is root-only, the
+   glob matched nothing, and the check reported *"no curated alarm declares a
+   context"*. The conclusion "the deployed assertion fails" was wrong; goss runs
+   it as root, where it derives all six contexts and exits 0.
+
+   **The redeeming half, and it is the strongest evidence the check works: its
+   empty-set floor caught the condition and failed loudly instead of passing
+   vacuously.** A floor written to prevent a vacuous pass was made to fail on
+   purpose by accident, which is a better proof than the deliberate controls
+   that preceded it. **Rule already on file and evidently not yet learned:
+   before believing a null result, ask what the instrument could read.**
 
 ## Shipped on 2026-09-19 (FIFTH run) — key `attendance`, one PR, deployed from the branch before merge
 
