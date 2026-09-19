@@ -677,6 +677,15 @@ compared to its source file for 7.5 days and nothing compares it.
    lynis "new since last run" clause lives above the `cp` that refreshes
    `last-green-report.dat`; placing the new green-path comparison after that copy
    would have compared the report to itself and found nothing new, forever.
+3. **`docker events` has a retention shorter than any audit window, and its
+   silence is not evidence.** `services` queried `--since 2026-09-18T18:00:00Z`
+   for container-create events and got nothing back, although `nextcloud` was
+   created at 22:19:33Z inside that window. The daemon's event buffer does not
+   reach that far. **The agent recorded the empty result as uninformative rather
+   than dropping it**, which is the behaviour this file wants: an empty probe
+   left unrecorded is re-run later and mistaken for a negative. C108 rests on
+   `.Created` from `docker inspect`, which is independent of the event stream and
+   was re-measured by the main session.
 
 ### C07 — still RED, and widening it is now provably well defined
 
