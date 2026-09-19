@@ -653,10 +653,18 @@ if command -v systemctl >/dev/null 2>&1 && mountpoint -q /mnt/data; then
         #
         # One case is decidable here without crying wolf on every weekly timer:
         # the timer FIRED SINCE THIS BOOT and its service never started. Both
-        # fields are monotonic, so the boot resets the pair together and there is
-        # no clock arithmetic and no timezone to get wrong — verified on the
-        # offsite, whose 09-01 trigger reads 0 against a 09-12 boot. It catches
-        # what `Result` structurally cannot: a trigger that produced no run.
+        # fields measure the same monotonic quantity, so the boot resets the pair
+        # together — verified on the offsite, whose 09-01 trigger reads 0 against
+        # a 09-12 boot. It catches what `Result` structurally cannot: a trigger
+        # that produced no run.
+        #
+        # Each side is tested against the literal "0" and NEVER against the
+        # other. systemd renders `LastTriggerUSecMonotonic` as a timespan string
+        # (`1w 2h 3min 53.394959s`) and `ExecMainStartTimestampMonotonic` as raw
+        # microseconds (`612233407772`) — measured 2026-09-19, seventeen
+        # milliseconds apart. The quantities are commensurable; the values read
+        # back are not, so `began < fired` would compare a string against an
+        # integer and never say so.
         fired=$(systemctl show "${t%.service}.timer" -p LastTriggerUSecMonotonic --value 2>/dev/null)
         began=$(systemctl show "$t" -p ExecMainStartTimestampMonotonic --value 2>/dev/null)
         if [ -n "$fired" ] && [ "$fired" != "0" ] && [ "${began:-0}" = "0" ]; then
