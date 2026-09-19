@@ -70,4 +70,4 @@ argument_specs:
         type: str
         required: true
         no_log: true
-        description: Uptime Kuma push URL of the weekly disk-health report (token = secret).
+        description: Uptime Kuma push URL of the daily disk-health report (token = secret).

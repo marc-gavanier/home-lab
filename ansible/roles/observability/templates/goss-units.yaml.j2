@@ -74,9 +74,11 @@ command:
   #
   # Nothing asserted the firewall on either host until 2026-08-29.
   ufw-enforcing:
-    exec: ufw status
+    exec: ufw status verbose
     exit-status: 0
-    stdout: ["/^Status: active$/"]
+    stdout:
+      - "/^Status: active$/"
+      - "/^Default: deny \\(incoming\\)/"
 
   # The catch-all, and it is the one that names nothing — deliberately. The five
   # assertions above name their unit; this one exists for a unit NOBODY listed,

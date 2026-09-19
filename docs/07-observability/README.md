@@ -368,8 +368,10 @@ stamps recent power-on hours, so reading the newest entry there would let a scan
 aborted every single week reset the clock forever while the status check stayed
 quiet about it.
 
-Daily rather than the offsite's weekly, because this drive takes writes from 25
-services continuously while the offsite one is read once a night. It is separate
+Daily. That used to contrast with the offsite's weekly report; the offsite went
+daily on 2026-09-12, so the cadences now match and only the reason differs — this
+drive takes writes from the 32 containers on it continuously, while the offsite
+one is read once a night. It is separate
 from `homelab-health.sh` for the same reason the posture check is: a reallocated
 sector is not an outage, it is a countdown, and it would be buried inside a
 five-minute signal carrying CPU temperature.

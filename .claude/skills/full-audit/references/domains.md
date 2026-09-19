@@ -15,17 +15,16 @@ earlier — which would have sent eight agents to re-derive settled work. Rebuil
 it from `classes.md`'s OPEN table at the start of every run; if the two
 disagree, `classes.md` wins.
 
-As of the THIRD run of 2026-09-19, key `aggregation`. **Rebuilt from
+As of the FOURTH run of 2026-09-19, key `staleness`. **Rebuilt from
 `classes.md`'s OPEN table — do not trust this copy if the two disagree.**
 
-**TWO OPEN CLASSES. The counter went 1 -> 2: seven of eight domains minted nothing,
-and the eighth's proposal was ACCEPTED by the operator. The class total is 107 and
-the termination clock RESETS.**
+**ONE OPEN CLASS. The counter went 2 -> 1 and the class total 107 -> 108:**
+C107 CLOSED, C108 minted and arriving ENUMERATED with a gate. Seven of eight
+domains returned an explicit "no mint". **The termination clock RESETS.**
 
 | Class | Owner | What is left to do |
 |---|---|---|
-| C107 | `observability` + `security` | **MINTED 2026-09-19, arrives OPEN.** An assertion that reads its own instrument's output at a COARSER GRAIN than the instrument produced it. **Do not bound it by assertion** — that is 337 per-predicate judgements and it is what stopped the minting run. **Bound it by INSTRUMENT**: the deployed checks invoke ~16 external tools, and "does this tool emit a finer signal than its readers consume" is asked once per tool. `lynis` answers yes (41 suggestions against one index); `docker inspect -f` answers no, which is why the 181 `stdout:` matches inflate the count without belonging to the class. Exemplars: the weekly lynis verdict, and `ufw-enforcing`'s `^Status: active$` — the latter partly remedied on the day, with the 8 `DOCKER-USER` rules still unasserted |
-| C44 | `system` | **THREE sub-spaces are closed — TIMER 13/13, DEPLOY-TAG 26/26, HOST-HARDENING 20/20. Do not re-derive any of them.** What remains is the general external-writer space, and `system` established why it resists: Factor A is not the set of paths an assertion NAMES but the set it REACHES through the 16 external tools the checks invoke (279 docker, 45 sqlite3, 33 wg …). `/usr/lib/sysctl.d` appears in ZERO assertions yet governs asserted values. Bounding it is a per-predicate judgement over 337 assertions. Anyone reopening this needs a new instrument, not another sweep |
+| C44 | `system` | **FOUR sub-spaces closed — TIMER 13/13, DEPLOY-TAG 26/26, HOST-HARDENING 20/20, and the comparator route's own cardinal. Do not re-derive any of them.** The space is **no longer non-derivable**: bounding by "subsystems whose effective state is readable by a command resolving all its inputs" gives **19**, of 27 for which the estate declares an intent, and **4 are covered (21 %)**. Six of the fifteen uncovered were read on 2026-09-19 and all conformed (apt, fail2ban, docker, apparmor, wireguard, mounts); **four have no resolver at all** — pam, needrestart, smartd, cloud-init; systemd is excluded on normalisation. **Do NOT close by arbitration — 4/19 answers the question NO.** Two reserves: the route compares `/etc` to effective state, so a writer that rewrites the `/etc` file the estate owns moves both sides together (the `pam-auth-update` shape); and the route's cadence is daily, which is C44 applied to its own output |
 
 **Six domains own no OPEN class, and that is the normal state now.** Their job is
 the one that demoted C02, C13, C20, C26 and C17: re-read the GATED assertions in
@@ -63,7 +62,18 @@ forward.
 
 **Do not re-derive**: C20 (43/43 by value), C103 (37/37), C105 (28/28), C01's
 instruction-file stratum (123/123), C88's three slices, C37, C90, C94, C95, C104
-(219/219), and C44's deploy-tag (26/26) AND host-hardening (20/20) sub-spaces.
+(219/219), C44's deploy-tag (26/26) AND host-hardening (20/20) sub-spaces,
+**C107 (32/32 executables + 12/12 supervision-plane instruments — the two bounds
+are complementary, neither contains the other)** and **C108 (32/32 containers,
+31 resolving a mutable tag + 1 digest-pinned)**.
+
+**A THIRD baseline trap, paid on 2026-09-19 (fourth run), and it is new in kind.**
+The two previous runs opened on a hand-run mistaken for a scheduled one. This one
+opened on a genuinely scheduled green — and the green **predated the deploy it
+was being used to certify by 33 minutes**: `/etc/goss/posture.yaml` mtime
+11:40:58, last posture run 11:07:08-11:08:14, no run since. The live beat carried
+`goss 400`; goss counted 406. **Before quoting a verdict, compare its timestamp
+to the mtime of what it is supposed to have graded.**
 
 **Rows corrected in the second 2026-09-19 run; do not re-derive them.** C15's
 cadence is DAILY, not weekly. C44's deploy-assertion cardinal is 26, not 12. C105's
@@ -94,18 +104,30 @@ reported.
 under `sudo` writes the string it hunts into the log it reads; on 2026-09-19 that
 cost two conclusions, one of which reached the operator as a suspected intrusion.
 
-**Twenty-two keys are now spent**: `time`, `order`, `identity`, `scale`,
+**Twenty-three keys are now spent**: `time`, `order`, `identity`, `scale`,
 `authority`, `representation`, `vacuity`, `exclusivity`, `interruption`,
 `succession`, `residue`, `concurrency`, `plurality`, `dependency`, `granularity`,
 `locality`, `repetition`, `reversibility`, `quiescence`, `collision`,
-`commensurability`, `aggregation`. The mint rate reads 5, 11, 12, 7, 2, 4, 1, 0, 2,
-1, 2, 2, 3, 1, 0, 2, 2, 1, 2, 4, 0, **1**. A run that reuses one proves nothing.
-**`commensurability` was the first of the two consecutive zero-mint runs the
-criterion needs; `aggregation` minted one, so the clock resets and the next key
-starts the pair again.** Still proposed and unspent:
-`staleness` (overlaps C39, C44 and C76), `asymmetry` and `cost` — the register
-records that `cost` shares `scale`'s weakness, little of it leaving a trace you can
-measure tonight.
+`commensurability`, `aggregation`, `staleness`. The mint rate reads 5, 11, 12, 7,
+2, 4, 1, 0, 2, 1, 2, 2, 3, 1, 0, 2, 2, 1, 2, 4, 0, 1, **1**. A run that reuses one
+proves nothing. **The pair of consecutive zero-mint runs the criterion needs has
+still never been achieved; the next key starts it again.** Still proposed and
+unspent: `asymmetry` and `cost` — the register records that `cost` shares
+`scale`'s weakness, little of it leaving a trace you can measure tonight. After
+`staleness` there is one named candidate left, so key twenty-five must be
+invented.
+
+**What `staleness` proved, for whoever writes key twenty-four.** It was taken off
+the proposed list rather than invented, and the register had predicted a low mint
+yield on the grounds that it overlaps C39, C44 and C76. **The prediction was
+right about the count and wrong about where the value would be**: the estate came
+back measured clean almost everywhere, and the key bit on the INSTRUMENTS and on
+this register — a firewall check that never read the default policy, a premise
+about Kuma retention written in three live artefacts and true only by accident,
+an agent file that mis-sized its own detection window by 2.5x and had been
+re-blessed by a commit that morning, and four self-contradictions in
+`classes.md`/`settled.md`. **Third confirmation of the rule: a key that turns on
+the instrument is worth more than one that only turns on the estate.**
 
 **What `aggregation` proved, for whoever writes key twenty-three.** It was invented
 rather than taken off the list, and it paid in the estate rather than the

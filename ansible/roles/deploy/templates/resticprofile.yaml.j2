@@ -390,9 +390,13 @@ homelab:
     # It is not a nicety. This is the only operation in the whole chain that
     # re-reads the repository's actual bytes, and after ADR-031 its Kuma message
     # was byte-identical to a metadata run's — while the journal that carried the
-    # difference holds 16.8 days against a 30-day period. Kuma keeps 180 days of
-    # heartbeat messages, so moving the distinction into the message moves the
-    # evidence into a store that outlives the event.
+    # difference holds 16.8 days against a 30-day period. Moving the distinction
+    # into the message moves the evidence into a store that outlives the event —
+    # this monitor holds all 13 of its beats back to 2026-07-19. Measured
+    # 2026-09-19, the reason is the weekly cadence and NOT the 180-day
+    # keepDataPeriodDays setting: Kuma prunes heartbeat rows against a
+    # per-monitor row budget, and on the 5-minute health monitor an ordinary beat
+    # survives ~36 h.
     #
     # It also closes the silent-degradation path. If the host is off for the
     # first week of a month the catch-up fires on a day this branch no longer

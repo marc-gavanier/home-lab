@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # {{ ansible_managed }}
 # =============================================================================
-# Offsite Pi — weekly health, the half goss cannot express
+# Offsite Pi — daily health, the half goss cannot express
 # =============================================================================
 # This was 247 lines. ADR-030 had written this host off — "no Docker at all, so
 # nothing there moves to Netdata" — which was true of Netdata and read as true
@@ -22,7 +22,7 @@
 #
 #   3. the READINGS. goss answers pass or fail and carries no values, and this
 #      host has no dashboard of any kind — no Netdata, no metrics, nothing. Four
-#      numbers in the weekly message are the only visibility anyone has into it.
+#      numbers in the daily message are the only visibility anyone has into it.
 #
 # The verdict itself is goss's: its TAP plan line is the count and its `not ok`
 # lines are the diagnosis, named after the failure mode because goss streams
@@ -122,8 +122,9 @@ fi
 # absent: this host sets Automatic-Reboot at 04:00 (ADR-013) because it has no
 # LUKS volume to unlock, so a pending reboot resolves itself overnight.
 #
-# One consequence of the weekly cadence, worth stating: 48h here means in
-# practice "still pending at the next weekly run".
+# One consequence of the cadence, worth stating: this job became DAILY on
+# 2026-09-12, so 48h here means in practice "still pending at the next two
+# runs". It meant "at the next weekly run" when the threshold was chosen.
 APT_CHECK=/usr/lib/update-notifier/apt-check
 if [ -x "$APT_CHECK" ]; then
     sec=$("$APT_CHECK" 2>&1 | cut -d';' -f2); sec=${sec//[^0-9]/}; sec=${sec:-0}

@@ -24,6 +24,65 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-09-19 (FOURTH run) — key `staleness`, one PR, deployed from the branch before merge
+
+The operator answered all six findings and asked for one PR. What shipped, and
+the rule each one encodes:
+
+- **The firewall's deny-by-default is now asserted, on both hosts.** `ufw status`
+  does not print the default policy; only `status verbose` does, and all three
+  deployed ufw checks read `status`. **Rule: an instrument that omits a field
+  cannot be the reader of that field, however loudly it reports the rest.**
+  The offsite also gained the per-rule check it never received, derived from
+  `ufw_service_rules` + `ssh_allowed_sources` rather than hand-listed.
+  - **Trap paid writing it**: `ufw status verbose` renders the rule table
+    differently — `ALLOW` becomes `ALLOW IN` — so switching the per-rule loop to
+    verbose would have silently broken every SSH-source assertion, which matched
+    `ALLOW +${src}`. The regex is now tolerant of both forms. **A format change
+    in the columns you were not reading is the cheapest way to break a working
+    check.**
+- **Immich moved to v3.2.2 and Renovate can speak about it again.** The rule was
+  `"enabled": false`, which is a correct manual-pin policy that ALSO suppressed
+  security advisories — no channel in the estate could have reported a CVE. It
+  now carries `groupName: null` + `dependencyDashboardApproval: true`, the same
+  shape as the resticprofile/goss/rest-server rule. **Rule: switching a
+  dependency off to stop it auto-updating also switches off the only thing that
+  would have told you it must.** The DB image does NOT move — upstream v3.2.2
+  expects `vectorchord0.4.3-pgvectors0.2.0`, which is what this estate already
+  runs.
+- **lynis's 41 suggestions now reach a human.** The "new since last run"
+  comparison existed but lived only inside the regression branch; on the green
+  path it never ran, and suggestions were never read at all. Both the warning-ID
+  set and the suggestion-ID set are now compared on every path, a NEW warning
+  gates, a new suggestion is named in the message, and the suggestion count rides
+  in the beat so a frozen value is visible. **Rule: archiving a signal is not
+  reading it.**
+  - **Trap paid writing it**: the comparison must precede the `cp` that
+    refreshes `last-green-report.dat`, or it compares the report to itself and
+    finds nothing new, forever.
+- **A gate for C108**, `containers-run-the-image-their-tag-designates`. It went
+  red on the live estate before it was written down — `n=31`, naming exactly the
+  two known divergences — which is stronger than a made-to-fail test against a
+  fixture. Digest pins are skipped as structurally immune; an anti-vacuity floor
+  guards the derivation.
+- **The Kuma retention premise, corrected in all three live artefacts** — and the
+  correction is the opposite of what both agents proposed. `keepDataPeriodDays`
+  IS 180, so the sentence was true as configuration. What is false is the
+  inference: heartbeat rows are pruned on a **per-monitor row budget**, measured
+  at ~36 h for an ordinary beat on the 5-minute monitor, and the three assertions
+  survive only because their monitor is weekly. **Rule: when a premise is true by
+  accident, write down the accident.** The operator declined to extend retention
+  — two months is enough.
+- **The stale-cadence pass.** Eight statements still said "weekly" for the
+  offsite health job that became DAILY on 2026-09-12. Corrected, including the
+  8-day lookback cap whose comment claimed it was DERIVED from a weekly timer:
+  the value is kept and now says it is conservative rather than derived, because
+  narrowing it is a behaviour change and not a documentation fix.
+- **`.claude/agents/observability.md` said "(10-min gate)"** for a 5-minute timer
+  with 240 s gates. Wrong for 60 days, and the commit that morning had rewritten
+  the other half of that same line while carrying the number across. **Rule: an
+  edit to a line is not a check of the line.**
+
 ## Shipped on 2026-09-19 (third run) — key `aggregation`, PR #368, deployed from the branch before merge
 
 The operator took all five items put to them and asked for one PR. What shipped,
@@ -1486,11 +1545,26 @@ it can catch a known-present instance before any null from it is believed.**
 - **`stop_grace_period` as a general gap.** 5 of 32 declare one and 27 sit on the
   10 s default, but a 32-container × 14-day log sweep returns exactly one hit.
   No extension proposed.
-- **A15, open since 2026-09-11, RESOLVED and not a defect.** `MANAGE_BUILTINS=no`
-  and `delete_chains` is ufw-scoped, so a `ufw reload` destroys neither
-  `DOCKER-USER` nor the `f2b-*` chains: **no ban is lost.** What
-  `iptables-restore --noflush` collides with is itself — the 8 `DOCKER-USER`
-  rules are re-appended per reload.
+- **A15, open since 2026-09-11, RESOLVED and not a defect — but read the whole
+  history before quoting this, because the resolution was WRONG TWICE before it
+  was right.** `MANAGE_BUILTINS=no` and `delete_chains` is ufw-scoped, so a
+  `ufw reload` destroys neither `DOCKER-USER` nor the `f2b-*` chains: **no ban is
+  lost.** That half always held.
+  - The half that did not: this bullet once claimed the 8 `DOCKER-USER` rules are
+    **re-appended** per reload, evidenced by reading 8 rather than 16 "across two
+    `sudo ufw reload`s on 2026-09-13". **Those two reloads never happened** — a
+    `zgrep` over the whole retained rotation returns nothing — so the control
+    never ran and the claim was WITHDRAWN on 2026-09-19 (third run).
+  - **Settled on 2026-09-19 (fourth run, key `staleness`) by the experiment the
+    withdrawal asked for**, run in a throwaway `unshare --net` namespace with the
+    host's own nft binary: three identical `iptables-restore -n` over a chain
+    re-declared `:CHAIN - [0:0]` leave **2 rules, not 6**; a manual `-A` makes 3,
+    which is the positive control. **A re-declared user chain is flushed, not
+    appended.** Corroborated live: the `DOCKER-USER` counters match 7.5 days of
+    uptime, so no reload has happened since 2026-09-11 23:37 — the live 8 is not
+    the control, the experiment is. **C74's last open mechanism closes.**
+  - Residual worth carrying: the chain has therefore not been compared to its
+    source file for 7.5 days, and nothing compares it.
 
 ## Closed by the run of 2026-09-12
 
@@ -1586,8 +1660,14 @@ not as a finding.
 
 - **Expiring the frozen snapshots left by obsolete path sets.** Grouping the
   retention policy by host would drop them, but deduplication already shares
-  their chunks: 1.218 GiB of 343, i.e. 0.35 %. Not worth a repository-wide
-  prune, still less on the append-only offsite copy.
+  their chunks. Not worth a repository-wide prune, still less on the append-only
+  offsite copy. **Declined four times; a fifth proposal needs a new CONSEQUENCE,
+  not a new number.** The figure this bullet carried undated — "1.218 GiB of 343,
+  i.e. 0.35 %" — is superseded: the 2026-09-18 measurement is **71.7 GiB** of a
+  414.4 GiB raw repository, and the operator's arbitration that day priced it at
+  ~70 GiB. A 58x gap, in the only part of this file that carried no date. The
+  decision is unchanged; the number was wrong and is removed rather than
+  restated, because the decision never rested on it.
 - **Memory limits on containers.** The absence is real. Adding them would
   create an OOM kill that does not exist today: working set is well under
   capacity and memory pressure sits near zero over a fortnight.

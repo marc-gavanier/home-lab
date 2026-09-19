@@ -1396,7 +1396,7 @@ services:
   immich-server:
     # Pinned version (floating 'release' once turned a restore into a surprise
     # v3 upgrade); bump deliberately, server and ML together.
-    image: ghcr.io/immich-app/immich-server:v3.0.1
+    image: ghcr.io/immich-app/immich-server:v3.2.2
     # Only start_period and start_interval are declared. `test` is deliberately
     # absent so the image's own healthcheck is kept — this file has no business
     # re-implementing it, and #156 is the reminder of what happens when a
@@ -1464,7 +1464,7 @@ services:
 
   immich-machine-learning:
     # Pinned: must match immich-server (see above)
-    image: ghcr.io/immich-app/immich-machine-learning:v3.0.1
+    image: ghcr.io/immich-app/immich-machine-learning:v3.2.2
     # Only start_period and start_interval are declared. `test` is deliberately
     # absent so the image's own healthcheck is kept — this file has no business
     # re-implementing it, and #156 is the reminder of what happens when a

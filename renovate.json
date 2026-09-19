@@ -41,9 +41,10 @@
       "dependencyDashboardApproval": true
     },
     {
-      "description": "Immich pins are managed manually (one-way DB migrations, server & ML must move together — see feedback 2026-07)",
+      "description": "Immich pins are managed manually (one-way DB migrations, server & ML must move together — see feedback 2026-07). Until 2026-09-19 this rule was \"enabled\": false, which also suppressed security advisories: no channel in the estate could have reported a CVE in a pinned Immich, and the pin sat two releases and 75 days behind with nothing saying so. Same shape as the resticprofile/goss/rest-server rule above — Renovate NOTICES, a human does the work. groupName null keeps these out of the blind \"minor & patch updates\" batch, where dependencyDashboardApproval no longer applies.",
       "matchPackageNames": ["ghcr.io/immich-app/immich-server", "ghcr.io/immich-app/immich-machine-learning", "ghcr.io/immich-app/postgres"],
-      "enabled": false
+      "groupName": null,
+      "dependencyDashboardApproval": true
     }
   ],
   "customManagers": [
