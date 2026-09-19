@@ -140,11 +140,24 @@ parts that need a thought experiment.
 
 # The register
 
-Runs of 2026-08-15 through 2026-09-19 (FOURTH run, key `staleness`).
-**108 recorded classes + 2 PROPOSED and awaiting arbitration (C109, C110):
-1 OPEN (C44), 9 GATED (C21 left the table 2026-09-19, fifth run; C07 is RED; C03-T's NAMED defect is
-REPAIRED and its SCHEDULED-run residual RETIRED — read its row before quoting it
-as red), 90 ENUMERATED, 7 closed by decision, plus the DECLINED list.**
+Runs of 2026-08-15 through 2026-09-19 (SIXTH run, key `oracle`).
+**112 recorded classes: 1 OPEN (C44), 9 GATED, 95 ENUMERATED, 7 closed by
+decision, plus the DECLINED list.**
+
+**GATED is 9 and its MEMBERS are C04, C06, C07, C08 and the four below them in
+that table, plus C07 which is recorded above it — the table's own heading reads
+"8 here, plus C07". Two counting rules, both correct, and the sixth run's brief
+guessed 8 because the membership had never been written beside the count. That
+is the same disease as C44's, diagnosed below, and it is now fixed in both
+places.** C07 is RED since 2026-09-18. C21 left this table 2026-09-19 (fifth
+run). C03-T's NAMED defect is REPAIRED and its SCHEDULED-run residual RETIRED —
+read its row before quoting it as red.
+
+**C109 and C110 were ACCEPTED by the operator on 2026-09-19 (sixth run) and are
+ENUMERATED.** They had been PROPOSED by the fifth run. **C111 and C112 were
+minted by the sixth run.** All four now carry a table row; C108, C109 and C110
+had none at all until this run, which is why `grep '^| C10[89] |'` returned zero
+against a positive control of ≥1 for all 107 others.
 
 **The fourth run of 2026-09-19 used `staleness` — since when has this value not
 changed, and who would have noticed? — and the counter went 2 -> 1 while the
@@ -394,7 +407,42 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
-## OPEN — 1 (after the FIFTH run of 2026-09-19, key `attendance`)
+## OPEN — 1 (after the SIXTH run of 2026-09-19, key `oracle`)
+
+**C44 only. TIER A is 16, coverage 4/16 = 25 %, and the SIXTH run found why this
+class cannot close — it is not the space, it is this file.**
+
+`docker` was demoted TIER A -> TIER B on the #15 predicate: `daemon.json`
+declares 6 values, `docker info` resolves 3, and `shutdown-timeout` plus
+`log-opts.{max-size,max-file}` are exposed by no daemon readout (measured 0/0/0
+with `LoggingDriver`=1 as the positive control; log-opts is per-container
+creation-time state, not daemon state). `fail2ban` looked like a second
+demotion and SURVIVED: 5 of its 13 keys have no `get <key>` verb, but
+`get <jail> action <act> port` and `get actions` resolve them. A clock admission
+was tested and REJECTED — `timedatectl show-timesync` resolves everything, but
+`/etc/systemd/timesyncd.conf.d/` is empty, so there is no declared intent.
+
+### THE REASON C44 HAS NEVER CLOSED — the register records the cardinal WITHOUT the membership
+
+**This file refers to admissions by NUMBER — `#13`, `#15`, `#16` — into a 27-row
+list that does not exist anywhere in it.** Verified: `grep -nE '#1[3-6]\b'`
+returns five lines, all of them narration of the fifth run. Of a TIER A of 16,
+only **11 are nameable** from this register: the 4 covered (sshd, sysctl,
+postfix, ufw), the 6 read on 2026-09-19 (apt, fail2ban, docker, apparmor,
+wireguard, mounts) and #13 firmware. The other five exist only as indices in an
+agent report that was never carried over.
+
+**That is why the cardinal has moved 19 -> 17 -> 16 across three consecutive
+runs: each run re-derives it from scratch against a list it cannot read.** The
+space was proven derivable in the third run. What is missing is not a
+derivation, it is a transcription. **No run can state N/N until the 27 rows are
+written down here**, and any run that claims to have swept C44 without them has
+swept something it could not enumerate.
+
+**THE MEMBERSHIP IS THE NEXT RUN'S FIRST TASK, and it is bookkeeping, not
+research.** Until it exists, do not close C44 and do not trust a new cardinal.
+
+*(Superseded: after the FIFTH run — TIER A 17, coverage 4/17 = 24 %.)*
 
 **C44 only, and its cardinal MOVED: TIER A is 17, not 19, coverage 4/17 = 24 %.**
 Two admissions failed on execution — `resolved` (#15, its resolver does not read
@@ -457,7 +505,7 @@ over 337 assertions rather than a machine derivation.
 | ID | Property | What bounds the space, and what stopped the sweep |
 |---|---|---|
 | C44 | A verification whose cadence cannot observe the event it guards | **TIMER 13/13, DEPLOY-TAG 26/26, HOST-HARDENING 20/20 — all closed, do not re-derive.** Still OPEN on the general external-writer space: Factor A is not the set of paths an assertion NAMES but the set it REACHES through the tools it invokes, which no agent could derive mechanically. Named, not swept |
-| C107 | **An assertion that consumes its own instrument's output at a COARSER GRAIN than the instrument produced it** — the finer signal is collected, rendered as prose, and never gates | **NOT BOUNDED, and the bound to try is stated.** `security` measured 181 of 274 goss checks carrying `stdout:`, but most match a single-valued `docker inspect -f`, so bounding by ASSERTION is 337 per-predicate judgements. **Bound by INSTRUMENT instead**: the checks invoke ~16 external tools, and the question "does this tool emit a finer signal than its readers consume" is asked once per tool, not once per assertion. That is a stateable cardinal and nobody has derived it |
+| C107 | **An assertion that consumes its own instrument's output at a COARSER GRAIN than the instrument produced it** — the finer signal is collected, rendered as prose, and never gates | **SUPERSEDED — this is the MINTING row of 2026-09-19 (third run) and it is kept for the derivation only. C107 CLOSED as ENUMERATED in the FOURTH run (32/32 executables + 12/12 supervision-plane instruments); read its row in the class table, not this one.** Its text as written then: **NOT BOUNDED, and the bound to try is stated.** `security` measured 181 of 274 goss checks carrying `stdout:`, but most match a single-valued `docker inspect -f`, so bounding by ASSERTION is 337 per-predicate judgements. **Bound by INSTRUMENT instead**: the checks invoke ~16 external tools, and the question "does this tool emit a finer signal than its readers consume" is asked once per tool, not once per assertion. That is a stateable cardinal and nobody has derived it |
 
 ### A ROUTE TO CLOSING C44 THAT DOES NOT NEED THE MISSING INSTRUMENT
 
@@ -495,6 +543,275 @@ separate correction — **the marker is not a provenance instrument.**
 C92 and C03-R were closed as review rules once their spaces proved non-derivable.
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
+
+## The run of 2026-09-19 (SIXTH) — the key was `oracle`, and it paid in the ASSERTIONS
+
+The twenty-fifth key, **invented rather than taken off the proposed list** — the
+file had recorded that no named candidate remained but `asymmetry` and `cost`.
+The question: **where does this check get its notion of CORRECT, and what
+updates that notion?** The register had no vocabulary for it. All 110 classes
+asked whether a mechanism RUNS, at what CADENCE (C44), at what GRAIN (C107),
+whether it AGGREGATES (C103), whether its value has gone STALE, whether anyone
+READS it. Not one asked where its EXPECTED VALUE comes from, who owns that
+expectation, and what would ever revise it.
+
+Five admissible shapes went into all eight briefs: (a) the literal with an
+absent author; (b) the tautological oracle — expected and observed derived from
+the same source; (c) the frozen baseline — a list where a derivation belongs;
+(d) the borrowed oracle — correctness delegated to a third party that can stop
+answering meaningfully; (e) the missing oracle — a quantity published with no
+statement of what would be wrong. **Nine overlaps were declared instance-only**
+(C107, C103, C83, C13, C93, C45, C76, C39, C109/C110) and the discipline held:
+five of eight domains returned an explicit "no mint".
+
+### The counter: 1 OPEN in, 1 OPEN out, 2 minted, class total 110 -> 112
+
+**The termination clock RESETS.** `commensurability` minted 0, `aggregation` 1,
+`staleness` 1, `attendance` 2, `oracle` 2. The pair of consecutive zero-mint
+runs has still never been achieved.
+
+**C109 and C110 were ACCEPTED by the operator this run** and are ENUMERATED.
+
+### C111 — MINTED, and it is the run's real output
+
+**An assertion whose expected value is regenerated from the same declaration
+that produces the state it observes** — so the assertion mirrors the estate's
+state rather than its intent, and cannot detect a weakening. Shape (b), on the
+most load-bearing spec in the estate.
+
+Space: the four generated specs. Cardinal, measured by `ansible-deploy` and
+**re-measured by the main session on the deployed artefact**: `/etc/goss/
+posture.yaml` is **226 named checks** (goss's plan count of 406 counts each
+`stdout:` pattern separately — both figures are real and this file has conflated
+them once already). **108/226 have an oracle independent of any declaration,
+115/226 mirror one, 3 are hand-lists.** Of the 171 per-container checks
+generated from `compose.yaml`, 64 carry an independent literal intent and **107
+mirror compose**.
+
+**The instance that makes it concrete, parsed block by block on the live file:**
+
+    9  -read-only-rootfs checks assert ["/^false$/"]
+    23 -read-only-rootfs checks assert ["/^true$/"]
+    32 total
+
+Plus 2 `-no-new-privileges` asserting `false` and 16 `-cap-add` asserting a
+specific set. **27 checks that can only turn RED if somebody HARDENS a service.**
+Remove `read_only: true` from any of the 23 and the assertion regenerates as
+`/^false$/`, 226/226 still green.
+
+**Two agents reached it from opposite ends with no contact**, which this
+register names as its strongest evidence standard — and both readings are
+correct, which is the point. `security` read the mechanism as a VIRTUE (C11 is
+DERIVED: the spec carries exactly 9 `-user:` assertions for the 9 services
+declaring `user:`, so a new container is picked up with no edit). `ansible-deploy`
+read it as a FAULT (those same checks sit inside `{% if %}`; delete the
+declaration and the check CEASES TO EXIST, 226 -> 225, with nothing asserting
+the count). **Derivation from the declaration is simultaneously what makes the
+gate self-maintaining and what makes it self-certifying. That tension is the
+class.**
+
+### C112 — MINTED
+
+**A guarantee whose ENFORCER sits outside every host the estate can run a
+command on, where the apparently-covering assertion is bound to an internal
+proxy and stays green through the enforcer's failure.** Shape (e) applied to
+authority rather than to a value. `network` bounded it by naming the enforcer
+per guarantee in `docs/` and the ADRs and keeping the off-estate ones:
+**5 in network — 2 unfalsifiable, 1 partial, 2 falsifiable.**
+
+The two unfalsifiable: the router's forward table **in the negative direction**
+(`ufw-enforces-every-rule-the-inventory-declares` is ALLOW-only, and 80/443/53
+are already in its ALLOW set, so a router reset that republished them stays
+green), and the Cloudflare zone (DDNS looks up one name; nothing enumerates the
+zone). **The honest counterweight, recorded because it bounds the damage: the
+POSITIVE direction IS falsifiable** — the offsite's only channel is the tunnel,
+so a lost opening reddens Kuma #18 within ~25 h. **The estate can see a lost
+opening and never an added one.**
+
+This is the generalisation of C32's standing observation that the perimeter is
+an ATTENDANCE and not a derivation, and it explains why C32 could never close.
+
+### A third candidate, PROPOSED and correctly NOT CLAIMED
+
+`backup`'s *a recovery procedure whose success criterion is that its last
+command completed, with no stated expected RESULT* — swept **11/11 restore
+procedures in `restore-from-backup.md`: 6 carry no post-restore check at all
+(Vaultwarden among them), 5 do, and 0 of 11 state an expected VALUE.** The agent
+itself declined to claim it: the whole-estate cardinal is not derived, the sweep
+covering one file of ~17 runbooks. **Recorded as a property with a bounded
+domain sweep, not a class.** It is the next run's cheapest mint if anyone bounds
+the remaining runbooks.
+
+### Live defects, ranked by what was happening without anyone knowing
+
+1. **A safety argument falsified 18 hours earlier, by a commit of that morning
+   — C52, and its bound was wrong.** Commit `8763306` (2026-09-19 01:55) added
+   `TZ: ${TZ}` to vaultwarden; the container now runs CEST. `jail.local:104`
+   still carried `logtimezone = UTC`, and **the comment above it stated its own
+   premise**: *"its container runs on UTC while this host runs on CEST"*. C52 is
+   "a safety argument whose premise is a defect that has just been corrected" —
+   this fits word for word. **The exposure was LATENT, not active**, and the
+   main session established that where the agent had not: log mtime
+   2026-09-18 21:22:49, 3 lines, all pre-change, `Total failed: 0`. The defect
+   armed itself at the next line written. **Bound correction that matters: C52
+   was swept 9/9 over 151 candidate ARGUMENTS; this is a live DIRECTIVE. The
+   class's space was bounded by a MECHANISM while its property is not** — the
+   register's recurring trap, paid again. **FIXED.**
+2. **A frozen floor with 30 % slack that cannot see a collector die.**
+   `netdata_min_contexts: 270` against a live 383, set by #24 in July, revised by
+   nothing. Measured distribution: netdata 137, system 43, ipv6 26, cgroup 25,
+   ipv4 24, mem 23, usergroup 14, user 14, app 14, ip 13, disk 13, net 11,
+   systemd 7, docker 6, disk_ext 6, anomaly_detection 5, netfilter 1, cpufreq 1.
+   **The whole container-observability set (cgroup + docker + app + disk = 58)
+   could vanish and the count would sit at 325, above the floor** — while the two
+   curated alarms that depend on the docker collector stopped evaluating.
+   **FIXED, and by a DERIVATION rather than a better literal**: the new check
+   reads the `on:` line of every installed curated alarm file and asserts netdata
+   still serves that context. Six contexts derived live, all present; made to
+   fail on purpose in three directions (absent context, empty API answer,
+   substring-vs-exact).
+3. **One container can run and do nothing with every indicator green.** The
+   agent reported "11 of 32 containers are the subject of no monitor". **The main
+   session cut that to 1.** `homelab_container_down` and
+   `homelab_container_unhealthy` each cover 32/32 (monitor 37's live beat says
+   so), and of the 4 containers declaring no healthcheck — nextcloud-cron,
+   nextcloud-notify-push, dnsproxy, searxng — three have a dedicated monitor or
+   a daily assertion. **`nextcloud-cron` alone has no healthcheck, no monitor and
+   no assertion.** FIXED with a FUNCTIONAL check (`core lastcron` age), not a
+   liveness one — made to fail on purpose in three directions, including the one
+   that matters: an error string strips to empty and aborts rather than being
+   misread as a timestamp.
+4. **The observability monitor table named a monitor that does not exist.**
+   `docs/07-observability/README.md:154` listed **Pi services**; the live
+   enumeration has no such monitor. It also attributed "marginal sector" to
+   **Pi pending action** when `homelab-disk.sh` reports it (live beat:
+   `pending 2`), and said "three to create by hand" when there are five.
+   **Requalified by the main session and the requalification matters: this is a
+   documentation error, not a blind spot.** The disk does carry 2 pending
+   sectors and they ARE reported daily, by the right monitor, with a deliberate
+   implementation referencing #207. FIXED, with a "Fed by" column added so the
+   table cannot read as coverage again.
+5. **Every repo-authored gate runs on the developer's machine only.**
+   `.github/workflows/lint.yml:2` claims it "mirrors the local pre-commit hooks
+   so a bypassed hook (`--no-verify`, GitHub web edits) still gets caught on the
+   PR". It ran gitleaks, yamllint and ansible-lint — **1 of 10 `repo: local`
+   hooks**. Every class GATED on a pre-commit hook was gated locally only, and
+   `--no-verify` is this repo's own documented GPG-timeout remedy. FIXED: all
+   nine `ops/check-*.py` entry points and the three selftests now run in CI,
+   verified passing locally first.
+6. **ADR-010 understated the offsite by a factor of seven.** It said the push is
+   *weekly* and that the Pi *only* self-reports disk health. Measured:
+   `OnCalendar=*-*-* 08:00` (daily since 2026-09-12) and 33 named checks in
+   `/etc/goss/offsite-health.yaml`, `append-only` among them. **A recovery reader
+   would have accepted a 7-day silence as normal.** FIXED, and the count
+   deliberately NOT written into the ADR — it names the file instead.
+7. **Dozzle in three versions.** Doc `v10.6.14`, compose `v11.1.0`, running
+   `v11.0.1`. `v11.1.0` confirmed latest upstream (published 2026-09-14), so the
+   compose↔host half is a pending pin, not a stale pin. Doc FIXED; pin deployed.
+
+### The finding that was REJECTED because the repo had already decided it — and this is the run's discipline result
+
+`ansible-deploy` proposed "~6 lines fix all 11" for the checks that vanish with
+their declaration. **The main session read the template before editing and found
+the fix already tried and reverted**, with the reasoning in place at
+`goss-posture.yaml.j2:548-560`:
+
+> Conditional on purpose, and the reason was learned the hard way on 2026-09-05.
+> This assertion was briefly emitted for EVERY service, asserting `/^$/` for
+> those declaring no `user:` [...] It is wrong: `Config.User` carries the IMAGE's
+> user when compose declares none, and two of ours do — socket-proxy returns
+> `root`, collabora returns `1001`. [...] the gap does not close by assertion
+> anyway [...] What catches that is the review of compose.yaml, not a probe of
+> the result.
+
+**So the "easy fix" for C111 does not exist, and the reason is measured and on
+file.** C111's real remedy is an INTENT DECLARATION separate from the
+configuration — the `declared intent vs effective state` pattern the estate
+already ships for sshd, sysctl, postfix and ufw. That is a design change, it was
+put to the operator as such, and nothing was built on a guess.
+
+### Rejected, requalified, or corrected — 6, and two were the main session's own brief
+
+- **`observability`'s headline, "60 alarms evaluate and can reach nobody".**
+  Measurement right, conclusion wrong: `group_vars/all.yml:308` states *"Netdata
+  notifies NOBODY — stock alarms and curated ones alike"*, ADR-030, with the
+  Kuma adapter as the single channel. **Third time an agent has reported a
+  written decision as a gap.** The residual that IS the key's shape: the
+  MEMBERSHIP of the curated 6 is a hand-written list with no revision event.
+- **`observability`'s "9 names / 187 instances are literally decorative".**
+  REJECTED. They are intermediate calculation alarms consumed by siblings —
+  `disk_fill_rate` -> `disks.conf`, `load_cpu_number` -> `load.conf`,
+  `1m_received_packets_rate` -> `net.conf`. They are exactly the alarms whose
+  recipient is `root`, which should have prompted the check.
+- **`observability`'s disk-coverage gap.** Half true, and the half that mattered
+  is false: `homelab-health.sh:234` is `for fs in / /mnt/data`, threshold 85,
+  and monitor 20's beat reads `/ 19%, /mnt/data 21%`. The script's own comment
+  anticipates the objection.
+- **`project-manager`'s pending-sector finding**, requalified from blind spot to
+  documentation error (above).
+- **`project-manager`'s 24 offsite assertions** — the main session measured 33
+  named checks. Different counting rules; the ADR now names the file instead.
+- **The main session's own brief, twice.** It labelled Kuma monitor 8 a live
+  shape-(d) instance; `network` measured `dns_resolve_server=192.168.1.100` AND
+  `conditions=[record equals 192.168.1.100]` and killed it — **the register's
+  text describes a hazard of REBUILDING from a dump, not the live state.** And
+  the brief said "32 containers, 30 reporting healthy"; `services` corrected it
+  to 28 declaring a healthcheck, all 28 healthy, 4 declaring none.
+
+### An agent disagreement, resolved rather than dropped
+
+`services` measured the *arr Kuma keyword `OK` as DISCRIMINATING (0 occurrences
+in the UI and in unknown-route final pages, all three). `observability` found
+Prowlarr/Sonarr/Radarr all expect the same 2-char `OK`, so a MISROUTE between
+them stays green. **Both are true about different failure modes**: `OK`
+discriminates a broken service and fails to discriminate a misdirected one.
+Recorded as one finding with two halves.
+
+### Instrument traps paid — 3, and two were the main session's own
+
+1. **A `grep -A4` context window on a 5-line block silently truncated the line
+   under investigation** and returned a false "`logtimezone` not deployed". **A
+   context window is as wrong as a loose regex and it fails silently in the
+   direction of a clean result.** New in kind; the fifth run's version was an
+   alternation, this one is a window.
+2. **A positive control that itself returns zero is not a control.** Hunting a
+   root-filesystem assertion in `/etc/goss/*.yaml`, the main session's control
+   was `grep -c "title:"` — and those specs do not use `title:`. The null result
+   was uninformative, not negative. Re-run with `grep -c "command:"` (=1, file
+   192 290 bytes) it finally meant something. The oldest rule in this file, paid
+   by the session enforcing it.
+3. **An awk that keys on the last-seen name bleeds across block boundaries.**
+   Counting `-read-only-rootfs` expectations by proximity gave "1 false + 2 true"
+   per service — arithmetically impossible against one check per service. Re-done
+   by parsing each block to its own `stdout:` line: 9 false, 23 true, 32 total.
+
+### Disclosures by agents, all unprompted — 2 of 8
+
+`services` left `/tmp/binds.txt` on homelab and created-then-deleted `/tmp/_ui`
+and `/tmp/_unk` inside prowlarr/sonarr/radarr, re-running the measurement
+without temp files to the identical result. `system` created and deleted
+`/tmp/di.json`. `observability` explicitly did NOT repeat its previous run's
+netdata `/tmp` write. **The rule-5 disclosure culture is holding.**
+
+### Clean, and measured — the negatives that closed questions
+
+`argument_specs`: 156 options over 11 roles with **zero** `choices`/`min`/`max`/
+`pattern`/`default`, so no value constraint exists and none can be wrong. There
+are **no `roles/*/defaults/` at all** — every default sits in one 744-line
+`group_vars/all.yml`. All 14 `assert:` tasks read and **none is tautological**;
+`stack-startup:28` and `backup.yml:109` are real comparators. 25
+`failed_when: false`, all on state-reading probes, no swallowed error. C14
+DERIVED and confirmed twice — but **it reads `-enddate` ONLY**, so 21/21 watched
+for expiry is not 21/21 verified correct. C15 and C18 both DERIVED (C18 at
+46/46, TAP `1..46`). C41 DERIVED. C11 DERIVED 9/9. ADR sweep: **36 ADRs, 30 read
+in full, 116 runtime promises, 113 confronted -> 108 HOLD, 0 BROKEN, 5 stale, 3
+unverifiable** — and the class the brief sent it hunting is FIXED
+(`feed-digest.sh.j2:349` now appends the carried-over count). 113/113 relative
+links, 18/18 cited systemd units, 80/80 bind mounts. **The best oracle in the
+estate, worth naming: `netdata-apparmor-matches-dockerd` extracts
+docker-default's deny rules from the `dockerd` BINARY and requires the local
+profile to be a superset — the only check of 226 whose expectation is revised by
+an event outside this repository.**
 
 ## The run of 2026-09-19 (FIFTH) — the key was `attendance`, and it paid in the ESTATE
 
@@ -4803,7 +5120,7 @@ file. `78372e1` touched exactly one file.
 | ID | Property | Why it is not a gate |
 |-----|----------------------------------------------|--------------------------------------------|
 | C12 | A rotated secret no consumer restarts to read | **No live assertion at all.** Nothing in the three deployed goss specs mentions handler coverage. The 51 notify sites and 0 orphans of #145 were a sweep, not a gate |
-| C20 | A secret that a deploy reports as rotated without rotating it | 4 hand-written probes over a space of 16 secret files. A list of four is not a gate |
+| C20 | A secret that a deploy reports as rotated without rotating it | **Cardinal corrected 2026-09-19 (second run): the space is 43 by VALUE, not 16 secret files — 16, 15 and 59 were three different bounds and 59 is not reproducible.** As written then: 4 hand-written probes over a space of 16 secret files. A list of four is not a gate |
 
 ### Also verified, and worth not re-deriving
 
@@ -5387,9 +5704,9 @@ them; do not re-derive without a new symptom.
 | C28 | An operator key no role reads, or a role key the example omits | 123 keys, both directions, 0 and 0 | 08-29 |
 | C29 | A construct that disables a feature silently | 81 read one by one; 08-29: 80 `default()`, 22 `failed_when: false`, 5 `creates:`, 3 absent-var gates | 08-19, 08-29 |
 | C30 | A proxy router or middleware declared but not applied | **ROW CORRECTED 2026-09-13 night-second: it is 24/24 routers and headers on 22/22, not 19/19 and 18/18 — with ZERO edits in between, the same positive proof of derivation C14 earned going 18 -> 21.** Derived from the mechanism: `traefik.yml.j2:47-57` attaches the three middlewares and the cert resolver to the ENTRY POINT, so a router cannot opt out. 0 API errors. **The words "proven both ways" are struck** — the deny direction has no instrument anyone can now repeat, because probing `vpn-only` from the host is meaningless (Docker masquerades the source into the allow-list; see `settled.md`) | 08-29, 09-13 |
-| C31 | A name resolving differently inside and outside | split DNS 18/18, single DoH upstream, 2590/2590 queries | 08-29 |
+| C31 | A name resolving differently inside and outside | split DNS **21/21** (was recorded 18/18 — corrected 2026-09-19, fifth run, and the deployed dnsmasq confirms 21), single DoH upstream, 2590/2590 queries | 08-29, 09-19 |
 | C32 | A port reachable from outside that should not be | probed from the offsite uplink with a known-open control | 08-19, 08-29 |
-| C33 | A broken relative link or a path that does not exist | 104 links, 123 absolute paths | 08-29 |
+| C33 | A broken relative link or a path that does not exist | **113 links** (was recorded 104 — re-measured 2026-09-19, sixth run), 123 absolute paths; the sixth run also read 108 absolute paths with 25 absent and **0 defects**, all container-internal, offsite-only, conditional or documented-ephemeral | 08-29, 09-19 |
 | C34 | A service page contradicting its ADR, its runbook or its container | 20 pages × 3 axes | 08-22 |
 | C35 | A push monitor carrying a constant instead of its script's message | 12, now 15; all at `maxretries=0` | 08-19, 08-29 |
 | C36 | An unsized tmpfs | **41**, not 37, parsed rather than grepped; re-measured 41/41 with 0 unsized (corrected 2026-09-19, fifth run) | 08-21 |
@@ -5412,7 +5729,7 @@ them; do not re-derive without a new symptom.
 | C74 | A rule whose decision is pre-empted by another component acting earlier on the same object | **CLOSED 2026-09-11 by two independent derivations**: 48/48 over 14 arbiters (`security`) and 71/71 over 10 arbiter-decision categories on both hosts (`system`). The cardinal is derivation-relative — do not quote either as "the" number. 1 material instance (`net.ipv6.conf.eth0.accept_redirects`, both hosts), 1 immaterial (`use_tempaddr`), 8 masked (`lo`), 1 harmless (fail2ban `[sshd]` `logpath` under `backend = systemd`), 1 mechanism left unresolved (A15, `iptables-restore --noflush` on `DOCKER-USER`) | 09-02, 09-11 |
 | C76 | A verification whose expiry is reported through the same channel, and in the same terms, as the condition it watches | 197 + 43 assertions; 15 within 2x of budget | 09-02 |
 | C12 | A rotated secret no consumer restarts to read | 51 notify sites, 0 orphans — **downgraded from GATED 09-03**, no live assertion | 08-16, 09-03 |
-| C20 | A secret that a deploy reports as rotated without rotating it | 4 probes over 16 secret files — **downgraded from GATED 09-03** | 08-19, 09-03 |
+| C20 | A secret that a deploy reports as rotated without rotating it | **Cardinal corrected 2026-09-19 (second run) to 43 by VALUE.** As written then: 4 probes over 16 secret files — **downgraded from GATED 09-03** | 08-19, 09-03 |
 | C78 | A set of which two or more components each hold their own definition, in different grammars, with nothing comparing the definitions | 4/4 name grammars (18/18/18, Kuma 15/18) + 21/21 restore expressions against 13 exclude patterns | 09-03 |
 | C82 | A fault whose only detector runs earlier in the same sequence than the step that introduces it | **CLOSED 2026-09-11.** 25/25 deployed executables (1 725 code lines, both hosts) and 48/48 (check, later-statement) pairs — 0 confirmed, 48 refuted, the register's live instance verified dead. Plus 39/39 play-order validations, 1 confirmed (the sysctl detector), 35 refuted. 20 healthchecks and 264 goss `exec:` blocks excluded BY MEASUREMENT: 0 mutating statements in either population. **ENUMERATED, not GATED** — nothing derives the (check, later-mutator) set, so the next commit can repopulate it | 09-05, 09-11 |
 | C83 | A mechanism that reports success, health or completion after producing or examining a set, without bounding that set's cardinality from below | **976/976 across 8 slices**, each slice's N derived and stated; 92 instances of which 32 are two families of 16 and 12 are no-action upstream, 884 refuted. **PARTIALLY GATED 09-05** — `ops/check-empty-set-floors.py` in pre-commit derives the space rather than listing it, and its six controls run beside it, three of which must FLAG. **The Ansible face is NOT gated** — see the note below before writing GATED anywhere | 09-05 |
@@ -5431,10 +5748,16 @@ them; do not re-derive without a new symptom.
 | C93 | **A file whose designed role is to be a TEMPLATE or a BACKUP, and which the consuming tool also loads as LIVE INPUT** | **3/3** — the `*.example.yml` files live INSIDE `inventory/host_vars/homelab/`, and Ansible loads every file in a host_vars directory regardless of its name. Reproduced in isolation by the main session: a key present only in the example surfaces with its placeholder value; a key present in both is won by the real file, which loads later alphabetically. Consequence measured by `ansible-deploy`: **31 of 78 `required: true` options can never fail**, 24 are protected by nothing — including `ssh_port_hardened: 22` and `luks_passphrase: ""`. Zero live placeholders today, verified. **The operator DECLINED moving them on 2026-09-13**: the file is the reference and stays where it is. The class is swept; its one live instance is accepted | 09-13 |
 | C94 | **A mechanism that reads a selector's result as a scalar without bounding its cardinality from ABOVE** | **CLOSED 2026-09-13 night by eight per-domain slices**: 18/18 + extension (`system`), 26/26 (`observability`), 12/12 (`services`), 12/12 (`backup`), 5/5 (`network`), 0/0 (`security` — no selector-as-scalar site in its task files), `ansible/` swept with 0 confirmed and 2 latent (`ansible-deploy`). 0 new confirmed instances; the 4 founding instances were fixed by PR #352 except the one in DECLINED territory. The cardinal is derivation-relative — do not quote one as "the" number. **ENUMERATED, not GATED**: C83's deployed gate guards cardinality FLOORS, and nothing derives ceilings continuously, so the next commit can repopulate it | 09-13 |
 | C100 | **A recovery condition asserted from a mechanism's CURRENT STATE when its failure was a property of its CADENCE — so one out-of-band run clears the alarm while the schedule stays unrepaired** | **20/20**, derived by `observability` over the recovery conditions of the deployed health paths. 1 live instance measured end to end: `homelab-health.sh:643` reads `systemctl show -p Result`, the 12:24 hand-run supplied a success, monitor 20 returned `status=1` at 10:40:55 UTC and is still green, and the next SCHEDULED run of the unit that failed is Tue 2026-09-15 01:00 — ~38 h of green over an unexercised cadence. The machine-side twin of the `settled.md` instrument trap *a unit's current state is not its cadence's history*. **ENUMERATED, not GATED**: nothing asserts that a clearing condition names the same mechanism as the failing one | 09-13 |
-| C103 | **A status field read as the current verdict that does not carry WHICH execution produced it, nor whether one occurred at all** | **MINTED 2026-09-19, systemd slice swept 14/14 control timers + 3 offsite, Kuma slice NOT swept.** Four histories read `Result=success`: never started in this unit's life, started before the last boot (the service timestamps are cleared by it, the timer's `LastTriggerUSec` is not), started and ended non-zero under `SuccessExitStatus=1` — **7 of the 14** carry it deliberately — and started a minute ago and passed. Proven with a negative control (`rescue.service`) and a positive one (`offsite-health`): `offsite-smart-test` ran 2026-09-01, and on the service object it is byte-identical to `homelab-image-retention`, which has never run. The discriminator exists and had **0 occurrences in the repo**. Shipped: the health script now reports a timer that FIRED SINCE THIS BOOT whose service never started (monotonic pair, reboot-safe, verified on the offsite), and the posture beat carries `scheduled run` / `manual run` | OPEN |
+| C103 | **A status field read as the current verdict that does not carry WHICH execution produced it, nor whether one occurred at all** | **MINTED 2026-09-19, systemd slice swept 14/14 control timers + 3 offsite, Kuma slice NOT swept.** Four histories read `Result=success`: never started in this unit's life, started before the last boot (the service timestamps are cleared by it, the timer's `LastTriggerUSec` is not), started and ended non-zero under `SuccessExitStatus=1` — **7 of the 14** carry it deliberately — and started a minute ago and passed. Proven with a negative control (`rescue.service`) and a positive one (`offsite-health`): `offsite-smart-test` ran 2026-09-01, and on the service object it is byte-identical to `homelab-image-retention`, which has never run. The discriminator exists and had **0 occurrences in the repo**. Shipped: the health script now reports a timer that FIRED SINCE THIS BOOT whose service never started (monotonic pair, reboot-safe, verified on the offsite), and the posture beat carries `scheduled run` / `manual run` | **ENUMERATED — CLOSED 37/37 monitors, 111 field-reads, in the second run of 2026-09-19; this row still read OPEN until the sixth run corrected it.** The sixth run completed its remaining residual at **54/54**: exactly **1** published quantity has a programmatic consumer (`msg like '%deep check%'`, goss :1235/:1246). The rest are informational by construction — the decision is taken producer-side before the beat is built — which is a true measurement and a weak defect, consistent with the operator's decline |
 | C104 | **A harness that publishes the cause when the cause is its OWN and discards it when the cause belongs to the assertion** | **MINTED 2026-09-19, ENUMERATED 219/219.** goss never prints what a check wrote — verified against the deployed binary, a declared `stdout:` renders the literal `"object: *bytes.Reader"` — while goss's own timeout renders as `Error Command execution timed out (30s)`. **28 of the 219** `exec:` checks carry ≥2 `exit 1` branches with distinct messages and no `stdout:`; the intersection is exact, every multi-branch check is in it. Live proof: `miniflux-no-feed-silently-unscheduled` pushed `Expected 1 to be numerically eq 0` on three consecutive scheduled runs for one of three causes it could not name, two of which are repaired at the probe and one at the estate. Remedy shipped on the 5 branches of the 3 checks that have fired this month: `exit 2` = could not measure, `exit 1` = property violated, the only field that survives into the alert | ENUMERATED |
 | C105 | **A documented procedure that produces — or erases — exactly the state an assertion discriminates on, with neither side saying so** | **MINTED 2026-09-19, space NOT bounded.** 16 documentary sites derived from both ends (12 `docker compose down <svc>`, 4 timer disarms), **0 annotated**, against 2 pre-announcements of red in the whole repo. The instance that bites: `restore-from-backup.md:652` disarms `homelab-backup.timer`, the assertion deployed 2026-09-18 22:58 then prints `control timer(s) present but not armed` every day of a 7-33 h restore, and the boxed warning three lines above says that re-arming that timer `rm -rf`s the dumps being restored — **the red invites the forbidden act**. The inverse direction sits outside those 16 by construction: the certificate ratchet keeps its reference on the SD card and its referent on LUKS, so a reflash — a routine recovery here — re-seeds `cert_high` at the current count and a real loss can never fire. **Annotating the 16 is DECLINED by the operator** (a restore is exceptional; a surveillance outage is acceptable there); the class stays | OPEN |
 | C106 | **A parameter whose "not supplied" sentinel and whose "supplied but empty" value normalise to the same object, so two opposite intents produce one argv** | **MINTED 2026-09-19, ENUMERATED 2/2** — the parameters fed by `{{ x … if x is defined else omit }}`, `compose.yml:75` and `:120`. Demonstrated on a local fixture: `-e deploy_services=` gives `defined=True value=[]`, then `docker_compose_v2.py:479` folds `None` and `[]` together and the argv is **byte-identical to a full-stack deploy** — which arms every pending image pin. `rotate-a-secret.md:149` hands the operator that exact line with `<svc>` to fill in. **The fix is DECLINED by the operator**; the class stays | ENUMERATED |
+| C107 | **An assertion that consumes its own instrument's output at a COARSER GRAIN than the instrument produced it** — the finer signal is collected, rendered as prose, and never gates | **CLOSED 2026-09-19 (fourth run), ENUMERATED** by two complementary bounds that converge on lynis: 32/32 deployed executables and 12/12 supervision-plane instruments. Neither bound contains the other. **Do not re-derive; do not quote the "NOT BOUNDED" text that its minting row still carries above** | ENUMERATED |
+| C108 | **A container resolving a MUTABLE tag, where the running image and the tag's current referent can diverge with nothing observing it** | **MINTED 2026-09-19 (fourth run), ENUMERATED 32/32** — 31 containers resolve a mutable tag, 1 is digest-pinned. Its gate is `containers-run-the-image-their-tag-designates` (`posture.yaml:198`). **Gate promotion still UNMET as of the sixth run**: the spec's mtime is 13:54:02, the timer's `LastTriggerUSec` is 11:07:08 — BEFORE the spec — and the 17:39 run was manual. Next scheduled chance 2026-09-20 11:09:12 (not 11:01, which this file carried in error). The two divergences it found are resolved, 32/32, 0 divergence. **This row did not exist until the sixth run** | ENUMERATED, gate unpromoted |
+| C109 | **An obligation borne by a human, whose discharge changes no machine-readable state, and which the estate's only "awaiting a human" channel therefore cannot represent — so its universal negative means "none of the six I was told about"** | **PROPOSED by the fifth run, ACCEPTED by the operator 2026-09-19 (sixth run). ENUMERATED.** The mechanism is literal: `homelab-health.sh.j2:820` pushes `up "nothing waiting on a human"`, and membership is **6 hand-written `pending+=()` sites over 4 machine states** (reboot-required, journal skew x3, security updates, certificate expiry). Reached from three unrelated directions — `security` (17/17 over 17 runbooks + 5 operator commands, 12 out of space, 5 in), `backup` (7/7, 3 monitored, 4 not) and `services`. Enumerative bound, so it can never be GATED. **The USB-tamper instance is DECLINED — do not re-raise it.** **This row did not exist until the sixth run** | ENUMERATED |
+| C110 | **A stated trigger — a deadline or a condition — for an action only a human performs, with no deployed instrument evaluating it, so "on time", "overdue" and "never done once" come out identical** | **PROPOSED by the fifth run, ACCEPTED by the operator 2026-09-19 (sixth run). ENUMERATED.** Bounded from both sides independently and with no contact: `ansible-deploy` on the clock axis (**N=5** time-bounded operator obligations, 5/5 swept, covered **0/5**) and `project-manager` **and** `network` on the event axis (**N=15**, 7 mechanically observable, covered **0/7**; `network` counted 10 statements / 9 distinct conditions / 5 countable / 0 instrumented / **2 already triggered**). Positive control: `goss-offsite-health.yaml.j2:515` proves the repo knows how to annotate. **This row did not exist until the sixth run** | ENUMERATED |
+| C111 | **An assertion whose expected value is regenerated from the same declaration that produces the state it observes** — so it mirrors the estate's state rather than its intent, and cannot detect a weakening | **MINTED 2026-09-19 (sixth run), key `oracle`, shape (b).** Space: the four generated specs. `/etc/goss/posture.yaml` = **226 named checks** (goss's plan count is 406 — each `stdout:` pattern counts separately; do not conflate them). **108/226 independent, 115/226 mirroring, 3 hand-lists**; of 171 per-container checks, 64 carry independent intent and **107 mirror compose**. Measured on the deployed file by the main session: **9 of 32 `-read-only-rootfs` assert `/^false$/`**, plus 2 `-no-new-privileges` asserting `false` and 16 `-cap-add` asserting a set — **27 checks that can only turn red if somebody HARDENS a service**. Two agents converged from opposite ends: `security` read the derivation as a virtue (C11 DERIVED, 9/9), `ansible-deploy` as a fault (11 checks sit in `{% if %}` and CEASE TO EXIST with their declaration, 226 -> 225, nothing asserting the count). **Both are right; the tension is the class.** **The "easy fix" does NOT exist** — emitting the complement was tried on 2026-09-05 and reverted, reasoning at `goss-posture.yaml.j2:548-560` (`Config.User` carries the IMAGE's user; socket-proxy `root`, collabora `1001`). The remedy is an INTENT DECLARATION separate from the configuration, the pattern already shipped for sshd/sysctl/postfix/ufw | ENUMERATED, remedy outstanding |
+| C112 | **A guarantee whose ENFORCER sits outside every host the estate can run a command on, where the apparently-covering assertion is bound to an internal proxy and stays green through the enforcer's failure** | **MINTED 2026-09-19 (sixth run), key `oracle`, shape (e) applied to authority.** Space rule: per guarantee in `docs/` and the ADRs, name the enforcer and keep the off-estate ones. **5 in network — 2 unfalsifiable, 1 partial, 2 falsifiable.** Unfalsifiable: the router's forward table in the NEGATIVE direction (`ufw-enforces-every-rule-the-inventory-declares` is ALLOW-only and 80/443/53 are already in its ALLOW set, so a router reset republishing them stays green), and the Cloudflare zone (DDNS looks up one name, nothing enumerates). **Counterweight recorded because it bounds the damage: the POSITIVE direction IS falsifiable** — the offsite's only channel is the tunnel, so a lost opening reddens Kuma #18 in ~25 h. **The estate can see a lost opening and never an added one.** This is the generalisation of C32's attendance and explains why C32 never closed. Whole-estate cardinal NOT derived — bounded in network only | ENUMERATED in network, space open elsewhere |
 
 ## DECLINED
 
