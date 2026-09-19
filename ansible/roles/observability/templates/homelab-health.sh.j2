@@ -92,7 +92,13 @@ if ! . /usr/local/lib/homelab-gate.sh 2>/dev/null; then
 fi
 
 # --- Undervoltage ---
-# The firmware latches undervoltage events into the rpi_volt hwmon alarm.
+# The rpi_volt hwmon alarm is a PULSE, not a latch: raspberrypi-hwmon.c clears
+# the firmware's sticky bits on every poll and polls every 2 s. This read is
+# therefore near-blind on its own -- at a 5-minute cadence it has about a 0.7%
+# chance of landing on a 2 s event. It stays because it costs nothing and
+# because the curated netdata alarm, which samples the same bit every second
+# and takes `max` over a minute, is what actually detects this. If that alarm
+# is ever removed, this loop does NOT inherit its coverage.
 uv_seen=0
 for h in /sys/class/hwmon/hwmon*; do
     [ "$(cat "$h/name" 2>/dev/null)" = "rpi_volt" ] || continue
@@ -255,10 +261,13 @@ done
 # reported through the `Pi resources` monitor, and the reasoning behind each
 # number moved with it rather than being restated here.
 #
-# Undervoltage below stays, and is expected to: the firmware latches a bit, and
-# there is no way to force one without actually browning out the supply — so it
-# cannot be put through the same proof, and it is the signal that explains an
-# unexplained poweroff.
+# Undervoltage below stays, and is expected to: there is no way to force an
+# event without actually browning out the supply — so it cannot be put through
+# the same proof, and it is the signal that explains an unexplained poweroff.
+# What CAN be proved without a brownout is the detection path, and that proof
+# lives with the offsite check, which greps the kernel journal instead: the
+# driver's two strings were read out of the shipped module binary and the grep
+# was made to fail on purpose against a pattern known to be present.
 #
 # The 57 STOCK Netdata alarms still reach nobody, which remains deliberate: they
 # are tuned for a generic server and the disk-backlog one alone would fire on

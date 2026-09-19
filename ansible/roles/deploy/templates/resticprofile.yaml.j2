@@ -288,17 +288,32 @@ homelab:
       - /mnt/data/services/uptime-kuma/kuma.db-shm
 
       # calibre-web's ingest staging. 3.3 GB on 2026-09-13 — LARGER than the
-      # 2.4 GB library it was ingested into — and every byte of it is a second
-      # copy of a book that is already backed up under media/books. Worse for
-      # restic than a plain duplicate: the files are zipped, so content-defined
-      # chunking finds no partner for them and each one is stored whole, on both
-      # the local repository and the append-only offsite.
+      # 2.4 GB library it was ingested into. Worse for restic than a plain
+      # duplicate: the files are zipped, so content-defined chunking finds no
+      # partner for them and each one is stored whole, on both the local
+      # repository and the append-only offsite.
       #
-      # Excluding it loses nothing a restore needs: it holds the ORIGINALS as
-      # they were dropped in, after calibre-web has already imported them. The
-      # live directory is not touched by this change — reclaiming those 3.3 GB
-      # on disk is a manual decision, not a deploy's.
-      - /mnt/data/services/calibre-web/processed_books
+      # The parent directory was excluded whole until 2026-09-19, on the premise
+      # that "every byte of it is a second copy of a book that is already backed
+      # up under media/books". That premise was checked in one direction only —
+      # that these files had been ingested — and never in the other. Measured
+      # 2026-09-19 against the 417 files of media/books: of the 11 PDFs in
+      # converted/, 6 have their PDF in the library, 4 exist there as EPUB only,
+      # and one book ("Creating and Using Virtual Prototyping Software") is not
+      # in the library in ANY format. Five files whose only copy anywhere was
+      # inside an excluded archive.
+      #
+      # So converted/ is backed up and its siblings are not: they hold the
+      # ORIGINALS as they were dropped in, which the import has already
+      # consumed. 96 MB as measured, against the 3.3 GB the old line saved when
+      # it was written. Listing the siblings rather than the parent also fails
+      # in the safe direction — a staging directory calibre-web invents later
+      # gets backed up until someone decides otherwise, instead of vanishing
+      # silently.
+      - /mnt/data/services/calibre-web/processed_books/failed
+      - /mnt/data/services/calibre-web/processed_books/imported
+      - /mnt/data/services/calibre-web/processed_books/fixed_originals
+      - /mnt/data/services/calibre-web/processed_books/duplicate_resolutions
 
       # Rollback copies left behind by a Kuma repair. A GLOB, not the two
       # literal paths this used to carry: the runbook now timestamps each
