@@ -67,12 +67,21 @@ mode of the same job could not have produced. *Outlives its period*: if the
 evidence expires before the job runs again, there is never a moment when you can
 compare this run to the last one.
 
-The census, taken 2026-08-30 over the 16 periodic jobs on the two hosts:
+The census, taken 2026-08-30 over the 16 periodic jobs then on the two hosts:
 
 | Evidence | Jobs | Retention | Against a period of |
 |----------|------|-----------|---------------------|
 | A Kuma push monitor whose message carries readings | 14 | 180 days | 5 minutes to 8 days |
 | The journal alone | 2 — `homelab-stack-heal`, `offsite-wg-reresolve` | 48 days (raised from 16 for this) | see below |
+| Nothing at all | 1 — `homelab-image-retention` | — | monthly |
+
+The third row was added 2026-09-19 and it is the reason to distrust this table's
+own method. The census was built by walking the evidence channels, so a job with
+no channel could not appear in it — `homelab-image-retention` was deployed
+2026-09-13, is scheduled for the first Sunday of each month at 04:30, and was
+absent from every count until someone enumerated the timers instead of the
+monitors. Take the live figure from `systemctl list-timers 'homelab-*'` and
+`systemctl list-timers 'offsite-*'`, not from the number in this sentence.
 
 Fourteen of sixteen were already correct, and not by accident: the messages
 carry readings — `dumps ok (19 checks), snapshot c8f63e2a`, `hardening index 73

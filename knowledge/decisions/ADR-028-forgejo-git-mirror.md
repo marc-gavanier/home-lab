@@ -162,5 +162,5 @@ hypothetical.
 ## References
 
 - Issue #15 (services backlog), ADR-017 (drop all capabilities), ADR-011 (secrets on
-  LUKS), ADR-013 (Uptime Kuma monitors by hand), issue #32 (read-only rootfs)
+  LUKS), `docs/05-services/uptime-kuma.md` (monitors created by hand), issue #32 (read-only rootfs)
 - `docs/05-services/forgejo.md` — first-run procedure and mirror setup

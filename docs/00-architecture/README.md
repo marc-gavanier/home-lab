@@ -65,3 +65,4 @@ See the `project-manager` agent for the detailed plan.
 | 3 - Essential services | Nextcloud, Vaultwarden, Backup        | Done   |
 | 4 - Secondary services | Jellyfin, Navidrome, Immich           | Done   |
 | 5 - Observability      | Netdata, Uptime Kuma, alerting        | Done   |
+| 6 - Media automation   | Prowlarr, Sonarr, Radarr              | Done   |

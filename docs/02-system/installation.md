@@ -276,7 +276,7 @@ Configured via dnsmasq custom config (`ansible/roles/deploy/templates/pihole-05-
 
 ### WireGuard VPN — Initial Setup
 
-The wg-easy web UI (port 51821) is bound to localhost only. Access it via SSH tunnel:
+The wg-easy web UI (port 51821) has no LAN-facing host binding, but Traefik serves it at `https://vpn.example.com` from the LAN or over the VPN. An SSH tunnel reaches it too, and is the path that still works when Traefik is down:
 
 ```bash
 ssh -L 51821:127.0.0.1:51821 homelab
@@ -312,7 +312,7 @@ ssh homelab "sudo restic -r /mnt/data/backups/restic-repo snapshots"
 # Enter restic password when prompted
 ```
 
-> **Note**: The primary backup repository is on the same HDD as the data, so it does not by itself protect against disk failure. A second Pi at another site has held an append-only offsite copy since 2026-07-25 (ADR-021); `restic snapshots` on that host is the authority on what it holds.
+> **Note**: The primary backup repository is on the same HDD as the data, so it does not by itself protect against disk failure. A second Pi at another site has held an append-only offsite copy since 2026-07-25 (ADR-010); `restic snapshots` on that host is the authority on what it holds.
 
 ### Services Access Summary
 
@@ -328,7 +328,10 @@ All HTTPS services are **VPN/LAN-only** (Traefik `vpn-only` middleware applied g
 | Pi-hole      | `dns.example.com/admin`        | VPN/LAN              |
 | Uptime Kuma  | `services.example.com`         | VPN/LAN              |
 | Netdata      | `system.example.com`           | VPN/LAN              |
-| WireGuard UI | `localhost:51821` (SSH tunnel) | SSH tunnel only      |
+| WireGuard UI | `vpn.example.com`              | VPN/LAN (SSH too)    |
+
+The canonical list of every served name is `docs/04-network/README.md`; this
+table is the install-time subset, not the full set.
 
 ## Decisions Made
 
@@ -348,5 +351,5 @@ All HTTPS services are **VPN/LAN-only** (Traefik `vpn-only` middleware applied g
 - **TLS**: Let's Encrypt via DNS-01 challenge (Traefik ACME + scoped Cloudflare token). Per-host certs, no inbound needed. Certificates auto-renewed (ADR-014).
 - **Split DNS**: Pi-hole resolves homelab subdomains to LAN IP. Required `FTLCONF_misc_etc_dnsmasq_d: "true"` for Pi-hole v6 to read custom dnsmasq configs.
 - **VPN-only by default**: `vpn-only` middleware applied globally on Traefik's `websecure` entrypoint. ipAllowList includes LAN (192.168.1.0/24), the `proxy` Docker network (172.18.0.0/16 — this is how full-tunnel VPN clients arrive, hairpin-NATed), and WireGuard (10.8.0.0/24 — the offsite Pi's unmasqueraded push path). All services protected automatically; new services inherit the protection. Trade-off: VPN must be active on mobile for sync (Bitwarden, Nextcloud, Immich), but attack surface is minimized. Internet sees only `403 Forbidden`.
-- **wg-easy Web UI**: Bound to localhost:51821 only, accessed via SSH tunnel. Avoids chicken-and-egg problem (can't access VPN admin behind VPN-only middleware without VPN).
-- **Backup**: Restic with AES-256 encryption. Daily at 3 AM via systemd timer. DB dumps before snapshot. Retention: 7d/4w/6m. Copied nightly to an append-only offsite repository on a second Pi (ADR-021).
+- **wg-easy Web UI**: No LAN-facing host binding (127.0.0.1:51821), and also routed by Traefik at `vpn.example.com` behind `vpn-only`. The SSH tunnel is what breaks the chicken-and-egg problem (reaching VPN admin when the VPN is what is broken); the Traefik route is the convenient path when it is not.
+- **Backup**: Restic with AES-256 encryption. Daily at 3 AM via systemd timer. DB dumps before snapshot. Retention: 7d/4w/6m. Copied nightly to an append-only offsite repository on a second Pi (ADR-010).

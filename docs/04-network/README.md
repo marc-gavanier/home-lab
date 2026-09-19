@@ -38,6 +38,9 @@ All services are **VPN-only**. The `vpn-only` middleware is applied globally on 
 | `logs.example.com`     | Dozzle       |
 | `proxy.example.com`    | Traefik      |
 | `vpn.example.com`      | WireGuard    |
+| `films.example.com`    | Radarr       |
+| `series.example.com`   | Sonarr       |
+| `indexers.example.com` | Prowlarr     |
 
 ### DNS
 

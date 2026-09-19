@@ -1312,13 +1312,13 @@ command:
         # status file that exists without a check section, which is a different
         # state with a different cause: `backup` writes this file NIGHTLY while
         # the homelab `check` is written by homelab-local-maintenance, WEEKLY on
-        # Sunday. Between a deploy that introduces the status file and the first
-        # Sunday after it, the file is real, its shape is right, and the section
+        # Tuesday. Between a deploy that introduces the status file and the first
+        # Tuesday after it, the file is real, its shape is right, and the section
         # is legitimately absent.
         #
         # This is not hypothetical: status-file shipped 2026-09-11 23:09, the
         # weekly producer had last run 2026-09-06, and the assertion was red
-        # from the next morning's backup until the following Sunday — announcing
+        # from the next morning's backup until the following Tuesday — announcing
         # "the status file shape moved", which was false in every word.
         #
         # The window is measured from the config that declares `status-file`,

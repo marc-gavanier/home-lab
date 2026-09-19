@@ -758,7 +758,7 @@ services:
       - net.ipv4.ip_forward=1
     ports:
       - "51820:51820/udp"
-      - "127.0.0.1:51821:51821"  # Web UI, localhost only (access via SSH tunnel)
+      - "127.0.0.1:51821:51821"  # Web UI; host port is localhost-only, but Traefik also serves it at vpn.${DOMAIN} behind vpn-only
     # v15 keeps its configuration in SQLite, not in the environment: WG_HOST,
     # PASSWORD_HASH, WG_DEFAULT_DNS and WG_ALLOWED_IPS no longer exist. Ansible
     # keeps ownership by re-asserting them through the admin API on every deploy

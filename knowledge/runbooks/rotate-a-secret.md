@@ -22,6 +22,9 @@ stronger while the operation stayed impossible (#159).
 | `forgejo_secret_key`           | forgejo                      | **yes**, but see the warning below                                                                  |
 | `miniflux_database_url`        | miniflux                     | **yes** — but on its own it breaks the app; see the database procedure                              |
 | `pihole_password`              | pihole                       | **yes** — a single task sets it and flushes the handler, so the container sees it (`d3ba112`, #333) |
+| `nextcloud_redis_password`     | nextcloud-redis + nextcloud  | **yes** — one vault value, three writes (password file, `redis.conf`, config), all notify           |
+| `nextcloud_redis.conf`         | nextcloud-redis              | **yes** — rendered from `nextcloud_redis_password`; editing it on the host is overwritten           |
+| `searxng_secret_key`           | searxng                      | **yes** — templated into `searxng_settings`, which the container reads at start                     |
 | `restic_password`              | resticprofile, `restic init` | **no, and never rotate it alone** — see the restic procedure below                                  |
 | `offsite_restic_password`      | resticprofile (offsite)      | **no, and never rotate it alone** — see the restic procedure below                                  |
 | `luks_passphrase`              | cryptsetup / `luks_device`   | **no, and the deploy reports `ok`** — see the LUKS procedure below                                  |
