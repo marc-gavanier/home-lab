@@ -140,10 +140,27 @@ parts that need a thought experiment.
 
 # The register
 
-Runs of 2026-08-15 through 2026-09-19 (third run, key `aggregation`).
-**107 classes: 2 OPEN, 10 GATED (C07 is RED; C03-T's NAMED defect is REPAIRED and
-its SCHEDULED-run residual RETIRED — read its row before quoting it as red),
-88 ENUMERATED, 7 closed by decision, plus the DECLINED list.**
+Runs of 2026-08-15 through 2026-09-19 (FOURTH run, key `staleness`).
+**108 classes: 1 OPEN (C44), 10 GATED (C07 is RED; C03-T's NAMED defect is
+REPAIRED and its SCHEDULED-run residual RETIRED — read its row before quoting it
+as red), 90 ENUMERATED, 7 closed by decision, plus the DECLINED list.**
+
+**The fourth run of 2026-09-19 used `staleness` — since when has this value not
+changed, and who would have noticed? — and the counter went 2 -> 1 while the
+class total went 107 -> 108.** C107 CLOSED by two complementary instrument
+bounds that converge on lynis; C108 was minted and arrives ENUMERATED with a gate
+that went red on a live defect before it was written down. **The termination
+clock RESETS** — the pair of consecutive zero-mint runs has still never been
+achieved. Seven of eight domains returned an explicit "no mint".
+
+**The key's yield was in the INSTRUMENTS and in this register, not in the
+estate**, which is the same lesson `commensurability` taught. The estate measured
+clean nearly everywhere — 113/113 links, 65/65 runbook paths, 136 Ansible keys in
+both directions with no dead knob, 34/34 rendered artefacts, 19 databases with no
+un-dumped one, 21/21 certificates in a four-way equality, an external perimeter
+unchanged in 35 days. Against that, **the firewall's deny-by-default had no
+assertion on either host**, no channel could report an Immich CVE, and this file
+contradicted itself in four places.
 
 **C107 was MINTED on the operator's arbitration, 2026-09-19.** It arrives OPEN
 because its space is not bounded, and the run records the bound worth trying: key
@@ -376,7 +393,40 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
-## OPEN — 1 (after the third run of 2026-09-19, key `aggregation`)
+## OPEN — 1 (after the FOURTH run of 2026-09-19, key `staleness`)
+
+**C44 only. C107 CLOSED; C108 MINTED and arrives ENUMERATED with a gate.**
+
+| ID | Property | What bounds the space, and what stopped the sweep |
+|---|---|---|
+| C44 | A verification whose cadence cannot observe the event it guards | **TIMER 13/13, DEPLOY-TAG 26/26, HOST-HARDENING 20/20 closed — do not re-derive.** The general external-writer space is **no longer non-derivable**: `system` derived the comparator route's cardinal on 2026-09-19 — **19 subsystems have a readout that resolves all their inputs, of 27 for which the estate declares an intent, and 4 are covered (21 %)**. So the question the register wanted arbitrated — "is every subsystem with a resolve-everything readout covered" — answers **NO**, and the class must NOT be closed by arbitration. Two reserves recorded with it: the route compares `/etc` to effective state, so a writer that rewrites the `/etc` file the estate owns moves both sides together and stays green (the `pam-auth-update` shape); and the route's own cadence is daily, which is C44 applied to its own output |
+
+### WHAT CHANGED FOR C44, AND WHY IT IS STILL OPEN
+
+The register said this space was "a per-predicate judgement over 337 assertions"
+and therefore not mechanically derivable. That was true of the *enumeration*
+route and false of the *comparator* route. Bounding by "subsystems whose
+effective state is readable by a command resolving all its inputs" yields a
+stateable cardinal, and it is **19**.
+
+**Six of the fifteen not yet covered were read on 2026-09-19 with commands
+already installed, all conformant**: apt (`apt-config dump`, 5/5), fail2ban
+(3 jails), docker (`docker info`, 3 of 5 keys exposed), apparmor (2/2),
+wireguard, mounts (5/5). **Four have no resolver at all** — `pam`,
+`needrestart`, `smartd`, cloud-init. `journald`/`tmpfiles`/`udev` are a degraded
+tier: the resolver reads the tree, not the daemon. systemd is excluded on
+normalisation, not oversight.
+
+**Correction to this file's own text, and it matters.** The row that said "Live:
+406 assertions, 0 failures" immediately after listing the four comparators reads
+as if the 406 were theirs. **406 is goss's plan count for the WHOLE spec** — the
+main session made goss count itself (`Count: 406, Failed: 0`, over 227 resource
+entries) and the figure is derived, not invented. The four comparators are **4
+checks** making ~82 internal comparisons. The sentence made the coverage look
+five times wider than it is; `system`'s "406 is false, it is 82" is the right
+correction aimed at the wrong target.
+
+## SUPERSEDED — OPEN table of the third run of 2026-09-19, key `aggregation`
 
 **C44 only, and it lost another sub-space without closing.** `security` swept the
 host-hardening half **20/20** — security-role in-place edits and mode assertions,
@@ -437,6 +487,207 @@ separate correction — **the marker is not a provenance instrument.**
 C92 and C03-R were closed as review rules once their spaces proved non-derivable.
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
+
+## The run of 2026-09-19 (FOURTH) — the key was `staleness`, and it paid in the instruments and in the register, not in the estate
+
+The twenty-third key, **chosen by the operator from the proposed list rather than
+invented**. The six-word question: **since when has this value not changed, and
+who would have noticed?** The register had predicted a low mint yield because
+`staleness` overlaps C39, C44 and C76. The prediction held and the reason is the
+interesting part: the estate came back measured clean almost everywhere, while
+**the audit's own instruments and this register were where the key bit.**
+
+Four admissible shapes went into all eight briefs: (a) a reading served from a
+cache whose refresh has stopped, with no way to tell fresh from frozen; (b) a
+constant calibrated against a state the estate has left; (c) a derived artefact
+older than its source that nothing rebuilds; (d) **an instrument whose own
+freshness is asserted nowhere** — the founding defect's shape, and the one four
+briefs were told was the likeliest mint. **Nine overlaps were declared
+instance-only** (C01, C39, C44, C49, C76, C88, C100, C105, C107) and the
+discipline held: **seven of eight domains returned an explicit "no mint".**
+
+### The counter: 2 OPEN in, 1 OPEN out, 1 minted, class total 107 -> 108
+
+**The termination clock RESETS.** `commensurability` minted 0, `aggregation` 1,
+`staleness` 1. The pair of consecutive zero-mint runs has still never been
+achieved.
+
+### C107 — CLOSED, by two bounds that are complementary rather than redundant
+
+The register said to bound it by INSTRUMENT, not by assertion. Two domains did,
+over **different instrument populations**, and that is the closure:
+
+| Bound | Owner | Cardinal | Instances |
+|---|---|---|---|
+| Executables invoked by deployed checks | `security` | 63 executables -> **N=32**, 32/32 | 2 (lynis, ufw) |
+| Instruments of the supervision plane, API included | `observability` | **12/12** | 2 real (lynis, netdata alarm surface) + 1 structural |
+
+**They are not the same set and neither contains the other.** `security` parsed
+the goss specs and the nine deployed check scripts against the PATH executable
+set; that sweep is blind by construction to netdata's collectors, netdata's
+health engine and Kuma's store, because none of them is an executable.
+`observability`'s twelve include exactly those three and exclude the twenty host
+tools. **C107's space is the UNION, both halves are stated and both are swept.**
+
+**They converge on lynis, found independently from two directions** — this
+register's strongest evidence standard. 41 `suggestion[]=` emitted weekly against
+one scalar gated, archived into `last-green-report.dat` every week and never
+read. The one finer fact the reader does keep is itself a frozen false positive
+(`PKGS-7388`, lynis 3.0.9's deb822 gap) while unattended-upgrades ran the same
+morning.
+
+**The second instance is the run's operational headline and nobody had named it.**
+`ufw status` **does not print the default policy**; only `status verbose` does.
+Both `ufw-enforcing` checks read `status`. If the default incoming policy flipped
+to ACCEPT, `Status: active` stays true and all declared ALLOW rules still match —
+**both hosts stay green with the host open on INPUT.** Deny-by-default is the
+project's rule 1 and was the only non-negotiable with no continuous assertion.
+Verified by the main session with the control side by side: 0 occurrences of
+`Default` in `status`, the policy line present in `status verbose`, 0 deployed
+checks reading it, and `DEFAULT_INPUT_POLICY="DROP"` / `Chain INPUT (policy DROP)`
+live — an blind spot, not an incident.
+
+### C108 — MINTED, and it arrives ENUMERATED with a gate
+
+**Property**: *a container running an artefact that its own declared tag no
+longer designates* — the pin stays satisfied AS A STRING while the registry has
+rewritten what the string points at, so two consumers of the same declaration run
+different artefacts and nothing compares them.
+
+**Space**: the running containers. **Cardinal 32, swept 32/32**: 31 resolve a
+mutable tag, 1 (`it-tools`) is digest-pinned and structurally immune.
+**2 instances** — `nextcloud-cron` and `nextcloud-notify-push` on
+`sha256:4694b90c…` with `RepoTags=[]`, while `nextcloud`, recreated 2026-09-18,
+runs the `93be8a75…` that `nextcloud:34.0.4-apache` designates today. `docker ps`
+shows the same tag for all three. **Zero assertions compared image identity to
+its pin** (`grep -cE 'RepoTags|\.Image\b|sha256:' /etc/goss/posture.yaml` -> 0).
+
+**Why it is not absorbed.** C97 is the closest — "a name whose referent depends
+on where it is resolved" — but its space is documents. C43 — "an address a
+deployed configuration hard-codes and a third party assigns" — is about reaching
+an address. C99 is about WRITES, and there is no write here. **The essence is
+TIME**: two consumers resolved the same mutable name at different moments.
+
+**Arbitration was not under pressure** — C44 stays OPEN regardless, so declining
+this mint could not have manufactured the `0 OPEN` the criterion needs. The
+operator accepted it on 2026-09-19.
+
+**It arrives with a gate, and the gate went red on a real defect before it was
+written down**: `containers-run-the-image-their-tag-designates` compares each
+running container's `.Image` against what its `.Config.Image` tag resolves to
+locally, skips digest pins, and carries an anti-vacuity floor. Run against the
+live estate it reported `n=31` and named exactly the two known divergences. It
+is ENUMERATED here and promotes to GATED once a scheduled posture run has
+executed it.
+
+### Live defects, ranked by what was happening without anyone knowing
+
+1. **The ufw default policy, unasserted on both hosts.** See C107 above.
+2. **No Immich advisory could reach the operator.** `renovate.json` carried
+   `"enabled": false` on the three immich packages — a correct manual-pin policy
+   that also suppressed security advisories. Pin 2 releases and 75 days behind
+   (v3.0.1 of 2026-07-02 against v3.2.2 of 2026-09-15) with no channel able to
+   say so.
+3. **lynis, 41 suggestions against 1 gated scalar.** C107's exemplar.
+4. **The two Nextcloud sidecars.** C108's instances — and they are also 2 of the
+   4 containers with no healthcheck, which no agent connected.
+5. **"Kuma keeps 180 days of messages", written in THREE live artefacts.** The
+   main session measured the mechanism rather than the setting, and the result
+   corrects both agents: **`keepDataPeriodDays` IS 180, so the sentence is true
+   as configuration and false as a promise.** Heartbeat rows are pruned against a
+   **per-monitor row budget**: on the 5-minute health monitor, 290 beats in the
+   last day, 124 in the next, then **2 in days 2-7 and both `important=1`**, 30 in
+   days 7-30 and all 30 important. An ordinary beat survives ~36 h. The three
+   assertions are safe **because their monitor is weekly** — all 13 of its beats
+   since 2026-07-19 are present against a 40-day window — **not because of the
+   180-day setting**. A premise true by accident, with the wrong reason written
+   down. Fail-safe direction.
+6. **The audit's own agent file mis-sized its detection window 2.5x.**
+   `.claude/agents/observability.md:20` said "(10-min gate)"; the timer is
+   `OnCalendar=*:0/5` and every gate is `240` s. Wrong for 60 days — and commit
+   `8763306`, made the same morning, rewrote **the other half of that same line**
+   and carried the number across. **The edit is what makes it look checked.**
+7. Eight statements still said "weekly" for the offsite health cadence that
+   became DAILY on 2026-09-12, including two deployed templates and the
+   justification of the 8-day lookback cap — which is therefore no longer derived
+   from anything.
+8. `pihole_bypass_clients` is keyed on an IP while the same block orders matching
+   BY MAC "because a DHCP lease moves and the rule silently stops applying".
+   Latent: `ip neigh` still returns the declared MAC.
+9. `rate-limit.burst: 250` carries its own revisit condition — *"revisit if 429s
+   reappear with the house occupied"*. **They reappeared**: 14 in 17.6 days,
+   0.0023 % of traffic, and `grep -rn 429` over the estate returns only the three
+   comment lines that state the rule. Nothing counts a 429.
+
+### The register lied about itself in four places, all verified by the main session
+
+- **A15 read "RESOLVED" at `settled.md:1489`** while line 124 of the same file
+  recorded why that resolution had died. Both are now superseded — see below.
+- **C10 carried two opposite verdicts** — GATED row "REOPENED, see the OPEN
+  table" against an ENUMERATED row "CLOSED 2026-09-12" — and the pointer named a
+  table C10 had left seven days earlier. Corrected.
+- **The frozen-snapshot cleanup carried two prices**: 71.7 GiB dated 2026-09-18,
+  and "1.218 GiB of 343, i.e. 0.35 %" **undated**. A 58x gap, in the only part of
+  `settled.md` with no date. The cleanup stays DECLINED for the fifth time; the
+  number is removed rather than restated, because the decision never rested on it.
+- **C53's row said 34 handlers / 1 flush point**; two runs have now counted
+  **41 / 3** independently. Corrected.
+
+### A15 — RESOLVED, reversing the previous run's withdrawal, and the reversal is the method working
+
+The third run WITHDREW A15 because the control its evidence relied on had never
+run: the two `ufw reload`s it cited never happened. **The fourth run ran that
+control**, in a throwaway `unshare --net` namespace with the host's own nft
+binary: three identical `iptables-restore -n` over a chain re-declared
+`:CHAIN - [0:0]` leave **2 rules, not 6**; a manual `-A` makes 3 (positive
+control). **A re-declared user chain is flushed, not appended.** Corroborated by
+the live chain's counters matching 7.5 days of uptime, so no reload has occurred
+since 2026-09-11 23:37 — confirming that the live 8 was never the control.
+**C74's last open mechanism closes.** Residual carried: the chain has not been
+compared to its source file for 7.5 days and nothing compares it.
+
+### Rejected from the agents, and from the main session — 5
+
+- **`system`'s "406 assertions is false, the number is 82".** Requalified, not
+  accepted: 406 is right and derived; the register's SENTENCE is what misleads.
+- **The previous run's correction "C22 moves 28 -> 32".** Wrong. C22's space is
+  healthchecks and **4 containers have none** (dnsproxy, searxng, nextcloud-cron,
+  nextcloud-notify-push), verified by the main session. **C22 = 28**, and the old
+  28 becomes right again for the right reason.
+- **`observability`'s framing of the Kuma retention**, corrected by measurement —
+  see defect 5. Its MECHANISM (row budget, ~33.8 h) was right and is confirmed;
+  its implication that the written premise is simply false is not.
+- **The main session's first netdata probe.** `curl 127.0.0.1:19999` from the
+  host returns `000` — netdata is in a container. The empty result was discarded
+  rather than used; re-run with a control (000 host / 200 container).
+- **The main session's own brief**, on one point: it told `security` lynis ran on
+  a 2-day cadence. The timer is weekly and the Kuma monitor's interval is
+  691 200 s = 8 days, so the beat is legitimately fresh. One brief of eight
+  carried it.
+
+### Instrument traps paid — 2, both new
+
+1. **`ufw status verbose` does not print the same rule table as `ufw status`**:
+   `ALLOW` becomes `ALLOW IN`. Switching the per-rule check to verbose without
+   noticing would have silently broken every SSH-source assertion, which match
+   `ALLOW +${src}`. Caught before deploy; the regex is now tolerant of both
+   forms. **A format change that only affects the columns you were not reading is
+   the cheapest way to break a working check.**
+2. **A comparison that reads a file its own script is about to overwrite.** The
+   lynis "new since last run" clause lives above the `cp` that refreshes
+   `last-green-report.dat`; placing the new green-path comparison after that copy
+   would have compared the report to itself and found nothing new, forever.
+
+### C07 — still RED, and widening it is now provably well defined
+
+Measured independently by `observability` and by the main session after a
+reachability control. `apps.plugin` is at `update_every=5` over **1942** charts,
+so the 2026-09-18 fix landed. **`cgroups.plugin` is still at the stock 1 s over
+995 charts** while the gate certifies go.d|docker. The decisive new fact:
+**`(context -> update_every)` is a FUNCTION — 375 contexts, ZERO carrying two
+intervals**, so a derived floor keyed on that relation is well defined and costs
+one API call. Arbitration, not a fix. This is a broken gate and does not count in
+the run's counter.
 
 ## The run of 2026-09-19 (third) — the key was `aggregation`, and the estate answered while the audit's own baseline lied again
 
@@ -4672,7 +4923,7 @@ them. Five are in the OPEN table above.
 | C47 | A PID 1 that cannot act on the signal it is sent | 29/29, **2 instances** | ENUMERATED |
 | C48 | A real dependency that nothing declares | 29 services + 18 configs, **1 instance** | ENUMERATED |
 | C49 | A hardening applied to an artefact its producer regenerates | 28/28, **1 new instance** (3 prior: #189, #299, the UFW sysctl) | ENUMERATED |
-| C53 | A handler whose effect is expected earlier in the play than it occurs | 34 handlers, 1 flush point, **2 instances, 1 fixed** | ENUMERATED, **not gated** |
+| C53 | A handler whose effect is expected earlier in the play than it occurs | **41 handlers, 3 flush points** (re-counted 2026-09-19 by two runs independently; the 34/1 this row carried was frozen at 2026-08-30), **2 instances, 1 fixed** | ENUMERATED, **not gated** |
 
 ### C44's cardinal was wrong, and the error is the one this file warns about
 
@@ -4789,7 +5040,7 @@ check, and it is stated as one.
 
 | ID | Property | Gate |
 |-----|------------------------------------------------------|--------------------------------------------------------|
-| C10 | A credential store readable beyond its service | **Left this table on 2026-09-11 — REOPENED, see the OPEN table.** The gate is genuinely derived and it still holds over the space it derives: the runtime set from `docker inspect`, plus a floor derived from `compose.yaml` since 09-05, plus two named assertions that are a list because the derivation cannot see what they cover. What reopened the class is that the derivation keys on **container mounts**, so a credential file no container mounts is outside it by construction — and two are |
+| C10 | A credential store readable beyond its service | **Left this table on 2026-09-11 — REOPENED, then CLOSED as ENUMERATED on 2026-09-12; see its ENUMERATED row, NOT the OPEN table.** This pointer said "see the OPEN table" for seven days after C10 had left it, which is a C01 instance inside the register itself — corrected 2026-09-19 (fourth run). The gate is genuinely derived and it still holds over the space it derives: the runtime set from `docker inspect`, plus a floor derived from `compose.yaml` since 09-05, plus two named assertions that are a list because the derivation cannot see what they cover. What reopened the class is that the derivation keys on **container mounts**, so a credential file no container mounts is outside it by construction — and two are |
 | C11 | A container whose running `Config.User` differs from what compose declares | posture assertion, 9 services (#145). **NOT broken — the "BROKEN" verdict of 2026-09-05 midday measured a property C11 does not state, and was corrected the same evening.** The figures stand (9 assertions, 11 containers with a non-empty `Config.User`), but `socket-proxy` and `collabora` DECLARE nothing, so there is nothing for the assertion to disagree with: `Config.User` carries the IMAGE's user when compose is silent, and asserting the complement would write upstream's values into this repo. The deployed template argues exactly this at `goss-posture.yaml.j2:322-340`. Under its own property the gate is derived 9/9. A service that loses its `user:` is caught by review of `compose.yaml`, not by a probe of the result |
 | C12 | A rotated secret no consumer restarts to read | **ROW CORRECTED 2026-09-13 (late evening): "no live assertion at all" is FALSE since #333, and the class is STRONGER than this row recorded.** `posture.yaml:225 secret-mounts-carry-the-current-value` asserts the property — it hashes the host file against `/proc/<pid>/root/run/secrets/<name>` for a pair list GENERATED from `compose.services[*].secrets`, 14/14, with a live starvation guard. Repo side re-swept: 14 secret write tasks, 13 notify a handler, 1 documented exception. **Candidate for re-promotion to GATED.** Two caveats: its runtime floor `read_pairs -eq 14` is TAUTOLOGICAL (both sides from one render, so it cannot see the source shrink), and 3 of 17 mounts are bind-mounted at arbitrary paths outside the derivation (`searxng_settings`, `dozzle_users.yml`, `nextcloud_redis.conf` — all 3 measured MATCH) |
 | C13 | A declared environment value shadowed by a persisted config file | **Left this table on 2026-08-30 — see the downgrade above.** The assertion is hardcoded to vaultwarden (#124, #159); a list of one is not a gate |

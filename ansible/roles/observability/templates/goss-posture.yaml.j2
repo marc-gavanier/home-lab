@@ -223,6 +223,29 @@ command:
   # The floor is a measurement (12 on 2026-08-24), not a target. It fails if a
   # store stops being derivable — a container removed, a mount moved, a jq
   # expression that quietly stops matching.
+  containers-run-the-image-their-tag-designates:
+    exec: |
+      rows=$(docker inspect $(docker ps -q) \
+            | jq -r '.[] | (.Name | ltrimstr("/")) + "|" + .Config.Image + "|" + .Image')
+      [ -n "$rows" ] || { echo "no running container inspected — the derivation returned nothing"; exit 1; }
+      tags=$(printf '%s\n' "$rows" | awk -F'|' '{ print $2 }' | sort -u)
+      map=$(docker image inspect $tags 2>/dev/null \
+            | jq -r '.[] | .Id as $i | (.RepoTags[]? | . + " " + $i)')
+      n=0
+      bad=""
+      for row in $rows; do
+        name=${row%%|*}; rest=${row#*|}; tag=${rest%%|*}; running=${rest#*|}
+        case "$tag" in *@sha256:*) continue ;; esac
+        declared=$(printf '%s\n' "$map" | awk -v t="$tag" '$1 == t { print $2; exit }')
+        [ -n "$declared" ] || continue
+        n=$((n+1))
+        [ "$running" = "$declared" ] || bad="$bad ${name}(${tag})"
+      done
+      [ "$n" -ge 1 ] || { echo "no running container resolved its own tag — the derivation returned nothing"; exit 1; }
+      [ -z "$bad" ] || { echo "running an image its declared tag no longer designates:$bad"; exit 1; }
+    timeout: 90000
+    exit-status: 0
+
   # --- The floor is DERIVED from compose.yaml, not carried in a variable ------
   # It was `credential_store_min_count`, a number kept by hand in group_vars,
   # and on 2026-09-05 it read 11 against a live population of 12: one credential
@@ -1183,7 +1206,15 @@ command:
   # Asserted against Kuma's heartbeat history rather than the journal, and that
   # choice IS the fix for this class: the journal holds 16.8 days on this host
   # against a period of 30, so the evidence expired before the event repeated.
-  # Kuma keeps 180 days of messages.
+  #
+  # What keeps that evidence is the monitor's CADENCE, not Kuma's retention
+  # setting, and the difference was measured on 2026-09-19. keepDataPeriodDays is
+  # 180, but heartbeat rows are pruned against a per-monitor row budget: on the
+  # 5-minute health monitor an ordinary beat survives ~36 h and only `important`
+  # beats outlive it, while this weekly monitor still holds all 13 of its beats
+  # back to 2026-07-19 — 62 days against the 40-day window below. The assertion
+  # is safe because the job runs weekly. It would NOT survive this monitor
+  # becoming frequent, and nothing here would say so.
   #
   # Matched on the message rather than on a monitor id or name: only this job
   # ever says "deep check", so the phrase identifies the event without this spec
@@ -1454,8 +1485,10 @@ command:
 
   ufw-enforces-every-rule-the-inventory-declares:
     exec: |
-      status=$(ufw status 2>/dev/null)
+      status=$(ufw status verbose 2>/dev/null)
       printf '%s\n' "$status" | grep -qE '^Status: active$' || { echo "ufw is not active"; exit 1; }
+      printf '%s\n' "$status" | grep -qE '^Default: deny \(incoming\)' ||
+        { echo "ufw default incoming policy is not deny: $(printf '%s\n' "$status" | grep -E '^Default:')"; exit 1; }
       n=0
       bad=""
       for pp in {{ _fw_ports | join(' ') }}; do
@@ -1464,7 +1497,7 @@ command:
       done
       for src in {{ ssh_allowed_sources | join(' ') }}; do
         n=$((n+1))
-        printf '%s\n' "$status" | grep -qE "^{{ ssh_port_hardened }}/tcp +ALLOW +${src}" ||
+        printf '%s\n' "$status" | grep -qE "^{{ ssh_port_hardened }}/tcp +ALLOW( IN)? +${src}" ||
           bad="$bad ssh-from-${src}"
       done
       [ "$n" -ge 1 ] || { echo "the inventory declares no rule — the derivation returned nothing"; exit 1; }

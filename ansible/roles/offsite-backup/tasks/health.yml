@@ -1,5 +1,5 @@
 ---
-# Weekly disk-health report (goss + a thin runner → Uptime Kuma push) + monthly
+# Daily disk-health report (goss + a thin runner → Uptime Kuma push) + monthly
 # self-test. The repo password never lives here, so restic checks run from the
 # homelab; this host only reports what it can see without the password.
 #

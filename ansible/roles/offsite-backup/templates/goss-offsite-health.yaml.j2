@@ -1,6 +1,6 @@
 # {{ ansible_managed }}
 # =============================================================================
-# Offsite Pi — weekly health, declared (ADR-030, ADR-032)
+# Offsite Pi — daily health, declared (ADR-030, ADR-032)
 # =============================================================================
 # ADR-030 wrote this host off — "the offsite host has no Docker at all, so
 # nothing there moves to Netdata without a native install on a machine nobody
@@ -58,7 +58,7 @@ service:
     # The socket, not the service (#332). sshd is socket-activated: `ssh.service`
     # is started by the first inbound connection and does not exist before it, so
     # `ssh.service: running` was false on a correct machine and could only pass
-    # once somebody had logged in — which is what this weekly, unattended check
+    # once somebody had logged in — which is what this daily, unattended check
     # can never rely on. It went red on 2026-09-06 at 08:06, four hours after an
     # unattended-upgrades reboot, on a host that was entirely healthy.
     running: true
@@ -121,9 +121,36 @@ command:
   # is to keep enforcing after its unit exited. On this host UFW is the ONLY rule
   # that filters — there is no Docker publishing ports around it.
   offsite-ufw-enforcing:
-    exec: ufw status
+    exec: ufw status verbose
     exit-status: 0
-    stdout: ["/^Status: active$/"]
+    stdout:
+      - "/^Status: active$/"
+      - "/^Default: deny \\(incoming\\)/"
+
+{% set _off_fw_ports = [] %}
+{%- for _r in ufw_service_rules | default([]) %}
+{%- set _pp = _r.port ~ '/' ~ (_r.proto | default('tcp')) %}
+{%- if _pp not in _off_fw_ports %}{% set _ = _off_fw_ports.append(_pp) %}{% endif %}
+{%- endfor %}
+  offsite-ufw-enforces-every-rule-the-inventory-declares:
+    exec: |
+      status=$(ufw status verbose 2>/dev/null)
+      printf '%s\n' "$status" | grep -qE '^Status: active$' || { echo "ufw is not active"; exit 1; }
+      n=0
+      bad=""
+      for pp in {{ _off_fw_ports | join(' ') }}; do
+        n=$((n+1))
+        printf '%s\n' "$status" | grep -qE "^${pp} +ALLOW" || bad="$bad $pp"
+      done
+      for src in {{ ssh_allowed_sources | join(' ') }}; do
+        n=$((n+1))
+        printf '%s\n' "$status" | grep -qE "^{{ ssh_port_hardened }}/tcp +ALLOW( IN)? +${src}" ||
+          bad="$bad ssh-from-${src}"
+      done
+      [ "$n" -ge 1 ] || { echo "the inventory declares no rule — the derivation returned nothing"; exit 1; }
+      [ -z "$bad" ] || { echo "declared in the inventory, absent from ufw:$bad"; exit 1; }
+    timeout: 60000
+    exit-status: 0
 
   # The tunnel-recovery path, and settled.md calls it the only one that works
   # after a home address change: roaming cannot repair that direction, so this
@@ -303,7 +330,7 @@ command:
     exit-status: 0
 
   # Deliberately the CURRENT value and not the drive's Min/Max. This assertion
-  # runs weekly, so it samples a cool moment by construction — but the only
+  # runs daily at 08:00, so it samples a cool moment by construction — but the only
   # maximum this drive exposes is the attribute line's own `(Min/Max 16/61)`,
   # whose window is undocumented and most likely lifetime. A threshold on a
   # figure that can never come back down latches red forever on one past event.
@@ -475,8 +502,9 @@ command:
   # so the tunnel becoming active is the moment a push can start succeeding.
   # Residual, stated rather than hidden: a push issued in the seconds between
   # the tunnel coming up and traffic actually flowing would be counted as lost.
-  # This host's health job runs WEEKLY, so landing in that window would take a
-  # coincidence; the homelab's floor is tighter because it can be.
+  # This host's health job runs DAILY since 2026-09-12, so landing in that
+  # seconds-wide window is seven times likelier than when this was written and
+  # still a coincidence; the homelab's floor is tighter because it can be.
   offsite-no-report-was-lost-in-silence:
     exec: |
       ts=$(systemctl show wg-quick@wg0 -p ActiveEnterTimestamp --value 2>/dev/null)
@@ -485,9 +513,12 @@ command:
       case "$floor" in ''|*[!0-9]*) echo "unparseable tunnel timestamp: [$ts]"; exit 1 ;; esac
       # CAP THE LOOKBACK, for the reason its homelab twin now carries at length:
       # the derived floor is correct but unbounded — it is the tunnel's uptime,
-      # and this tunnel is meant to stay up for months. 8 days, because
-      # `offsite-health.timer` fires WEEKLY, so 8 covers the widest gap between
-      # two runs with a day of margin.
+      # and this tunnel is meant to stay up for months. 8 days was DERIVED from a
+      # weekly timer — the widest gap between two runs plus a day of margin. The
+      # timer became DAILY on 2026-09-12 and this constant did not move, so it is
+      # no longer derived from anything: it is a conservative cap that looks back
+      # eight times further than a run can need. Kept rather than retuned here
+      # because narrowing it is a behaviour change, not a documentation fix.
       #
       # `max(floor, now-8d)`, so a tunnel that came up an hour ago still wins
       # and the check keeps refusing to judge a period in which no push to the

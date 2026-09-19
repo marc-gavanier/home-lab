@@ -274,7 +274,7 @@ Defense in depth — each layer is secured independently. If one layer falls, th
   | Nextcloud | **TOTP + backup codes** on the admin account |
   | Vaultwarden | **enabled** |
   | Uptime Kuma | **enabled** |
-  | Immich | no 2FA in the schema at v3.0.1 — the feature does not exist to enable, which is a different statement from "not enabled" |
+  | Immich | no 2FA in the schema at v3.2.2 — the feature does not exist to enable, which is a different statement from "not enabled" |
   | Jellyfin | no native second factor |
 
   The two accounts that matter most are outside this stack and cannot be checked

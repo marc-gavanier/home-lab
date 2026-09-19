@@ -138,8 +138,11 @@ if [ "$WHAT" != "backup" ]; then
         copy)          readings="offsite copy completed" ;;
         # Named so a metadata run CANNOT produce the deep run's message, which is
         # the whole acceptance of #290: the distinction has to survive in the
-        # monitor's own history, and Kuma keeps 180 days of it against a 30-day
-        # period. An unset mode is reported as unknown rather than guessed —
+        # monitor's own history. It does — 13 beats back to 2026-07-19 against a
+        # 30-day period — because this monitor is weekly, not because of Kuma's
+        # 180-day setting: heartbeat rows are pruned against a per-monitor row
+        # budget, measured 2026-09-19 at ~36 h for an ordinary beat on the
+        # 5-minute monitor. An unset mode is reported as unknown rather than guessed —
         # a message that quietly claims a mode it was not told is the defect
         # again, one level down.
         maintenance)

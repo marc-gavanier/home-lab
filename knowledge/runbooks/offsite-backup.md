@@ -68,7 +68,8 @@ append-only mode. The repo password is deliberately NOT stored on it.
   **One condition is not in the spec, deliberately**: security updates still
   unapplied after 48 h. It needs to remember when the count first went nonzero,
   which goss cannot do, so it lives in `offsite-health.sh`. Its 48 h is measured
-  against a weekly cadence — read the script's own comment before changing it.
+  against the daily cadence it has had since 2026-09-12 — read the script's own
+  comment before changing it.
 
   CPU temperature was reported and never compared until #201, on a host sampled
   once a week.

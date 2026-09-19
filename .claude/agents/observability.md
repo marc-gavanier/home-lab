@@ -17,7 +17,7 @@ Home lab on Raspberry Pi 4 (8GB RAM). Monitoring must stay lightweight — no Pr
 |----------------------|-------------------------------------------------------------------|
 | **Netdata**          | Real-time system metrics; queryable via the `netdata-local` MCP server |
 | **Uptime Kuma (v2)** | Availability + push monitors (backups, offsite) + TLS-expiry alerts |
-| **homelab-health**   | systemd timer: disk ≥85% and unit/timer failures (10-min gate), `ansible/roles/observability/` |
+| **homelab-health**   | systemd timer every 5 min: disk ≥85% and unit/timer failures (240 s gate), `ansible/roles/observability/` |
 | **lynis**            | Weekly security audit report                                       |
 
 ## Hard-won Lessons — respect these

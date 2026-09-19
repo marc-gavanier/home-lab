@@ -119,6 +119,10 @@ warn_ids=$(awk -F'|' '/^warning\[\]=/{sub(/^warning\[\]=/,"",$1); printf "%s ", 
 warn_ids=${warn_ids% }
 warns=$(grep -c '^warning\[\]=' "$REPORT" 2>/dev/null || echo 0)
 
+sugg_ids=$(awk -F'|' '/^suggestion\[\]=/{sub(/^suggestion\[\]=/,"",$1); printf "%s ", $1}' "$REPORT")
+sugg_ids=${sugg_ids% }
+suggs=$(grep -c '^suggestion\[\]=' "$REPORT" 2>/dev/null || echo 0)
+
 mkdir -p "$STATE_DIR"
 
 # --- The baseline, and the trap that was in it ------------------------------
@@ -142,7 +146,7 @@ mkdir -p "$STATE_DIR"
 best=$(cat "$BEST_FILE" 2>/dev/null); best=${best//[^0-9]/}; best=${best:-0}
 best_ver=$(cat "$BEST_VER_FILE" 2>/dev/null); best_ver=${best_ver:-unknown}
 
-msg="hardening index ${index} (best ${best}), ${warns} warnings"
+msg="hardening index ${index} (best ${best}), ${warns} warnings, ${suggs} suggestions"
 [ -n "$warn_ids" ] && msg="$msg [${warn_ids}]"
 
 if [ "$index" -lt "$MIN_INDEX" ]; then
@@ -187,10 +191,32 @@ fi
 [ "$index" -gt "$best" ] && printf '%s\n' "$index" > "$BEST_FILE"
 printf '%s\n' "$lynis_ver" > "$BEST_VER_FILE"
 
+new_warn=""
+new_sugg=""
+if [ -r "$LAST_REPORT" ] && grep -q '^hardening_index=' "$LAST_REPORT" 2>/dev/null; then
+    prev_w=$(awk -F'|' '/^warning\[\]=/{sub(/^warning\[\]=/,"",$1); print $1}' "$LAST_REPORT")
+    for w in $warn_ids; do
+        printf '%s\n' "$prev_w" | grep -qx "$w" || new_warn="$new_warn $w"
+    done
+    new_warn=${new_warn# }
+    prev_s=$(awk -F'|' '/^suggestion\[\]=/{sub(/^suggestion\[\]=/,"",$1); print $1}' "$LAST_REPORT")
+    for s in $sugg_ids; do
+        printf '%s\n' "$prev_s" | grep -qx "$s" || new_sugg="$new_sugg $s"
+    done
+    new_sugg=${new_sugg# }
+fi
+
 # Keep the report that produced a GREEN verdict, so the next regression has
 # something to be compared against. lynis rewrites /var/log/lynis-report.dat on
 # every run, including a manual one, so without this copy the evidence for a
 # regression is gone by the time anyone reads the message about it.
 cp -f "$REPORT" "$LAST_REPORT" 2>/dev/null || true
+
+if [ -n "$new_warn" ]; then
+    notify down "$msg — new warning(s) since the last green run: ${new_warn}"
+    exit 1
+fi
+
+[ -n "$new_sugg" ] && msg="$msg — new suggestion(s): ${new_sugg}"
 
 notify up "$msg"

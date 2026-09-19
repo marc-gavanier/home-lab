@@ -5,7 +5,7 @@ Description=Start a SMART long self-test on the backup disk
 [Service]
 Type=oneshot
 # The drive scans its own surface in the background (no host I/O, no repo
-# password needed); the weekly health report reads the result from the
+# password needed); the daily health report reads the result from the
 # self-test log and alerts on failure.
 # ExecCondition, copied from homelab-smart-test.service on 2026-09-13. Its twin
 # gained this on 2026-08-26 after exactly the overlap below turned
