@@ -102,6 +102,20 @@
 # rule is retracted only after, so the v4 path is never absent, not even between
 # two tasks. This runs against hosts whose only route is a tunnel, and one of
 # them is in another building.
+- name: firewall | Refuse to proceed with no SSH source to allow
+  ansible.builtin.assert:
+    that:
+      - ssh_allowed_sources | default([]) | length > 0
+    fail_msg: >-
+      ssh_allowed_sources is empty, so the loop below would add no allow rule
+      while the three retractions and `ufw enable` further down run regardless.
+      That combination is default-deny with nothing permitted: the host becomes
+      unreachable at the end of this play, and on a fresh provision there is no
+      previous rule to fall back on. `required: true` does not catch it — an
+      empty list satisfies it. Set the permitted sources in
+      host_vars/<host>/ before running this again.
+    quiet: true
+
 - name: firewall | Allow SSH through UFW from the permitted sources (IPv4 only)
   community.general.ufw:
     rule: allow
