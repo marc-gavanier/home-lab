@@ -93,10 +93,12 @@ than status each time:
   text rather than the draft: 6 contexts derived and present, exit 0; lastcron
   age within bound, exit 0.
 
-**No idempotence re-run was made** — it needs the vault passphrase a second time
-and that is the operator's to run. `changed=5` is consistent with the five real
-writes in this change set, but a `changed=0` second pass has not been observed
-and should not be assumed.
+**Idempotence VERIFIED, not assumed.** The operator re-ran the same line:
+`ok=254 changed=0 failed=0`. The first pass was `ok=256 changed=5 skipped=48`,
+the second `ok=254 changed=0 skipped=49` — two fewer tasks ran, which is
+consistent with handlers that fire only on a change and did not fire on a clean
+pass. **That reading was not verified task by task and is recorded as a reading,
+not a measurement.** The number that matters is `changed=0`.
 
 ## What was NOT shipped, and why it is the run's best discipline result
 
