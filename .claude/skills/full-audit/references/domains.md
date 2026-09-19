@@ -15,14 +15,15 @@ earlier — which would have sent eight agents to re-derive settled work. Rebuil
 it from `classes.md`'s OPEN table at the start of every run; if the two
 disagree, `classes.md` wins.
 
-As of the SECOND run of 2026-09-19, key `commensurability`. **Rebuilt from
+As of the THIRD run of 2026-09-19, key `aggregation`. **Rebuilt from
 `classes.md`'s OPEN table — do not trust this copy if the two disagree.**
 
-**ONE OPEN CLASS. The counter went 5 -> 1 and the class total did not move.**
+**ONE OPEN CLASS. The counter went 1 -> 1, seven of eight domains minted nothing,
+and one mint awaits the operator's arbitration.**
 
 | Class | Owner | What is left to do |
 |---|---|---|
-| C44 | `services` + `ansible-deploy` | the deploy-tag sub-space is CLOSED 26/26 by two independent derivations — do not re-derive it. What is left is the third cadence slice, named and unswept: assertions whose artefact is rewritten by an EXTERNAL writer, `unattended-upgrades` on `/usr/lib/sysctl.d` being the named case. Neither a timer nor a tag, so it belongs to `system` or `security` as much as to either current owner |
+| C44 | `system` | **THREE sub-spaces are closed — TIMER 13/13, DEPLOY-TAG 26/26, HOST-HARDENING 20/20. Do not re-derive any of them.** What remains is the general external-writer space, and `system` established why it resists: Factor A is not the set of paths an assertion NAMES but the set it REACHES through the 16 external tools the checks invoke (279 docker, 45 sqlite3, 33 wg …). `/usr/lib/sysctl.d` appears in ZERO assertions yet governs asserted values. Bounding it is a per-predicate judgement over 337 assertions. Anyone reopening this needs a new instrument, not another sweep |
 
 **Seven domains own no OPEN class, and that is the normal state now.** Their job is
 the one that demoted C02, C13, C20, C26 and C17: re-read the GATED assertions in
@@ -42,51 +43,79 @@ widened, so the row stays red.**
 
 **C03-T IS NO LONGER RED ON ITS NAMED DEFECT — read this before quoting the
 register's older text.** Both clauses of the deployed `/etc/goss/posture.yaml`
-carry `h.status = 1` (`:3240`, `:3255`), verified independently. Two residuals are
-genuinely open: it has never completed a green SCHEDULED run, and a live reporter
-pushing a genuine failure is still indistinguishable from a mute one — the
-fail-safe direction.
+carry `h.status = 1` (`:3240`, `:3255`), verified independently. **Its
+"never completed a green SCHEDULED run" residual RETIRED on 2026-09-19 at
+11:07:08** — observed firing, exit 0 in 66 s, plan 403 / 403 results / 0 failures.
+ONE residual is genuinely open: a live reporter pushing a genuine failure is still
+indistinguishable from a mute one, which is the fail-safe direction.
 
 **Three classes sit ENUMERATED with live instances** — verify the instances are
 gone, do not re-derive the classes. **C98**: still the same 2 of 4 (`$BEFORE_ASSETS`
 and the unguarded `compose.yaml.bak`, read back as authoritative at runbook:369).
 **C99**: unchanged, 31 sites, transmission's value-keyed `lineinfile`, 0 live
-duplicates. **C100**: the fix is deployed and the provenance half is PROVEN — the
-beat says `manual run` verbatim — but it has still never been exercised by a
-SCHEDULED posture run.
+duplicates. **C100 is CLOSED** — the scheduled run of 2026-09-19 11:07:08 pushed
+`posture OK — 423 checks (...) — scheduled run` at 09:08:14 UTC, against the
+01:11:17 beat's `— manual run`. The provenance field discriminates, and the
+register has its first green SCHEDULED posture run. Do not carry the residual
+forward.
 
 **Do not re-derive**: C20 (43/43 by value), C103 (37/37), C105 (28/28), C01's
-instruction-file stratum (123/123), C88's three slices, C37, C90, C94, C95, and
-C44's deploy-tag sub-space (26/26).
+instruction-file stratum (123/123), C88's three slices, C37, C90, C94, C95, C104
+(219/219), and C44's deploy-tag (26/26) AND host-hardening (20/20) sub-spaces.
 
 **Rows corrected in the second 2026-09-19 run; do not re-derive them.** C15's
 cadence is DAILY, not weekly. C44's deploy-assertion cardinal is 26, not 12. C105's
 inverse cardinal is 12, not 11. C20's cardinal is 43 by value — 16, 15 and 59 were
 three different bounds and 59 is not reproducible.
 
+**Rows corrected in the THIRD 2026-09-19 run.** **Seven classes carry cardinals
+frozen at a 28-container estate against 32 today** — C25 is 80 bind mounts not 62,
+C36 is 41 tmpfs not 37, C50's Docker half is 28 not 25, and C22/C24/C38 move 28 to
+32. C53's row says 34 handlers / 1 flush point; it is 41 / 3. **C21 is an ARGUMENT,
+not a gate** — nothing would notice a bound being added to the deployed `copy:`.
+C74's offsite residual is FIXED. **A15 is NOT resolved and its withdrawal matters:**
+the two `ufw reload`s its test relied on never happened, so the control never ran.
+
 **The baseline is part of the brief, and two of its entries are traps every time.**
 A never-run unit reports `Result=success`, and so does a unit that DOES NOT EXIST
 (`LoadState=not-found`, exit 0, measured) — so `Result` alone can never say whether
-something ran; read `ExecMainStartTimestamp` beside it. And before quoting a
+something ran; read `ExecMainStartTimestamp` beside it. **`Result` cannot
+distinguish scheduled from manual either — read
+`systemctl show <unit>.timer -p LastTriggerUSec` beside it.** TWO consecutive runs
+opened on a false clean built from a hand-run: 2026-09-18's was 17 minutes before
+the briefs, 2026-09-19's was 7 hours before and asserted in all eight briefs that
+C100 had retired. Three agents demolished it independently. Before quoting a
 monitor's colour, ask when its last SCHEDULED execution was and what THAT one
-reported: the posture monitor has now been green by a hand-run on two consecutive
-audit nights.
+reported.
 
-**Twenty-one keys are now spent**: `time`, `order`, `identity`, `scale`,
+**And never count occurrences of a command string in `auth.log`.** A `grep` run
+under `sudo` writes the string it hunts into the log it reads; on 2026-09-19 that
+cost two conclusions, one of which reached the operator as a suspected intrusion.
+
+**Twenty-two keys are now spent**: `time`, `order`, `identity`, `scale`,
 `authority`, `representation`, `vacuity`, `exclusivity`, `interruption`,
 `succession`, `residue`, `concurrency`, `plurality`, `dependency`, `granularity`,
 `locality`, `repetition`, `reversibility`, `quiescence`, `collision`,
-`commensurability`. The mint rate reads 5, 11, 12, 7, 2, 4, 1, 0, 2, 1, 2, 2, 3, 1,
-0, 2, 2, 1, 2, 4, **0**. A run that reuses one proves nothing.
-**`commensurability` had been proposed and passed over FOUR times as probably
-already covered, and it turned out to be exactly that** — which is evidence the
-register is approaching completeness, not evidence against inventing keys.
-**This is the first of the two consecutive zero-mint runs the termination criterion
-needs; the next key decides.** Still proposed and unspent: `staleness` (what is the
-maximum age of the value this decision rests on, and what bounds it? — overlaps
-C39, C44 and C76, stated when it was proposed), `asymmetry` and `cost`. The register
-records that `cost` shares `scale`'s weakness: little of it leaves a trace you can
+`commensurability`, `aggregation`. The mint rate reads 5, 11, 12, 7, 2, 4, 1, 0, 2,
+1, 2, 2, 3, 1, 0, 2, 2, 1, 2, 4, 0, **0 or 1 depending on the pending
+arbitration**. A run that reuses one proves nothing. Still proposed and unspent:
+`staleness` (overlaps C39, C44 and C76), `asymmetry` and `cost` — the register
+records that `cost` shares `scale`'s weakness, little of it leaving a trace you can
 measure tonight.
+
+**What `aggregation` proved, for whoever writes key twenty-three.** It was invented
+rather than taken off the list, and it paid in the estate rather than the
+instruments — the reverse of `commensurability`. Four of its five shipped findings
+were reductions that mapped a failing reading to a passing verdict, and the fifth
+was a floor that bounded presence instead of cardinality. **The declared-overlap
+table is what kept the mint count honest**: five classes were named in every brief
+as instance-only, and seven of eight domains came back with an explicit "no mint"
+rather than dressing an instance as a discovery.
+
+**The rule the run cost twice over: an instrument that writes to the medium it
+reads is not an instrument.** A `sudo grep` for a command string logs that string.
+Two agent conclusions died to it, one of them reaching the operator as a suspected
+intrusion.
 
 **What `commensurability` proved, for whoever writes key twenty-two.** It minted
 nothing and still paid, because its yield was in the INSTRUMENTS rather than the
