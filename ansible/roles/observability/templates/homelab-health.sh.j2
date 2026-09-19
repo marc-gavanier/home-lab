@@ -577,8 +577,11 @@ if command -v systemctl >/dev/null 2>&1 && mountpoint -q /mnt/data; then
         # the spec, which must read as a failure rather than as nothing to
         # report: a loop that visits nothing returns true.
         units_total=$(printf '%s\n' "$units_tap" | sed -n 's/^1\.\.\([0-9]*\)$/\1/p')
+        units_seen=$(printf '%s\n' "$units_tap" | grep -cE '^(not )?ok [0-9]+ ') || true
         if [ -z "$units_total" ] || [ "$units_total" -eq 0 ]; then
             problems+=("goss produced no unit assertions — spec unreadable or empty")
+        elif [ "$units_seen" -ne "$units_total" ]; then
+            problems+=("goss declared $units_total unit assertions and produced $units_seen — the run was cut short")
         else
             # Both resource types land in the same shape: `Service: docker.service:`
             # and `Command: systemd-no-failed-units:`. The captured name is what

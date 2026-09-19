@@ -105,6 +105,7 @@ checked=0
 # C10's floor — the one already deployed 200 lines from here, over this same
 # `docker inspect` population — applied where it was missing.
 goss_total=0
+goss_seen=0
 containers_seen=0
 mounts_seen=0
 creds_probed=0
@@ -179,8 +180,12 @@ else
     # the spec rather than found nothing wrong, and those must not read alike.
     goss_total=$(printf '%s\n' "$goss_out" | sed -n 's/^1\.\.\([0-9]*\)$/\1/p')
     goss_total=${goss_total:-0}
+    goss_seen=$(printf '%s\n' "$goss_out" | grep -cE '^(not )?ok [0-9]+ ') || true
     if [ -z "$goss_total" ] || [ "$goss_total" -eq 0 ]; then
         problems+=("goss produced no assertions — spec unreadable or empty")
+    elif [ "$goss_seen" -ne "$goss_total" ]; then
+        checked=$((checked + goss_seen))
+        problems+=("goss declared $goss_total assertions and produced $goss_seen — the run was cut short")
     else
         checked=$((checked + goss_total))
         while IFS= read -r line; do
