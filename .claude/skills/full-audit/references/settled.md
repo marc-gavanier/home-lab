@@ -24,6 +24,118 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-09-19 (SIXTH run) — key `oracle`, one PR, deployed from the branch before merge
+
+The operator answered all eight findings and asked for a single PR. What shipped,
+and the rule each one encodes:
+
+- **`logtimezone = UTC` removed from the vaultwarden jail.** Commit `8763306`
+  that morning had put the container on CEST, and the directive's own comment
+  stated the premise it had just lost: *"its container runs on UTC while this
+  host runs on CEST"*. **Rule: when you correct a defect, grep for the arguments
+  that were resting on it** — that is C52's property, and its sweep had been
+  bounded to `arguments` while a live `directive` sat outside that bound.
+- **A derived replacement for a frozen floor.** `netdata_min_contexts: 270`
+  against a live 383 could not see an entire collector die. The new check reads
+  the `on:` line of every installed curated alarm and asserts netdata still
+  serves that context — no literal, no author to go absent. **Rule: when a
+  literal has no author, look for the thing that CONSUMES it and derive the
+  expectation from there.** The old floor stays as a coarse canary and is no
+  longer load-bearing.
+- **A functional check for `nextcloud-cron`**, the one container of 32 with no
+  healthcheck, no monitor and no assertion. It asserts the age of Nextcloud's
+  own `core lastcron`, not that a process is running. **Rule: a green container
+  is not a working service.** The 3600 s threshold is the one hand-chosen number
+  this run introduced and it is declared as such.
+- **The observability monitor table**, which named a monitor that does not exist
+  (`Pi services`), attributed the marginal-sector report to the wrong monitor,
+  and said "three to create by hand" when there are five. A **"Fed by"** column
+  was added so the table cannot read as coverage again. **Rule: an enumeration
+  that puts a watched thing next to an unwatched one reads as coverage** — the
+  #201 shape, third appearance.
+- **ADR-010's cadence and scope.** It said the offsite push is *weekly* and that
+  the Pi *only* self-reports disk health; it is daily since 2026-09-12 and the
+  spec carries 33 named checks including `append-only`. **A recovery reader
+  would have accepted a 7-day silence as normal.** The count was deliberately
+  NOT written into the ADR — it names the file instead, per this file's own rule
+  about regenerating numbers rather than freezing them.
+- **CI now runs the repository's own checks.** `lint.yml` claimed to mirror the
+  pre-commit hooks and ran 1 of 10. All nine `ops/check-*.py` entry points plus
+  the three selftests now run on every PR. **Rule: a gate that only runs on the
+  developer's machine is not a gate** — and `--no-verify` is this repo's own
+  documented GPG-timeout remedy.
+- **Dozzle's doc version**, `v10.6.14` -> `v11.1.0`, inside a command meant to be
+  pasted. `v11.1.0` confirmed latest upstream; the compose↔host gap was a pending
+  pin and was deployed.
+- **The register's own contradictions**, corrected: C107's minting row still read
+  NOT BOUNDED after its closure, C103's row still read OPEN, C31 carried 18/18
+  against 21/21, C33 carried 104 links against 113, C20 carried "16 secret files"
+  against 43-by-value in two places, and **C108, C109 and C110 had no table row at
+  all** (`grep '^| C10[89] |'` returned 0 against a positive control of ≥1 for all
+  107 others).
+
+## What was NOT shipped, and why it is the run's best discipline result
+
+**`ansible-deploy` proposed "~6 lines fix all 11" for the posture checks that
+vanish with their declaration. The fix already exists in history and was
+reverted.** `goss-posture.yaml.j2:548-560` records it: emitting the complement
+for every service was tried on 2026-09-05 and is wrong, because `Config.User`
+carries the IMAGE's user when compose declares none — socket-proxy returns
+`root`, collabora returns `1001` — so asserting the complement writes upstream's
+values into this repository. The template also says the gap does not close by
+assertion anyway, because a service that loses its `user:` falls back to the
+image's user and the running system is telling the truth.
+
+**Rule, and it is this run's rule: read the code before proposing to change it.
+This estate writes down why it did things, at the point where it did them.**
+
+C111's real remedy is an **intent declaration separate from the configuration**
+— the `declared intent vs effective state` pattern already shipped for sshd,
+sysctl, postfix and ufw in #368. It is a design change, it was put to the
+operator as such, and nothing was built on a guess.
+
+## Measured and rejected — added 2026-09-19 (sixth run)
+
+- **"60 netdata alarms evaluate and can reach nobody."** Measurement right,
+  conclusion wrong. `group_vars/all.yml:308` states *"Netdata notifies NOBODY —
+  stock alarms and curated ones alike"*, ADR-030 phase 1, with the Kuma adapter
+  as the single channel and polling chosen deliberately so each monitor is a
+  dead-man's switch. **Third time an agent has reported a written decision as a
+  gap.** The residual worth keeping: the MEMBERSHIP of the curated six is a
+  hand-written list with no revision event.
+- **"9 alarm names / 187 instances are literally decorative."** They are
+  intermediate calculation alarms consumed by sibling alarms — `disk_fill_rate`
+  -> `disks.conf`, `load_cpu_number` -> `load.conf`, `1m_received_packets_rate`
+  -> `net.conf`. They are exactly the alarms whose recipient is `root`, which is
+  the tell that should have prompted the check.
+- **"netdata's disk alarms watch neither `/` nor `/mnt/data`."** True and
+  irrelevant: those alarms are not forwarded at all, and `homelab-health.sh:234`
+  is `for fs in / /mnt/data` at threshold 85, with monitor 20's beat reading
+  `/ 19%, /mnt/data 21%`. The script's own comment anticipates the objection.
+- **"The marginal sector is reported by nothing."** It is reported daily by
+  `homelab-disk.sh` (live beat `pending 2`), with a deliberate implementation
+  referencing #207. The defect was the documentation naming the wrong monitor.
+- **"11 of 32 containers are the subject of no monitor."** Cut to **1**:
+  `homelab_container_down` and `homelab_container_unhealthy` each cover 32/32,
+  and of the four containers with no healthcheck, three have a dedicated monitor
+  or a daily assertion. Only `nextcloud-cron` was uncovered.
+
+## Instrument traps paid on 2026-09-19 (sixth run) — three, and two were the main session's own
+
+1. **A `grep -A<n>` context window is as wrong as a loose regex, and it fails
+   silently in the direction of a clean result.** `-A4` on a 5-line block cut off
+   exactly the `logtimezone` line under investigation and returned a false "not
+   deployed". New in kind: the fifth run's version was an alternation, this one
+   is a window.
+2. **A positive control that itself returns zero is not a control.** `grep -c
+   "title:"` over specs that do not use `title:` made a null result look
+   negative. Re-run with `grep -c "command:"` (=1, file 192 290 bytes) it finally
+   meant something.
+3. **An awk keyed on the last-seen name bleeds across block boundaries.**
+   Counting expectations by proximity gave "1 false + 2 true" per service —
+   arithmetically impossible against one check per service. **An impossible
+   total is the cheapest signal that a parser is straddling its unit.**
+
 ## Shipped on 2026-09-19 (FIFTH run) — key `attendance`, one PR, deployed from the branch before merge
 
 The operator answered all five findings put to them and asked for a single PR.

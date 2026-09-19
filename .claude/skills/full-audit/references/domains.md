@@ -15,19 +15,38 @@ earlier — which would have sent eight agents to re-derive settled work. Rebuil
 it from `classes.md`'s OPEN table at the start of every run; if the two
 disagree, `classes.md` wins.
 
-As of the FIFTH run of 2026-09-19, key `attendance`. **Rebuilt from
-`classes.md`'s OPEN table — do not trust this copy if the two disagree.**
+As of the SIXTH run of 2026-09-19, key `oracle`. **Rebuilt from `classes.md`'s
+OPEN table — do not trust this copy if the two disagree.**
 
-**ONE OPEN CLASS. The counter went 1 -> 1; two classes were PROPOSED (C109,
-C110) and await the operator's arbitration.** C44 stays open and its cardinal
-MOVED — **TIER A is 17, not 19, and coverage is 4/17 = 24 %** — because two
-admissions failed on execution. **The termination clock RESETS.** The key was
-`attendance`, and unlike `staleness` and `commensurability` it bit on the
-ESTATE rather than on the instruments.
+**ONE OPEN CLASS. The counter went 1 -> 1; C109 and C110 were ACCEPTED by the
+operator and C111 and C112 were minted, so the class total went 110 -> 112.**
+C44 stays open, its cardinal moved to **TIER A 16, coverage 4/16 = 25 %**
+(`docker` demoted on the #15 predicate), and **the sixth run found why it has
+never closed: this register records the cardinal WITHOUT the membership.** It
+refers to admissions `#13`/`#15`/`#16` of a 27-row list that exists nowhere in
+the file; only 11 of the 16 are nameable. **Writing those 27 rows is the next
+run's first task and it is bookkeeping, not research.** Until it exists, no run
+can state N/N and no new cardinal should be trusted. **The termination clock
+RESETS.**
+
+**What `oracle` proved, for whoever writes key twenty-six.** It was invented
+rather than taken off the list, and it paid in the ASSERTIONS — a third
+territory, distinct from the estate (`attendance`, `aggregation`) and from the
+instruments (`staleness`, `commensurability`). Its two mints both concern where
+an expectation comes from rather than whether a mechanism runs. **The rule it
+confirms for a fourth time: a key that turns on the thing doing the checking is
+worth more than one that turns on the thing being checked.**
+
+**And it produced the run's most useful negative result, which is a discipline
+result rather than a finding: three of the eight agents' headline claims were
+written decisions reported as gaps, and one proposed a fix that the repository
+had already tried and reverted with the reasoning left in place at the point of
+the code.** Read the code before proposing to change it; this estate writes down
+why it did things.
 
 | Class | Owner | What is left to do |
 |---|---|---|
-| C44 | `system` | **FIFTH RUN: TIER A is 17, NOT 19 — `resolved` (#15) and DOCKER-USER (#16) failed on execution, 19/19 lines now READ with drift 0 of 19, 13 carrying no continuous assertion. Coverage 4/17 = 24 %.** Historic text follows. **FOUR sub-spaces closed — TIMER 13/13, DEPLOY-TAG 26/26, HOST-HARDENING 20/20, and the comparator route's own cardinal. Do not re-derive any of them.** The space is **no longer non-derivable**: bounding by "subsystems whose effective state is readable by a command resolving all its inputs" gives **19**, of 27 for which the estate declares an intent, and **4 are covered (21 %)**. Six of the fifteen uncovered were read on 2026-09-19 and all conformed (apt, fail2ban, docker, apparmor, wireguard, mounts); **four have no resolver at all** — pam, needrestart, smartd, cloud-init; systemd is excluded on normalisation. **Do NOT close by arbitration — 4/19 answers the question NO.** Two reserves: the route compares `/etc` to effective state, so a writer that rewrites the `/etc` file the estate owns moves both sides together (the `pam-auth-update` shape); and the route's cadence is daily, which is C44 applied to its own output |
+| C44 | `system` | **SIXTH RUN — the blocker is BOOKKEEPING, not research. TIER A is 16 (`docker` demoted on the #15 predicate: daemon.json declares 6 values, `docker info` resolves 3, and `shutdown-timeout` + `log-opts.{max-size,max-file}` are exposed by no daemon readout, measured 0/0/0 with `LoggingDriver`=1 as the positive control). Coverage 4/16 = 25 %.** `fail2ban` was tested for demotion and SURVIVED (`get <jail> action <act> port` and `get actions` resolve the 5 keys with no `get <key>` verb). A clock admission was tested and REJECTED — `timedatectl show-timesync` resolves everything but `/etc/systemd/timesyncd.conf.d/` is empty, so no declared intent. **THE REASON IT CANNOT CLOSE: this register records the cardinal WITHOUT the membership.** It refers to `#13`/`#15`/`#16` of a 27-row list that exists nowhere; only **11 of 16** are nameable (the 4 covered + the 6 read on 09-19 + #13 firmware). That is why the cardinal has moved 19 -> 17 -> 16 across three runs — each re-derives it against a list it cannot read. **FIRST TASK: transcribe the 27 rows into `classes.md`. Do not close C44, and do not trust a new cardinal, until they are there.** **FOUR sub-spaces remain closed — TIMER 13/13, DEPLOY-TAG 26/26, HOST-HARDENING 20/20, and the comparator route's own cardinal. Do not re-derive any of them.** Four subsystems have no resolver at all — pam, needrestart, smartd, cloud-init; systemd is excluded on normalisation. Two reserves hold: the route compares `/etc` to effective state, so a writer that rewrites the `/etc` file the estate owns moves both sides together (the `pam-auth-update` shape); and the route's cadence is daily, which is C44 applied to its own output |
 
 **Six domains own no OPEN class, and that is the normal state now.** Their job is
 the one that demoted C02, C13, C20, C26 and C17: re-read the GATED assertions in
@@ -118,18 +137,19 @@ reported.
 under `sudo` writes the string it hunts into the log it reads; on 2026-09-19 that
 cost two conclusions, one of which reached the operator as a suspected intrusion.
 
-**Twenty-FOUR keys are now spent** (`attendance` added 2026-09-19, fifth run — it minted 2, both awaiting arbitration, and it bit on the ESTATE where `staleness` and `commensurability` bit on the instruments): `time`, `order`, `identity`, `scale`,
-`authority`, `representation`, `vacuity`, `exclusivity`, `interruption`,
-`succession`, `residue`, `concurrency`, `plurality`, `dependency`, `granularity`,
-`locality`, `repetition`, `reversibility`, `quiescence`, `collision`,
-`commensurability`, `aggregation`, `staleness`, `attendance`. The mint rate reads 5, 11, 12, 7,
-2, 4, 1, 0, 2, 1, 2, 2, 3, 1, 0, 2, 2, 1, 2, 4, 0, 1, **1**. A run that reuses one
-proves nothing. **The pair of consecutive zero-mint runs the criterion needs has
-still never been achieved; the next key starts it again.** Still proposed and
+**Twenty-FIVE keys are now spent** (`oracle` added 2026-09-19, sixth run — it
+minted 2 and it bit on the ASSERTIONS, a third territory after the estate and
+the instruments): `time`, `order`, `identity`, `scale`, `authority`,
+`representation`, `vacuity`, `exclusivity`, `interruption`, `succession`,
+`residue`, `concurrency`, `plurality`, `dependency`, `granularity`, `locality`,
+`repetition`, `reversibility`, `quiescence`, `collision`, `commensurability`,
+`aggregation`, `staleness`, `attendance`, `oracle`. The mint rate across them
+reads 5, 11, 12, 7, 2, 4, 1, 0, 2, 1, 2, 2, 3, 1, 0, 2, 2, 1, 2, 4, 0, 1, 1, 2,
+**2**. A run that reuses one proves nothing. **The pair of consecutive zero-mint
+runs the criterion needs has still never been achieved.** Still proposed and
 unspent: `asymmetry` and `cost` — the register records that `cost` shares
-`scale`'s weakness, little of it leaving a trace you can measure tonight. After
-`staleness` there is one named candidate left, so key twenty-five must be
-invented.
+`scale`'s weakness, little of it leaving a trace you can measure tonight. **Key
+twenty-six must be invented or must be `asymmetry`.**
 
 **What `staleness` proved, for whoever writes key twenty-four.** It was taken off
 the proposed list rather than invented, and the register had predicted a low mint
