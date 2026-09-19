@@ -54,6 +54,41 @@ and the rule each one encodes:
   check compares the managed file against what `sshd` actually applies, so a drop-in
   under `sshd_config.d` is covered too.
 
+### Four declared-vs-effective comparators, added to the same PR and deployed 11:48
+
+The operator asked for the `sshd` shape to be applied to the kernel, the firewall,
+mail and the system services, **if it was useful and simple**. Three of the four
+were; the fourth was not, and saying so was the right answer rather than shipping a
+weaker version of it.
+
+- **sysctl** — the 30 keys Ansible writes into `/etc/sysctl.d/99-homelab.conf`,
+  against what the kernel holds. **Double-floored**: the parse must find as many
+  keys as the file declares, because a pattern that silently stops matching shrinks
+  the sweep without emptying it.
+- **postfix** — the 22 directives of `main.cf` against `postconf -h`.
+- **ufw** — every rule the inventory declares against `ufw status`, with the SSH
+  port rendered from its variable and never written down.
+
+**systemd was refused, with the reason recorded.** Comparing unit files to
+`systemctl show` founders on normalisation (`TimeoutStartSec=600` reads back as
+`10min`); asserting no unexpected drop-in needs a seven-entry exemption list, which
+is a list dressed as a derivation. All seven live drop-ins were checked and all
+seven ARE declared in the repository. **Six carry no `ansible_managed` marker
+because they are deployed by `copy: content:` — the marker is not a provenance
+instrument, and any future check that keys on it is already wrong.**
+
+Deployed `--tags observability`: `ok=47 changed=1 failed=0`, the spec and nothing
+else. Verified on the host: **plan 406 / 406 results / 0 failures**, the three new
+checks passing at `ok 67`, `ok 282`, `ok 333`. Each was made to fail on purpose
+first — a revoked key, a cancelled `inet_interfaces`, an absent rule as a negative
+control — and the sysctl floor was exercised with an empty file.
+
+**The Jinja trap this cost, worth carrying**: a `{%-` tag placed between two YAML
+keys eats the newline that separates them, and the spec rendered
+`exit-status: 0  next-key:` on one line. `ops/check-goss-specs-render.py` caught it
+before the commit, which is exactly what that gate is for. Put `{% set %}` blocks
+where their whitespace cannot join two keys.
+
 ### What the deploy produced, measured 2026-09-19 11:20
 
 `ok=100 changed=3 failed=0` on homelab — exactly the three modified files, nothing
