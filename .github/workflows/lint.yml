@@ -61,3 +61,31 @@ jobs:
         run: yamllint -c .yamllint.yml .
       - name: ansible-lint
         run: ansible-lint ansible/
+
+  repo-checks:
+    name: Repository checks (ops/)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.14"
+      - name: Install check dependencies
+        run: pip install jinja2 pyyaml
+      - name: Selftests
+        run: |
+          ops/check-empty-set-floors.py --selftest
+          ops/check-shell-cmds-parse.py --selftest
+          ops/check-secret-in-environment.py --selftest
+      - name: ascii-system-files
+        run: ops/check-ascii-system-files.py
+      - name: jinja-templates-parse
+        run: ops/check-jinja-templates.py
+      - name: empty-set-floors
+        run: ops/check-empty-set-floors.py
+      - name: goss-specs-render
+        run: ops/check-goss-specs-render.py
+      - name: secret-in-environment
+        run: ops/check-secret-in-environment.py
+      - name: shell-cmds-parse
+        run: ops/check-shell-cmds-parse.py
