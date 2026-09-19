@@ -15,16 +15,19 @@ earlier — which would have sent eight agents to re-derive settled work. Rebuil
 it from `classes.md`'s OPEN table at the start of every run; if the two
 disagree, `classes.md` wins.
 
-As of the FOURTH run of 2026-09-19, key `staleness`. **Rebuilt from
+As of the FIFTH run of 2026-09-19, key `attendance`. **Rebuilt from
 `classes.md`'s OPEN table — do not trust this copy if the two disagree.**
 
-**ONE OPEN CLASS. The counter went 2 -> 1 and the class total 107 -> 108:**
-C107 CLOSED, C108 minted and arriving ENUMERATED with a gate. Seven of eight
-domains returned an explicit "no mint". **The termination clock RESETS.**
+**ONE OPEN CLASS. The counter went 1 -> 1; two classes were PROPOSED (C109,
+C110) and await the operator's arbitration.** C44 stays open and its cardinal
+MOVED — **TIER A is 17, not 19, and coverage is 4/17 = 24 %** — because two
+admissions failed on execution. **The termination clock RESETS.** The key was
+`attendance`, and unlike `staleness` and `commensurability` it bit on the
+ESTATE rather than on the instruments.
 
 | Class | Owner | What is left to do |
 |---|---|---|
-| C44 | `system` | **FOUR sub-spaces closed — TIMER 13/13, DEPLOY-TAG 26/26, HOST-HARDENING 20/20, and the comparator route's own cardinal. Do not re-derive any of them.** The space is **no longer non-derivable**: bounding by "subsystems whose effective state is readable by a command resolving all its inputs" gives **19**, of 27 for which the estate declares an intent, and **4 are covered (21 %)**. Six of the fifteen uncovered were read on 2026-09-19 and all conformed (apt, fail2ban, docker, apparmor, wireguard, mounts); **four have no resolver at all** — pam, needrestart, smartd, cloud-init; systemd is excluded on normalisation. **Do NOT close by arbitration — 4/19 answers the question NO.** Two reserves: the route compares `/etc` to effective state, so a writer that rewrites the `/etc` file the estate owns moves both sides together (the `pam-auth-update` shape); and the route's cadence is daily, which is C44 applied to its own output |
+| C44 | `system` | **FIFTH RUN: TIER A is 17, NOT 19 — `resolved` (#15) and DOCKER-USER (#16) failed on execution, 19/19 lines now READ with drift 0 of 19, 13 carrying no continuous assertion. Coverage 4/17 = 24 %.** Historic text follows. **FOUR sub-spaces closed — TIMER 13/13, DEPLOY-TAG 26/26, HOST-HARDENING 20/20, and the comparator route's own cardinal. Do not re-derive any of them.** The space is **no longer non-derivable**: bounding by "subsystems whose effective state is readable by a command resolving all its inputs" gives **19**, of 27 for which the estate declares an intent, and **4 are covered (21 %)**. Six of the fifteen uncovered were read on 2026-09-19 and all conformed (apt, fail2ban, docker, apparmor, wireguard, mounts); **four have no resolver at all** — pam, needrestart, smartd, cloud-init; systemd is excluded on normalisation. **Do NOT close by arbitration — 4/19 answers the question NO.** Two reserves: the route compares `/etc` to effective state, so a writer that rewrites the `/etc` file the estate owns moves both sides together (the `pam-auth-update` shape); and the route's cadence is daily, which is C44 applied to its own output |
 
 **Six domains own no OPEN class, and that is the normal state now.** Their job is
 the one that demoted C02, C13, C20, C26 and C17: re-read the GATED assertions in
@@ -41,6 +44,17 @@ at netdata's stock 1 s for **6.91 % across 995 charts**, with no alarm, no goss
 check and no push monitor reading a cgroups context. A derived floor must key on
 `(chart context) -> update_every` from `/api/v1/charts`. **The gate was not
 widened, so the row stays red.**
+
+**CORRECTED 2026-09-19 (fifth run): keying that floor on the CONTEXT does not
+work.** `(context -> update_every)` is NOT a function — `disk.space` and
+`disk.inodes` each carry both 1 and 5, because the `/tmp` charts run at 5 s.
+Measured twice, with a reachability control (host `000`, container `200`), and
+after the measuring agent's own scratch file was removed, so it is structural.
+**Use a per-plugin floor**: 4 plugins carry >100 charts and it comes up red on
+exactly one member, against 1712 of 3838 charts for a naive `>= 5`. And there is
+no cheap route — the light endpoints (`/api/v1|v2|v3/contexts`) do not carry
+`update_every` at all, 383/383 missing, so it is `/api/v1/charts`, 5.3 MB,
+0.74 s. `proc.plugin`, 531 charts at 1 s, is named nowhere either.
 
 **C03-T IS NO LONGER RED ON ITS NAMED DEFECT — read this before quoting the
 register's older text.** Both clauses of the deployed `/etc/goss/posture.yaml`
@@ -104,11 +118,11 @@ reported.
 under `sudo` writes the string it hunts into the log it reads; on 2026-09-19 that
 cost two conclusions, one of which reached the operator as a suspected intrusion.
 
-**Twenty-three keys are now spent**: `time`, `order`, `identity`, `scale`,
+**Twenty-FOUR keys are now spent** (`attendance` added 2026-09-19, fifth run — it minted 2, both awaiting arbitration, and it bit on the ESTATE where `staleness` and `commensurability` bit on the instruments): `time`, `order`, `identity`, `scale`,
 `authority`, `representation`, `vacuity`, `exclusivity`, `interruption`,
 `succession`, `residue`, `concurrency`, `plurality`, `dependency`, `granularity`,
 `locality`, `repetition`, `reversibility`, `quiescence`, `collision`,
-`commensurability`, `aggregation`, `staleness`. The mint rate reads 5, 11, 12, 7,
+`commensurability`, `aggregation`, `staleness`, `attendance`. The mint rate reads 5, 11, 12, 7,
 2, 4, 1, 0, 2, 1, 2, 2, 3, 1, 0, 2, 2, 1, 2, 4, 0, 1, **1**. A run that reuses one
 proves nothing. **The pair of consecutive zero-mint runs the criterion needs has
 still never been achieved; the next key starts it again.** Still proposed and
