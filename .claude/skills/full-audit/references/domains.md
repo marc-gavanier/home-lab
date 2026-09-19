@@ -15,80 +15,86 @@ earlier — which would have sent eight agents to re-derive settled work. Rebuil
 it from `classes.md`'s OPEN table at the start of every run; if the two
 disagree, `classes.md` wins.
 
-As of the run of 2026-09-19, key `collision`. **Rebuilt from `classes.md`'s OPEN
-table — do not trust this copy if the two disagree.**
+As of the SECOND run of 2026-09-19, key `commensurability`. **Rebuilt from
+`classes.md`'s OPEN table — do not trust this copy if the two disagree.**
 
-**FIVE OPEN CLASSES, and every one of them names its owner.** The counter went
-0 -> 5 and the class total 102 -> 106.
+**ONE OPEN CLASS. The counter went 5 -> 1 and the class total did not move.**
 
 | Class | Owner | What is left to do |
 |---|---|---|
-| C103 | `observability` (+ `system`) | the systemd slice is swept 14/14; the KUMA slice is not — a heartbeat carries no provenance either |
-| C105 | `project-manager` (+ `network`) | 16 documentary sites swept; the inverse direction — a procedure that ERASES a discriminator, like an SD reflash re-seeding the certificate ratchet — sits outside them |
-| C01 | `project-manager` | its space was bounded by a directory; `.claude/agents/*.md` and `CLAUDE.md` have never been in it, and they are what all eight agents read first |
-| C20 | `security` | the space is 59 measured values against the 16 recorded; re-derive the cardinal before anything else |
-| C44 | `services` (+ `ansible-deploy`) | the 13/13 sweep was bounded by timers; the deploy-tag sub-space is where the live instance is |
+| C44 | `services` + `ansible-deploy` | the deploy-tag sub-space is CLOSED 26/26 by two independent derivations — do not re-derive it. What is left is the third cadence slice, named and unswept: assertions whose artefact is rewritten by an EXTERNAL writer, `unattended-upgrades` on `/usr/lib/sysctl.d` being the named case. Neither a timer nor a tag, so it belongs to `system` or `security` as much as to either current owner |
 
-**A domain with no OPEN class still has the job that demoted C02, C13, C20, C26
-and C17**: re-read the GATED assertions in its area and ask whether each is
-DERIVED from the thing it guards or is merely a list of the instances once
-found.
+**Seven domains own no OPEN class, and that is the normal state now.** Their job is
+the one that demoted C02, C13, C20, C26 and C17: re-read the GATED assertions in
+their area and ask whether each is DERIVED from the thing it guards or is merely a
+list of the instances once found. `backup` did exactly that on 2026-08-31 and again
+on 2026-09-19, finding C15's recorded cadence wrong both times.
 
-**ONE GATE IS RED — C07, and it is `observability`'s.** Its assertion is derived
-and bounded by ONE COLLECTOR: a single Jinja expression renders the alarm
-threshold and the goss floor for the *docker* collector, so `apps.plugin` — which
-held 22.4 % of a core inside netdata's 42.7 %, machine at rest — was outside the
-space it covers and had never been declared at all. `update every = 5` shipped on
-2026-09-18; **the gate itself was not widened, so the row stays red** until a
-floor covers the collectors as a set. That is the work, and it is not a rediscovery.
+**ONE GATE IS RED — C07, and it is `observability`'s.** Unchanged in kind and
+sharper in measurement: a floor rendered by one Jinja expression from ONE
+collector's interval, compared against a fleet. `apps.plugin` fell 22.4 % -> 4.50 %
+of a core against a cadence factor of 5, so the 2026-09-18 fix landed — but the
+gate certifies the go.d **docker** collector at 0.70 % while `cgroups.plugin` runs
+at netdata's stock 1 s for **6.91 % across 995 charts**, with no alarm, no goss
+check and no push monitor reading a cgroups context. A derived floor must key on
+`(chart context) -> update_every` from `/api/v1/charts`. **The gate was not
+widened, so the row stays red.**
 
-**Three classes sit ENUMERATED with live instances** — a run does not re-derive
-them, it verifies the instances are gone: **C98** (still the same 2 of 4:
-`$BEFORE_ASSETS` and the unguarded `compose.yaml.bak`), **C99** (still the same 4
-of 31, 0 live duplicates), and **C100**, whose new instance — the posture monitor
-green only by an out-of-schedule run — was shipped against on 2026-09-18 and
-**has not yet been exercised by a scheduled run**. Verify that before anything
-else: the next scheduled posture run after the fix is the first real test of it.
+**C03-T IS NO LONGER RED ON ITS NAMED DEFECT — read this before quoting the
+register's older text.** Both clauses of the deployed `/etc/goss/posture.yaml`
+carry `h.status = 1` (`:3240`, `:3255`), verified independently. Two residuals are
+genuinely open: it has never completed a green SCHEDULED run, and a live reporter
+pushing a genuine failure is still indistinguishable from a mute one — the
+fail-safe direction.
 
-**Do not re-derive**: C88's three closed slices, C37 (65/65 and 31/31), C90, C94,
-C95. **C102's fix is DECLINED** — the class stays, the authenticated resolution
-does not.
+**Three classes sit ENUMERATED with live instances** — verify the instances are
+gone, do not re-derive the classes. **C98**: still the same 2 of 4 (`$BEFORE_ASSETS`
+and the unguarded `compose.yaml.bak`, read back as authoritative at runbook:369).
+**C99**: unchanged, 31 sites, transmission's value-keyed `lineinfile`, 0 live
+duplicates. **C100**: the fix is deployed and the provenance half is PROVEN — the
+beat says `manual run` verbatim — but it has still never been exercised by a
+SCHEDULED posture run.
 
-**Rows corrected this run; do not re-derive them.** C19's script half enumerates
-**14** timers, not 13, with zero edits — positive proof of derivation. C40 is
-**26** containers at the 10 s default, not 25, because the fleet went 29 -> 32.
+**Do not re-derive**: C20 (43/43 by value), C103 (37/37), C105 (28/28), C01's
+instruction-file stratum (123/123), C88's three slices, C37, C90, C94, C95, and
+C44's deploy-tag sub-space (26/26).
 
-**The baseline is part of the brief, and this run's was wrong.** "15/15
-`homelab-*` services at `Result=success`" counted a unit that has **never run**,
-and `Result=success` is what a never-run unit reports. Worse, "37/37 monitors
-green" was true and worthless: a manual run seventeen minutes before the briefs
-were written had cleared the only red, which had been pushed on each of the three
-previous SCHEDULED runs. **Before quoting a monitor's colour, ask when its last
-SCHEDULED execution was and what that one reported.**
+**Rows corrected in the second 2026-09-19 run; do not re-derive them.** C15's
+cadence is DAILY, not weekly. C44's deploy-assertion cardinal is 26, not 12. C105's
+inverse cardinal is 12, not 11. C20's cardinal is 43 by value — 16, 15 and 59 were
+three different bounds and 59 is not reproducible.
 
-**Twenty keys are now spent**: `time`, `order`, `identity`, `scale`,
+**The baseline is part of the brief, and two of its entries are traps every time.**
+A never-run unit reports `Result=success`, and so does a unit that DOES NOT EXIST
+(`LoadState=not-found`, exit 0, measured) — so `Result` alone can never say whether
+something ran; read `ExecMainStartTimestamp` beside it. And before quoting a
+monitor's colour, ask when its last SCHEDULED execution was and what THAT one
+reported: the posture monitor has now been green by a hand-run on two consecutive
+audit nights.
+
+**Twenty-one keys are now spent**: `time`, `order`, `identity`, `scale`,
 `authority`, `representation`, `vacuity`, `exclusivity`, `interruption`,
-`succession`, `residue`, `concurrency`, `plurality`, `dependency`,
-`granularity`, `locality`, `repetition`, `reversibility`, `quiescence`,
-`collision`. The mint rate reads 5, 11, 12, 7, 2, 4, 1, 0, 2, 1, 2, 2, 3, 1, 0,
-2, 2, 1, 2, **4**. A run that reuses one proves nothing. **`collision` is the
-first key since `order` to pay four**, and the reason is the one that pays every
-time: all 102 classes on file asked whether ONE thing was right, none asked
-whether TWO were distinguishable. `asymmetry` and `cost` were proposed beside it
-and remain unspent, as do `commensurability` and `staleness`. **Two remain proposed and unspent —
-`commensurability` (are both sides of this comparison in the same unit, base and
-reference frame?) and `staleness` (what is the maximum age of the value this
-decision rests on, and what bounds it?).** `commensurability` arrived with three
-unclassed precedents and has now been passed over four times; `staleness` was
-proposed on 2026-09-18 with its overlap on C39, C44 and C76 stated.
+`succession`, `residue`, `concurrency`, `plurality`, `dependency`, `granularity`,
+`locality`, `repetition`, `reversibility`, `quiescence`, `collision`,
+`commensurability`. The mint rate reads 5, 11, 12, 7, 2, 4, 1, 0, 2, 1, 2, 2, 3, 1,
+0, 2, 2, 1, 2, 4, **0**. A run that reuses one proves nothing.
+**`commensurability` had been proposed and passed over FOUR times as probably
+already covered, and it turned out to be exactly that** — which is evidence the
+register is approaching completeness, not evidence against inventing keys.
+**This is the first of the two consecutive zero-mint runs the termination criterion
+needs; the next key decides.** Still proposed and unspent: `staleness` (what is the
+maximum age of the value this decision rests on, and what bounds it? — overlaps
+C39, C44 and C76, stated when it was proposed), `asymmetry` and `cost`. The register
+records that `cost` shares `scale`'s weakness: little of it leaves a trace you can
+measure tonight.
 
-**What `quiescence` proved, for whoever writes key twenty.** It was invented, it
-minted two, and its sharpest finding was not an instance of itself — it was that
-**the audit's own baseline was a false clean**, produced by the same mechanism the
-skill exists to catch. A key that turns on the instrument is worth more than one
-that only turns on the estate. And one warning it earned: Kuma's raw heartbeats
-are pruned after about two days, so the rule "query the monitor's own beats"
-cannot be executed at minute granularity for anything older than that.
+**What `commensurability` proved, for whoever writes key twenty-two.** It minted
+nothing and still paid, because its yield was in the INSTRUMENTS rather than the
+estate: the two sharpest findings of the run were a systemd field rendered in two
+incommensurable representations, and a container clock two hours off a jail's
+window. It also cost the main session two bad instruments of its own, both caught
+by a control and both recorded. Rule confirmed twice now: **a key that turns on the
+instrument is worth more than one that only turns on the estate.**
 
 **Six domains own no OPEN class and are not idle.** Their job is the one that
 demoted C02, C13, C20, C26 and, on 2026-09-05 evening, C17: re-read the GATED

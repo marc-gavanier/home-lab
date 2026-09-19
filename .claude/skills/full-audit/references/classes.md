@@ -140,9 +140,19 @@ parts that need a thought experiment.
 
 # The register
 
-Runs of 2026-08-15 through 2026-09-19 (key `collision`).
-**106 classes: 5 OPEN, 10 GATED (C07 is RED — see the run sections), 84 ENUMERATED,
-7 closed by decision, plus the DECLINED list.**
+Runs of 2026-08-15 through 2026-09-19 (second run, key `commensurability`).
+**106 classes: 1 OPEN, 10 GATED (C07 is RED; C03-T's NAMED defect is REPAIRED —
+read its row before quoting it as red), 88 ENUMERATED, 7 closed by decision, plus
+the DECLINED list.**
+
+**The second run of 2026-09-19 used `commensurability` — same unit, same base,
+same frame? — and the counter went 5 -> 1 with ZERO mints.** C20, C103, C105 and
+C01 all CLOSED with stated derivations; C44 stays OPEN on a third cadence slice
+that was named rather than quietly omitted. The class total does not move. **First
+zero-mint run since `exclusivity`, so this is the first of the two the termination
+criterion needs.** Three of the eight agents' headline claims did not survive the
+main session's re-measurement, and two of the main session's own instruments were
+wrong — both recorded in that run's section.
 
 **The run of 2026-09-19 used `collision` — which two distinct states produce the
 same reading? — and the counter went 0 -> 5 while the class total went 102 ->
@@ -349,7 +359,215 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
-## OPEN — 5 (after the run of 2026-09-19, key `collision`)
+## OPEN — 1 (after the second run of 2026-09-19, key `commensurability`)
+
+**The table holds one class, and it holds it for the right reason: the two
+sub-spaces that could be bounded were bounded, and the third was NAMED rather
+than quietly left out.** That naming is what stops C44 from closing on a partial
+sweep for the second time.
+
+| ID | Property | What bounds the space, and what stopped the sweep |
+|---|---|---|
+| C44 | A verification whose cadence cannot observe the event it guards | **DEPLOY-TAG sub-space CLOSED 26/26**, by two independent derivations from opposite sides that agreed on the cardinal — `services` from the artefact (25 deploy-time guards + 1 render-time derivation), `ansible-deploy` from the roles (22 guards + 4 rendered goss specs) crossed with the tag lattice. The register's "12" had counted only `assert:`, omitting 7 `fail:` and 6 `failed_when:`. **STILL OPEN on a third cadence slice, named and unswept**: assertions whose artefact is rewritten by an EXTERNAL writer — unattended-upgrades on `/usr/lib/sysctl.d` — which is neither a timer nor a tag, and was outside both agents' mandate by construction |
+
+## The run of 2026-09-19 (second) — the key was `commensurability`, and it minted nothing
+
+The twenty-first key, and the first to be spent after being proposed and passed
+over **four times**. It had sat in this file since 2026-09-05 with three unclassed
+precedents attached. The six-word question: **same unit, same base, same frame?**
+All 106 classes then on file asked whether ONE thing was correct, or — since
+`collision` — whether TWO things were distinguishable. Not one asked whether the
+two things being compared were comparable at all.
+
+Three admissible shapes went into all eight briefs so agents returned measurements
+rather than philosophy: (a) a comparison whose two sides are in different units,
+bases or reference frames; (b) a threshold, floor or budget whose constant was
+calibrated in a different frame than the value it is compared against; (c) a value
+that silently changes frame as it crosses a boundary.
+
+**The stated risk held, and it is why the mint count is zero rather than wrong.**
+The brief warned that this key overlaps five instrument traps this register has
+already PAID FOR — `docker logs --since` in local time against `-t` in UTC, a
+`VmSwap` sum against the cgroup counter, netdata percent-of-a-core against
+percent-of-machine, Pi-hole's `forward is not null` denominator, and the `jq -r`
+newline in a hash comparison — and that a finding on any of them is an instance or
+a re-derivation, never a mint. **Not one domain tried to mint one; six of eight
+returned an explicit "no mint".**
+
+### The headline is the counter, and that is the point
+
+**5 OPEN in, 1 OPEN out, 0 minted, class total unmoved at 106.** `collision` paid
+four mints from a register of 102; this key paid none from 106. **This is the
+first zero-mint run since `exclusivity` on 2026-09-05.** The termination criterion
+needs TWO consecutive zero-mint runs with different keys, so this is the first of
+the pair and the next key decides. A key that had been deferred four times as
+"probably already covered" turned out to be exactly that — which is evidence for
+completeness, not against the practice of inventing keys.
+
+### The four closures, each with its derivation
+
+| ID | Cardinal | How the space was derived, and what controlled it |
+|---|---|---|
+| C20 | **43/43 by VALUE** | The unit is the rotatable secret VALUE (C89), not its carrier, so carriers and derived forms (DSN, Argon2 hash, obscured pass) collapse into their source. Derived twice: the 39 `no_log: true` options across all 11 `meta/argument_specs.yml`, PARSED not grepped; and every secret-shaped identifier referenced under `roles/`, which reproduces those 39 and adds 3 arriving through `group_vars` indirection. +1 because `ssh_port_hardened` holds a distinct value per host. **The three numbers on file were three different bounds**: 16 was `ls /mnt/data/secrets/docker/` (the mechanism bound), 15 was the runbook's table, and **59 could not be reproduced from any stateable bound and is NOT adopted** — it counted carriers, which double-counts every multi-carrier value. 30 rotate correctly, 9 documented non-rotating, 2 new confirmed, 2 suspected |
+| C103 | **37/37 monitors, 111 field-reads** | The 22 active monitors are structurally immune — Kuma is the executor, so the beat IS the execution. All 15 push monitors are timer-driven and therefore carry the duality; `origin()` exists in **1 of 15**. 6 of the 14 unprovenanced are measurably hand-run in the retained journal. The systemd slice was already 14/14 and was not re-derived |
+| C105 | **28/28, 0 annotated** | Forward 16/16 unchanged, with the detector controlled against 25 substantive red-discussions elsewhere in `docs/` — it is not blind to the word, the repo simply never uses it where a procedure causes one. Inverse bounded by a DIFFERENT first factor, and that is the closure: **{persistent reference an assertion reads back as its own memory} x {documented procedure that erases its medium}**. An assertion has memory in exactly one way — a file it writes and reads back — and that set is small and derivable |
+| C01 | **123/123 referents, 12 contradicted** | The newly admitted space: 12 instruction files — 8 agent files, the project and user `CLAUDE.md`, one `SKILL.md`, the memory index. The user-level `CLAUDE.md` and the `SKILL.md` are clean; 6 of the 8 agent files are not |
+
+### C105's inverse cardinal is 12, not 11, and the main session found the twelfth
+
+The agent's table listed 11 references. `/var/lib/homelab-backup/status.json` is
+missing from it, and it is read back by an assertion — `posture.yaml:2208` — holds
+the last backup's success and time, sits on the SD card, and is **in no restic
+source** (the sources are `/mnt/data/{services,media,backups/dumps,secrets}`; no
+`/var/lib` anywhere). It is arguably the most consequential of the twelve, since
+it is a backup assertion's own memory.
+
+**The sweep is stronger than "0 annotated" and was re-run by the main session with
+a working control.** Seven probes over `docs/` + `knowledge/` return zero hits,
+while `restic` returns 38 files and `var/lib` 20 hits — so the instrument works and
+the documentation does discuss `/var/lib`, just never these. **The state those
+procedures erase is not documented to exist at all**, which is why no runbook could
+have warned: there is nothing in the documentation to warn about.
+
+### The live defects, ranked by what was happening without anyone knowing
+
+1. **`--tags deploy` ships a service with zero posture checks.** `/etc/goss/posture.yaml`
+   — 219 checks, 105 frozen expectations, a 32-name literal list — is generated FROM
+   `docker/compose.yaml` by the `observability` role while `deploy` ships
+   `compose.yaml`, and **nothing on the host reads `compose.yaml` at run time**. The
+   main session's apparent counter-example strengthened it: the host-side references
+   are comments and frozen constants (`[ "$read_pairs" -eq 14 ]`, `"$n" -ge 16`).
+   Measured: **11 of 14 documented tag forms** are `--tags deploy`, 3 are
+   `--tags deploy,observability`, 1 is `--tags storage,deploy,stack-startup`, and
+   **no documented form reached both guards**. Live drift on the day: 0.
+   **Shipped**: the spec render, its parent directory and the Tier 0 assert are
+   `tags: always`.
+2. **Rotating `luks_passphrase` produces a green run and changes nothing.**
+   `community.crypto.luks_device` with `state: opened` returns `ok` for an
+   already-open volume — it never opens the device, so it never validates the
+   passphrase. **Exactly one keyslot on the disk** (re-measured by the main session
+   with `luksDump`). Discovery point is the next unlock, which is the one moment with
+   no out-of-band path. Absent from the rotation runbook. **Shipped as a runbook
+   procedure**, in the restic order, with `--test-passphrase` as the proof step and a
+   header re-backup after the keyslot change — the header runbook already lists
+   `luksAddKey` among the operations that invalidate the stored copy.
+3. **`wg_password` is never set by the deploy at all**; the re-assertion script only
+   logs in with it, and its "wg-easy not running -> exit 0" guard makes the whole
+   deploy report success with the secret file `changed`. Runbook row.
+4. **`restic-deep-check-not-stale` was fail-open**: `max(time)` over EVERY monitor's
+   messages matching `'%deep check%'`, with no `monitor_id` filter. Latent — one
+   reporter matches today — but any other monitor emitting those two words resets the
+   45-day clock. **Shipped**: it now fails closed when the pattern stops identifying
+   exactly one reporter.
+5. **The TAP plan was never compared to the TAP results.** `backup-notify.sh:186`
+   and `offsite-health.sh:105` read the plan line and floored it at `-eq 0`. goss
+   emits `1..N` BEFORE the results, so a run cut short leaves plan N, k results, zero
+   `not ok`, and a green beat with N-k databases unasserted. The count moved 26 -> 31
+   -> 46 in twelve days with only a human noticing. The corrected form was already in
+   this codebase at `homelab-health.sh:747` — *"The floor is the DECLARED count, not
+   one"*. **Shipped to both scripts, and made to fail on purpose**: plan 3 / 1 result
+   / 0 `not ok` is caught, plan 3 / 3 results stays green.
+
+### The key's own instances
+
+- **`homelab-health.sh:661`, shape (a), and it is the cleanest of the run.**
+  `LastTriggerUSecMonotonic` renders as a **timespan string** (`1w 2h 3min
+  53.394959s`) while `ExecMainStartTimestampMonotonic` renders as **raw µs**
+  (`612233407772`). Same quantity, same frame, **incommensurable as read back**.
+  Correct today only because both sides are tested against the literal `"0"` — and
+  the comment directly above asserts the commensurability that would make the
+  one-character "improvement" wrong: *"Both fields are monotonic, so the boot resets
+  the pair together and there is no clock arithmetic."* Re-measured by the main
+  session. **Not shipped**: the fix is a comment correction, and the comment rule
+  requires the operator's go-ahead.
+- **The `[vaultwarden]` fail2ban jail, shape (a) with cause (c), and LIVE for a
+  month.** The container carried no `TZ`, so it timestamped in UTC on a CEST host —
+  measured directly at **exactly 7200 s** (`vw 2026-09-18 23:45:12 UTC +0000` against
+  `host 2026-09-19 01:45:11 CEST +0200`), and its log lines carry no offset at all.
+  fail2ban has been saying so in its own log since 2026-08-17. **Its remedy is what
+  does the damage**: re-stamping entries to *now* means `findtime = 600` discriminates
+  nothing, and the jail's real policy is "3 failures ever since the last restart".
+  `goss` asserts jails are *loaded*, so everything was green. **Shipped**: `TZ: ${TZ}`;
+  verified after deploy at CEST +0200, matching the host to the second.
+- **C07's gate is the purest statement of the key and stays RED.** A floor rendered
+  by one Jinja expression from ONE collector's interval, compared against a fleet.
+  `apps.plugin` fell 22.4 % -> 4.50 % of a core against a cadence factor of 5 — the
+  2026-09-18 fix landed exactly — but the gate certifies the go.d **docker** collector
+  at 0.70 % while **`cgroups.plugin` runs at netdata's stock 1 s for 6.91 % across 995
+  charts**, ten times the asserted collector, with no alarm, no goss check and no push
+  monitor reading a cgroups context. A derived floor must key on `(chart context) ->
+  update_every` from netdata's own `/api/v1/charts`.
+- Latent, not shipped: the fsck superblock spelling "disabled" as `-1` against a
+  variable spelling it `0` (both sibling sites translate; arms the day anyone uses the
+  documented way to disable it); `TimeoutStartSec=600` on the staged startup against
+  the script's own 660 s gate ceiling, worst real run 368 s; host `wg0` MTU 65456
+  against a tunnel carrying 1420, wg-quick having derived it from `ip route get
+  127.0.0.1` because the endpoint is the local wg-easy.
+
+### Rejected from the agents, and why — 5
+
+- **`system`'s headline that the posture provenance probe compares nothing.** FALSE,
+  and the main session settled it on the beat's own content: the deployed script does
+  compare start against trigger with a 5 s tolerance (`homelab-posture.sh:82-89`), and
+  today's beat says **`manual run`** verbatim. The agent had conflated two scripts;
+  `services` made the same conflation independently. The 2026-09-18 provenance fix
+  WORKS. The real defect is in `homelab-health.sh:661-662`, which is a different
+  clause with a different property.
+- **`services`' claim that the Traefik access-log rate doubled** to 9.99 MB/day
+  against a documented 6.17. Re-measured from the file's own first and last
+  timestamps — 429 316 bytes over 1 h 44 — gives **5.95 MB/day**, the documented rate,
+  and measured DURING an eight-agent audit that should have inflated it. Not
+  established; needs a quiet-period re-measure before anyone edits the constant.
+- **`security`'s positive control for the fail2ban instance.** It described
+  `[nextcloud]` as carrying `TZ`; **neither container defines `TZ`**. What
+  distinguishes them is the log LINE format (an explicit `+00:00` offset), not the
+  environment variable. The finding holds; its control was mis-described.
+- **`security`'s "once a day since 2026-08-17"** for the fail2ban warning. Counted
+  across the whole rotation: **7 occurrences**, not daily.
+- **C20's cardinal of 59**, carried from the previous run. Not reproducible from any
+  stateable bound, and it counts carriers rather than values.
+
+### Register corrections — 5, and one of them un-reds a gate
+
+- **C03-T's NAMED defect is REPAIRED and the register would have sent the next run
+  hunting it.** The row records the gate as blind because its clauses count
+  `heartbeat` rows with no `status` filter. Both clauses of the DEPLOYED
+  `/etc/goss/posture.yaml` carry `h.status = 1` (`:3240`, `:3255`), verified
+  independently by the main session. Two residuals remain and are genuinely open: it
+  has never completed a green SCHEDULED run, and a live reporter pushing a genuine
+  failure is still indistinguishable from a mute one — which is the fail-safe
+  direction.
+- **C15's cadence is DAILY** (`OnCalendar=*-*-* 08:00`), not weekly. The "6 days
+  unasserted" residue retires with it.
+- **C44's deploy-assertion cardinal is 26, not 12.** The old figure counted only
+  `assert:`.
+- **C105's inverse cardinal is 12, not 11.** See above.
+- **C20's cardinal is 43, by value, with the derivation stated.** 16, 15 and 59 were
+  three different bounds, and only two of them are reproducible.
+
+### Instrument traps paid — 4, and two were the main session's own
+
+1. **`systemctl show -p Result --value` returns `success` for a unit that DOES NOT
+   EXIST**, exit 0, `LoadState=not-found`. Measured with a control. Three states —
+   succeeded, never ran, absent — are indistinguishable to anything reading `Result`.
+   This is the mechanism `Result=success` on `homelab-image-retention` actually runs
+   through, and C101's row names the wrong one: acceptance comes through the `success`
+   arm, not the empty one, so anyone "fixing" it by dropping `""` ships a no-op.
+2. **GitHub's branch-protection API returns 404 for a branch protected by a
+   RULESET.** The main session read that 404 as "not protected at all" and was about
+   to contradict a correct agent finding. `repos/:owner/:repo/rulesets` is the
+   instrument. `main` carries deletion, linear history, creation, pull_request,
+   required_status_checks and non_fast_forward — and **no signature rule**.
+3. **`fail2ban.log` must be read across its rotation.** The main session's grep of
+   the current file alone returned ZERO occurrences of a warning that has fired seven
+   times, and nearly rejected a true finding on that basis. `zgrep` over
+   `fail2ban.log*`, always.
+4. **A DF ping probe with no reachable control proves nothing.** The main session's
+   counter-probe of the `wg0` MTU passed at every size because it targeted an address
+   that never leaves the box, and its control returned nothing parseable. The
+   disagreement with `network` is recorded UNRESOLVED rather than decided.
+
+## The 2026-09-19 (first run) closure record — was that run's OPEN table, superseded
 
 **Two mints arrive OPEN, two arrive ENUMERATED, and three classes REOPEN — none
 of the three is a broken gate, and that distinction is the run's first
