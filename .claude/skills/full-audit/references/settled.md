@@ -57,6 +57,73 @@ opened for merge, and each one carrying the rule it encodes:
   emitting the other form would otherwise re-run the task every deploy and
   report a change each time, which is the same defect inverted.
 
+### Shipped later the same day — the log stores, after the operator ordered a second sweep
+
+- **`auth.log` and `sudo.log` rotate DAILY and their rotated copy is MASKED.**
+  Same four-week window as before, moved together; the clear-text window goes
+  from five weeks to twenty-four hours. The rule is any run of 32+ characters
+  from `[A-Za-z0-9_]`, measured before shipping against both known shapes. **The
+  hyphen is deliberately out of the class** — with it, goss assertion names were
+  masked too. Taking `auth.log` out of the distribution's stanza means owning
+  `/etc/logrotate.d/rsyslog`; the other five paths are reproduced verbatim.
+- **The already-written files were masked in place**, owner and mode preserved:
+  0 occurrences of the live value afterwards, against 1 before, with 22 359
+  masks applied and all 142 171 lines still present. **The offsite host was NOT
+  touched** — independently re-measured clean (75 513 lines, 0 credential-header
+  shapes), and a history rewrite with nothing to remove is a write for nothing.
+- **The Cloudflare token was rotated**, and verified by FUNCTION rather than by
+  state: `/user/tokens/verify` returned `success=true status=active`, the zone
+  lookup returned 1 zone, and an invalid token returned `success=false` as the
+  discriminating control. The new value appears in no log, with a positive
+  control proving the search works. **`DNS:Edit` is declared but not exercised**
+  — proving it needs a real TXT write; the 21-day certificate watch is the net
+  that makes that acceptable.
+
+**Rule the rotation produced, and it is the one that nearly cost remote access:
+before revoking a credential, enumerate its CONSUMERS, not its carriers.** Three
+Cloudflare tokens were live; the DDNS held one the September rotation had never
+replaced, and the DDNS keeps the `vpn` A record that is the WireGuard endpoint,
+which is the only route to the Pi. Revoking from the dashboard by name had a
+one-in-two chance of costing remote access at the next public-IP change.
+
+### Instrument traps paid on 2026-09-20, second batch — two, and BOTH were the main session's
+
+- **A shape search anchored on CONTEXT that the occurrence does not have returns
+  zero, with working positive controls, and looks like proof of absence.** The
+  main session twice failed to reproduce a real Cloudflare token leak: once
+  searching for the token beside the word `cloudflare`, once beside a
+  `CF_`/`API_TOKEN` variable name. Both controls passed — the words matched 29,
+  113, 10 and 96 times — so the instrument was demonstrably reading the right
+  files and hunting the wrong thing. The occurrences are a **bare argument** to
+  `grep -qF`, with no name and no vendor word on the line. **Only a literal-value
+  search settles a question about a specific value**; a shape search can support
+  a negative only when the shape is the whole claim.
+- **`sudo`'s logfile WRAPS long command lines**, and the wrap can fall between a
+  header and its value: `X-Api-Key: <32 hex>` returns 17 in `auth.log` and **0**
+  in `sudo.log` for the same 17 events. Any sweep that requires a marker and its
+  value on one line under-reports `sudo.log`.
+
+### How to verify a secret WITHOUT creating the leak you are checking for
+
+The Cloudflare token reached the journal through `sudo grep -qF <token> <file>`
+run during the audit of 2026-09-12 — **the audit created the exposure it later
+found**. The rule existed for deployed scripts (C26) and had never been written
+for ad-hoc commands. It is now:
+
+- Never put a secret value in argv. `sudo` records the command line in
+  `auth.log`, in `sudo.log` and in the journal's `_CMDLINE`, and only the first
+  two can ever be masked.
+- To search for a value: write it to a file (`/dev/shm`, `umask 077`, shredded by
+  a trap), then `grep -F -f <file>`. Only the FILENAME reaches argv.
+- To send the whole script over SSH: `ssh host 'sudo sh -s' <<'EOF'`. `sudo` then
+  records `sh -s` and nothing else; the script and the value travel on stdin.
+- To call an API with a token: `curl --config <file>` holding
+  `header = "Authorization: Bearer ..."`. `-H` puts the token in argv and
+  therefore in `/proc` and in the journal.
+- Never print a value, not even truncated, and not even to date a hit. The sweep
+  agent disclosed printing 12 and 8 characters of two credentials into its own
+  transcript while doing exactly that.
+
 ### DECLINED on 2026-09-20 (ninth run) — do not re-propose
 
 - **fail2ban's `ignoreip` names the host's own address rather than the address

@@ -141,8 +141,8 @@ parts that need a thought experiment.
 # The register
 
 Runs of 2026-08-15 through 2026-09-20 (NINTH run, key `interference`).
-**119 recorded classes: 1 OPEN (C119), 9 GATED, 7 closed by decision, plus the
-DECLINED list; everything else ENUMERATED.** The ENUMERATED figure is no longer
+**119 recorded classes: 2 OPEN (C119 minted, C12 REOPENED), 9 GATED, 7 closed by
+decision, plus the DECLINED list; everything else ENUMERATED.** The ENUMERATED figure is no longer
 carried here as a number — it was wrong by two for an unknown length of time and
 nobody could check it, because no membership was ever written. Count the rows.
 
@@ -461,6 +461,7 @@ four directions.
 | ID | Property | What bounds the space, and what stopped the sweep |
 |---|---|---|
 | C119 | **A detector whose own act is a member of the set it examines** — so it can read its own trace as data, and its verdict is in part a measurement of itself | Space: deployed detectors × the surface each examines, restricted to the pairs where the detector's own execution can appear on that surface. **NOT BOUNDED.** Swept 5, 2 defective, by two unrelated mechanisms: `services` enumerated pattern-matching probes searching a shared medium for a literal from their own argv (2 of 28 healthchecks + 2 of 229 posture assertions, 4/4, **1 defective**), and `network` found the access-log credential detector whose only in-scope instances are written by the estate's own 15 push reporters (**1 defective, FIXED 2026-09-20**). Neither bound contains the other and neither is the property. **The route to bounding it is stated rather than attempted: enumerate the deployed detectors, then for each one the surface it reads, then ask whether its own execution reaches that surface.** The audit's own method is inside this class — `sudo grep` writing the string it hunts into `auth.log` is its purest instance and has been paid three times |
+| C12 | **A rotated secret a consumer never receives** — the value changes, and one of its carriers is never re-rendered, so two live values coexist under one declaration | **REOPENED 2026-09-20 (ninth run).** Was ENUMERATED with a live gate: `posture.yaml:225 secret-mounts-carry-the-current-value` hashes the host file against `/proc/<pid>/root/run/secrets/<name>` for a pair list GENERATED from `compose.services[*].secrets`, 14/14. **Its space is docker secret MOUNTS; the property is a secret VALUE.** A consumer that reads the same vault variable through a systemd `EnvironmentFile` is outside the derivation by construction — and one was: the Cloudflare token rotated on 2026-09-12 reached Traefik and never re-rendered `/mnt/data/secrets/ddns.env`, which kept its value of 2026-07-20. **Two distinct live tokens under one variable for EIGHT DAYS, with nothing able to notice**, found only because today's rotation made the divergence visible. Both consumers aligned 2026-09-20 14:16. Ninth payment of the wrong-axis shape (C10, C18, C26, C87, C88). **Route to bounding it: enumerate the CONSUMERS of each secret value — docker mounts, systemd EnvironmentFiles, rendered `.env` files, inline script constants — not the mounts** |
 
 **The OPEN column was empty for exactly one run.** Recording C119 as ENUMERATED
 over the 5 sites actually swept would have kept it empty and shown a second
@@ -841,7 +842,7 @@ were declared instance-only** (C07, C41, C45, C49, C59, C69, C82, C90, C91,
 C111, C116) and the discipline held: six of eight domains returned an explicit
 "no mint".
 
-### The counter: 0 OPEN in, 1 OPEN out, 1 minted, class total 118 -> 119
+### The counter: 0 OPEN in, 2 OPEN out, 1 minted, 1 REOPENED, class total 118 -> 119
 
 **The termination clock RESETS.** The mint rate now reads `commensurability` 0,
 `aggregation` 1, `staleness` 1, `attendance` 2, `oracle` 2, `asymmetry` 3,
@@ -904,6 +905,57 @@ quantify.
    **Verified by the deploy's own arithmetic**: with `changed_when: true` in
    place, six writes would have made `changed` >= 9 against the three files that
    did change; the recap read `changed=6`.
+
+### The afternoon's second mandate — the operator ordered a sweep of every log store
+
+The run's first report listed the Traefik access-log leak. The operator's answer
+was to ask what ELSE was leaking, on both hosts. **8 live secret values across 5
+log stores**, 2 024 files plus both complete journals swept, each surface with
+its own positive control. What it found, and what the main session re-measured:
+
+- **CONFIRMED and now fixed** — three `*arr` API keys, 17 occurrences in
+  `/var/log/auth.log.1`, which is `0640 syslog:adm` and the operator's account is
+  in `adm`: **readable without root**, on the unencrypted SD card.
+- **CONFIRMED and the reason the whole sweep mattered** — the LIVE Cloudflare DNS
+  token, 1 occurrence in `sudo.log.1` and 1 in `auth.log.2.gz`. It is the only
+  credential in the estate that works from anywhere on the internet. **The main
+  session first reported it as NOT reproduced and was wrong**; see the instrument
+  traps.
+- **The finding under the findings** — every leak sits on `mmcblk0p2`, while
+  ADR-011 says the SD card "yields configuration but no credentials" and the
+  card-theft runbook lists none of them. An SD-theft response run that day would
+  have left all of it in place.
+- **Clean, with evidence**: nothing reaches the backups through a log (the only
+  log surface inside a restic source is `/mnt/data/services`, 1 221 files,
+  157 MB, 0 hits); the offsite host is clean end to end, re-verified
+  independently by the main session (75 513 lines, 0 credential-header shapes);
+  both restic passwords, all WireGuard and ACME keys and every service password
+  appear nowhere.
+
+**Shipped the same afternoon**: daily rotation and masking for both files that
+carry command lines, five weeks of clear text reduced to twenty-four hours, and
+the already-written files masked in place (0 occurrences after, 22 359 masks
+applied, 142 171 lines preserved, owner and mode unchanged). **The journal is
+NOT covered and the code says so** — journald captures `_CMDLINE` itself, in
+binary, with no insertion point. Moving it to the encrypted volume is the right
+remedy and cannot be validated without a reboot, so it is recorded as a planned
+change, not done.
+
+### The rotation revealed a second live defect, and it is C12's
+
+Rotating the Cloudflare token exposed that **three distinct tokens were in play**:
+the one Traefik used (leaked, replaced today), the one the DDNS used (rendered
+2026-07-20, never leaked), and the new one. The 2026-09-12 rotation had updated
+Traefik and never re-rendered `ddns.env`. **Eight days, two live values under one
+vault variable, nothing able to notice** — see C12's row. Both are aligned now.
+
+**The near-miss is worth more than the finding.** The operator was about to revoke
+"the old token" from the Cloudflare dashboard while the DDNS still depended on a
+different one. The DDNS keeps the `vpn` A record fresh; that record is the
+WireGuard endpoint; the tunnel is the only route to the Pi. **Revoking blind had a
+one-in-two chance of costing remote access at the next public-IP change.** What
+prevented it was checking which consumers read the variable before touching the
+dashboard — not caution, a lookup.
 
 ### The fixture lesson, paid a THIRD time
 
