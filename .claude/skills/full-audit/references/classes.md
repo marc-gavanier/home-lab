@@ -1041,6 +1041,15 @@ caught by re-reading and by writing the derivation down rather than by testing.
    and its health engine has evaluated no alarm"; monitors 35 and 37 red for
    7 min 33 and 6 min 17 with nothing wrong, and six such non-incidents in
    fifteen days. The agent derived 900 s; **the operator chose 1 200 s.**
+   **The 787 s was a COLD start and nobody had said so.** netdata was restarted
+   twice during verification, on a warm host with the stack already up, and
+   both times the health engine had real verdicts within 297 s — so neither
+   restart entered the grace window and neither exercised the change. The fix
+   is justified by the boot case it was measured on and stays UNPROVEN until
+   the next full boot, which a read-only audit cannot provoke: a reboot costs
+   the tunnel, hence the host. **A measurement of a startup cost that does not
+   say which start it measured is, in miniature, the same defect as the class
+   this run closed.**
 3. **`no-container-came-back-recovering` loops over a hand-written list of
    four** — `immich-db miniflux-db nextcloud-db pihole` — which are exactly the
    four containers declaring `stop_grace_period: 90s`, the only budget never
