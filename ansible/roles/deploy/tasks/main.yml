@@ -10,6 +10,18 @@
 # assets `compose up` bind-mounts, pihole/nextcloud post-configure running
 # containers, and the wireguard tunnel carries the offsite check.
 
+- name: Refuse to deploy while the encrypted volume is unmounted
+  ansible.builtin.assert:
+    that:
+      - ansible_mounts is defined
+      - ansible_mounts | selectattr('mount', 'equalto', '/mnt/data') | list | length == 1
+    fail_msg: >-
+      /mnt/data is not mounted — run homelab-unlock on the host first. Deploying
+      now would write credentials in clear onto the SD card, under the mount
+      point, report ok/changed, and the next unlock would hide them there.
+    quiet: true
+  tags: always
+
 - name: Compute WireGuard bcrypt and Vaultwarden Argon2 facts
   ansible.builtin.import_tasks: hashes.yml
   # Tagged with secrets.yml below, and NOT separable from it: hashes.yml ends in
@@ -19,10 +31,19 @@
   # not show up in a search for a registered variable.
   tags: [secrets]
 
-# The `secrets` tag exists so a secret can be written, rotated or re-moded
-# WITHOUT dragging in compose.yml, whose `compose up` copies the whole stack
-# definition and arms every pending image pin for the heal timer. It changes
-# nothing on a full run — tags only filter when --tags is passed.
+# The `secrets` tag exists so a secret can be written or re-moded WITHOUT
+# dragging in compose.yml, whose `compose up` copies the whole stack definition
+# and arms every pending image pin for the heal timer. It changes nothing on a
+# full run — tags only filter when --tags is passed.
+#
+# It is NOT a rotation route, and the word "rotated" stood here until
+# 2026-09-20. The tag reaches secrets.yml alone — 19 of the 31 secret renders in
+# this role. The other 12 sit behind other tags: configs.yml (searxng_settings),
+# backup.yml (7 values), wireguard.yml (wg0.conf) and ddns.yml (ddns.env). That
+# gap is what let the Cloudflare rotation of 2026-09-12 reach Traefik and not
+# the DDNS for eight days, under one vault variable, with nothing able to
+# notice. A rotation has to cover the value's carriers: see
+# knowledge/runbooks/rotate-a-secret.md.
 - name: Deploy secrets on the encrypted volume (ADR-011)
   ansible.builtin.import_tasks: secrets.yml
   tags: [secrets]

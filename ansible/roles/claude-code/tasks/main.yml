@@ -25,6 +25,18 @@
 # =============================================================================
 # Thin orchestrator: one file per concern, task names prefixed with the file.
 
+- name: Refuse to deploy while the encrypted volume is unmounted
+  ansible.builtin.assert:
+    that:
+      - ansible_mounts is defined
+      - ansible_mounts | selectattr('mount', 'equalto', '/mnt/data') | list | length == 1
+    fail_msg: >-
+      /mnt/data is not mounted — run homelab-unlock on the host first. Deploying
+      now would write credentials in clear onto the SD card, under the mount
+      point, report ok/changed, and the next unlock would hide them there.
+    quiet: true
+  tags: always
+
 - name: Install the claude user, sandbox deps and Claude Code
   ansible.builtin.import_tasks: install.yml
 
