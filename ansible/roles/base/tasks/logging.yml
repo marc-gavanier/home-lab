@@ -3,16 +3,58 @@
 # Docker logs and swap already live on the HDD (docker + storage roles); this
 # file handles the remaining SD write sources.
 
-# journald writes the persistent journal to /var/log/journal on the SD card.
-# Keep it PERSISTENT — boot logs must survive a poweroff, they are what the
-# "unexplained poweroff -> reflash" runbook reads to decide — but CAP its size
-# so it can never grow unbounded. A drop-in wins over the shipped journald.conf
-# without editing it; "99-" sorts last so it beats any CIS-supplied fragment.
+# journald's persistent journal lives on the ENCRYPTED volume since 2026-09-20,
+# not on the SD card. A drop-in wins over the shipped journald.conf without
+# editing it; "99-" sorts last so it beats any CIS-supplied fragment.
+#
+# WHY IT MOVED, and the sentence that used to stand here is why it took so long.
+# It read: "Keep it PERSISTENT — boot logs must survive a poweroff, they are
+# what the 'unexplained poweroff -> reflash' runbook reads to decide". **The
+# runbook it cites says the opposite**, at boot-and-unlock.md:70: "the journal
+# lives on the SD, so it proves nothing" — precisely because anyone who can pull
+# the card can forge it. The stated reason for keeping 560 MB of command lines
+# on an unencrypted card was refuted by its own source, and nobody had put the
+# two sentences side by side. Moving the journal STRENGTHENS the tamper story:
+# a journal on the encrypted volume cannot be rewritten by pulling the card.
+#
+# What made it necessary: the audit of 2026-09-20 found live credentials in the
+# journal — journald records `_CMDLINE` for every process, so any secret that
+# reaches a command line lands there, in binary, with no insertion point for the
+# masking that now covers auth.log and sudo.log. Moving the store is the only
+# remedy that reaches it.
+#
+# HOW IT AVOIDS THE BOOT PATH, which is the part that has to be right. The
+# volume is unlocked by hand, so nothing in the boot path may wait for it.
+# `Storage=auto` means journald writes persistently ONLY if /var/log/journal
+# exists — and on this host it does not: it is created by the mount unit below
+# when the volume appears. Before the unlock the journal is in RAM; after it,
+# the directory exists and `journalctl --flush` moves the buffer in. Nothing in
+# sysinit.target waits for anything, and `systemd-journal-flush.service` is left
+# exactly as the distribution ships it. If the volume never mounts, the journal
+# stays volatile and the machine boots normally — the failure mode is a lost
+# journal, never a hung boot.
+#
+# RuntimeMaxUse is what bounds the pre-unlock window, and 50M was sized for a
+# window of minutes. The unlock is MANUAL: the window lasts until a human is in
+# the room, which can be hours, so the buffer is raised to 300M against 4 GB of
+# available RAM. Overflow costs the OLDEST entries of that window, not the boot.
+#
+# What stays on the SD and is unaffected: rsyslog's syslog and kern.log, which
+# carry 5 741 systemd lines and every boot message, so a boot that never reached
+# the unlock is still diagnosable from the card. Measured 2026-09-20, and they
+# hold no credential: 859 long runs, all container IDs and Ansible checksums,
+# and the 17 `password=` occurrences are `update_password=always`.
+#
+# The history of the CAP, which is a separate question from where the store
+# lives and stays valid after the move. NOTE: the retention argument below was
+# written when the journal was believed to be the poweroff runbook's evidence;
+# that premise is refuted above. What survives it is the OTHER reason, and it is
+# the load-bearing one — a monthly event whose only durable record expires in
+# sixteen days is not recorded at all.
 #
 # The cap was 200M and the journal sat at 199.1M, i.e. permanently rotating:
 # measured retention was 14.3 days against 19 days of uptime, so the boot of
-# 2026-07-28 was already gone — and boot logs are exactly what that runbook
-# needs. 74 % of the volume is SSH session accounting. Raising the cap adds NO
+# 2026-07-28 was already gone. 74 % of the volume is SSH session accounting. Raising the cap adds NO
 # writes (the cap governs deletion, not writing) and costs 300M on a filesystem
 # with 45G free. Counter-check: the offsite host retains 42 days at the same
 # cap, which is what shows 200M is not a universal figure but a symptom of this
@@ -39,12 +81,73 @@
     content: |
       # Ansible managed — rendered from the home-lab repo, edits on the host will be overwritten
       [Journal]
-      Storage=persistent
+      Storage=auto
       Compress=yes
       SystemMaxUse={{ journald_system_max_use | default('500M') }}
       SystemMaxFileSize=50M
-      RuntimeMaxUse=50M
+      RuntimeMaxUse=300M
   notify: Restart systemd-journald
+
+# The mount is NOT listed in mnt-data.mount.wants itself: the flush service
+# below requires it, so it is pulled in with the right ordering and there is
+# only one activation link to reason about. systemd creates /var/log/journal
+# for us — which is the whole point, because the directory must NOT exist
+# before the volume is there or `Storage=auto` would put the journal back on
+# the card.
+- name: logging | Journal store on the encrypted volume (mount unit)
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/var-log-journal.mount
+    mode: "0644"
+    content: |
+      # Ansible managed — rendered from the home-lab repo, edits on the host will be overwritten
+      [Unit]
+      Description=Journal store on the encrypted volume
+      Requires=mnt-data.mount
+      After=mnt-data.mount
+
+      [Mount]
+      What=/mnt/data/log/journal
+      Where=/var/log/journal
+      Type=none
+      Options=bind
+  notify: Reload systemd units
+
+- name: logging | Flush the RAM journal onto the encrypted volume once it is mounted
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/homelab-journal-persist.service
+    mode: "0644"
+    content: |
+      # Ansible managed — rendered from the home-lab repo, edits on the host will be overwritten
+      [Unit]
+      Description=Move the volatile journal onto the encrypted volume
+      Requires=var-log-journal.mount
+      After=var-log-journal.mount
+      ConditionPathIsMountPoint=/var/log/journal
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      ExecStart=/usr/bin/journalctl --flush
+  notify: Reload systemd units
+
+- name: logging | Ensure the journal directory exists on the encrypted volume
+  ansible.builtin.file:
+    path: /mnt/data/log/journal
+    state: directory
+    owner: root
+    group: systemd-journal
+    mode: "2755"
+
+# Same pattern, same guard and same reason as the three units already wired this
+# way (ddns, vault-mount, wg-quick@wg0): the volume's own mount is what starts
+# it. Do NOT `enabled: false` this to "clean up" — that wipes the link, which is
+# the only activation path.
+#
+# noqa command-instead-of-module: the systemd module cannot manage add-wants links.
+- name: logging | Persist the journal whenever the encrypted volume mounts  # noqa: command-instead-of-module
+  ansible.builtin.command: systemctl add-wants mnt-data.mount homelab-journal-persist.service
+  args:
+    creates: /etc/systemd/system/mnt-data.mount.wants/homelab-journal-persist.service
 
 # /tmp defaults to the SD card. A tmpfs /tmp removes that write surface
 # entirely (RAM is plentiful on both hosts) and satisfies CIS's /tmp
