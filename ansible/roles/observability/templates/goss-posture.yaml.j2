@@ -893,6 +893,60 @@ command:
     timeout: 60000
     exit-status: 0
 
+  containers-with-no-healthcheck-are-the-declared-set:
+    exec: |
+      ids=$(docker ps -q)
+      [ -n "$ids" ] || { echo "no running container answered docker ps — refusing to judge"; exit 1; }
+      n=$(printf '%s\n' $ids | wc -l)
+      seen=$(docker inspect $ids | jq -r '.[] | (.Name | ltrimstr("/"))' | wc -l)
+      [ "$seen" -eq "$n" ] || { echo "inspected $seen of $n running containers — refusing to judge"; exit 1; }
+      declared="{{ containers_without_healthcheck | join(' ') }}"
+      [ -n "$declared" ] || { echo "containers_without_healthcheck is empty — refusing to judge"; exit 1; }
+      live=$(docker inspect $ids \
+             | jq -r '.[] | select(((.Config.Healthcheck.Test // []) | length) == 0 or (.Config.Healthcheck.Test // []) == ["NONE"]) | (.Name | ltrimstr("/"))')
+      extra=""
+      for c in $live; do
+        case " $declared " in
+          *" $c "*) ;;
+          *) extra="$extra $c" ;;
+        esac
+      done
+      [ -z "$extra" ] || { echo "running with NO healthcheck and not declared as such:$extra — an image bump has dropped a healthcheck this repository never declared, and the heal timer matches on --filter health=unhealthy, which cannot see a container that has none"; exit 1; }
+    timeout: 30000
+    exit-status: 0
+  restic-source-paths-exist-on-disk:
+    exec: |
+      profile=/opt/homelab/resticprofile.yaml
+      [ -r "$profile" ] || { echo "$profile is unreadable — refusing to judge"; exit 1; }
+      sources=$(awk '
+        /^[[:space:]]*source:[[:space:]]*$/ { inblock = 1; next }
+        inblock && /^[[:space:]]*-[[:space:]]+\// { sub(/^[[:space:]]*-[[:space:]]+/, ""); sub(/[[:space:]]*$/, ""); print; next }
+        inblock && /^[[:space:]]*[^-[:space:]#]/ { inblock = 0 }
+      ' "$profile")
+      [ -n "$sources" ] || { echo "no source: entry parsed from $profile — refusing to judge"; exit 1; }
+      transient=$(sed -nE 's#^[[:space:]]*-[[:space:]]+rm -rf[[:space:]]+(/[^[:space:]]+)[[:space:]]*$#\1#p' "$profile" | sort -u)
+      checked=0
+      missing=0
+      for p in $sources; do
+        skip=0
+        for t in $transient; do
+          [ "$p" = "$t" ] && skip=1
+        done
+        [ "$skip" -eq 1 ] && continue
+        checked=$((checked + 1))
+        if [ ! -e "$p" ]; then
+          echo "$p is a declared restic source and is not on disk — restic skips a missing source in silence and the snapshot is smaller with no error"
+          missing=$((missing + 1))
+        fi
+      done
+      if [ "$checked" -lt 1 ]; then
+        echo "every declared source is hook-managed — this assertion is reading an empty set"
+        exit 1
+      fi
+      [ "$missing" -eq 0 ]
+    timeout: 60000
+    exit-status: 0
+
   # --- Retention delivered against retention declared (class C68) ------------
   # Every `db` setting used to be commented out, so all three tiers ran on stock
   # 1024MiB caps against stock 14d/3mo/2y time bounds. The size bound binds
