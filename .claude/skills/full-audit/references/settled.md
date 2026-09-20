@@ -79,6 +79,15 @@ opened for merge, and each one carrying the rule it encodes:
   — proving it needs a real TXT write; the 21-day certificate watch is the net
   that makes that acceptable.
 
+**Closed out at 14:44 the same day.** Both consumers were aligned on the new
+value at 14:16, the SCHEDULED DDNS run of 14:30:02 was verified end to end
+(`LastTriggerUSec` read beside `Result`, so a hand-run could not be mistaken for
+it: zone lookup OK, `unchanged (…)`, Kuma UP at 14:30:08), and the operator then
+revoked every older token. **Exactly one Cloudflare token now exists and both
+consumers read it from one vault variable**, which is what removes the cause
+rather than the symptom — a future rotation can no longer reach one consumer and
+miss the other.
+
 **Rule the rotation produced, and it is the one that nearly cost remote access:
 before revoking a credential, enumerate its CONSUMERS, not its carriers.** Three
 Cloudflare tokens were live; the DDNS held one the September rotation had never
