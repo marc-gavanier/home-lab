@@ -65,9 +65,12 @@
 # while the events this journal is the ONLY durable record of run monthly — the
 # rotating deep verification of the backup repository, and every container the
 # heal timer resurrects. Evidence that expires before the event repeats is not
-# evidence. 1500M is about 48 days, chosen to sit past the 45-day threshold the
-# posture spec uses for the deep check so that when the assertion names a missed
-# month, the journal can still say what happened instead.
+# evidence. Re-measured 2026-09-21, after the journal moved to the encrypted
+# volume: 545.3 MiB spanning 21.3 days, so 25.6 MiB/day and about 59 days at
+# saturation, not the 48 this said. The 45-day threshold of the deep check is
+# NOT what sizes this — that assertion reads Kuma's heartbeat history, not the
+# journal. What the cap must outlive is the period of the jobs whose only
+# durable record is the journal, the longest of which is monthly.
 - name: logging | Ensure the journald drop-in directory exists
   ansible.builtin.file:
     path: /etc/systemd/journald.conf.d

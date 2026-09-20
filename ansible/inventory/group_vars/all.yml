@@ -622,9 +622,13 @@ netdata_min_contexts: 270
 # 31 MB/day, against a monthly job. The only deep repository verification ever
 # executed had already fallen out of it.
 #
-# 1500M is roughly 48 days at that rate: past the 45-day threshold
-# `restic-deep-check-not-stale` uses, so a missed month is still readable in the
-# journal when the assertion names it.
+# Re-measured 2026-09-21, after the journal moved to the encrypted volume:
+# 545.3 MiB spanning 2026-08-30 to 2026-09-21 — 21.3 days at 25.6 MiB/day, so
+# 1500M is about 59 days once the store saturates, not the 48 this said. The
+# 45-day threshold of `restic-deep-check-not-stale` is NOT what sizes this:
+# that assertion reads Kuma's heartbeat history and says so in its own spec.
+# What the cap has to outlive is the period of the jobs whose only durable
+# evidence is the journal, the longest being monthly.
 #
 # Raising a cap adds NO writes — it governs deletion, not writing — which is the
 # same argument that took it from 200M to 500M and the one that matters on a
