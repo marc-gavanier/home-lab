@@ -146,6 +146,12 @@ library_unbacked_categories:
   - movies
   - shows
 
+containers_without_healthcheck:
+  - dnsproxy
+  - nextcloud-cron
+  - nextcloud-notify-push
+  - searxng
+
 backup_dir: "{{ data_mount_point }}/backups"
 
 # Where the backup writes its narrative, and where the dump assertions leave

@@ -157,6 +157,23 @@ argument_specs:
           source. The posture spec checks the deployed profile against this list
           in both directions, so a category can neither drop out of the backup
           nor be added to it without the assertion failing.
+      containers_without_healthcheck:
+        type: list
+        elements: str
+        required: true
+        description: >-
+          The running containers that deliberately have no healthcheck at all.
+          Four others — wg-easy, collabora, immich-server and
+          immich-machine-learning — do have one, but it comes from the IMAGE
+          rather than from compose.yaml, so an image bump can remove it and
+          nothing in this repository would change. The posture spec asserts that
+          the live no-healthcheck set contains nothing beyond this list, which is
+          the direction that catches such a drop. It is not checked in the
+          reverse direction on purpose: a declared container gaining a
+          healthcheck is harmless, and a declared container merely being stopped
+          would make that direction fire for no fault. The heal timer matches on
+          `--filter health=unhealthy`, which cannot see a container that has no
+          healthcheck, so a silent drop removes a service from crash recovery.
       data_mount_point:
         type: path
         required: true
