@@ -24,6 +24,132 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-09-20/21 (ELEVENTH run) — key `tolerance`, PR #378, deployed from the branch before merge
+
+Six live defects, all of them instances of the class this run minted: a guard
+sitting at the wrong distance from the rupture it guards. Deployed with
+`--tags security,observability,claude-code,stack-startup,deploy` and
+`-e '{"deploy_services": "traefik"}'`, `changed=17`, then `changed=0` on the
+idempotence re-run **before** the merge.
+
+1. **`vault-mount` ordered after the staged startup.** It restarted 15 times on
+   2026-09-20 and still read `active`/`success`, because its 15 s failure cycle
+   never fits the **systemd default** `StartLimitIntervalSec=10s` — the burst
+   counter resets between attempts, so `failed` is unreachable and nothing can
+   report it (0 of 59 283 retained Kuma beats mention it). The cause was
+   ordering, not the limiter: it mounts over HTTPS while the stack is still
+   coming up. `After=homelab-stack-startup.service` binds only when both units
+   share a transaction, so nothing is delayed when `claude-remote-control` pulls
+   the mount later. Verified `NRestarts=0`.
+2. **`homelab-stack-startup`: ceiling 600 -> 1800 s, limiter window 1800 ->
+   7200 s.** The script grants itself 660 s of health gates before any dispatch;
+   the last cold start used 482 s of 600. Its limiter could not fire either —
+   3 x (600 + 60) never fit 1800 s — so the unit could not reach `failed`, and
+   neither the alert nor the crash-heal that waits on `is-failed` could run. The
+   window is now derived from the attempt cost and the derivation is written
+   beside it.
+3. **The credential masker gained a padded-base64 alternative.**
+   `[A-Za-z0-9_]{32,}` counts word characters; base64 uses `+` and `/`, which
+   split a key into runs shorter than 32. Measured 107 of 200 synthetic 32-byte
+   keys passing through untouched. Now `([A-Za-z0-9_]{32,}|[A-Za-z0-9+/]{20,}={1,2})`,
+   which takes those 200 to zero survivors.
+4. **`homelab-netdata-kuma` lost `--retry 2`.** Each push cost 3 x TIMEOUT, for a
+   real ceiling of 336 s against a 240 s bound and a 300 s timer period. Above 336
+   and below 300 cannot both hold, so the retry went rather than the bound; rc=28
+   is already reported honestly as an unconfirmed beat.
+5. **Traefik `readTimeout: 600s` on `websecure`.** Nothing declared
+   `respondingTimeouts`, so all three entry points inherited the v3 default of
+   60 s, which cuts any request body that takes longer regardless of throughput.
+   Verified functionally after deploy: a body dripped for 75 s now completes,
+   against a 403 control in 0.25 s proving the probe reaches Traefik.
+6. **Kuma dead windows** (UI, not the repo): 15 `Backup` and 16 `Offsite backup`
+   90 000 -> 93 600 s, 23 `Pi security posture` 90 000 -> 93 600, 30
+   `Veille quotidienne` 90 000 -> 100 800. All five daily margins now sit in a
+   6.8-7.4 % band instead of 3.0 %. **18 `Offsite health` was deliberately left
+   at 90 000** — its red beats are genuine failures, not window expiries.
+
+Documentary corrections in the same PR, each confronted with the running system:
+the observability page promised `Count: 19, Failed: 13` for a hand-run of
+`backup-dumps` where the machine answers 46/27, and now prints the derivation
+instead of the pair; `.env.example` gained `LIBRARY_DIR` and the command that
+derives its own gap; frozen fleet counts moved from a 21- and 28-container estate
+to 32; the monitor count to 37; dozzle's "No tmpfs" sat one line under its tmpfs;
+`middlewares.yml` named traefik's address as wg-easy's egress and now names no
+literal at all; ADR-006 still listed a drawback `e1f071e` removed; the lynis
+rationale spoke in the present of a masked timer; `kuma-dump` counted 114 monitor
+columns against a live 120; a goss floor called itself `5x` above metadata at
+300/32 = 9.4x; ADR-021's premise is dated rather than rewritten.
+
+## Decisions taken on 2026-09-20/21 (eleventh run) — do not re-propose
+
+- **The `/`-widened masking class is REJECTED, and it was measured before being
+  rejected.** Adding `/` to `[A-Za-z0-9_]` reaches 100 % key coverage — the same
+  as the form shipped — but it redacts filesystem paths in `sudo.log` and
+  destroys the record of which file a root command touched. Cost measured on the
+  live store: **270 extra lines changed in auth.log against 1** for the padded
+  form, at identical key coverage. The operator's proposed character set also
+  included `-`, which the repo had deliberately excluded because it masks goss
+  assertion names like `no-kuma-report-was-lost-in-silence`; the shipped form
+  keeps that exclusion.
+- **journald is REJECTED as the redactor's log destination.** It is the one store
+  the masking in the security role cannot filter — journald captures `_CMDLINE`
+  itself, in binary, with no hook.
+- **Traefik's read timeout is BOUNDED at 600 s, not disabled.** `readTimeout: 0`
+  was proposed and not taken: 80/443 are not forwarded, so the slowloris
+  rationale for the v3 default does not apply, but an unbounded read still holds
+  a connection forever on a proxy that has a rate-limit middleware and trusted
+  clients only.
+- **Kuma monitor 18 `Offsite health` stays at 90 000 s.** Its retained red beats
+  are substantive failures (`ssh.service`, `goss spec missing`), not window
+  expiries, so the tightening applied to 15/16/23/30 does not apply to it.
+
+## Withdrawn after measurement on 2026-09-20/21 (eleventh run) — 2
+
+Both had already been relayed to the operator before the main session checked
+them, which is why they are recorded here rather than quietly dropped.
+
+- **"`.env.example` is missing three secrets, and a from-scratch rebuild brings up
+  Pi-hole with no admin password."** NOT REPRODUCIBLE. Derived both ways against
+  what the deploy actually writes: the gap between `env.j2` and `.env.example` is
+  **one** key, `LIBRARY_DIR`. The Pi-hole and Redis secrets are docker secrets,
+  not `.env` entries, and the file itself states that Nextcloud takes no admin
+  credentials at all. The real finding was kept and fixed; the alarming half was
+  withdrawn.
+- **"No false alarm has fired yet on the backup window."** The retained history
+  holds a `No heartbeat in the time window` beat for monitor 15 on 2026-09-13.
+  The window had already fired once; its authenticity cannot be settled from
+  retained data.
+
+## Instrument traps paid on 2026-09-20/21 (eleventh run) — eight, and THREE were the main session's own
+
+- **A gap between consecutive UP heartbeats swallows genuine outages.** The main
+  session reported a Kuma window "already exceeded by 30 %" — false. Excluding
+  spans that contain a DOWN beat is necessary but NOT sufficient: **retention
+  prunes old DOWN beats, so an old outage still reads as an ordinary night.**
+  Both corrections were needed. Name the incidents you exclude.
+- **Comparing a masking result to the literal `***`** scores a PARTIALLY masked
+  value as surviving. Test whether `sed` changed the string at all.
+- **The main session propagated a false statement from `classes.md` into an agent
+  brief as established fact** (`traefik` declaring no `start_period`; it has
+  carried 240 s since #308). The agent caught it. Nothing grades these four files
+  — no goss assertion, no script, no CI check reads `full-audit` — so the audit's
+  only quality control over its own register is the audit.
+- `/etc/apt/apt.conf.d/20auto-upgrades` matches neither `*periodic*` nor
+  `*unattended*`, so a glob there reads as "the setting is absent". Ask
+  `apt-config dump`.
+- **`heartbeat.duration` returns 0 for all 22 active Kuma monitors** — a zero that
+  looks like data. The real column is `ping`. And raw `heartbeat` retention is
+  **~44 h, not the 180 d `keepDataPeriodDays` advertises**; amplitude must come
+  from `stat_daily`.
+- A `json-file` container log **survives a `restart` but not a recreate**, which
+  invalidates any throughput figure computed across a deploy.
+- **A commented-out line in a stock Ubuntu file is not live configuration.**
+  Reading one as such nearly produced a false finding on the offsite reboot hour.
+- **The host resolves through 1.1.1.1, not Pi-hole**, so split-DNS names do not
+  resolve from the host itself. A functional probe from the host needs
+  `--resolve`, or `curl` fails with rc=6 and it looks like a proxy fault.
+---
+
 ## Shipped on 2026-09-20 (TENTH run) — key `substitution`, one PR, deployed from the branch before merge
 
 Four commits, all verified against the running systems before the branch was
