@@ -57,6 +57,40 @@ opened for merge, and each one carrying the rule it encodes:
   emitting the other form would otherwise re-run the task every deploy and
   report a change each time, which is the same defect inverted.
 
+### Shipped in the evening — the journal store left the unencrypted card
+
+The last piece of "nothing sensitive on the SD card", done with the operator
+physically at the machine and **validated by a real reboot**.
+
+- **The journal now lives on the encrypted volume.** `Storage=auto` plus a bind
+  mount created by systemd when the volume appears, plus a oneshot running
+  `journalctl --flush`, both pulled by `mnt-data.mount.wants` — the pattern three
+  other units already use. **Nothing in the boot path waits for the volume**, and
+  `systemd-journal-flush.service` is untouched: if the volume never mounts the
+  journal stays volatile and the machine boots normally.
+- **The reboot proved the part that mattered.** Kernel up 15:43:37, volume
+  unlocked 15:46:26, and the first entry of that boot reads 15:42:10 — the
+  pre-unlock window was held in RAM and recovered. 9 boots still readable, 547 MB
+  in the store, no volatile residue, `/` down to 18 %.
+- **`journalctl` without sudo still works**, against the prediction: `mv`
+  preserved the per-file ACLs across filesystems.
+- **An assertion guards the one procedure that silently undoes it.** A reflash
+  and re-provision gives back a distribution that creates `/var/log/journal` on
+  the card; `Storage=auto` writes there until the unlock and the bind mount then
+  HIDES those files instead of removing them. `journal-store-is-on-the-encrypted-volume`
+  requires a mount point AND the encrypted source, and was made to fail on
+  purpose against real paths in four directions.
+
+**The rule this shipped, and it is the expensive one: a rationale that cites a
+document is not evidence until someone reads that document.** The comment in
+`logging.yml` kept 560 MB of command lines on an unencrypted card by asserting
+that the poweroff runbook needs them. The runbook says the journal "proves
+nothing" *because* it is on the SD. **A false rationale blocked a real security
+fix for months, and the only thing missing was putting two sentences side by
+side.** That is why C34 reopens: it was swept over the 20 service pages, a space
+bounded by a directory, while the property covers any artefact citing a sibling —
+including a code comment.
+
 ### Shipped later the same day — the log stores, after the operator ordered a second sweep
 
 - **`auth.log` and `sudo.log` rotate DAILY and their rotated copy is MASKED.**
