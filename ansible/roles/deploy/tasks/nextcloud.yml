@@ -270,11 +270,22 @@
   loop: "{{ (nc_ext_list2.stdout | from_json) if (nc_ext_list2.stdout | default('')) else [] }}"
   loop_control:
     label: "{{ item.mount_point | default('?') }}"
+  # The listing above already carries the option's CURRENT value, so the write
+  # is skipped unless it would actually change something. Before this guard the
+  # command ran unconditionally on every deploy — three mounts here and three
+  # below, six writes costing ~32 s — under `changed_when: false`, so the report
+  # was byte-identical whether it had just silently undone a change made in the
+  # web UI or done nothing at all. Both directions of that are wrong: a real
+  # write must be able to say so, and a no-op must not have to.
+  # Both renderings are accepted because the value arrives as a STRING: a future
+  # version emitting `true` instead of `"1"` would otherwise re-run this task on
+  # every deploy and report a change each time, which is the defect inverted.
   when:
     - nextcloud_up
     - item.configuration.datadir is defined
     - item.configuration.datadir.startswith('/external/')
-  changed_when: false
+    - ((item.options | default({})).readonly | default('0') | string) not in ['1', 'true', 'True']
+  changed_when: true
 
 # Nextcloud browses its own index, not the disk, so a file that arrives any way
 # other than through Nextcloud stays invisible until something rescans. ADR-003
@@ -296,8 +307,10 @@
   loop: "{{ (nc_ext_list2.stdout | from_json) if (nc_ext_list2.stdout | default('')) else [] }}"
   loop_control:
     label: "{{ item.mount_point | default('?') }}"
+  # Same guard as the read-only enforcement above, for the same reason.
   when:
     - nextcloud_up
     - item.configuration.datadir is defined
     - item.configuration.datadir.startswith('/external/')
-  changed_when: false
+    - ((item.options | default({})).filesystem_check_changes | default('0') | string) not in ['1', 'true', 'True']
+  changed_when: true

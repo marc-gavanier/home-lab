@@ -23,6 +23,18 @@
 {
   gsub(/[?&][Aa]ccess_?[Tt]oken=|[?&][Aa]pi_?[Kk]ey=|[?&](token|auth|secret|password|sig|signature)=/, "&\001")
   gsub(/\001[^ &"]*/, "***")
+
+  # Everything above is anchored on `[?&]`, so it only ever sees a credential
+  # carried as a QUERY parameter. Uptime Kuma carries its push token in the
+  # PATH — `/api/push/<token>?status=up` — and the estate's own 15 push
+  # reporters are the only writers of that shape, so the assertion that watches
+  # this log for credentials reported `bad=0` while 1 283 lines in 24 h carried
+  # a live token in clear (audit of 2026-09-20). This pass is deliberately a
+  # single known path rather than a generic "token-shaped segment" rule: over
+  # redacting a query value costs nothing, but over-redacting a path would make
+  # the log unable to say WHICH endpoint was called.
+  gsub(/\/api\/push\/[^ ?"]+/, "/api/push/***")
+
   print
   fflush()
 }
