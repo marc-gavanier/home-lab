@@ -71,8 +71,8 @@ The census, taken 2026-08-30 over the 16 periodic jobs then on the two hosts:
 
 | Evidence | Jobs | Retention | Against a period of |
 |----------|------|-----------|---------------------|
-| A Kuma push monitor whose message carries readings | 14 | 180 days | 5 minutes to 8 days |
-| The journal alone | 2 — `homelab-stack-heal`, `offsite-wg-reresolve` | 48 days (raised from 16 for this) | see below |
+| A Kuma push monitor whose message carries readings | 14 | per-monitor row budget | 5 minutes to 8 days |
+| The journal alone | 2 — `homelab-stack-heal`, `offsite-wg-reresolve` | ~59 days at saturation (21 held on 2026-09-21) | see below |
 | Nothing at all | 1 — `homelab-image-retention` | — | monthly |
 
 The third row was added 2026-09-19 and it is the reason to distrust this table's
@@ -121,10 +121,18 @@ repository then goes unverified for another year. resticprofile cannot know what
 ran last month, so nothing inside the job can notice.
 
 `restic-deep-check-not-stale` catches it from outside: it reads Kuma's heartbeat
-history — 180 days, against a journal that holds 48 — for the most recent beat
-saying a data subset was re-read, and fails past 45 days. Consecutive deep runs
-are 24 to 37 days apart on a healthy schedule, so one missed month trips it and
-a normal one never does.
+history for the most recent beat saying a data subset was re-read, and fails
+past 45 days. Consecutive deep runs are 24 to 37 days apart on a healthy
+schedule, so one missed month trips it and a normal one never does.
+
+The margin it has is NOT the `keepDataPeriodDays` setting of 180 days. That
+number is true as configuration and false as a promise: raw heartbeats are
+pruned against a per-monitor row budget, measured 2026-09-21 at 45.6 h for an
+ordinary beat on the 5-minute health monitor. This assertion survives because
+its monitor is weekly — all of its beats back to 2026-07-19 are present, which
+is 63 days against the 45-day threshold, a margin of 18 days and growing. The
+same correction was made in three template comments on 2026-09-19 and did not
+reach this page.
 
 ### The access log, and a weekly writer
 
@@ -133,7 +141,13 @@ The same rule applies outside the backup chain. The redacted access log
 **4.86 days** — while the second host, for which a request through the proxy is
 the only trace it leaves there, writes **once a week**. A census taken mid-week
 concludes it is absent. That log now carries its own `logging:` block, 10 x
-20 MB, about 32 days.
+20 MB — about 32 days of capacity, which is not the same as 32 days of history.
+The ring belongs to the CONTAINER: every recreation starts it empty. Measured
+2026-09-21, 14 h after a recreation: one file of ten, 4.07 MB of 200, holding
+12 h 17. So a weekly writer is only answerable from this log when the redactor
+has been running longer than a week, and the `window=48h` of
+`traefik-access-log-carries-no-credential` is satisfied by a floor of
+`seen>=1`, not by the window. ADR-034 carries the open decision.
 
 
 There is exactly one deliberate exception to "whatever the state", added by #289
@@ -983,7 +997,10 @@ Discord webhook, wired to every monitor.
 Both write sources are bounded so they can never fill the SD card:
 
 - Docker: `json-file` driver, `max-size 10m` × `max-file 3`
-  (`ansible/roles/docker/tasks/install.yml`).
+  (`ansible/roles/docker/tasks/install.yml`) — the DAEMON default. A container
+  whose log is itself the durable evidence overrides it in `compose.yaml`;
+  `traefik-log-redactor` carries `20m` × `10` for that reason (ADR-034), and
+  the ring is emptied by every recreation of the container.
 - journald: persistent but capped at `SystemMaxUse=1500M`, via a drop-in
   (`ansible/roles/base/tasks/logging.yml`). Persistence is deliberate — the
   boot logs are what the "unexplained poweroff" runbook reads.

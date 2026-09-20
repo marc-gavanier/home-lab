@@ -826,10 +826,17 @@ Verified by *loading*, never by listing:
    **Re-run the storage role after any restore** (see "Ownership after a
    restore" above). This was written that morning as a precaution; the drill
    turned it into a measured fact.
-2. **Retention starts 2026-07-11.** Anything older is
-   gone, including the pre-Immich-v3 state — which retroactively justified
-   deleting the v2.7.5 images the same day: the rollback path they existed for
-   had already expired.
+2. **Do not read a retention policy as a floor on what exists.** This entry
+   used to say "Retention starts 2026-07-11, anything older is gone", and used
+   that to justify deleting the Immich v2.7.5 images the same day. It is false:
+   measured 2026-09-21, 18 of the 35 local snapshots predate it and the oldest
+   is 2026-05-14, because the frozen path groups the README documents keep
+   snapshots the live policy would never have retained. Ask the repository
+   rather than the policy:
+
+   ```bash
+   resticprofile -n homelab snapshots --compact
+   ```
 3. **The passphrase survives the house.** The offsite repo password is
    deliberately absent from the offsite Pi, and every copy that lives at home
    is taken by the same fire — so the recovery chain rests on it existing in at

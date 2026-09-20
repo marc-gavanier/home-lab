@@ -1901,9 +1901,9 @@ command:
   # subject disappears is the failure this spec keeps being written to avoid.
   #
   # timeout because goss allows a command 10 s and a timeout renders as a
-  # FAILURE, not as a skip (the lesson of 2026-08-30). 90 s since 2026-09-18,
-  # and it is sized on a measurement: the assertion body costs 8.7 s with the
-  # page cache warm, and the redactor's read alone cost 16.5 s cold, over
+  # FAILURE, not as a skip (the lesson of 2026-08-30). 90 s on 2026-09-18 and
+  # 300 s later the same day (e1dac8f). It is sized on a measurement: the
+  # assertion body costs 8.7 s with the page cache warm, and the redactor's read alone cost 16.5 s cold, over
   # 581 089 retained lines in eight files. The posture run adds the contention
   # of eight concurrent tests on one dockerd on top of that. The 30 s it
   # replaces timed out on every run from 2026-09-16 and intermittently before,
