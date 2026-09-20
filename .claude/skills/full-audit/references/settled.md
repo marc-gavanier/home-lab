@@ -24,6 +24,122 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-09-21 (TWELFTH run) — key `durability`, one PR, deployed from the branch before merge
+
+Six live corrections and nine documentary ones. The key asked one question of
+every mechanism — does the state it relies on outlive what is asked of it? —
+and required two numbers for every instance: the depth DEMANDED and the depth
+RETAINED.
+
+- **netdata's alarm transition history: `5d` -> `60d`, in-memory entries
+  1 000 -> 5 000** (`docker/configs/netdata/netdata.conf`, a `[health]` section
+  the file never had). The metric store retains 55 days; the store that answers
+  "has this alarm ever fired?" retained five. Proof it mattered: the swap guard's
+  own rupture, 94.55 % against an 85 % threshold on 2026-08-31→09-02, left no
+  retained transition, with a positive control. **This is a bound on the audit's
+  own instruments before it is a defect in the estate.**
+- **`STARTUP_GRACE` 300 s -> 1 200 s**
+  (`roles/observability/templates/homelab-netdata-kuma.sh.j2`). Measured startup
+  is 787 s, so the adapter was declaring a fault 487 s early: six DOWN beats on
+  2026-09-20, two monitors red for 7 min 33 and 6 min 17 with nothing wrong, six
+  such non-incidents in fifteen days. The agent derived 900 s from the longest
+  curated `lookup` window plus collector startup; **the operator chose 1 200 s.**
+- **Two restart limiters made reachable**: `StartLimitIntervalSec=300` /
+  `StartLimitBurst=5` on `vault-mount` (`roles/claude-code/tasks/vault.yml`) and
+  on the offsite `rest-server`
+  (`roles/offsite-backup/templates/rest-server.service.j2`). With `RestartSec=10`
+  against the undeclared default window of 10 s, five attempts span 40 s and the
+  burst counter resets between them, so `failed` was unreachable and
+  `systemctl --failed` could never see either unit.
+- **The resticprofile profile locks moved from `/var/lock` to `/run/lock`**
+  (`roles/deploy/templates/resticprofile.yaml.j2`, both profiles). `/var/lock`
+  is a real directory on the root filesystem on BOTH hosts — dev 45826 against
+  `/run/lock`'s dev 28 — because `/usr/lib/tmpfiles.d/legacy.conf`'s `L` directive
+  cannot replace the directory `base-files` ships. A profile lock left by a hard
+  kill therefore survived the boot, on a path whose name says it should not.
+  `/run/lock` is the tmpfs, so a reboot now expires it.
+- **The runbook's lock repair section now names the right file**
+  (`knowledge/runbooks/offsite-backup.md`). It taught only `restic unlock`,
+  which acts on the repository's `locks/` directory; the profile lock that
+  produces "another process is already running this profile" is a different
+  object that no assertion watches.
+
+## Decisions taken on 2026-09-21 (twelfth run) — do not re-propose
+
+- **Alarming on transmission's forced kills is DECLINED.** The operator:
+  transmission habitually crashes during downloads, alarms on it are wasted
+  effort, *"ce qui m'intéresse c'est qu'au final ça se remet"*. The measured
+  facts stand and are recorded rather than acted on: over 14 days the docker
+  journal holds 114 "using the force" — 87 at the 10 s default, 5 at 5 s, 1 at
+  1m0s (transmission's declared 60 s budget) and none at 90 s — while
+  `no-container-came-back-recovering` loops over a hand-written list of exactly
+  the four containers at 90 s, the only budget never exceeded. **The assertion
+  was deliberately NOT re-derived from `compose.services[*].stop_grace_period`,
+  because deriving it is precisely what would add transmission to it.** The
+  derivation defect remains recorded and unfixed, the same shape as C18's
+  `logs.db` siblings. A proposal that demonstrates RECOVERY instead of alarming
+  on the kill is a different question and has not been put.
+- **`force-inactive-lock` stays unset** — re-confirmed, not re-decided. The
+  repo's own reasoning at `goss-units.yaml.j2:235` is the answer to any future
+  proposal: it authorises a run to break a lock it did not create and repairs
+  without ever reporting, which is how #331 went unnoticed for eight and a half
+  hours. Detection first. An agent proposed setting it on 2026-09-21 and was
+  declined on that ground.
+- **pihole's `start_period` of 120 s against the 300 s the staged startup grants
+  itself** is a real C120 instance, deferred rather than declined. The one-line
+  remedy recreates pihole and destroys dnsproxy's network namespace; the measured
+  cost of doing nothing is 0 over 16 days. Ship it inside a pihole deploy that is
+  already happening for another reason, never on its own.
+
+## Withdrawn after measurement on 2026-09-21 (twelfth run) — 2
+
+- **"`--tags storage` before `homelab-unlock` writes 4 GiB onto the SD card."**
+  Refuted by the main session and withdrawn by its author, along with the class
+  it had minted. `storage/tasks/luks.yml:16-22` opens the LUKS volume
+  unconditionally; `storage/tasks/mount.yml:59-63` starts `mnt-data.mount` with
+  no `ignore_errors` or `failed_when` anywhere in the role, so a failure aborts
+  four imports before `swap.yml`; and `deploy/tasks/main.yml` carries
+  `tags: always`, so its mount assert runs under ANY tag filter — the claim that
+  it is "never executed under `--tags storage`" was the pivot and was false.
+  `--start-at-task` is the only path that reaches `swap.yml` bare, and the agent
+  refused to use it to save the finding, correctly: that flag disables every
+  precondition in the play and the same argument would condemn every ordering
+  invariant in the repo.
+- **"5 tmpfs mounts, not the 41 the register carries."** Not a register
+  correction. Measured both ways by the main session: `mount -t tmpfs | wc -l`
+  gives 5 on the host, the sum of `HostConfig.Tmpfs` over running containers
+  gives 41 — which is C36's space and C36's cardinal, correct and unchanged.
+  **Two different spaces sharing a word; the register would have been corrupted
+  by believing the agent.**
+
+## Instrument traps paid on 2026-09-21 (twelfth run) — four, and TWO were the main session's own
+
+1. **`StartLimitIntervalSec` in `[Service]` is silently ignored** — systemd
+   moved it to `[Unit]`. The main session wrote it into the wrong section for
+   both units and caught it by re-reading the rendered template rather than by
+   testing. A unit that ignores the directive looks exactly like one that
+   honours it.
+2. **Two lock objects with similar names.** The main session attributed its
+   `/var/lock` discovery to issue #331 and was wrong: #331 concerns restic
+   REPOSITORY locks, which live inside the repository on `/mnt/data` and survive
+   a reboot because that is what a repository does. The deployed detector
+   (`restic-repo-has-no-stale-lock`) scans `<backup_dir>/restic-repo/locks` and
+   has never watched the profile lock. Caught by reading the detector before
+   writing the register.
+3. **`resticprofile` cannot be run by hand outside its unit** — the repository
+   comes from an `EnvironmentFile`, and a bare invocation fails with
+   `unable to open config file: stat <no value>/config`. The main session could
+   not independently re-measure the snapshot census and SAID SO rather than
+   inheriting two agents' figure silently. It also verified its failed attempts
+   left no lock behind, which is the check that matters when the audit's subject
+   is stale locks.
+4. **`docker diff` reports bind MOUNTS as added files.** Two `php/conf.d/*.ini`
+   entries under nextcloud look exactly like the `zz-disable-jit.ini` that fell
+   into the writable layer on 2026-08-27 and cost six hours of outage.
+   `compose.yaml:885` mounts them. Self-caught by `services`.
+
+---
+
 ## Shipped on 2026-09-20/21 (ELEVENTH run) — key `tolerance`, PR #378, deployed from the branch before merge
 
 Six live defects, all of them instances of the class this run minted: a guard
