@@ -15,29 +15,31 @@ earlier — which would have sent eight agents to re-derive settled work. Rebuil
 it from `classes.md`'s OPEN table at the start of every run; if the two
 disagree, `classes.md` wins.
 
-As of the NINTH run of 2026-09-20, key `interference`. **Rebuilt from
-`classes.md`'s OPEN table — do not trust this copy if the two disagree.**
+As of the TENTH run of 2026-09-20, key `substitution`. **Rebuilt from
+`classes.md`'s OPEN table — do not trust this copy if the two disagree.** The
+ninth run's copy of this block claimed "ONE OPEN CLASS: C119" while the register
+carried three, and contradicted itself sixteen lines later by saying every domain
+was in the "no OPEN class" state. Both sentences are deleted rather than
+corrected; a rule for reconstructing the list is what keeps being wrong.
 
-**ONE OPEN CLASS: C119**, minted by the ninth run and owned jointly by
-`services` and `network`, because the two halves of its sweep came from those two
-domains and neither contains the other. **Its property is: a detector whose own
-act is a member of the set it examines.** Swept 5, 2 defective, both bounds
-bounded by a MECHANISM while the property is not — so the next run's job on it is
-to bound the space properly: enumerate the deployed detectors, then for each the
-surface it reads, then ask whether its own execution reaches that surface.
-**One of its two defective members is C29, DECLINED — the property is recorded,
-the remedy is not to be re-proposed.**
+**THREE OPEN CLASSES, and here is the whole membership with its owner:**
 
-**Before the ninth run there were NO OPEN CLASSES.** C44 and C113 were both swept to a count on
-2026-09-20 and both had their remedies DECLINED by the operator. The class total
-went 115 -> 118: C116, C117 and C118 were minted and **all three were declined
-the same day**. **The termination clock RESETS** — the criterion needs an empty
-OPEN column *and* two consecutive zero-mint runs, and this run minted three.
+| Class | Property | Owner | What is left |
+|---|---|---|---|
+| C119 | A detector whose own act is a member of the set it examines | `network` + `services`, and now four more | Two planes swept — `network` 39/39, `services` 262/262, both bounded by the SURFACE, which is what the ninth run asked for. **Five planes remain**: Kuma monitors and netdata alarms (`observability`), host units (`system`), the deploy itself (`ansible-deploy`), and this skill's own method |
+| C34 | A documentary artefact contradicting the sibling it cites | `project-manager` | Axis A (code citing a document) CLOSED 44/44; axis B 1/1; axis D 23/23. **Axis C, document citing document, is N=460 with 33 swept.** The unit must be the claim–referent pair, not the grep line — a verb regex is a mechanism and will not close it |
+| C01 | A documentary statement whose content contradicts the deployed artefact | `project-manager`, with every domain feeding it | **REOPENED 2026-09-20.** Its 123/123 closure covered 81 files, all of them `.md`. Comments in `ansible/**/*.yml`, `ops/*.sh` and `compose.yaml` were never in the space and produced four instances in one evening. The file set to bound is "tracked files that carry comments" |
 
-**So every domain this run is in the "no OPEN class" state**, and its job is the
-one that demoted C02, C13, C20, C26 and C17: re-read the GATED assertions in its
-area and ask whether each is DERIVED from the thing it guards or is merely a list
-of the instances once found.
+**C12 LEFT the OPEN column on 2026-09-20 (tenth run)**, ENUMERATED by two
+complementary bounds — `security` 76/76 (value, consumer) pairs derived from the
+live host, `ansible-deploy` 52/52 render sites derived from the declarations. Do
+not re-derive either. The structural defect it left behind — `--tags secrets`
+advertised as a rotation route while reaching 19 of 31 renders — is FIXED.
+
+**Do not re-derive what C44 and C113 left behind** (eighth run): C44's 27/27
+subsystems and the coverage figure of 1 of 16 TIER A, and C113's two bounds,
+`network` 16/16 and `security` 197/197 with only 2 of 197 verifying a refusal.
+Both remedies are DECLINED.
 
 **Read `settled.md`'s DECLINED section of 2026-09-20 before writing any brief.**
 Five things were arbitrated away that a fresh agent will otherwise rediscover
@@ -470,7 +472,13 @@ Ignore style and wording entirely: report only what could *mislead* someone
 during an incident.
 
 **The 20 service pages are ENUMERATED** as of 2026-08-22, three axes each (does
-the page agree with its ADR, its runbook, its container?). Eleven were clean;
+the page agree with its ADR, its runbook, its container?). **That sweep is NOT
+C34's space and this paragraph framed it as such until 2026-09-20** — C34 covers
+any artefact citing a sibling, including a code comment, which is what reopened
+it. Read the OPEN table above for where C34 actually stands: axis A closed 44/44,
+axis C at 33 of 460. **C01 is this domain's other open class**, reopened the same
+day because its 81-file space was all `.md` while a comment in an Ansible task is
+a documentary statement too. Eleven were clean;
 the other nine produced fourteen corrections, shipped in #203. Re-check after a
 change rather than re-exploring — but two shapes are worth carrying forward.
 First, `docs/05-services/*.md` was the set every previous sweep forgot: seven of

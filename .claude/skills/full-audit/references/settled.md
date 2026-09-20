@@ -24,6 +24,115 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-09-20 (TENTH run) — key `substitution`, one PR, deployed from the branch before merge
+
+Four commits, all verified against the running systems before the branch was
+opened, each carrying the rule it encodes:
+
+- **A tag whose stated purpose was rotation reached one carrier of two.**
+  `--tags secrets` was documented in the role's own orchestrator as the way to
+  write, **rotate** or re-mode a secret without a `compose up`. It reaches
+  `secrets.yml` alone; four other task files render secret values behind other
+  tags, one of them the WireGuard configuration. **Rule: a tag is a filter over
+  tasks, never a statement about a VALUE. Before calling any subset of a deploy
+  a rotation route, enumerate the value's carriers and check that the subset
+  reaches all of them.** Corrected in the comment and in
+  `rotate-a-secret.md`, whose consumer table named one consumer of two.
+- **Nothing on the deploy path asserted that the encrypted volume was mounted.**
+  The tasks that write credentials use only file-writing modules, so with the
+  volume locked they write in clear onto the card at the mount point's path and
+  report success; the next unlock hides the result under the mount. **Rule: a
+  write whose destination is a mount point is a claim about the mount, and a
+  module that cannot fail on an unmounted target will not make that claim for
+  you.** An `assert` never reports `changed`, so the guard is silent on every
+  correct run — which is what distinguishes it from the mtime comparator
+  declined for C44, and the distinction was stated when it was proposed.
+  Deliberately NOT placed in the role that runs before the volume is mounted on
+  a full provisioning run.
+- **restic skips a source that is not there and carries on.** The strings are in
+  the installed binary; it aborts only when every target is gone, and the
+  notification carries no byte, file or path count, so a smaller snapshot is
+  indistinguishable from a good one. **Rule: a backup's report must be able to
+  say that it backed up LESS than it was asked to.** The assertion added parses
+  the deployed profile rather than a hand-kept list, and derives its own
+  exemption the same way — a source that a hook deletes after a successful run
+  is hook-managed and cannot be required to exist. **Without that derivation the
+  check would have been red twenty-three hours a day**, which is the second time
+  in this file that a correct-looking assertion was one measurement away from
+  being a noise generator.
+- **Five rationales refuted by what they cite or by the system they describe.**
+  The expensive one opened a file arguing for a file mode, twenty lines above
+  tasks declaring the opposite mode and a paragraph calling the argued-for mode
+  "the thing that must never be tried again" after it took every database down
+  twice. **Rule, and it is the second night running that it has cost something:
+  a rationale is not evidence until someone re-reads what it rests on. When the
+  rationale and the mechanism live in one file, they rot independently.**
+
+### What was NOT shipped, and why — added 2026-09-20 (tenth run)
+
+- **Widening the secret-mount comparison to the three uncovered credential
+  files.** They are `volumes:` binds rather than `secrets:` entries, so they
+  never appear at `/run/secrets/<name>` and the comparison path itself would
+  have to change. Measured with zero mismatch and both consumers carrying
+  restart handlers. **The risk of turning a working gate into a silent green is
+  larger than the coverage gained**; re-raising needs a live divergence, not a
+  tidier derivation.
+- **Verifying the DDNS record by resolution.** Only the cardinality guard
+  shipped. In an unattended timer an unreachable resolver reports the updater
+  down while the updater is fine — the noisy shape declined repeatedly in this
+  file. Verifying by function is right when a human is watching the output, and
+  wrong as an unattended gate.
+
+### Measured and rejected — added 2026-09-20 (tenth run)
+
+- **"Four monitors have stopped reporting."** They are on weekly Tuesday timers
+  and the beats land one to six minutes after each trigger; the appearance came
+  from reading Kuma's UTC timestamps as local time. Killed independently by two
+  domains, both with the trigger and next-fire times. **The lead was written
+  into the agents' own briefs by the main session's baseline** — a baseline that
+  flags something as suspicious manufactures the finding it then receives.
+- **"Files are hidden under `/mnt/data`."** Nothing is. Seven directories dated
+  10-May-2026, zero files, no secrets directory and no docker directory,
+  verified behind the live mount with a positive control. The 2026-09-02 decline
+  of this question stands as a decline; it simply now has an answer.
+
+### The instrument that retires an intrusive measurement — 2026-09-20
+
+`sudo debugfs -R "ls -l <path>" <device>` reads a filesystem **behind a live
+mount, read-only**, without unmounting anything and without the bind mount that
+made the same question intrusive when it was declined on 2026-09-02. Use it
+whenever the question is "what is underneath this mount point".
+
+### Instrument traps paid on 2026-09-20 (tenth run) — seven, all self-caught
+
+- **`git log %cd` is the REBASE date in a rebase-only repository.** Any drift
+  measured against it is fiction. Use `%ad`.
+- **`docker compose config --hash` is not a drift oracle for a container sharing
+  another's network namespace** — compose resolves it to `container:<id>` before
+  hashing. The dry-run is the oracle.
+- **`grep -oE "\$\{"` sent through an ssh double-quoted heredoc reports zero**:
+  `\$` becomes a mid-pattern ERE anchor.
+- **An un-`sudo`'d `[ -f ]` fails toward "absent"**, the same family as the glob
+  trap — paid for the seventh time the same evening, with a new symptom: it
+  reads as "the files are missing" rather than as an empty result. **Glob and
+  privilege must share one shell.**
+- **`docker exec … sqlite3 -cmd …` returns empty with exit 0.**
+- **Probing service endpoints from the workstation needs `--resolve`**, or a
+  healthy estate reads as a total outage.
+- **`include`ing a PHP config returns 1, not the array**, and `ufw status | head
+  -1` picks the wrong rule.
+
+### How to sweep every column of a credential-bearing table without leaking it
+
+An agent derived all 120 columns of the monitor table to find operator-set
+values, and printed a basic-auth password and two push tokens into its own
+transcript on the way. Nothing reached its report. **A derivation over every
+column is exactly as dangerous as a verbatim paste, and the fix is the same one
+the dump script already applies to its output: a credential-column denylist
+applied BEFORE anything prints.**
+
+---
+
 ## Shipped on 2026-09-20 (NINTH run) — key `interference`, one PR, deployed from the branch before merge
 
 Three corrections, all verified against the running systems before the branch was
