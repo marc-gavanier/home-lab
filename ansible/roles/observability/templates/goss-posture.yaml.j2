@@ -1867,6 +1867,15 @@ command:
         exit 1
       fi
       pat='[?&]([Aa]ccess_?[Tt]oken|[Aa]pi_?[Kk]ey|token|auth|secret|password|sig|signature)='
+      # The expression above is anchored on `[?&]`, so it can only see a
+      # credential carried as a QUERY parameter — and so is the redactor it
+      # grades. Uptime Kuma carries its push token in the PATH, so on
+      # 2026-09-20 this assertion reported `bad=0` while 1 283 lines in 24 h
+      # carried a live token in clear. What made the verdict FALSE rather than
+      # merely incomplete is that the estate's own 15 push reporters are the
+      # only writers of that shape: the sole instances of what this check hunts
+      # were the ones its own reporting path had put there.
+      pat_path='/api/push/'
       # Bounded to 48 h and read in ONE pass, and both halves were measured.
       #
       # Unbounded, this walked the whole rotation window every run: 323 071
@@ -1888,13 +1897,24 @@ command:
       window=48h
       set -- $( { docker logs --since "$window" traefik 2>&1
                   docker logs --since "$window" traefik-log-redactor 2>&1
-                } | awk -v pat="$pat" '
+                } | awk -v pat="$pat" -v pat_path="$pat_path" '
         /GET|POST|HEAD|PUT|DELETE/ { http++ }
         { line = $0
           while (match(line, pat "[^ \"&]*")) {
             v = substr(line, RSTART, RLENGTH)
             if (v !~ /=\*\*\*$/) bad++
             line = substr(line, RSTART + RLENGTH)
+          }
+          # `index()` first so the second expression costs nothing on the 96 %
+          # of lines that cannot carry it; the masked form ends in `***` and a
+          # live token does not, which is the same discriminator as above.
+          if (index($0, pat_path)) {
+            line = $0
+            while (match(line, pat_path "[^ ?\"]*")) {
+              v = substr(line, RSTART, RLENGTH)
+              if (v !~ /\*\*\*$/) bad++
+              line = substr(line, RSTART + RLENGTH)
+            }
           } }
         END { print (http+0), (bad+0) }')
       seen=$1
@@ -2450,8 +2470,17 @@ command:
       # reason the second clause compares against each monitor's own interval
       # instead of demanding that everything beat. Both clauses were run against
       # the live database in both directions before this shipped.
+      # The `grep '^[0-9]'` is not cosmetic and removing it re-breaks this check
+      # silently. `journalctl` writes `-- No entries --` to STDOUT, not stderr,
+      # so `2>/dev/null` does not remove it and a loss-free day counts as ONE
+      # loss: the fast path below dies, `newest` becomes `--`, and `date -d "--"`
+      # does not fail — it returns today's local midnight. Every run then judged
+      # recovery against a fabricated loss and excluded 9 of the 15 push monitors
+      # from the second clause. Keeping only timestamp-shaped lines is immune to
+      # the sentinel's wording; the offsite twin avoids it by using `-o cat`,
+      # which is not available here because this clause needs the timestamp.
       hits=$(journalctl --since "@$first" --no-pager -o short-iso \
-             --grep '^kuma-push-failed:' 2>/dev/null)
+             --grep '^kuma-push-failed:' 2>/dev/null | grep '^[0-9]' || true)
       lost=$(printf '%s' "$hits" | grep -c . )
       [ "$lost" -eq 0 ] && exit 0
 
