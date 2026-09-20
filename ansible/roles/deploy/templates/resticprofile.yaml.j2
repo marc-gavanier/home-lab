@@ -49,7 +49,7 @@ homelab:
   #
   # Any manual run must therefore go through resticprofile rather than restic
   # directly, which is what makes the protection hold.
-  lock: /var/lock/resticprofile-homelab.lock
+  lock: /run/lock/resticprofile-homelab.lock
 
   # A repository on a LUKS volume that may not be mounted. Failing loudly beats
   # initialising a second, empty repository on the mountpoint's own directory.
@@ -419,7 +419,7 @@ homelab:
     # repository goes unverified for another year. It still does — resticprofile
     # cannot know what ran last month — but the beat now SAYS metadata, and
     # `restic-deep-check-not-stale` in the posture spec fails when no deep beat
-    # has landed in 40 days.
+    # has landed in 45 days.
 {% raw %}{{ if le .Now.Day 7 }}
     read-data-subset: '{{ printf "%d" .Now.Month }}/12'
     run-after:
@@ -439,7 +439,7 @@ offsite:
   repository: '{{ "{{ .Env.OFFSITE_RESTIC_REPOSITORY }}" }}'
   password-file: /mnt/data/secrets/offsite_restic_password
   initialize: false
-  lock: /var/lock/resticprofile-offsite.lock
+  lock: /run/lock/resticprofile-offsite.lock
 
   env:
     RESTIC_REST_USERNAME: '{{ "{{ .Env.OFFSITE_REST_USER }}" }}'

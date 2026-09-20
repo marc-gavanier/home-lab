@@ -147,7 +147,7 @@ cleanup; interrupted copies also leave unindexed packs that the next run
 re-uploads entirely). The 2026-07-12 initial seed collided with the 03:00
 nightly copy this way: ~100 GB of duplicates, reclaimed by a one-time manual
 prune. The profile now guards the WHOLE run — backup and copy alike — with
-`lock: /var/lock/resticprofile-homelab.lock`, which is wider than the
+`lock: /run/lock/resticprofile-homelab.lock`, which is wider than the
 `flock` on the copy step it replaces. A second invocation is refused with
 "another process is already running this profile".
 
@@ -203,8 +203,11 @@ shell variable or file on this host).
 
 **"Quarterly" is what this heading used to say, and nothing ever implemented
 it.** There is no timer, no unit and no schedule behind the deep read: it
-happens when someone runs the commands below, and as of 2026-09-19 nobody has,
-with the journal complete back to 2026-05-14. The scheduled
+happens when someone runs the commands below, and as of 2026-09-19 nobody had.
+The journal is not what establishes that: measured 2026-09-21, the offsite
+journal reaches back to 2026-07-05 (the host's own birth) and the homelab's to
+2026-08-30. 2026-05-14 is the date of the oldest local restic snapshot, which
+is a different thing entirely. The scheduled
 `homelab-offsite-check.service` is a **metadata** check by design — the
 `offsite` profile in `resticprofile.yaml` carries no `read-data` flag and says
 why: reading the data back would pull hundreds of gigabytes across a domestic
@@ -215,7 +218,7 @@ follows as a procedure available on demand, not as a cadence anyone is keeping.
 > **Disable the backup timer for the duration. The profile locks do NOT cover
 > this.** The two facts that make it necessary, both verified 2026-09-13:
 > `check` takes an **exclusive** lock on the repository, and the `offsite`
-> profile holds `/var/lock/resticprofile-offsite.lock` while the nightly copy
+> profile holds `/run/lock/resticprofile-offsite.lock` while the nightly copy
 > runs under the `homelab` profile and holds a **different** lock
 > (`resticprofile-homelab.lock`). Two different locks on one append-only
 > repository serialise nothing. Running the command below "overnight", as this
@@ -262,6 +265,25 @@ restic unlock --remove-all   # last resort, and only with NO restic running anyw
 A lock created by the offsite host's own manual prune carries
 `hostname=offsite`, so the homelab can never age it out on its own — check both
 hosts before concluding a lock is stale.
+
+`restic unlock` acts on the repository's own `locks/` directory. It does not
+touch resticprofile's **profile** lock, which is a separate file and the one
+that produces "another process is already running this profile":
+
+```bash
+ls -l /run/lock/resticprofile-*.lock   # the profile locks
+pgrep -a resticprofile                 # nothing? then the lock is orphaned
+rm /run/lock/resticprofile-homelab.lock
+```
+
+These live under `/run/lock` — a tmpfs — so a reboot clears them and an orphan
+can only outlive the run that made it, never the boot. They were under
+`/var/lock` until 2026-09-21, which on this image is a real directory on the
+root filesystem rather than the symlink to `/run/lock` that
+`/usr/lib/tmpfiles.d/legacy.conf` declares, so an orphan survived indefinitely.
+`force-inactive-lock` is still deliberately unset: breaking a lock automatically
+repairs without reporting, which is how issue #331 went unnoticed for eight and
+a half hours.
 
 ## Disaster recovery (homelab lost)
 
