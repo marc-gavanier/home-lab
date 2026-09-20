@@ -179,7 +179,7 @@ reported.
 under `sudo` writes the string it hunts into the log it reads; on 2026-09-19 that
 cost two conclusions, one of which reached the operator as a suspected intrusion.
 
-**Twenty-NINE keys are now spent.** `durability` was added 2026-09-21 (twelfth run) — invented, 1 mint, and it is the FIFTH confirmation that a key which turns on the INSTRUMENT is worth more than one that only turns on the estate: its best yield was a bound on this audit's own evidence (netdata's alarm transition log at 5 days against 55 days of metrics) and a PREDICATE that retired a blocker the previous run had declared unreachable read-only. It also confirmed the declared-overlap discipline: three domains placed the key's main form inside C39/C68 and refused to mint for it.
+**THIRTY-ONE keys are spent, and the number below is COUNTED, not incremented.** The heading read "twenty-eight" and then "twenty-nine" while the list under it held 31 names and the mint sequence held 31 values; the 2026-09-21 session made it worse by adding one to a number instead of counting the list, which is the same mistake the ENUMERATED heading made with its rows. **Count the names.** `durability` was added 2026-09-21 (twelfth run) — invented, 1 mint, and it is the FIFTH confirmation that a key which turns on the INSTRUMENT is worth more than one that only turns on the estate: its best yield was a bound on this audit's own evidence (netdata's alarm transition log at 5 days against 55 days of metrics) and a PREDICATE that retired a blocker the previous run had declared unreachable read-only. It also confirmed the declared-overlap discipline: three domains placed the key's main form inside C39/C68 and refused to mint for it.
 
 **Twenty-EIGHT keys were spent before it.** `interference` was added 2026-09-20 (ninth
 run) — invented, 1 mint, and it is the FOURTH confirmation that a key which turns
@@ -204,8 +204,20 @@ seventh run, 3 mints): `time`, `order`, `identity`, `scale`, `authority`,
 `independence`, `substitution`, `interference`, `tolerance`, `durability`. The
 mint rate reads 5, 11, 12, 7, 2, 4, 1, 0, 2, 1, 2, 2, 3, 1,
 0, 2, 2, 1, 2, 4, 0, 1, 1, 2, 2, 3, 3, 0, 1, 1, **1**. **It is no longer
-decaying**, and the two consecutive zero-mint runs the criterion needs have
-still never been achieved. A run that reuses a key proves nothing.
+decaying**: 4.5 per run over the first ten keys, 1.7 over the next eleven, 1.5
+over the last ten, and the last ten read 1, 1, 2, 2, 3, 3, 0, 1, 1, 1 — a
+plateau, not a descent. A run that reuses a key still proves nothing.
+
+**The mint rate NO LONGER TERMINATES ANYTHING — the criterion changed on
+2026-09-21.** Zero-mint runs are now an observation about this register's
+vocabulary, not a clock. What ends the audit is the detection ratio: two
+consecutive runs, different keys, finding no live defect that a deployed
+instrument was not already reporting. `classes.md` holds the rule, the
+arithmetic that retired the old one (4 zero-mint runs in 31, never two
+consecutive, expected wait 25-70 further runs) and the first measurement
+(twelfth run: 0 of 6). **Every brief must now ask each agent, for each live
+defect, which deployed instrument would have caught it and what output would
+have differed.**
 
 **For whoever writes key thirty.** `durability` was easy to evidence for the
 same reason `tolerance` was: every retention is a constant on disk and every

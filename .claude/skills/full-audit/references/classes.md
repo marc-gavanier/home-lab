@@ -1,7 +1,9 @@
 # The class register
 
-The audit's unit of progress, and the only object in this skill that can reach
-zero.
+The audit's unit of progress — how the work is organised, assigned and counted
+within a run. **It is no longer what says the work is over**: since 2026-09-21
+that is the detection ratio, and the termination criterion below explains why
+the class count could not do the job.
 
 ## Why the unit had to change
 
@@ -86,14 +88,80 @@ OPEN  ──swept N/N, counted──▶  ENUMERATED  ──assertion deployed─
    mints the classes that are missing. The report to the operator opens with the
    OPEN counter, not with a list.
 
-## The termination criterion
+## The termination criterion — REPLACED 2026-09-21, by the operator's decision
 
-> **The audit is finished when the register holds no OPEN class, and two
-> consecutive runs, each using a different search key, mint zero new classes.**
+> **The audit is finished when two consecutive runs, each using a different
+> search key, find no live defect that a deployed instrument was not already
+> reporting.**
 
-The second half is the real guarantee. "No OPEN class" only says the known
-register is worked down; the zero-mint runs test whether the register itself is
-complete. Without it you measure only what you already thought to look at.
+**What this measures, and why it replaced the old rule.** The audit exists to
+find mechanisms that look like they work and do not. It is finished when the
+estate polices itself — when everything a fresh search key turns up was already
+visible to something deployed. That is a property of the ESTATE, and it is what
+the operator actually wants to know.
+
+**How a run scores itself, and the test is deliberately strict.** For every LIVE
+defect the run finds, name the deployed instrument that would have surfaced it
+WITHOUT this audit, and show the output that would have differed — the assertion
+that would have gone red, the beat that would have carried it, the alarm that
+would have fired. **Naming a check that "covers the area" does not count.** If
+no such instrument can be named with its differing output, the defect is
+uncaught and the run does not qualify.
+
+Three things deliberately do NOT block termination any more:
+
+- **Mints.** A new class records vocabulary the register was missing. That is
+  bookkeeping about this skill, not a defect in the estate, and it no longer
+  resets any clock.
+- **OPEN classes.** An open class is an unswept SPACE, which is work, not a
+  failure of detection. It is still tracked and still assigned; it is no longer
+  a gate. **This is a real change in what "finished" means**: the audit can end
+  with spaces unswept, and that is accepted, because some of them — C120's
+  provoked-measurement residual is the type case — cannot be swept read-only at
+  all and would have blocked the old rule forever.
+- **Documentary findings.** A stale sentence is maintenance. It costs on the day
+  someone relies on it, which is why it is still fixed and still reported, but
+  no instrument is expected to catch it and it cannot be the reason a run fails
+  to qualify.
+
+**The unfalsifiability guard is unchanged and still mandatory.** A run that
+finds nothing qualifies only when every report says what was checked to
+establish it, the checks were made against running systems, and the previously
+reported defects were verified gone rather than assumed gone. "Nothing found"
+without that evidence is not a qualifying run; it is a run that was not
+performed.
+
+**The first measurement, taken the day the rule changed**: the twelfth run,
+2026-09-21, key `durability`, scored **0 of 6**. Not one of its six live defects
+would have been surfaced by anything deployed — the shallow alarm-transition
+store, the startup grace, the hand-written loop, the two unreachable limiters
+and the persistent profile lock were all invisible to every assertion, monitor
+and alarm in the estate. The audit is a long way from redundant, and now there
+is a number that says so.
+
+### Why the old rule was retired — the arithmetic, so nobody restores it
+
+It read: *no OPEN class remains, and two consecutive runs, each using a different
+search key, mint zero new classes.* Measured over the 31 keys spent between
+2026-08-15 and 2026-09-21, it was unreachable in practice:
+
+- **Zero-mint runs: 4 of 31, and never two consecutive** (`exclusivity`,
+  `granularity`, `commensurability`, `substitution`).
+- **The mint rate decayed and then stopped decaying**: 4.5 per run over the
+  first ten keys, 1.7 over the next eleven, 1.5 over the last ten. The last ten
+  read 1, 1, 2, 2, 3, 3, 0, 1, 1, 1 — a plateau, not a descent.
+- At that rate the expected wait for two consecutive zero-mint runs is **25 to
+  70 further runs**, depending on whether it is estimated from the Poisson mean
+  or from the observed frequency of zeros. **That is not a stopping rule, it is
+  a lottery.**
+- And it was gameable in the direction that matters: two soft keys in a row
+  satisfy it, while this file's own text says the key determines what a run
+  finds. It measured the REGISTER — an artefact this skill writes itself —
+  rather than the estate.
+
+The OPEN column is kept, the mint count is kept, the class discipline is kept.
+They are how the work is organised and they remain the unit of progress within a
+run. They are simply no longer what says the work is over.
 
 The honest weakness is the mint rate — it is the one unbounded term. Its defence
 is that minting has been driven by new search keys rather than by new territory,
@@ -110,6 +178,14 @@ paid five classes.
 
 The lesson for whoever writes the next key: pick a dimension, not a topic. The
 keys that have paid were dimensions the register had no vocabulary for.
+
+> **READ THIS BEFORE THE REST OF THIS SECTION.** Everything below about clocks
+> resetting, about zero-mint runs and about "the criterion" describes the rule
+> that was RETIRED on 2026-09-21, and it is kept because it is the record of
+> what each run concluded at the time. The mint rate is still worth tracking —
+> it says whether the register has vocabulary for what the estate produces —
+> but it no longer ends anything. The live criterion is the detection ratio,
+> above.
 
 **The evening run of 2026-08-30 used `order` and minted eleven** — more than
 `time` did — which confirms the mechanism rather than the pessimism: eleven

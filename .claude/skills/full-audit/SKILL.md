@@ -120,6 +120,13 @@ Write to <scratchpad>/audit/<domain>.md, in this order:
 3. INSTANCES, grouped under their class: what it is, the measured
    evidence (command + output), the real impact, what you propose.
    Separate CONFIRMED from SUSPECTED.
+4. For EVERY live defect in 3, one line: which DEPLOYED instrument would
+   have surfaced it without this audit, and what output would have
+   differed — the assertion that goes red, the beat that carries it, the
+   alarm that fires. If none, write NONE. Naming a check that "covers
+   the area" is not an answer; name the output that changes. This ratio
+   is the audit's termination criterion, so guessing it corrupts the
+   only number that says when this work can stop.
 
 If nothing: say so, and list what you checked to establish it. An
 evidenced "clean" closes a class; a speculative list closes nothing.
@@ -170,9 +177,12 @@ from different angles, it is usually real.
 
 ## Synthesise — the report is a register diff
 
-Open with the counter: **how many classes were OPEN, how many closed, how many
-minted, how many remain**. That number is the answer to "is this finished yet",
-and it is the only part of the report that is comparable between runs.
+Open with two numbers. **The counter** — how many classes were OPEN, how many
+closed, how many minted, how many remain — which says how the work is
+organised. And **the detection ratio**: of the live defects this run found, how
+many a deployed instrument was already reporting. The counter is comparable
+between runs; the ratio is the one that answers "is this finished yet", and
+`classes.md` holds the criterion it feeds.
 
 Then, and only then, the instances. Rank them by *what is happening right now
 without anyone knowing*, then by cost the day it matters, then by cost to fix.
@@ -206,14 +216,27 @@ does not belong in the audit's count, and it is reported as a red test.
 
 Not "a run that found nothing" — that is unfalsifiable, because what a run finds
 depends on the search key it was given, and the key is written fresh every time.
-The criterion is in `references/classes.md` and it is this:
+The criterion is in `references/classes.md`, it was **replaced on 2026-09-21**,
+and it is now this:
 
-> **No OPEN class remains, and two consecutive runs, each using a different
-> search key, mint zero new classes.**
+> **The audit is finished when two consecutive runs, each using a different
+> search key, find no live defect that a deployed instrument was not already
+> reporting.**
 
-The first half says the known perimeter is worked down. The second tests whether
-the perimeter itself is complete, which is the only defence against measuring
-only what someone already thought to look at.
+It measures the ESTATE rather than the register. The audit exists to find
+mechanisms that look like they work and do not; it is over when everything a
+fresh key turns up was already visible to something deployed.
+
+**Score every run.** For each LIVE defect, name the deployed instrument that
+would have surfaced it without this audit, and show the output that would have
+differed — the assertion that goes red, the beat that carries it, the alarm that
+fires. Naming a check that "covers the area" does not count. Report the ratio in
+the summary beside the class counter; the twelfth run scored 0 of 6.
+
+Mints, OPEN classes and documentary findings no longer block termination —
+`classes.md` says why for each, and records the arithmetic that retired the old
+rule (4 zero-mint runs in 31, never two consecutive, and a 25-to-70-run expected
+wait that made it a lottery rather than a criterion).
 
 A pass with no *findings* is still a real and expected outcome — it is the point
 of re-running after corrections. It is credible when each report says what was
