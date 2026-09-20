@@ -140,16 +140,31 @@ parts that need a thought experiment.
 
 # The register
 
-Runs of 2026-08-15 through 2026-09-19 (SIXTH run, key `oracle`).
-**112 recorded classes: 1 OPEN (C44), 9 GATED, 95 ENUMERATED, 7 closed by
+Runs of 2026-08-15 through 2026-09-20 (SEVENTH run, key `asymmetry`).
+**115 recorded classes: 2 OPEN (C44, C113), 9 GATED, 97 ENUMERATED, 7 closed by
 decision, plus the DECLINED list.**
+
+**The SEVENTH run of 2026-09-19 used `asymmetry` — does this mechanism work in
+BOTH directions? — and the counter went 1 -> 2 while the class total went
+112 -> 115.** C44 stays OPEN but its month-long blocker is GONE: the 27 rows
+this file had been citing by number without ever writing down are transcribed
+below. C113, C114 and C115 were minted. **The termination clock RESETS.**
+
+**The key was taken off the proposed list rather than invented, and the register
+had predicted where it would pay: C112 had just measured an instance of its
+property without having a word for it.** The prediction was right. Six of eight
+domains returned an explicit "no mint", and the three that came back were
+reached from three unrelated directions, two of them by two agents with no
+contact.
 
 **GATED is 9 and its MEMBERS are C04, C06, C07, C08 and the four below them in
 that table, plus C07 which is recorded above it — the table's own heading reads
 "8 here, plus C07". Two counting rules, both correct, and the sixth run's brief
 guessed 8 because the membership had never been written beside the count. That
 is the same disease as C44's, diagnosed below, and it is now fixed in both
-places.** C07 is RED since 2026-09-18. C21 left this table 2026-09-19 (fifth
+places.** **C07 is NO LONGER RED — widened and deployed green 2026-09-20
+(seventh run); its assertion keys on the plugin, not the context.** C21 left
+this table 2026-09-19 (fifth
 run). C03-T's NAMED defect is REPAIRED and its SCHEDULED-run residual RETIRED —
 read its row before quoting it as red.
 
@@ -407,7 +422,133 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
-## OPEN — 1 (after the SIXTH run of 2026-09-19, key `oracle`)
+## OPEN — 2 (after the SEVENTH run of 2026-09-19, key `asymmetry`)
+
+**C44 and C113.** C113 is new and its row is in the class table. C44 is still
+open, but **the reason it could never close is gone**: the 27 rows this file had
+been citing by number — `#13`, `#15`, `#16` — without ever writing them down are
+transcribed below, derived from zero against the repository and the host.
+
+### THE MEMBERSHIP, at last — C44's 27 subsystems
+
+**Predicate**: the subsystem for which this repository owns or modifies a HOST
+configuration file, and whose effective state is readable. Out of scope by that
+predicate, and stated so nobody re-derives it: configuration internal to a
+container (`/etc/pihole`, `/etc/traefik/dynamic`, `/etc/netdata`) and **the goss
+specs themselves** — the instrument does not compare itself to itself.
+
+**TIER A — a readout that resolves every declared input (16). Covered: 4.**
+
+| # | Subsystem | Where the estate declares intent | Effective-state readout | Resolves? | Covered |
+|---|---|---|---|---|---|
+| 1 | sshd | `/etc/ssh/sshd_config` | `sshd -T` | yes, 21 directives | **YES** |
+| 2 | sysctl | `/etc/sysctl.d/99-homelab.conf` | `sysctl -n` -> `/proc/sys` | yes, 30 keys, double-floored | **YES** |
+| 3 | postfix | `/etc/postfix/main.cf` | `postconf -h` | yes, 22 directives | **YES** |
+| 4 | ufw | inventory rules + `/etc/default/ufw` + `after.rules` | `ufw status` | yes | **YES** |
+| 5 | apt / unattended-upgrades | 3 files under `/etc/apt/apt.conf.d/` | `apt-config dump` | yes, 5/5 | no |
+| 6 | fail2ban | `jail.local`, 2 `filter.d/` | `fail2ban-client get …` / `get actions` | yes, 13 keys — demotion TESTED, SURVIVED | no |
+| 7 | apparmor | `/etc/apparmor.d/{homelab-netdata,bwrap}` | `aa-status` | yes, 2/2 | no |
+| 8 | wireguard | `/etc/wireguard/wg0.conf` (symlink onto LUKS) | `wg showconf wg0` | yes | no |
+| 9 | mounts | `/etc/fstab` + `mnt-data.mount` | `findmnt` | yes, 5/5 | no |
+| 10 | Pi firmware (#13) | `/boot/firmware/{config.txt,cmdline.txt}` | `/proc/device-tree/soc/*/status` + `/proc/cmdline` (**not** `vcgencmd get_config`) | yes | no |
+| 11 | modprobe / CIS blacklist | `/etc/modprobe.d/cis-blacklist.conf` | `modprobe --showconfig` | yes — 20 declared, 147 resolved, all 20 present | no |
+| 12 | sudoers | `/etc/sudoers.d/cis-logfile` | `cvtsudoers -f sudoers /etc/sudoers` | yes — resolves the `#includedir`; `sudo -V` does NOT (negative control) | no |
+| 13 | logrotate | 3 files under `/etc/logrotate.d/` | `logrotate -d /etc/logrotate.conf` | yes — reads all 32 includes | no |
+| 14 | timesyncd / clock | `/etc/systemd/timesyncd.conf` — `NTP=`, `PollIntervalMaxSec=1024` | `timedatectl show-timesync` | yes, 2/2 | no |
+| 15 | hostname | `/etc/hostname` | `hostnamectl --static` | yes, 1/1 | no |
+| 16 | swap | `mnt-data-swapfile.swap` + `swap_size_mb` | `swapon --show` | yes, 2/2 | no |
+
+**TIER B — a readout exists but does not resolve every declared key (2).**
+17 `docker` (`daemon.json`, `docker info` resolves 3 of 6; `shutdown-timeout`
+and `log-opts.{max-size,max-file}` exposed by no daemon readout, re-measured 0
+and 0 with `LoggingDriver` as the positive control). 18 `resolved`
+(`resolvectl status` does not read `DNSStubListener`, its only declared key).
+
+**TIER C — resolves, but normalisation makes a literal comparison false (1).**
+19 the `DOCKER-USER` chain: `iptables-save` normalises `-s` before `-p` and
+inserts `-m udp`, giving 8 false positives of 8.
+
+**No readout at all (4).** 20 `pam` — and this is the `pam-auth-update` reserve,
+an external writer that rewrites the `/etc` file the estate owns. 21
+`needrestart`. 22 `smartd`. 23 `cloud-init`.
+
+**Degraded — the reader reads the file tree, not the daemon (3).** 24 `journald`,
+25 `tmpfiles`, 26 `udev`: `systemd-analyze cat-config` and friends re-read the
+tree rather than interrogating the running daemon.
+
+**Excluded on normalisation (1).** 27 systemd units: `TimeoutStartSec=600` reads
+back as `10min`, and asserting that no unexpected drop-in exists needs a
+seven-entry exemption list, which is a list dressed as a derivation.
+
+**16 + 2 + 1 + 4 + 3 + 1 = 27.** No category was adjusted to make it land.
+
+**Two candidates excluded with a reason, so nobody re-opens them**: `zram`
+(offsite only, the file is absent on homelab) and `crypttab` (an intent of
+ABSENCE — there are not two sides to compare).
+
+**Correction to this file, and it matters.** The clock admission was rejected by
+the fifth run against the WRONG PATH: `/etc/systemd/timesyncd.conf.d/` is empty
+and does not exist, but `security/tasks/hardening.yml:124,155` writes `NTP=` and
+`PollIntervalMaxSec=` into `/etc/systemd/timesyncd.conf` itself, and
+`timedatectl show-timesync` resolves both. **The clock IS TIER A**, and it is one
+of the six blank rows this run filled, not an addition to a pre-existing 16.
+
+### TWO RESERVES the transcribing agent wrote down rather than leave to be found
+
+**Its 16 is not provably the register's 16.** The old figure counted six members
+this file never named; this table is derived from scratch. Both carry the same
+number without anyone being able to show they have the same members. If the lost
+agent report ever resurfaces naming a subsystem absent here, the cardinal rises.
+**That is C44's real residual and it is now written beside the number.**
+
+**Its two thinnest rows are named so they can be contested.** Row 15 `hostname`
+(one declared key, a trivial readout) and row 16 `swap` (arguably part of row
+27, since the intent is carried by a `.swap` unit; held separate because
+`swapon --show` reads effective state without going through systemd's
+normalisation). **Reject one: TIER A 15, total 26. Reject both: 14 and 25.**
+Coverage stays 4 in every case. Nothing else was moved to compensate.
+
+### WHY C44 STILL DOES NOT CLOSE
+
+The question the register wanted arbitrated — *is every subsystem with a
+resolve-everything readout covered* — answers **NO**: 4 of 16, and 12 carry no
+comparator. Both reserves recorded with the class still hold: the route compares
+`/etc` to effective state, so a writer that rewrites the `/etc` file the estate
+owns moves both sides together (the `pam-auth-update` shape); and the route's own
+cadence is daily, which is C44 applied to its own output. **Do not re-derive**
+TIMER 13/13, DEPLOY-TAG 26/26, HOST-HARDENING 20/20.
+
+**A useful qualification of the "4/16": 3 of the 4 deployed comparators re-read a
+FILE rather than the executing process** — only `sysctl` reads `/proc/sys`. No
+live drift today (5 file/daemon pairs tested, the file older in all 5).
+
+### TWO LIVE C44 INSTANCES FOUND THIS RUN, both fixed or recorded
+
+1. **The offsite undervoltage detector sampled a <=2 s pulse once a day.** Its
+   instrument read `in0_lcrit_alarm`, on the written premise that "the firmware
+   latches". False: `raspberrypi-hwmon.c` passes `value = 0xffff` to
+   `RPI_FIRMWARE_GET_THROTTLED` under its own comment *"Request firmware to clear
+   sticky bits"*, on every poll, polling every `2 * HZ`, and the show function
+   returns the last poll only. p(detection) = 2/86400 = **0.002 %** on the host
+   holding the only offsite copy of the backups, against ~1 on homelab (chart
+   `update_every=1`, alarm `max -1m`, `delay down 15m`). **The main session
+   corrected the agent's cadence by a factor of 7** — it had attributed the check
+   to `homelab-offsite-check.service` (weekly), which in fact runs
+   `resticprofile … offsite check`; the spec is run by `offsite-health.timer`,
+   **daily at 08:00**, on the offsite host. **FIXED**: the check now greps the
+   kernel journal, with both driver strings read out of the shipped
+   `6.8.0-1064-raspi` module binary rather than trusted from upstream source, and
+   deliberately without `-k` (it implies `-b`, which would hide an event from
+   before the last reboot — and a power problem is a plausible cause of that
+   reboot). Made to fail on purpose in four directions. Zero events on either
+   host in 30 days.
+2. **`docker-shutdown-budget` compares an effective operand to a declared one**,
+   because no daemon readout exposes `shutdown-timeout` (re-measured 0/0).
+   Conformant today (file mtime < dockerd start). Recorded, not fixed.
+
+---
+
+## SUPERSEDED — OPEN table of the SIXTH run of 2026-09-19, key `oracle`
 
 **C44 only. TIER A is 16, coverage 4/16 = 25 %, and the SIXTH run found why this
 class cannot close — it is not the space, it is this file.**
@@ -543,6 +684,180 @@ separate correction — **the marker is not a provenance instrument.**
 C92 and C03-R were closed as review rules once their spaces proved non-derivable.
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
+
+## The run of 2026-09-19 (SEVENTH) — the key was `asymmetry`, and it paid in BOTH
+
+The twenty-sixth key, taken off the proposed list rather than invented — the
+file had recorded that only `asymmetry` and `cost` remained named. The question:
+**does this mechanism work in BOTH directions?** All 112 classes asked whether
+ONE thing is right, at what CADENCE (C44), at what GRAIN (C107), whether it
+AGGREGATES (C103), where its EXPECTATION comes from (C111). None asked whether a
+mechanism is symmetric.
+
+**The register had already paid an instance of it without having the word.**
+C112 measured that the estate sees a firewall opening LOST (~25 h) and never one
+ADDED. Five admissible shapes went into all eight briefs — detection,
+transition, peer coverage, authority, and cost-of-the-two-outcomes — with
+`reversibility` EXCLUDED by name as a spent key, and eleven declared overlaps.
+Six of eight domains returned an explicit "no mint".
+
+### The counter: 1 OPEN in, 2 OPEN out, 3 minted, class total 112 -> 115
+
+**The termination clock RESETS.** `commensurability` minted 0, `aggregation` 1,
+`staleness` 1, `attendance` 2, `oracle` 2, `asymmetry` 3. The pair of
+consecutive zero-mint runs has still never been achieved.
+
+**The honest note this register always makes about itself**: declining the three
+mints and keeping C113 out of the OPEN column would have shown 1 -> 1 and a
+zero-mint run, which is the number this file exists to stop anyone from
+manufacturing.
+
+### The run's real output is C44's MEMBERSHIP, not a finding
+
+Written above, 27 rows, 16 + 2 + 1 + 4 + 3 + 1, with the six blank rows filled
+(`modprobe`, `sudoers`, `logrotate`, `timesyncd`, `hostname`, `swap`), two
+candidates excluded with reasons, and **two reserves the agent volunteered
+rather than let anyone discover**: its 16 is not provably the register's 16, and
+its two thinnest rows are named so they can be contested. That is the difference
+between a transcription and a fourth re-derivation.
+
+### Live defects, ranked by what was happening without anyone knowing
+
+1. **Transmission returned real 404s to real users, and nothing said so.** The
+   healthcheck is `transmission-remote -ne -l` with a 5 s timeout; under CPU
+   contention it times out, Traefik drops any non-`healthy` container from its
+   dynamic config, and the next request hits no router — a proxy 404, 19 bytes,
+   0 ms, no backend. **74 unhealthy seconds measured, all inside one hour, zero
+   in the other 23**, and the windows cover all five 404s to the second, with
+   two further windows producing no 404 because no Kuma beat fell inside them —
+   which is the control the mechanism needed. The alarm requires `min -10m`
+   against an actuator acting in seconds: **0 alarm transitions over seven
+   episodes.** The monitor goes PENDING, which escalates with the wrong text.
+   **The operator identified the load as Transmission downloading and declined
+   any change** — a better explanation than the audit-load hypothesis the
+   session was carrying. Recorded in `settled.md`, not fixed.
+2. **Three live secret files were absent from the rotation runbook.** 16 files,
+   a table naming 14 of them. **The main session downgraded the finding while
+   fixing it**: the agent reported the Nextcloud Redis pair as a rotate-one-
+   forget-the-other hazard; reading `secrets.yml` shows both files are rendered
+   from ONE vault value with all three writes notifying the same restart, and
+   `searxng_settings` is templated from `searxng_secret_key`. The real gap is
+   that a reader of that table would not know to rotate them at all. FIXED.
+3. **The offsite undervoltage detector** — see C44's instances above. FIXED.
+4. **Five files whose only copy sat inside an excluded archive.** The calibre
+   staging exclusion rested on "every byte of it is a second copy of a book
+   already backed up under media/books" — verified in the direction "these were
+   ingested" and never in the other. Measured against the 417 files of
+   `media/books`: of 11 PDFs in `converted/`, 6 have their PDF there, 4 exist as
+   EPUB only, **and one book is not in the library in any format**. The main
+   session's own count is 5, not the agent's 4. FIXED, 96 MB.
+5. **Five sites said the wg-easy UI is reachable only through an SSH tunnel**
+   while Traefik has served it at `vpn.<domain>` since the router was added
+   twenty lines below the comment that denies it. LAN + VPN, not the internet —
+   not a perimeter hole, but `ssh-lockout-recovery.md` loses a path and CIS
+   5.1.8 was declined on that premise. FIXED; the decision kept, its stated
+   reason replaced.
+6. **C07 WIDENED and the collector it immediately found.** The gate certified
+   ONE collector against a fleet. Keying on CONTEXT was measured not to work
+   ((context -> update_every) is not a function). Keying on PLUGIN does, with no
+   hand-chosen constant: *no plugin whose charts feed no curated alarm may
+   collect more samples/s than the busiest plugin that does*. Made to fail on
+   purpose in **five** directions on the live host, including the control that
+   matters — a consumer list containing a cgroup context returns OK, proving the
+   rule is not structurally stuck red. Retroactive positive control: applied to
+   2026-09-17 it marks `apps.plugin`. It found `cgroups.plugin`, 1002 charts at
+   1 s = 1002 samples/s against `proc.plugin`'s 536.2, with **zero** consumers.
+   Set to 5 s (200.4). **Deployed and green: `ok 316`, goss plan 409 -> 410.**
+7. **`homelab-image-retention` was documented nowhere**, and is absent from the
+   "16 periodic jobs" census because that census walks the evidence channels —
+   a job with no channel cannot appear in it. From October a thinned image list
+   has a second, benign cause next to the "never wipe the store" rule. FIXED.
+8. Six live sites still carried the pre-2026-09-12 offsite cadence, two of them
+   contradicting themselves seventy lines apart; `offsite-backup.md` handed the
+   operator an `ls` that cannot read `snapshots/` and does not error visibly —
+   `wc -l` still prints a small number, which on a recovery page reads as an
+   almost-empty repository. Three ADR citations pointed at the wrong ADR, two on
+   the disaster-recovery path. All FIXED.
+
+### Rejected, requalified, or corrected — 6, and three were the main session's own
+
+- **`system`'s cadence for the undervoltage check, wrong by a factor of 7.**
+  Corrected above. The finding survives comprehensively; the attribution did not.
+- **`system`'s proposed remedy named `dev_notice` and "Under-voltage detected!"**.
+  The kernel emits `dev_crit "Undervoltage detected!"` and `dev_info "Voltage
+  normalised"`. A grep for the agent's string would have found nothing,
+  silently — the exact defect being fixed. Strings were then read out of the
+  shipped module binary rather than from upstream source.
+- **`services`'s "the 404s cluster on audit days".** The event counts are right;
+  the per-day RATES are not comparable, because Kuma retains only `important`
+  beats beyond its window, so old days show transitions and not samples. And
+  2026-09-18 was an audit day with zero events, which the agent did not mention.
+- **`ansible-deploy` correctly rejected its own most spectacular finding**: 180
+  of 183 created paths with no removal counterpart, which `roles/base/tasks/
+  retired.yml:1-25` writes down word for word as a known weakness. C88, not a
+  finding. It also declared an unreconciled count (133 options against the
+  brief's 156) rather than adopting the brief's number.
+- **`security` declined to propose anything for "nothing observes that a
+  fail2ban filter still MATCHES"**, on the ground that the only honest check
+  needs a deliberate authentication failure, which the operator has declined —
+  and that a frozen sample would be self-certifying. Correct call, recorded.
+- **The main session's own secret finding, downgraded while being fixed** (#2
+  above).
+
+### Instrument traps paid — 2, and BOTH were the main session's
+
+1. **An un-`sudo`'d glob over a root-only directory expanded to nothing —
+   FOURTH payment, by the session whose own brief carries the warning.**
+   `sudo grep /etc/goss/*.yaml` returned "No such file"; the glob expands in the
+   unprivileged shell before `sudo` runs. Re-done as `sudo sh -c`, with a
+   positive control.
+2. **A positive control inside the instrument's horizon proves nothing about its
+   reach — NEW IN KIND.** Hunting container events in the 404 window, the main
+   session read "zero events" and nearly concluded no health transition had
+   occurred. Docker's event buffer reaches back **2 min 30 s**; the control
+   window was inside it and therefore only proved the instrument works NOW.
+   **A control must be comparable to the question in the dimension that matters
+   — here age, not validity.** Re-done against netdata, which has memory, and
+   the answer inverted: 74 unhealthy seconds, covering all five 404s.
+
+### Register corrections — 4
+
+- **The clock admission was rejected against the wrong path.** See above.
+  `timesyncd` IS TIER A.
+- **C07's "there is no cheap route" is true of the CONTEXT axis and false of the
+  PLUGIN axis.** `netdata.conf` renders `[plugin:X] update every` for 58
+  sections, 23.9 KB, 0.23 s.
+- **The "per-monitor line budget" this file records as confirmed in the FOURTH
+  run's instrument-traps section is REFUTED** (cited by description, not by line
+  number, because every insertion above it moves the number). At the same instant, monitor 13 (60 s) holds 2618 lines over 43.6 h
+  and monitor 20 (push, 300 s) holds 526 over **43.6 h** — same duration, five
+  times fewer lines. The inferred model is a ~43.6 h window floored at ~100
+  lines. The deployed comment's CONCLUSION stays true; its MECHANISM is wrong.
+- **C30's row says the deny direction has no reproducible instrument. It does.**
+  `network` reproduced it: 403, 9 bytes, `Forbidden`, with an admitted source
+  returning 200 as the control.
+
+### Clean, and measured — the negatives that closed questions
+
+WireGuard peers 4/4 in BOTH directions, a real set equality with famine guards
+on both sides. The external perimeter unchanged, probed from the offsite uplink
+after checking `ip route get` (it leaves by the ISP, not the tunnel), with two
+positive controls — 51413 open on the target itself and 1.1.1.1:443 — and
+443/80/22/53/8080/3001 closed. C14 HOLDS and was widened by measurement: the
+three directions `-enddate` does not read (SAN, CN, issuer, chain, key-cert
+match) are 21/21 for 5.0 s inside a block already guarded by mtime; zero orphan
+certificates. Outbound SSH EMPTY on both hosts — 0 private keys, 0
+`known_hosts`, root `authorized_keys` 0 bytes: **the offsite cannot act on the
+homelab.** 32/32 container bijection, declared-minus-live and live-minus-
+declared both 0. 135 Ansible keys, 0 dead knobs; 41 handlers, 0 orphan
+`notify:`; `changed_when: false` INTERSECT `notify:` is EMPTY, verified with a
+synthetic positive control because the control on the repo itself returned zero.
+The 12 local branches are entirely in `main` — `git branch --merged` says
+otherwise only because this repo rebases, and `git cherry` by patch-id shows 0
+unapplied commits. 25 of 36 ADRs carry an "alternatives rejected" section, so
+the estate does write its negative decisions down: the three agents who reported
+ADR-030 and "Netdata notifies nobody" as gaps were not reading the repository.
+**Zero broken gates.**
 
 ## The run of 2026-09-19 (SIXTH) — the key was `oracle`, and it paid in the ASSERTIONS
 
@@ -5639,7 +5954,7 @@ Seven in the morning, C09 in the evening. C02's row records its downgrade.
 | C07 | A collector whose polling cost is disproportionate to the granularity of what it feeds | **RED as of 2026-09-18 — a broken gate, handled as a red test.** The gate is genuinely derived, and it is bounded by ONE COLLECTOR: `((600 / netdata_docker_update_every) * 0.833)` renders both the alarm threshold and the goss floor, for the docker collector. `apps.plugin` is outside it and was never declared at all — measured at 22.4 % of a core inside netdata's 42.7 %, machine at rest, against 85.6 % for all 32 containers. The ninth payment of the same trap: the derivation is sound and it keys on the wrong axis. `update every = 5` shipped 2026-09-18; the gate itself is NOT yet widened, so the row stays red until a floor covers the collectors as a set |
 | C08 | A threshold probe that samples at an instant which cannot contain the peak it guards | **Closed by decision.** The homelab reads `Power Cycle Min/Max`, which resets each boot. The offsite keeps the instantaneous reading and reports its peak instead — its only maximum is lifetime, and a threshold on a figure that cannot come back down latches red forever |
 
-## GATED — 8 here, plus C07 recorded above, which is RED since 2026-09-18 (C21 left this table 2026-09-19, fifth run — downgraded to ENUMERATED, see its row)
+## GATED — 8 here, plus C07 recorded above, GREEN again since 2026-09-20 (C21 left this table 2026-09-19, fifth run — downgraded to ENUMERATED, see its row)
 
 A finding in any of these is a broken gate, not an audit result.
 
@@ -5768,6 +6083,9 @@ them; do not re-derive without a new symptom.
 | C110 | **A stated trigger — a deadline or a condition — for an action only a human performs, with no deployed instrument evaluating it, so "on time", "overdue" and "never done once" come out identical** | **PROPOSED by the fifth run, ACCEPTED by the operator 2026-09-19 (sixth run). ENUMERATED.** Bounded from both sides independently and with no contact: `ansible-deploy` on the clock axis (**N=5** time-bounded operator obligations, 5/5 swept, covered **0/5**) and `project-manager` **and** `network` on the event axis (**N=15**, 7 mechanically observable, covered **0/7**; `network` counted 10 statements / 9 distinct conditions / 5 countable / 0 instrumented / **2 already triggered**). Positive control: `goss-offsite-health.yaml.j2:515` proves the repo knows how to annotate. **This row did not exist until the sixth run** | ENUMERATED |
 | C111 | **An assertion whose expected value is regenerated from the same declaration that produces the state it observes** — so it mirrors the estate's state rather than its intent, and cannot detect a weakening | **MINTED 2026-09-19 (sixth run), key `oracle`, shape (b).** Space: the four generated specs. `/etc/goss/posture.yaml` = **226 named checks** (goss's plan count is 406 — each `stdout:` pattern counts separately; do not conflate them). **108/226 independent, 115/226 mirroring, 3 hand-lists**; of 171 per-container checks, 64 carry independent intent and **107 mirror compose**. Measured on the deployed file by the main session: **9 of 32 `-read-only-rootfs` assert `/^false$/`**, plus 2 `-no-new-privileges` asserting `false` and 16 `-cap-add` asserting a set — **27 checks that can only turn red if somebody HARDENS a service**. Two agents converged from opposite ends: `security` read the derivation as a virtue (C11 DERIVED, 9/9), `ansible-deploy` as a fault (11 checks sit in `{% if %}` and CEASE TO EXIST with their declaration, 226 -> 225, nothing asserting the count). **Both are right; the tension is the class.** **The "easy fix" does NOT exist** — emitting the complement was tried on 2026-09-05 and reverted, reasoning at `goss-posture.yaml.j2:548-560` (`Config.User` carries the IMAGE's user; socket-proxy `root`, collabora `1001`). The remedy is an INTENT DECLARATION separate from the configuration, the pattern already shipped for sshd/sysctl/postfix/ufw | ENUMERATED, remedy outstanding |
 | C112 | **A guarantee whose ENFORCER sits outside every host the estate can run a command on, where the apparently-covering assertion is bound to an internal proxy and stays green through the enforcer's failure** | **MINTED 2026-09-19 (sixth run), key `oracle`, shape (e) applied to authority.** Space rule: per guarantee in `docs/` and the ADRs, name the enforcer and keep the off-estate ones. **5 in network — 2 unfalsifiable, 1 partial, 2 falsifiable.** Unfalsifiable: the router's forward table in the NEGATIVE direction (`ufw-enforces-every-rule-the-inventory-declares` is ALLOW-only and 80/443/53 are already in its ALLOW set, so a router reset republishing them stays green), and the Cloudflare zone (DDNS looks up one name, nothing enumerates). **Counterweight recorded because it bounds the damage: the POSITIVE direction IS falsifiable** — the offsite's only channel is the tunnel, so a lost opening reddens Kuma #18 in ~25 h. **The estate can see a lost opening and never an added one.** This is the generalisation of C32's attendance and explains why C32 never closed. Whole-estate cardinal NOT derived — bounded in network only | ENUMERATED in network, space open elsewhere |
+| C113 | **A control whose FUNCTION is to refuse, whose only deployed verification exercises it in the direction where it ADMITS** — so the predicate is satisfied as fully by "it works" as by "it is gone" | **MINTED 2026-09-19 (seventh run). OPEN — bounded to 4 in `network`, overflows into `security`, whole-estate cardinal NOT derived.** Two instances on two independent mechanisms. `vpn-only`: its 3 deployed assertions all pass if the middleware disappears (`!= 403` x2, a `grep` of the FILE x1); the deny direction WAS reproduced live, against the register's own C30 row which says it no longer can be — `docker exec netdata curl --resolve ...:172.20.0.3` returns **403, 9 bytes, "Forbidden"**, with an admitted source returning 200 as the control. Pi-hole: 6 assertions cover provisioning (gravity 79 963, adlist status, freshness, the dnsproxy namespace) and `grep -c "blocking.active\|0.0.0.0"` on the deployed spec returns **0**, so `dns.blocking.active=false` leaves everything green. Converged on from the other side by `security`, which measured the Traefik allowlist guarded by 3 assertions all in the "wide enough" direction and **0** in the "not too wide" one. Remedies NOT shipped | OPEN |
+| C114 | **A documentary enumeration of a live, machine-derivable set, verified only in the direction `{listed} subset-of {live}`** | **MINTED 2026-09-19 (seventh run), ENUMERATED 13/13** — 5 clean, 8 with a gap, **28 live objects absent from the table that enumerates their kind**. A month of documentary sweeps had measured nothing else: 113/113 links, 65/65 runbook paths, 18/18 cited units, 34/34 rendered artefacts, 80/80 bind mounts, 116 ADR promises — every one an inclusion. Not C01 (an omission is not a contradiction), not C32, not C111 (these tables regenerate from nothing). The sharpest instance is also a lesson about method: `homelab-image-retention` is absent from the "16 periodic jobs" census **because that census walks the evidence channels**, so a job with no channel cannot appear in it — the same shape that reopened C10 and that produced C18's axis defect. Shipped: the three missing secrets, the five wg-easy sites, the retention job in two places, 3 ADR citations, subdomains 18 -> 21, phases 5 -> 6, the RAM budget, and the sidecars named as having no page | ENUMERATED |
+| C115 | **A recovery procedure whose success criterion is that its last command completed, with no stated expected RESULT** | **MINTED 2026-09-19 (seventh run), ENUMERATED 19/19.** PROPOSED by the sixth run and correctly not claimed then — the space was one file of ~17 runbooks. `backup` bounded it: **19 executable procedures** (11 in `restore-from-backup.md`, 4 service pages of 18 sections, LUKS, offsite recovery, compose, the Kuma repair). **11 of 19 carry no post-restore check at all**, Vaultwarden among them, and **2 of 19 state an expected value** — correcting the sixth run's "0 of 11", since Immich states one (66 tables, 9 283 assets). The asymmetry measured in both directions: 46 named assertions by failure mode on the WRITE path, 2 written expectations on the READ path. The values already exist — the 2026-08-15 drill recorded 591 ciphers, 168 tables, 1 repo/1 user — and are never carried into the procedures. **Remedy NOT shipped**: documentary, no timed drill, no script | ENUMERATED |
 
 ## DECLINED
 
