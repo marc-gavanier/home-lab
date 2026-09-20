@@ -181,6 +181,9 @@ REC="$(cf_api "$API/zones/$ZID/dns_records?type=A&name=$CF_RECORD")" && RC=0 || 
     { log "ERROR: $(cf_why "$RC" "record lookup") (curl exit $RC)"; notify down "$(cf_why "$RC" "record lookup") (curl $RC)"; exit 1; }
 jq -e '.success == true and (.result | type == "array")' >/dev/null 2>&1 <<<"$REC" ||
     { log "ERROR: record lookup for $CF_RECORD did not return a record listing"; notify down "record lookup: unusable answer"; exit 1; }
+NREC="$(echo "$REC" | jq -r '.result | length')"
+[ "$NREC" -le 1 ] ||
+    { log "ERROR: $CF_RECORD carries $NREC A records — this script maintains exactly one and would certify only the first"; notify down "$CF_RECORD: $NREC A records"; exit 1; }
 RID="$(echo "$REC" | jq -r '.result[0].id // empty')"
 CUR="$(echo "$REC" | jq -r '.result[0].content // empty')"
 
