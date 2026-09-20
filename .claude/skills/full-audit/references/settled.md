@@ -44,6 +44,16 @@ RETAINED.
   2026-09-20, two monitors red for 7 min 33 and 6 min 17 with nothing wrong, six
   such non-incidents in fifteen days. The agent derived 900 s from the longest
   curated `lookup` window plus collector startup; **the operator chose 1 200 s.**
+  **The 787 s is a COLD start and the original measurement did not say so.**
+  netdata was restarted twice while verifying this change, on a warm host with
+  the stack already up, and both times the health engine had real verdicts
+  within 297 s — so neither restart entered the grace window and neither
+  exercised the fix. The six false reds it removes all followed a BOOT, when
+  the whole stack competes for the Pi. **The change is justified and unproven,
+  and the distinction is the finding**: a measurement of a startup cost must
+  say which start it measured. It will first be exercised at the next full
+  boot, which cannot be provoked here — a reboot costs the tunnel, hence the
+  host. Zero DOWN beats across both restarts either way.
 - **Two restart limiters made reachable**, and **the two windows are different
   on purpose**: `StartLimitIntervalSec=600` / `StartLimitBurst=5` on
   `vault-mount` (`roles/claude-code/tasks/vault.yml`), `300` / `5` on the
@@ -73,6 +83,23 @@ RETAINED.
   which acts on the repository's `locks/` directory; the profile lock that
   produces "another process is already running this profile" is a different
   object that no assertion watches.
+
+**Deployed from the branch and verified 2026-09-21, before merge.** Two hosts,
+`--tags observability,claude-code,backup` and `--tags offsite-backup`. Verified
+on the running systems rather than from the recap: `vault-mount` reads
+`StartLimitIntervalUSec=10min` / burst 5 against `RestartSec=10` and
+`Type=notify`, so five hang-path attempts at 100 s fit inside the window and
+`failed` is reachable — and the mount still answers, with Remote Control active,
+which is the function and not the status; `rest-server` reads 5min / 5 on the
+offsite host, correct for `Type=simple`; the running netdata agent serves
+`health log retention = 2mo` (it normalises `60d`) and `in memory max health log
+entries = 5000`; `/opt/homelab/resticprofile.yaml` carries both locks under
+`/run/lock`, confirmed on dev 28, the tmpfs. **Idempotence proven on a third
+pass: `changed=0`.** The second pass showed `changed=2` and it was not a defect
+— the first deploy predated the commit that added the derivations, so those two
+files were landing for the first time; the main session had flagged only
+`vault-mount` as missing from that first pass and should have flagged the two
+observability files with it.
 
 ## Decisions taken on 2026-09-21 (twelfth run) — do not re-propose
 
