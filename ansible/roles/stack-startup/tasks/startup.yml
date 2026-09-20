@@ -57,14 +57,16 @@
       # StartLimitIntervalSec is set EXPLICITLY and it is not decoration. The
       # default window is 10 s, and with RestartSec=60 no two failures could
       # ever fall inside it — the burst would never be reached and the unit
-      # would retry forever. 1800 s comfortably spans three attempts.
-      StartLimitIntervalSec=1800
+      # would retry forever. The window must span BURST whole attempts, and one
+      # attempt on the timeout path costs TimeoutStartSec + RestartSec:
+      #   attempt = 1800 + 60 = 1860 s;  window >= 3 x 1860 = 5580 s.
+      StartLimitIntervalSec=7200
       StartLimitBurst=3
 
       [Service]
       Type=oneshot
       RemainAfterExit=yes
-      TimeoutStartSec=600
+      TimeoutStartSec=1800
       ExecStart=/usr/local/sbin/homelab-stack-startup.sh
       # A failed startup used to be terminal, and #241 assumed the crash-heal
       # was the net under it. It is not: heal only restarts containers that

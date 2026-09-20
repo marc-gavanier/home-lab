@@ -242,7 +242,7 @@ push() {   # $1 url, $2 up|down, $3 message
     # connection, 6 on DNS) is a beat that provably did not land, and keeps the
     # original marker and the original words.
     printf 'url = "%s"\n' "$url" |
-        curl -fsS --max-time "$TIMEOUT" --retry 2 -K - -G \
+        curl -fsS --max-time "$TIMEOUT" -K - -G \
             --data-urlencode "status=$2" --data-urlencode "msg=$3" >/dev/null
     local rc=${PIPESTATUS[1]}
     [ "$rc" -eq 0 ] && return 0

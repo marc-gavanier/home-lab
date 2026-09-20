@@ -431,10 +431,20 @@ services:
     # already reached once, by a different mechanism, in the very log that was
     # widened to prevent it.
     #
-    # 10 x 20 MB = 200 MB, about 32 days at the measured rate: longer than any
-    # weekly writer's gap with room for the rate to double. The cost is 200 MB on
-    # a 5 TB disk, because the docker store lives on /mnt/data and not on the
+    # 10 x 20 MB = 200 MB, about 32 days at the measured rate. The cost is 200 MB
+    # on a 5 TB disk, because the docker store lives on /mnt/data and not on the
     # card.
+    #
+    # Those 32 days are the SIZE bound and they are not the span. A json-file
+    # ring belongs to the container, so `compose up` recreating this service
+    # starts it empty, and a deploy is far more frequent than 32 days. Measured
+    # 2026-09-20: 1 file of 10, 3.7 MB, 11 h 06 of span — 1.9 % of the capacity
+    # this block reasons about, and short of the 48 h its only consumer asks for.
+    # So the weekly-writer argument above does NOT hold as written: on that day
+    # the offsite host's weekly request appeared ZERO times in the whole retained
+    # log. Making the span real needs the log off the container's lifecycle, and
+    # journald is not the answer — it is the one store the masking in the
+    # security role cannot filter.
     logging:
       driver: json-file
       options:
@@ -1180,7 +1190,7 @@ services:
     # jail tree. On the writable layer that lands on /mnt/data (3.7 TB free); in
     # tmpfs it is RAM, and the container measured 1.257 GiB instead of 573 MiB.
     # Granting SYS_ADMIN to avoid the copy is not a trade worth making on a stack
-    # where 12 of 21 containers hold no capability at all. See ADR-021.
+    # where 16 of 32 containers hold no capability at all. See ADR-021.
     environment:
       # WOPI hosts allowed to embed this server. Without an entry here Collabora
       # refuses the Nextcloud origin outright.
@@ -1565,7 +1575,7 @@ services:
     # 90 s since 2026-09-06, raised with nextcloud-db and miniflux-db. Do NOT size
     # this from a solo `docker stop` on an idle database, which reads 1.6-2.5 s -
     # that is how this container came to be left on the default in the first
-    # place. The real cost is a full checkpoint with twenty-eight containers
+    # place. The real cost is a full checkpoint with thirty-two containers
     # draining onto the same USB disk at once.
     #
     # AND THIS KNOB DOES NOT COVER THIS CONTAINER'S LAST FAILURE, which is the
@@ -1909,7 +1919,7 @@ services:
     cap_drop: *cap-drop-all
     read_only: true          # measured: everything it keeps is in the mounted /app/data
     tmpfs:
-      # Insurance: no monitor needs /tmp today (34 active — push, http, keyword,
+      # Insurance: no monitor needs /tmp today (37 active — push, http, keyword,
       # port, dns, ping), but the real-browser type runs a Chromium out of it,
       # and that failure would surface as one monitor stuck down.
       - /tmp:size=16m
@@ -2240,10 +2250,11 @@ services:
     read_only: true
     tmpfs:
       - /tmp:size=8m           # insurance, not a measurement — see the header
-    # No tmpfs. `docker diff` on a live probe showed an empty write set — the
-    # only entries were /data and the users file, both artefacts of the bind
-    # mount below. Dozzle is a single Go binary serving from its own image and
-    # keeping no state on disk; the auth session is a cookie, not a file.
+    # The tmpfs above is insurance and not a need: `docker diff` on a live probe
+    # showed an empty write set — the only entries were /data and the users file,
+    # both artefacts of the bind mount below. Dozzle is a single Go binary serving
+    # from its own image and keeping no state on disk; the auth session is a
+    # cookie, not a file.
     user: "65534:65534"        # nobody — it speaks TCP to the proxy, so no docker group
     environment:
       DOCKER_HOST: tcp://socket-proxy:2375
@@ -2520,7 +2531,7 @@ services:
     # 2026-09-05 22:56 spent every second of it without finishing. Do NOT size
     # this from a solo `docker stop` on an idle database, which reads 1.6-2.5 s -
     # that is how this container came to be left on the default in the first
-    # place. The real cost is a full checkpoint with twenty-eight containers
+    # place. The real cost is a full checkpoint with thirty-two containers
     # draining onto the same USB disk at once, and this is what that looks like:
     #
     #     20:56:03.834  received fast shutdown request

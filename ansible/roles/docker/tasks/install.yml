@@ -64,7 +64,7 @@
 #                   ... killed at the 10 s per-container default, mid-checkpoint
 #
 # An idle database has almost nothing to flush. A real one, twenty minutes into
-# its writes, checkpointing while twenty-eight containers drain onto the same USB
+# its writes, checkpointing while thirty-two containers drain onto the same USB
 # disk, needs far more than 10 s. MEASURE THE CONDITION THAT ACTUALLY OCCURS.
 #
 # So both knobs are set: a per-database grace in compose.yaml, and this budget to

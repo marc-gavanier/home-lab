@@ -265,9 +265,14 @@ sudo goss -g /etc/goss/posture.yaml validate --format tap # what the scripts con
 
 **One trap, and it looks like a disaster.** `backup-dumps.yaml` asserts the
 database dumps, and **the dump directory only exists during a backup run**
-(ADR-031). Run by hand at any other time it reports `Count: 19, Failed: 13` —
-`dump-nextcloud-present`, `dump-miniflux-complete` and the rest. That is the
-correct answer to the question asked at the wrong moment, not a broken backup.
+(ADR-031). Run by hand at any other time it fails one assertion per dump —
+`dump-nextcloud-present`, `dump-miniflux-complete` and the rest. The two counts
+are deliberately not written here: they grow with the databases, and the pair
+frozen into this page until 2026-09-20 (`Count: 19, Failed: 13`) had drifted to
+less than half the real figure, so a page written to prevent a false alarm was
+causing one. Derive them instead — `grep -cE '^  dump-' /etc/goss/backup-dumps.yaml`
+for the assertions, and the run's own trailer for the rest. That is the correct
+answer to the question asked at the wrong moment, not a broken backup.
 It is only meaningful as the hook, where `backup-notify.sh` reads its TAP.
 
 **Why the consumers all look for the plan line.** goss failing to *start* — an

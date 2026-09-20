@@ -42,7 +42,7 @@ mkdir -p "$(dirname "$OUT")"
 
 # The `monitor` columns are DERIVED from the schema, not listed here, and that
 # is the whole point of the change of 2026-09-11. The hand-kept list named 21
-# columns against a table that has 114. It aborts loudly on a column that is
+# columns against a table that has 120. It aborts loudly on a column that is
 # REMOVED, because sqlite3 then errors under `set -e`, and passes in silence on
 # a column that is ADDED — which is the only way Uptime Kuma v2 actually
 # evolves. So it was loud in the direction that does not happen and blind in the
@@ -92,8 +92,8 @@ mkdir -p "$(dirname "$OUT")"
 # other four tables keep their explicit lists. Two mechanisms were tried and
 # rejected first, both worth recording so nobody re-tries them:
 #
-#   json_object() with all 114 columns exceeds SQLITE_MAX_FUNCTION_ARG (127 —
-#   114 columns are 228 arguments) and fails outright, loudly.
+#   json_object() with all 120 columns exceeds SQLITE_MAX_FUNCTION_ARG (127 —
+#   120 columns are 240 arguments) and fails outright, loudly.
 #
 #   Splitting it into chunks merged with json_patch() parses, and is WRONG:
 #   json_patch implements RFC 7386, where a null value DELETES the key. Columns

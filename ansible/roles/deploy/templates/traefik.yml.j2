@@ -46,6 +46,9 @@ entryPoints:
           scheme: https
   websecure:
     address: ":443"
+    transport:
+      respondingTimeouts:
+        readTimeout: 600s
     http:
       aliasHeadersStrategy: delete
       middlewares:

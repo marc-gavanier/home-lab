@@ -54,9 +54,11 @@ receives a message whose body **exactly matches** a secret keyword.
 - **Secrets cross a third party**: the keyword transits `ntfy.sh` in the message
   body. Anyone subscribed to the topic sees it the first time it fires — hence the
   topic must stay secret (it gatekeeps who can subscribe), not just the keyword.
-- **Topic visible locally**: `curl`'s URL (with the topic) appears in the process
-  command line (`ps`, `systemctl status`). Acceptable on a single-admin Pi; a
-  hardened variant would pass the topic via an auth header instead of the URL.
+- **Topic visible locally**: this was true of the original shape — `curl`'s URL,
+  with the topic in it, appeared in the process command line (`ps`,
+  `systemctl status`). Fixed by `e1f071e`: the URL now goes in on stdin through
+  `-K -`, and the live `/proc/<pid>/cmdline` of the running child is
+  `curl -sN -K -`, carrying neither URL nor topic.
 - **No confirmation / not reversible remotely**: once fired, the machine is off
   until someone is physically present. This is intended, not a limitation.
 - **Depends on ntfy.sh availability**: a public-service outage disables the switch.

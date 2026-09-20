@@ -11,9 +11,12 @@ no official arm64 image, and 4 GB RAM recommended on a host that already runs
 21 containers. Collabora publishes arm64 images and claims ~300–500 MB.
 
 The open question was never *whether it runs* — it was what it would do to a
-stack where 12 of 21 containers hold no capability at all, 17 have a read-only
-root filesystem, and `no-new-privileges` has exactly one documented exception
-(netdata, ADR-017).
+stack where, at the time of this decision, 12 of 21 containers held no
+capability at all, 17 had a read-only root filesystem, and `no-new-privileges`
+had exactly one documented exception (netdata, ADR-017). Those figures are kept
+as written because they are what the decision was weighed against; measured
+again on 2026-09-20 the same stack reads 16 of 32, 23 of 32, and two exceptions
+— this one being the second.
 
 Everything below was measured in a throwaway container publishing nothing.
 Production was never touched, and the one production change the wiring test

@@ -14,7 +14,10 @@ http:
     #
     #   VPN clients arrive as 172.18.0.1, never as 10.8.0.x
     #     wg-easy   -A POSTROUTING -s 10.8.0.0/24 -o eth0 -j MASQUERADE
-    #               so 10.8.0.x leaves the container as 172.18.0.3
+    #               so 10.8.0.x leaves the container as wg-easy's OWN address on
+    #               the `proxy` network — not a literal, because Docker assigns
+    #               it at start: this line named 172.18.0.3 until 2026-09-20,
+    #               which is traefik's address, while wg-easy held .2
     #     clients   AllowedIPs 0.0.0.0/0 — full tunnel, so they reach services
     #               by the Pi's LAN address and the packet goes out to the host
     #     host      docker hairpin-NATs it back into the bridge as 172.18.0.1

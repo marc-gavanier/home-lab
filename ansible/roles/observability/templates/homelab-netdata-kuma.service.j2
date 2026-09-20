@@ -9,10 +9,19 @@ Wants=docker.service
 Type=oneshot
 ExecStart=/usr/local/bin/homelab-netdata-kuma.sh
 # Type=oneshot defaults TimeoutStartSec to infinity, so nothing bounded this
-# adapter before #289 added a retry that waits. Four attempts ten seconds apart
-# plus fifteen pushes is well inside four minutes; the timer fires every five.
-# The bound is the point: a run that has not finished when the next one is due
-# has failed, and two of them overlapping is not a state worth having.
+# adapter before #289 added a retry that waits. The bound is the point: a run
+# that has not finished when the next one is due has failed, and two of them
+# overlapping is not a state worth having. So the script's own worst case has
+# to fit under this number, and this number under the timer's 300 s:
+#   read loop   4 x TIMEOUT + 3 x sleep 10 = 4 x 30 + 30 = 150 s
+#   two pushes  2 x TIMEOUT                = 2 x 30      =  60 s
+#   worst case                                             210 s < 240 < 300
+# It did not fit until 2026-09-20: TIMEOUT rose from 10 to 30 on 2026-09-13
+# without this number moving, and `--retry 2` made each push cost 3 x TIMEOUT,
+# for a real ceiling of 336 s. A degraded run measured 234 s against 240 —
+# 6 s of margin, on exactly the run whose report matters most. The retry is
+# gone rather than the bound raised, because >336 s and <300 s cannot both
+# hold, and rc=28 is already reported honestly as an unconfirmed beat.
 TimeoutStartSec=240
 # No SuccessExitStatus here, deliberately: unlike the health scripts, a non-zero
 # exit from this adapter never means "problems found and pushed" — it means the

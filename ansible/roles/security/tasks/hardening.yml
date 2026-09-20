@@ -90,16 +90,30 @@
 #     newest file — the only one held in clear — now spans a day instead of a
 #     week. That is the difference between five weeks and twenty-four hours of
 #     exposure for anything that reaches a command line.
-#   - The rotated copy is MASKED. The rule is any run of 32 or more characters
-#     from `[A-Za-z0-9_]`, and every part of it was measured on 2026-09-20 before
-#     it shipped: it covers the 32-hex *arr keys and the 53-character Cloudflare
-#     token IN FULL, including the form that defeated two context-anchored
-#     searches — the token as a bare argument, with no variable name and no
-#     vendor word anywhere on the line. The hyphen is deliberately NOT in the
-#     class: with it, `no-kuma-report-was-lost-in-silence` and its siblings were
-#     masked too, which destroys readable evidence to no purpose. End-to-end
-#     proof on the real store: the live token matched once in `auth.log.2.gz`
-#     and zero times through this expression, with the unmasked count as control.
+#   - The rotated copy is MASKED, by two alternatives rather than one. The first
+#     is any run of 32 or more characters from `[A-Za-z0-9_]`, measured on
+#     2026-09-20 before it shipped: it covers the 32-hex *arr keys and the
+#     53-character Cloudflare token IN FULL, including the form that defeated two
+#     context-anchored searches — the token as a bare argument, with no variable
+#     name and no vendor word anywhere on the line. The hyphen is deliberately
+#     NOT in the class: with it, `no-kuma-report-was-lost-in-silence` and its
+#     siblings were masked too, which destroys readable evidence to no purpose.
+#   - The second alternative exists because the first one is blind to base64, and
+#     the audit of 2026-09-20 measured exactly how blind: `+` and `/` are not in
+#     `[A-Za-z0-9_]`, so they split a key into runs shorter than 32, and whether
+#     a key is redacted at all is decided by which random bytes it drew. Over 200
+#     synthetic 32-byte keys of the shape `wg genkey` emits, 107 passed through
+#     COMPLETELY UNTOUCHED. The two WireGuard server private keys are the live
+#     case: same generator, same 44 characters, and only one of them was masked.
+#     So a padded base64 run — 20 or more of `[A-Za-z0-9+/]` closed by `=` or
+#     `==` — is masked as well, which takes those 200 keys to 0 survivors.
+#     The padding is what keeps it off filesystem paths: a path never ends in
+#     `=`, and widening the FIRST class to include `/` instead was measured and
+#     rejected, because it redacts the path in `sudo.log` and destroys the record
+#     of which file a root command touched. Cost of the form actually shipped,
+#     measured against the live store: ONE additional line changed in auth.log,
+#     against 270 for the `/` form. Residue, stated rather than discovered later:
+#     UNPADDED base64 carrying `+` or `/` is still not covered.
 #
 # What this does NOT do, stated so nobody assumes otherwise: the systemd journal
 # holds the same command lines, on the same card, and has no insertion point for
@@ -124,7 +138,7 @@
           delaycompress
           create 0600 root root
           postrotate
-              [ -f /var/log/sudo.log.1 ] && sed -i -E 's/[A-Za-z0-9_]{32,}/***/g' /var/log/sudo.log.1 || true
+              [ -f /var/log/sudo.log.1 ] && sed -i -E 's@([A-Za-z0-9_]{32,}|[A-Za-z0-9+/]{20,}={1,2})@***@g' /var/log/sudo.log.1 || true
           endscript
       }
 
@@ -180,7 +194,7 @@
           delaycompress
           sharedscripts
           postrotate
-              [ -f /var/log/auth.log.1 ] && sed -i -E 's/[A-Za-z0-9_]{32,}/***/g' /var/log/auth.log.1 || true
+              [ -f /var/log/auth.log.1 ] && sed -i -E 's@([A-Za-z0-9_]{32,}|[A-Za-z0-9+/]{20,}={1,2})@***@g' /var/log/auth.log.1 || true
               /usr/lib/rsyslog/rsyslog-rotate
           endscript
       }
