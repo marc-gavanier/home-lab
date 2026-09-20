@@ -79,7 +79,7 @@ lynis_ver=$(lynis show version 2>/dev/null | tr -cd '0-9.'); lynis_ver=${lynis_v
 
 # The report's own timestamp, taken BEFORE the run. Everything below used to
 # rest on `[ ! -r "$REPORT" ]`, which could never fire: the distribution ships
-# its own lynis.timer, it is enabled, and it runs DAILY — so this file is
+# its own lynis.timer, which was enabled and ran DAILY — so this file was
 # permanently fresh whether or not the audit below did anything at all. lynis
 # could have failed every week for months and the push would have kept carrying
 # the previous run's numbers, in green. The absence of a FRESH artefact is the

@@ -1391,7 +1391,7 @@ command:
   # duration of the last restic command, and the two modes are not close:
   # 25 min 40 s for the deep run of 2026-09-06 (`read group #9 of 1821 data
   # packs`) against 30 s for the metadata run of 2026-08-30. A factor of 51. The
-  # floor below sits 5x above metadata and 5x below deep, so it cannot be reached
+  # floor below sits 9x above metadata and 5x below deep, so it cannot be reached
   # by a slow metadata run nor missed by a fast deep one.
   #
   # The check runs weekly and only the first-week run is deep, so the status file
