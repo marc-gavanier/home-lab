@@ -57,13 +57,25 @@ mkdir -p "$(dirname "$OUT")"
 #                              GREEN while Pi-hole is dead. It stops being a
 #                              Pi-hole monitor and nothing says so.
 #   monitor 13 "Transmission"  auth_method/basic_auth_* — the only monitor with
-#                              any. Lost, the probe gets 401, which per #191 that
-#                              monitor accepts. Green again.
-#   monitor 12 "Pi (ping)"     ping_count = 1, a deliberate single packet, which
-#                              would silently become three.
+#                              any. Lost, the probe gets 401, and the monitor
+#                              goes RED on two independent grounds: it is a
+#                              `keyword` monitor whose keyword ("Transmission
+#                              Web Interface") is absent from a 401 body, and
+#                              its accepted_statuscodes are ["200-299"]. This
+#                              comment said "Green again" until 2026-09-20.
+#   monitor 8  "Pi-hole DNS"   conditions — `record equals <the Pi's address>`.
+#                              It is the ONLY monitor carrying a condition, and
+#                              it is the only thing that makes this a SPLIT-dns
+#                              test rather than a plain resolution test. The
+#                              value appears nowhere else in the repository, so
+#                              a dump without the column loses it entirely.
+#                              This comment claimed `conditions` was "[]
+#                              everywhere today" until 2026-09-20; it was not.
 #
-# And `conditions` — the v2 monitor-condition column — is [] everywhere today,
-# so the first one ever written would have been dropped without a word.
+# NOT an example of an operator-set value, and it used to be listed as one:
+# ping_count is 1 on every monitor of ids 1-12 and 3 on every monitor of ids
+# 13-40. It is the same creation-era signature this comment describes below,
+# not "a deliberate single packet" on monitor 12.
 #
 # The version signature is visible in the data: monitors 1-12 carry
 # dns_resolve_server and no location, monitors 13-37 carry location='world' and

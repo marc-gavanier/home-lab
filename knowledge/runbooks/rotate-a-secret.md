@@ -16,7 +16,7 @@ stronger while the operation stayed impossible (#159).
 
 | Secret                         | Consumer                     | Does a deploy rotate it?                                                                            |
 |--------------------------------|------------------------------|-----------------------------------------------------------------------------------------------------|
-| `cf_dns_api_token`             | traefik                      | **yes** — lego re-reads the file on every ACME operation                                            |
+| `cf_dns_api_token`             | traefik + cloudflare-ddns.sh | **yes for both — but each carrier is behind a different tag; see the note below**                   |
 | `transmission_password`        | transmission                 | **yes** — read at start, but a second copy lives in Kuma; see the warning below                     |
 | `dozzle_users.yml`             | dozzle                       | **yes** — read at start                                                                             |
 | `forgejo_secret_key`           | forgejo                      | **yes**, but see the warning below                                                                  |
@@ -36,6 +36,20 @@ stronger while the operation stayed impossible (#159).
 | `miniflux_db_password`         | miniflux-db                  | **no** — `initdb` only                                                                              |
 | `miniflux_admin_password`      | miniflux                     | **no** — `CREATE_ADMIN` runs once                                                                   |
 | `forgejo_admin_password`       | forgejo CLI                  | **no** — first deploy only, and it has no handler for that reason                                   |
+
+**`cf_dns_api_token` has two carriers and they are not written together.**
+`roles/deploy/tasks/secrets.yml` (tag `secrets`) writes
+`/mnt/data/secrets/docker/cf_dns_api_token` for Traefik, and
+`roles/deploy/tasks/ddns.yml` (tag `ddns`) renders the same vault value into
+`/mnt/data/secrets/ddns.env` for the DDNS updater. Nothing compares the two. A
+run limited to one of those tags rotates one carrier and leaves the other on the
+old value, which is what happened on 2026-09-12: Traefik moved, the DDNS did not,
+and the two values coexisted for eight days with nothing able to notice. The DDNS
+keeps the `vpn` A record fresh, that record is the WireGuard endpoint, and the
+tunnel is the only route in — so revoking "the old token" while the DDNS still
+holds it costs remote access at the next public-IP change. **Rotate it with a
+full deploy, or with both tags, and verify both files before revoking anything
+in the Cloudflare dashboard.**
 
 ### The restic passwords: `key add` FIRST, always
 

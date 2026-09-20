@@ -46,7 +46,7 @@ fixing** (real quick wins), **noise** (not applicable here).
 | 5.4.1.x, 5.3.x PAM          | password aging/quality/lockout | No active local passwords exist (locked); rules are moot                                                                     |
 | Section 6                   | auditd installed + rules       | Accepted absence so far: single-operator host, systemd journal present, SD wear budget. Revisit if threat model changes      |
 | Bootloader (1.3.1.2, 1.4.x) | GRUB hardening                 | No GRUB on a Pi (firmware + cmdline.txt); boot integrity addressed by ADR-008/009 instead                                    |
-| 2.1.13                      | rsync package removed          | Operator's media-transfer tool (docs/05-services/nextcloud.md) — the binary must exist server-side                           |
+| 2.1.13                      | rsync package removed          | Required by knowledge/runbooks/restore-from-backup.md, `rsync -a --delete` at three steps of the restore                     |
 | 3.3.7                       | strict rp_filter (1)           | Loose (2) since 2026-08-18: strict dropped VPN client packets arriving on the `proxy` docker bridge — see below              |
 
 The full rule-by-rule list (with check-mode exclusions) lives as commented
