@@ -126,6 +126,27 @@ for ad-hoc commands. It is now:
 
 ### DECLINED on 2026-09-20 (ninth run) — do not re-propose
 
+- **Rotating the three `*arr` API keys.** They were found in clear in
+  `auth.log.1` (0640 syslog:adm, readable without root) and remain in the
+  systemd journal for ~24 days; the flat files were masked on 2026-09-20 but the
+  journal cannot be. **Operator: "je ne veux pas faire de rotation de ces clés :
+  l'enjeu est trop faible." Never re-propose it.** The judgement is supported by
+  the measurements: the keys are usable only from the LAN or the tunnel, no
+  monitor, no posture assertion and no script outside the three applications
+  consumes them, and the whole dependency graph is 3 keys and 4 entries living
+  inside Radarr, Sonarr and Prowlarr. **The consumer enumeration was done before
+  the decline and is recorded here so that nobody redoes it**: Prowlarr's key
+  sits in one indexer entry in each of Radarr and Sonarr; Radarr's and Sonarr's
+  keys sit in Prowlarr's `Applications` table; Kuma's three monitors are
+  keyword probes on the login page and carry no key.
+- **Sonarr's re-creation of the leak, by consequence.** Sonarr writes Prowlarr's
+  key into its own container log on each HTTP error, about once a day. It has no
+  clean remedy — the behaviour is upstream and Docker captures the stream, so
+  there is no insertion point for a redactor of the kind Traefik has. The log
+  lives on the ENCRYPTED volume, so it is outside the "nothing sensitive on the
+  SD card" rule; the residual exposure is Dozzle, which is authenticated.
+  Recorded as an accepted risk following the decline above.
+
 - **fail2ban's `ignoreip` names the host's own address rather than the address
   that authenticates to it.** Measured on both hosts with an argv-safe pattern:
   offsite ignores its own LAN address and **423/423** authentications arrive from
