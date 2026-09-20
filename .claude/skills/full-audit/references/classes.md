@@ -167,13 +167,26 @@ parts that need a thought experiment.
 
 # The register
 
-Runs of 2026-08-15 through 2026-09-20 (ELEVENTH run, key `tolerance`).
-**120 recorded classes: 4 OPEN — and the membership is C120, C119, C34 and C01,
+Runs of 2026-08-15 through 2026-09-21 (TWELFTH run, key `durability`).
+**121 recorded classes: 3 OPEN — and the membership is C121, C34 and C01,
 written as a list because every time this line carried a rule for reconstructing
 the count instead, the count was wrong. 9 GATED, 7 closed by decision, plus the
 DECLINED list; everything else ENUMERATED.** The ENUMERATED figure is no longer
 carried here as a number — it was wrong by two for an unknown length of time and
 nobody could check it, because no membership was ever written. Count the rows.
+
+**THE TWELFTH RUN OF 2026-09-21 USED `durability` — does the state a mechanism
+relies on outlive what is asked of it? — and it MINTED ONE.** The counter went
+4 OPEN in, 3 OPEN out: **C119 and C120 both left, C121 arrived**; the class total
+moves 120 -> 121. Seven of eight domains minted NOTHING and three argued the key
+independently: its form (a), a question needing more history than the store
+retains, is already C39, and its "written depth is the capacity" form is already
+C68. What was NOT owned is the mirror — a token that persists past the event that
+should have ended it — and that is C121. **The run's structural output is not a
+finding but a PREDICATE**: `system` derived `(Burst-1) x RestartSec >= Interval`,
+which decides read-only whether a systemd unit can ever reach `failed`, and
+thereby settles the 16 units the eleventh run had to leave UNDETERMINED because
+their failure cycle could not be obtained without provoking it.
 
 **THE ELEVENTH RUN OF 2026-09-20 USED `tolerance` — how far from the rupture does
 the guard actually trip? — and it MINTED ONE.** The counter went 3 OPEN in, 4 OPEN
@@ -511,7 +524,55 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
-## OPEN — 4 (after the ELEVENTH run of 2026-09-20, key `tolerance`)
+## OPEN — 3 (after the TWELFTH run of 2026-09-21, key `durability`)
+
+| ID | Property | What bounds the space, and what stopped the sweep |
+|---|---|---|
+| C121 | **A token whose validity ends with an event, kept on a medium that outlives the event, with nothing to expire it** — the exact mirror of C39, which covers evidence that expires BEFORE the event it records | **MINTED 2026-09-21 (twelfth run).** Space: {state the estate writes} x {the event that ends its meaning}, restricted to the pairs where the store outlives the event — lock files, PID files, armed/disarmed flags, `creates:` witnesses, caches read as authoritative. Swept: `backup` **7/7** state carriers of the backup plane, 4 correct, 3 defective and all three the same file. **The mechanism, measured by the main session and stronger than the instance:** `/var/lock` is NOT the symlink to `/run/lock` on either host — `stat` gives dev=45826 (the root filesystem) against `/run/lock`'s dev=28 (tmpfs), while `/usr/lib/tmpfiles.d/legacy.conf:13` declares `L /var/lock - - - - ../run/lock`. The `L` directive does not replace an existing directory and `base-files` ships one, so every token written there is persistent on an image that reads as volatile. Both resticprofile profile locks lived there; **moved to `/run/lock` 2026-09-21** so a reboot expires them, which is the remedy the deliberate refusal of `force-inactive-lock` leaves available. **What stops closure: the backup plane is a DOMAIN bound, not the property.** The route: enumerate by the EVENT (boot, container recreation, service restart, deploy) and ask which stores survive it |
+| C34 | **A documentary artefact contradicting the sibling it cites** | **AXIS C IS BOUNDED, and this run read 40 more of it.** Axes A (44/44), B (1/1) and D (23/23) closed earlier. Axis C by the property: **467 occurrences, 333 distinct source->referent relations, 79 referents, 84 citing documents**; swept 110/110 links, 69/69 glosses, 269/357 lexically-supported claims, 88 hand-triaged. This run opened **40 individually** (24 in the `durability` slice, 16 outside): 4 contradicted, 2 partial, 34 clean. **What stops it is no longer reading, it is BOOKKEEPING: the register recorded a residual of "~48 claims never opened one by one" and never wrote down WHICH ones.** A residual without an identity cannot be handed to the next run — the overlap with this run's 40 is unknown, so the remainder is somewhere between 8 and 48. **The run that next measures this residual must publish the LIST, not the count** |
+| C01 | **A documentary statement whose content contradicts the deployed artefact** | **TWO MORE STRATA CLOSED, the class is not.** File set: the repo's tracked files that CARRY COMMENTS — 198 files, 13 757 comment lines, 11 666 prose statements. Previously swept: `ansible/` 176/176, `docker/` 10/10, `ops/` 156/156, `usb-tamper`/`killswitch` 121/121 clean, instruction files 123/123. **Added 2026-09-21: the RENDERED stratum 53/53** — 5 552 comment lines reach the hosts, 65 exist only in the rendered artefact, 53 of those are headers (all true: no `force: false`, no `creates:` on a `template:` task) and 12 are substantive, all verified true against the running hosts; offsite 10/10 with zero rendered-only lines outside headers. **And the `durability` slice of `docs/`+`knowledge/` 24/24** — 93 candidate lines, 24 real depth claims confronted with the store that should hold them: 3 contradicted, 1 partial, 20 clean. What remains is the rest of the prose in the documentary stratum |
+
+**C119 LEFT this table, ENUMERATED on its seventh and last plane.** `ansible-deploy`
+bounded the deploy plane the way the eleventh run asked — by **(spec, artefact)
+pairs, not by tasks** — and swept **31/31**: 30 of the 31 detectors the deploy
+renders can be turned green by rewriting the detector instead of the guarded
+thing, and exactly 1 cannot (the 6 netdata alarms, because `netdata_alarm_groups`
+is a list distinct from `health.d/*.conf`, so the adapter shouts "is not loaded"
+rather than passing). The previous 47/47 task classification is not re-derived.
+Six planes stood before it: `network` 39/39, `services` 262/262, `system` 19/19,
+`observability` 37/37 Kuma + 66/66 netdata, main session 5/5.
+
+**C120 LEFT this table, ENUMERATED on the route the register itself named**, with
+the residual declared rather than swept. The route was "enumerate the guards whose
+RUPTURE point is already on record — a measured worst case, a declared ceiling, a
+retained range". Six domains did exactly that this run: `system` **33/33** systemd
+restart limiters on both hosts plus **18/18** non-systemd guards, `security`
+**21/21**, `network` **35/35**, `observability` **82/82** (56 netdata thresholds
+against the min/max retained over 55 days, 15 dead Kuma windows, 6 `homelab-gate`
+graces, 5 isolated guards), `services` **129/129**, `backup` **28/28** from the
+eleventh run. **The residual, and it is not a gap but an instrument boundary:**
+the guards whose rupture point is NOT on record — `services` counted 70 of them
+(41 tmpfs never filled, 25 containers never `unhealthy` in 14 days, 4 budgets
+never exceeded) and `observability` 22 active-monitor timeouts. Qualifying those
+requires provoking the failure, which rules 5 and 6 forbid. **It does NOT reach
+GATED**: no assertion has been made to fail on purpose.
+
+**A WARNING that belongs with C120's closure, and it is this run's sharpest
+instrument finding.** The closure rests on METRIC ranges (55 days of netdata
+dbengine) and on declared ceilings. It must NOT be read as resting on netdata's
+alarm TRANSITION history, which retains `5d` by default and was never overridden:
+`system` showed the swap guard's own rupture — 94.55 % measured against an 85 %
+threshold, 2026-08-31 to 09-02 — leaves no retained transition, with a positive
+control. The main session re-measured the practical bound at 1 000 entries
+spanning 0.37 day through `api/v1/alarm_log`. **Any verdict of the form "this
+guard has never tripped" drawn from that store is a false negative beyond a few
+days.** Raised to `60d` / 5 000 entries on 2026-09-21.
+
+---
+
+## SUPERSEDED — OPEN table of the ELEVENTH run of 2026-09-20, key `tolerance`
+
+### It read: OPEN — 4 (after the ELEVENTH run of 2026-09-20, key `tolerance`)
 
 | ID | Property | What bounds the space, and what stopped the sweep |
 |---|---|---|
@@ -920,6 +981,226 @@ separate correction — **the marker is not a provenance instrument.**
 C92 and C03-R were closed as review rules once their spaces proved non-derivable.
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
+
+## The run of 2026-09-21 (TWELFTH) — the key was `durability`, and it paid in a PREDICATE
+
+The key: **does the state a mechanism relies on outlive what is asked of it?**
+Three forms were put in every brief, all required to name two numbers — the depth
+DEMANDED and the depth RETAINED: (a) a question needing more history than its
+store keeps, (b) a counter reset by an ordinary event but read as cumulative,
+(c) volatile state a consumer believes persistent, or its inverse, persistent
+state nobody expires.
+
+### The counter: 4 OPEN in, 3 OPEN out, 1 minted, class total 120 -> 121
+
+C119 and C120 both left; C121 arrived. **Seven of eight domains minted zero and
+three of them argued the key rather than stretching it**: `project-manager`,
+`system` and `network` each independently placed form (a) inside C39 and the
+"written depth is the capacity" shape inside C68, and `network` formulated a
+candidate ("the evidence store is emptied by the very event being traced") and
+then rejected it as already covered. That is the declared-overlap discipline the
+`aggregation` run introduced, working as intended.
+
+### The run's real output is a PREDICATE, not a finding
+
+`system` derived `(Burst-1) x RestartSec >= Interval` (or `Interval=0`): when it
+holds, a systemd unit can never reach `failed`, because the burst counter resets
+between attempts. **It decides the question from two DECLARED numbers, read-only,
+and so retires the eleventh run's blocker** — 16 of 18 units had `NRestarts=0`
+and their failure cycle was declared unobtainable without provoking it. The
+predicate is written in this repo exactly once, at
+`ansible/roles/stack-startup/tasks/startup.yml:57-63`, and was applied nowhere
+else. Plane closed 33/33 across both hosts.
+
+Three units satisfy it. **One is DECLINED and was correctly excluded by the main
+session, not by the agent**: `killswitch`, arbitrated away 2026-09-02. The other
+two were fixed 2026-09-21 — `vault-mount` (rupture on record: 15 restarts on
+2026-09-20 while reading `active`/`success`, the eleventh run having fixed the
+cause and not the guard) and the offsite `rest-server` (rupture not on record,
+C15 is the existing net under it). Both were given `StartLimitIntervalSec=300`
+with `StartLimitBurst=5`, placed in `[Unit]` — the main session's first patch put
+them in `[Service]`, where systemd ignores them, and caught it before commit.
+
+### Live defects shipped, ranked by what was happening without anyone knowing
+
+1. **netdata's alarm transition history retains 5 days while its metrics retain
+   55.** `system` proved it with the swap guard's own rupture (94.55 % against an
+   85 % threshold, 2026-08-31→09-02) leaving no retained transition, plus a
+   positive control. Main session re-measured the practical bound at 1 000
+   entries over 0.37 day. **This bounds the audit's own method**, and C120's
+   closure was written to rest on metric ranges rather than on this store.
+   Raised to `health log retention = 60d` and 5 000 in-memory entries.
+2. **`STARTUP_GRACE=300` against 787 s of measured startup** in the
+   netdata->Kuma adapter. Six DOWN beats on 2026-09-20 saying "netdata up 310s
+   and its health engine has evaluated no alarm"; monitors 35 and 37 red for
+   7 min 33 and 6 min 17 with nothing wrong, and six such non-incidents in
+   fifteen days. The agent derived 900 s; **the operator chose 1 200 s.**
+3. **`no-container-came-back-recovering` loops over a hand-written list of
+   four** — `immich-db miniflux-db nextcloud-db pihole` — which are exactly the
+   four containers declaring `stop_grace_period: 90s`, the only budget never
+   exceeded. The one container whose EXPLICIT budget did give way is outside the
+   loop. Main session's census of the docker journal over 14 days, in UTC: 114
+   "using the force", 87 at 10 s, 5 at 5 s, **1 at 1m0s**, none at 90 s.
+   **The operator DECLINED the remedy** — see the arbitration below.
+4. **A correction of 2026-09-19 reached three of five carriers.** `0fa9e07`
+   fixed "Kuma keeps 180 days" in three template comments;
+   `docs/07-observability/README.md:74` and `:124` never received it, and `:124`
+   justifies the live 45-day deep-check threshold with a 135-day margin. Measured
+   2026-09-21: raw beats on the 5-minute monitor survive **45.6 h**
+   (`keepDataPeriodDays` is 180 and true only as configuration), and the real
+   margin is **18 days** — 63 days of history on a weekly monitor against a
+   45-day threshold. Agreed to the hour by `observability` and the main session;
+   `project-manager`'s "30 to 71 days" measured monitor AGE and was discarded.
+5. **The profile lock outlived the boot because `/var/lock` is not what it looks
+   like.** See C121. Moved to `/run/lock`; the runbook's repair section, which
+   taught only `restic unlock` — a command that acts on the repository's `locks/`
+   directory and not on the profile lock at all — now names the right file.
+6. **Two units that could never be reported `failed`.** See the predicate above.
+
+### Documentary corrections shipped — 9, all measured
+
+The two Kuma carriers; `/etc/goss/posture.yaml` saying "90 s" beside its own
+`timeout: 300000` (`6951d9b` wrote the prose, `e1dac8f` raised the value the same
+day); `compose.yaml` naming the DoH proxy `cloudflared` four times in the block
+that serves as the pihole/dnsproxy namespace runbook, when it has been `dnsproxy`
+since 2026-07-27 and line 681 of the same block says so; the resticprofile
+comment promising 40 days where the guard reads 45 (born wrong in `0512713`,
+22 days, 11 runs, inside the stratum declared `ansible/` 176/176);
+`restore-from-backup.md:829` asserting "Retention starts 2026-07-11, anything
+older is gone" — 18 of 35 local snapshots predate it, oldest 2026-05-14, and the
+sentence was used in its own paragraph to justify deleting the Immich v2.7.5
+images; `offsite-backup.md:207` citing a journal "complete back to 2026-05-14"
+when the offsite journal starts 2026-07-05 and the homelab's 2026-08-30;
+`offsite-health.sh` saying "the sixteen assertions" for a spec that no longer
+holds sixteen — replaced by no number at all, which is the only form that cannot
+rot; and the journald cap rationale, wrong TWICE in two files
+(`inventory/group_vars/all.yml` and `roles/base/tasks/logging.yml`) — "about 48
+days" against 21.3 days held and ~59 at saturation, and citing
+`restic-deep-check-not-stale` as a journal reader when that assertion reads Kuma
+and says so in its own spec.
+
+### Rejected, requalified or corrected — 6, and the biggest was the run's headline
+
+- **`ansible-deploy`'s I1, REFUTED by the main session and withdrawn by its
+  author along with its mint.** It claimed `--tags storage` run before
+  `homelab-unlock` would `dd` 4 GiB onto the SD card. Three independent blocks:
+  `storage/tasks/luks.yml:16-22` opens the LUKS volume unconditionally;
+  `storage/tasks/mount.yml:59-63` starts `mnt-data.mount` with no `ignore_errors`
+  or `failed_when` anywhere in the role, so a failure aborts four imports before
+  `swap.yml`; and `deploy/tasks/main.yml` carries `tags: always`, so its assert
+  runs under ANY tag filter — the pivot of the finding was simply false. The
+  agent then searched for an escape path and reported `--start-at-task` as the
+  only one, while refusing to use it to save the finding. **Its mint was
+  withdrawn on the right ground: the property was sound and its instance
+  cardinal on this repo is 0.**
+- **`backup`'s remedy (`force-inactive-lock: true`) contradicts a deliberate
+  decision written in this repo**, at `goss-units.yaml.j2:235`: it authorises a
+  run to break a lock it did not create and repairs without reporting, which is
+  how #331 went unnoticed for eight and a half hours. Detection first. The
+  finding's documentary half survives; the remedy does not.
+- **`system` re-reported `killswitch`**, DECLINED 2026-09-02 with the instruction
+  never to raise it again. Excluded by the main session on the agent's behalf,
+  which is exactly the budget this register exists to protect.
+- **`project-manager`'s Kuma retention figure** ("30 to 71 days") measured
+  monitor age, not retention. Replaced by 45.6 h.
+- **`observability` declared `durability` CLEAN with 0 instances in its own
+  domain** while `system` found defect #1 there. Not a contradiction but a
+  perimeter gap: the first compared alarm windows to METRIC retention, the second
+  thought to interrogate the TRANSITION store. **The divergence is the finding**,
+  and it is the fourth time this skill has been paid by resolving one rather than
+  picking a side.
+- **`system` reported "5 tmpfs mounts, not the 41 this register carries" as a
+  register correction. It is not one, and the main session resolved it by
+  measuring both**: `mount -t tmpfs | wc -l` gives 5 on the host, while the sum
+  of `HostConfig.Tmpfs` over the running containers gives 41 — which is C36's
+  space and C36's cardinal, unchanged and correct. Two different spaces with the
+  same word. **The register was right and would have been corrupted by believing
+  the agent**, which is the precise reason agent output is a lead and not a
+  finding.
+- **`network`'s pihole `start_period` fix (120 s against the 300 s the staged
+  startup grants itself)** is real and was correctly self-limited by its own
+  author: the one-line remedy recreates pihole and destroys dnsproxy's network
+  namespace, and the measured cost of doing nothing is 0 over 16 days. Deferred
+  to a pihole deploy that is already planned for another reason.
+
+### The operator's arbitration — one DECLINED, and its reason generalises
+
+**Alarming on transmission's hard kills is DECLINED, 2026-09-21.** The operator's
+words: transmission habitually crashes during downloads, alarms on it are wasted
+effort, and *"ce qui m'intéresse c'est qu'au final ça se remet"*. So
+`no-container-came-back-recovering` was NOT re-derived from
+`compose.services[*].stop_grace_period`, because deriving it is precisely what
+would add transmission to it. **The derivation defect stays recorded and
+unfixed** — it is the class that is wrong, not this instance that is unaddressed,
+the same shape as C18's `logs.db` siblings. Do not re-propose an alarm here. A
+proposal that demonstrates RECOVERY rather than alarming on the kill is a
+different question and has not been put.
+
+### Instrument traps paid — 4, and TWO were the main session's own
+
+1. **`StartLimitIntervalSec` in `[Service]` is silently ignored** — systemd moved
+   it to `[Unit]`. The main session wrote it into the wrong section for both
+   units and caught it by re-reading the rendered template, not by testing.
+2. **The main session attributed #331 to its own `/var/lock` discovery, and was
+   wrong.** #331 is about restic REPOSITORY locks, which live inside the repo on
+   `/mnt/data` and survive a reboot because that is what a repository does. The
+   `/var/lock` finding concerns resticprofile's PROFILE lock, a different object
+   that no assertion watches. Caught by reading the detector
+   (`restic-repo-has-no-stale-lock` scans `<backup_dir>/restic-repo/locks`)
+   before writing the register. **Two lock objects with similar names is the
+   whole trap.**
+3. **`resticprofile snapshots` cannot be run outside its unit** — the repository
+   comes from an `EnvironmentFile`, so a hand run fails with
+   `unable to open config file: stat <no value>/config`. The main session could
+   not independently re-measure the snapshot census and SAYS SO rather than
+   inheriting it silently; two agents measured it independently and agree. It
+   also verified that its own failed attempts left no lock behind.
+4. **`services` was nearly caught by `docker diff` reporting bind MOUNTS as added
+   files** — two `php/conf.d/*.ini` entries under nextcloud look exactly like the
+   `zz-disable-jit.ini` that fell into the writable layer on 2026-08-27 and cost
+   six hours. `compose.yaml:885` mounts them. Self-caught.
+
+### The register lied about itself in THREE places — eighth consecutive run
+
+1. **The ENUMERATED heading said "69 rows below" and there were 71.** The two
+   extra are C119 and C120, which declare themselves OPEN inside their own row
+   while sitting in the ENUMERATED section — the same residual shape as the C12
+   row left in the GATED table, diagnosed in prose and not removed. Both rows are
+   now redirected the way C34's was.
+2. **C03-T's lookback ceiling is 26 h, not 8 days** (`observability`, read off the
+   deployed spec, which states its own derivation).
+3. **The last SCHEDULED posture run reported 433 checks / goss 410, not 435 /
+   412** — those are the MANUAL run of 2026-09-21 00:35, which the main session's
+   baseline quoted correctly as manual but which would have propagated as the
+   scheduled figure. Ninth consecutive run in which the baseline needed a
+   correction from an agent.
+
+### Clean, and measured — the negatives that closed questions
+
+`security`: the sshd jail does not read `auth.log` at all (systemd backend,
+600 s demanded against 22 days retained); bans persist across a restart
+(`dbpurgeage` 1 day > `bantime` 3 600 s, `nextcloud.log` resumed at `pos=4842`);
+no `bantime.increment` and zero consumers of the reset counters; **the
+container-clock trap is clean and was verified with an instrument** (`fail2ban-regex`
+19/19, positive control on the real ban of 2026-09-13); `/run/homelab/tamper-armed`
+cannot be cleared by any tmpfiles entry short of a reboot. `network`: DDNS keeps
+no local state (the last IP lives at Cloudflare and is re-read every run); FTL
+retains 91.89 days against `maxDBdays 91` with **zero** consumers asking for it;
+conntrack peaked at 1 762 over 55 days against 262 144; the pihole/dnsproxy
+namespace is intact; Traefik answered its own API rather than its labels — 24
+routers, 6 middlewares, 0 errors. `observability`: the deepest netdata question
+asks 7 200 s of a store retaining 424 188 s (58.9x, 66/66); the #378 window
+recalibration holds, the three weekly monitors outside its scope sit at 9.2 /
+12.4 / 13.6 %. `system`: all 7 `creates:` witnesses persistent, every ratchet
+under `/var/lib`, zero systemd counters read as cumulative, zero ext4 errors,
+`RuntimeMaxUse=300M` worth 161 h at the measured boot rate. `services`: worst probe
+0.396 s against 5 s, tmpfs peak 3.8 %, the heal timer reads `FailingStreak` and
+not `Health.Log` (which is capped at 5 and would have made its 900 s
+unreachable). `backup`: `status.json` overwriting correctly handled, dumps retain
+zero by construction and the runbook says so, `locks/` empty on both repositories,
+`/run/homelab-backup-dumps.tap` correctly volatile.
+
+---
 
 ## The run of 2026-09-20 (ELEVENTH) — the key was `tolerance`, and it minted the distance
 
@@ -7055,7 +7336,7 @@ check, and it is stated as one.
   measured, and `/run/traefik/access.log` appears 99 s after its container starts
   while its healthcheck requires the file.
 
-## ENUMERATED — **69 rows below**, counted 2026-09-20 (ninth run). C03, C06, C09, C13, C39, C43 and C75 are recorded in their own sections above and have no row here; **C27 DOES have a row here and the old heading wrongly excluded it**. **C01 left this table on 2026-09-11, was REOPENED, and CLOSED 2026-09-19 at 123/123 — its state lives in its own row above, not in any summary table (pointer corrected 2026-09-20).**
+## ENUMERATED — **do not count these rows and do not trust a number here**. The heading carried "69 rows below" against 71 present until 2026-09-21; the two extra were C119 and C120, declaring themselves OPEN inside their own row while sitting in this section, which is the C12-row shape a third time. A class's state lives in ONE place: the OPEN table if it is open, this table otherwise, and a row that has moved says so instead of keeping its text. C03, C06, C09, C13, C39, C43 and C75 are recorded in their own sections above and have no row here; **C27 DOES have a row here and the old heading wrongly excluded it**. **C01 left this table on 2026-09-11, was REOPENED, and CLOSED 2026-09-19 at 123/123 — its state lives in its own row above, not in any summary table (pointer corrected 2026-09-20).**
 
 **The heading said "36 here" over 69 rows, for an unknown length of time.** It
 was found by `project-manager` on 2026-09-20 and confirmed by the main session
@@ -7138,8 +7419,8 @@ them; do not re-derive without a new symptom.
 | C116 | **A detector whose only delivery channel terminates inside the subject it detects** | **MINTED 2026-09-20 (eighth run), key `independence`, shape (c). DECLINED by the operator the same day — "je m'en fiche complètement", never raise again.** Space: per alerting path, the components a verdict must traverse ∩ the subjects that path covers. Remediable cardinal **1**. Netdata instantiates `homelab_container_down` on uptime-kuma; its only consumer is `homelab-netdata-kuma.sh:364` pushing to Kuma. Main session verified the last link with a control: `/etc/netdata/health_alarm_notify.conf` does not exist, the stock file carries `SEND_DISCORD="YES"` with `DISCORD_WEBHOOK_URL=""` and `DEFAULT_RECIPIENT_DISCORD=""` (control: the same grep matches 30 `SEND_*` lines), Kuma holds 1 notification row bound to 37 monitors, and `grep -c uptime-kuma /usr/local/bin/homelab-health.sh` = 0. A single failure of uptime-kuma defeats that alarm's delivery, all 15 push reporters, **both gated fuses C41 and C03-T**, Kuma's 22 probes and the single Discord notification. Bounded by heal every 2 min. **NOT to be confused with "60 netdata alarms can reach nobody", measured and rejected in the sixth run** — the adapter IS the path; what is new is that the path terminates in the subject | **DECLINED** |
 | C117 | **A declared credential separation where each credential is stored inside the store the other protects** | **MINTED 2026-09-20 (eighth run), key `independence`. DECLINED by the operator the same day** — an independent offline copy exists outside the estate, so the residual risk is accepted; never raise again. ADR-010:37 claimed "Homelab repo password is useless against the offsite repo, and vice versa". The two values are genuinely distinct (hash-compared, env == file on both). But `/mnt/data/secrets` is a backup `source:` (deployed `/opt/homelab/resticprofile.yaml:240`) with no exclude covering it, and the profile's second `ExecStart` copies those snapshots offsite, so the property holds in both directions. Availability untouched — append-only still refuses deletes; what was void is the blast-radius claim. **The documentary half WAS shipped**: ADR-010's row now reads "NOT a blast-radius guarantee", with the reasoning and a generic recommendation to keep an offline copy, cross-referencing the LUKS header runbook which already argues the identical circular dependency. **Main-session note: the session contradicted the agent here and was WRONG** — it read the `source:` block to line 215 when the block runs to 241 | **DECLINED**, documentary half shipped |
 | C118 | **A guard that demands a value and a fallback that supplies one, sitting in the same resolution chain — so the guard can never observe the absence it exists to detect, and the fallback propagates into both the configuration and the assertion that would check it** | **MINTED 2026-09-20 (eighth run), key `independence`, shapes (e)+(d). DECLINED by the operator the same day** on the ground that coherence is what matters and a port number is weak security either way; never raise again. Adjacency to C29 was declared by the minting agent rather than hidden. Space: 99 `required: true` options over 11 `meta/argument_specs.yml`; 0 defeated by a role default (no role has `defaults/main.yml`), 69/99 pre-satisfied by a committed inventory file, **5 whose committed fallback is a value no host should run with** — `domain: example.com`, `ssh_port_hardened: 22`, `traefik_acme_email: ''`, `hostname: homelab`, `extra_fsck_filesystems: []`. Joint defeat measured on the guard branch (synthetic role: with the fallback `ok=2 changed=0 failed=0`; delete the fallback only -> `fatal: missing required arguments`) and traced on the other four consumers: `ssh.yml:11`, `firewall.yml:122/134/146`, `fail2ban.yml:180`, `goss-posture.yaml.j2:1569` — which asserts the variable it just rendered. **LATENT, never live**: the deployed spec asserts the vaulted port and the daemon listens on it, not on 22. **The sharpest part is documentary and survives the decline**: `group_vars/all.yml:8-16` argues in four sentences that `homelab_ip` gets no default, citing C29 by name — and line 20 is `ssh_port_hardened: 22` | **DECLINED** |
-| C119 | **A detector whose own act is a member of the set it examines** — so it can read its own trace as data, and its verdict is in part a measurement of itself | **MINTED 2026-09-20 (ninth run), key `interference`. OPEN — the space is NOT bounded and the minting row says so rather than leaving it to be found.** Swept 5 by two unrelated mechanisms, 2 defective. (a) `services`: pattern-matching probes searching a shared medium for a literal from their own argv — 2 of 28 healthchecks + 2 of 229 posture assertions, **4/4, 1 defective**, and that one is `traefik-log-redactor`'s `pgrep -f "tail -F ..."`, which is **C29's vacuous liveness half, DECLINED by the operator on 2026-09-02 — the remedy must never be re-proposed**; recorded here only so a tenth run does not rediscover it. (b) `network`: `traefik-access-log-carries-no-credential` and the redactor it grades are both anchored on `[?&]`, so neither can see a credential in the PATH; Kuma puts its push token there and the estate's own 15 push reporters are the ONLY writers of that shape — 1 283 lines in 24 h carried a live token in clear while the assertion reported `bad=0`. **FIXED and verified the same day**: redactor pass added, assertion extended with `pat_path`, proven in both directions against the DEPLOYED text (live estate exit 0; a synthetic line injected into its input -> `1 credential value(s) reached a durable container log`, exit 1). The 1 283 lines left the disk with the container recreate — 0 files under the Docker data root hold a `/api/push/<token>`, against a positive control of 1 holding the masked form. **The audit's own method is inside this class**: `sudo grep` writing the string it hunts into `auth.log`, paid three times | **OPEN** | **UPDATED 2026-09-20 (eleventh run): SIX of seven planes are now swept — see the OPEN table for the cardinals. Still OPEN; the deploy plane returned 47/47 with 0 defective and declared its bound.**
-| C120 | **A guard whose trip point sits at the wrong distance from the rupture it guards** — either OUTSIDE the range the guarded quantity can occupy, so the guard is decorative while appearing armed, or SHORTER than the work the mechanism explicitly permits itself | **MINTED 2026-09-20 (eleventh run), key `tolerance`. OPEN — every bound swept is a DOMAIN bound and none is the property, and the minting row says so rather than leaving it to be found.** Space: {deployed guard} x {quantity it guards}, restricted to pairs where the trip point AND the rupture point are both measurable. Six incomparable slices: `system` 13 (1 defective), `security` 14 (1 defective), `backup` 28/28, `network` 22/22 in the network plane (1 defective), `ansible-deploy` **117 numeric budgets rendered on the hosts** with 31 measured, main session **18/18 host units carrying a restart limiter — 2 proven defective, 16 UNDETERMINED**. Distinct from C07/C08/C14/C105, which hold threshold INSTANCES, and from the `commensurability` key, which covers a threshold calibrated in a DIFFERENT frame — this is the SAME frame and the wrong DISTANCE. **Five of eight domains proposed it independently**; the merge dropped every mechanism clause on purpose, because a class bounded by a mechanism reopens. Six live instances fixed and verified 2026-09-21. **What blocks closure: a guard is only shown sound by exercising the rupture, and 16 of those 18 units have `NRestarts=0`, so their failure cycle cannot be obtained read-only.** |
+| C119 | **A detector whose own act is a member of the set it examines** — so it can read its own trace as data, and its verdict is in part a measurement of itself | **LEFT THIS TABLE — ENUMERATED 2026-09-21 (twelfth run) on its seventh and last plane, `ansible-deploy` 31/31 by (spec, artefact) pairs. Read the twelfth run's section, not this row.** Until 2026-09-21 this row carried the NINTH run's state ("swept 5, the space is NOT bounded") while the OPEN table carried the eleventh's, so an agent reading the row re-derived work already done. |
+| C120 | **A guard whose trip point sits at the wrong distance from the rupture it guards** — either OUTSIDE the range the guarded quantity can occupy, so the guard is decorative while appearing armed, or SHORTER than the work the mechanism explicitly permits itself | **LEFT THIS TABLE — ENUMERATED 2026-09-21 (twelfth run)** on the route this register named, six domains, with the provoked-measurement residual declared rather than swept. Read the twelfth run's section, not this row. |
 
 ## DECLINED
 

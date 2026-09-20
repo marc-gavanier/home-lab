@@ -15,21 +15,46 @@ earlier — which would have sent eight agents to re-derive settled work. Rebuil
 it from `classes.md`'s OPEN table at the start of every run; if the two
 disagree, `classes.md` wins.
 
-As of the ELEVENTH run of 2026-09-20, key `tolerance`. **Rebuilt from
-`classes.md`'s OPEN table — do not trust this copy if the two disagree.** The
-ninth run's copy of this block claimed "ONE OPEN CLASS: C119" while the register
-carried three, and contradicted itself sixteen lines later. A rule for
-reconstructing the list is what keeps being wrong, so the membership is written
-out in full.
+As of the TWELFTH run of 2026-09-21, key `durability`. **Rebuilt from
+`classes.md`'s OPEN table — do not trust this copy if the two disagree.**
 
-**FOUR OPEN CLASSES, and here is the whole membership with its owner:**
+**THREE OPEN CLASSES, and here is the whole membership with its owner:**
 
 | Class | Property | Owner | What is left |
 |---|---|---|---|
-| C120 | A guard whose trip point sits at the wrong distance from the rupture it guards | **every domain**, and that is the point | MINTED 2026-09-20 by five domains independently. Six incomparable slices swept — `system` 13, `security` 14, `backup` 28/28, `network` 22/22, `ansible-deploy` 117 rendered budgets with 31 measured, main session 18/18 host units. **Every one is a DOMAIN bound; none is the property.** The route: enumerate the guards whose RUPTURE point is already on record — a measured worst case, a declared ceiling, a retained range — and treat the rest as a provoked-measurement problem, which read-only cannot reach |
-| C119 | A detector whose own act is a member of the set it examines | `ansible-deploy`, and it is the last plane | **SIX PLANES OF SEVEN SWEPT.** `network` 39/39, `services` 262/262, `system` 19/19, `observability` 37/37 Kuma + 66/66 netdata, main session 5/5. `ansible-deploy` returned **47/47 with 0 defective** and declared the bound instead of claiming the class: the deploy's real self-reference is that it RENDERS the detectors of every other plane. **Bounding it needs (spec, artefact) pairs, not tasks** |
-| C34 | A documentary artefact contradicting the sibling it cites | `project-manager` | Axes A (44/44), B (1/1), D (23/23) closed. **Axis C is bounded at last and by the PROPERTY: 467 occurrences, 333 relations, 79 referents, 84 citing documents.** Swept 110/110 links, 69/69 glosses, 269/357 supported claims. **~48 claims were never opened one by one, and lexical support proves the subject is present, not that the claim is uncontradicted.** The unit is right; the rest is reading |
-| C01 | A documentary statement whose content contradicts the deployed artefact | `project-manager`, with every domain feeding it | **BOUNDED: 198 tracked files carrying comments, 13 757 comment lines, 11 666 prose statements.** Swept `ansible/` 176/176, `docker/` 10/10, `ops/` 156/156, `usb-tamper`+`killswitch` 121/121 clean. **REOPENED a THIRD time one level higher: a comment in a RENDERED file — `/etc/goss/posture.yaml`, the systemd units — has never been in any space, and 2 instances live only there** |
+| C121 | A token whose validity ends with an event, kept on a medium that outlives it, with nothing to expire it | **unassigned — pick by the EVENT, not by the domain** | MINTED 2026-09-21. Mirror of C39. `backup` swept its own plane 7/7 (4 correct, 3 defective, all the same file) and that is a DOMAIN bound. The route: enumerate by the event that ends a token's meaning — boot, container recreation, service restart, deploy — and ask which stores survive it. The mechanism is measured: `/var/lock` is a real directory on BOTH hosts, not the tmpfiles symlink to `/run/lock`, so anything written there is persistent on an image that reads as volatile |
+| C34 | A documentary artefact contradicting the sibling it cites | `project-manager` | Axes A (44/44), B (1/1), D (23/23) closed; axis C bounded by the property (467 occurrences, 333 relations, 79 referents, 84 citing documents), 110/110 links and 69/69 glosses swept, 40 more claims opened individually on 2026-09-21. **What blocks it is bookkeeping, not reading: the "~48 never opened" residual was recorded WITHOUT its membership, so the overlap with this run's 40 is unknown and the remainder is between 8 and 48. The next run to measure it must publish the LIST** |
+| C01 | A documentary statement whose content contradicts the deployed artefact | `project-manager`, with every domain feeding it | 198 tracked files carrying comments, 13 757 comment lines, 11 666 prose statements. Swept: `ansible/` 176/176, `docker/` 10/10, `ops/` 156/156, `usb-tamper`+`killswitch` 121/121, instruction files 123/123, **the RENDERED stratum 53/53 (2026-09-21)** and **the `durability` slice of `docs/`+`knowledge/` 24/24**. What remains is the rest of the documentary prose |
+
+**C119 and C120 both LEFT the OPEN column on 2026-09-21 — do not re-derive
+either.** C119: seven planes of seven, the last being `ansible-deploy`'s 31/31
+(spec, artefact) pairs; 30 of 31 rendered detectors can be turned green by
+rewriting the detector rather than the guarded thing, exactly 1 cannot. C120:
+the "rupture already on record" route swept in six domains — `system` 33/33
+systemd limiters + 18/18 other guards, `security` 21/21, `network` 35/35,
+`observability` 82/82, `services` 129/129, `backup` 28/28 — with the
+provoked-measurement residual declared (70 guards in `services`, 22 monitor
+timeouts in `observability`). Neither is GATED: no assertion was made to fail
+on purpose.
+
+**THE PREDICATE, and it is reusable — carry it into every future brief.**
+`(Burst-1) x RestartSec >= Interval`, or `Interval=0`, means a systemd unit can
+NEVER reach `failed`: the burst counter resets between attempts. It decides the
+question from two DECLARED numbers, read-only, without provoking anything. This
+is what retired C120's "16 units UNDETERMINED" blocker. The repo writes the rule
+exactly once, at `ansible/roles/stack-startup/tasks/startup.yml:57-63`.
+`StartLimitIntervalSec` belongs in `[Unit]`; systemd silently ignores it in
+`[Service]`, and the main session made that mistake on 2026-09-21.
+
+**A BOUND ON THIS AUDIT'S OWN INSTRUMENTS, established 2026-09-21 and more
+important than any finding it produced.** netdata's alarm TRANSITION history
+retained `5d` by default (raised to `60d` the same day, with in-memory entries
+1 000 -> 5 000), while its METRIC store retains 55 days. The swap guard's own
+rupture — 94.55 % measured against an 85 % threshold, 2026-08-31 to 09-02 —
+left no retained transition, shown with a positive control. **So "this guard has
+never tripped", answered from the alarm log, is a false negative beyond a few
+days. Answer it from the metric RANGE instead.** C120's closure was written to
+rest on metric ranges for exactly this reason.
 
 **Do not re-derive what the eleventh run established.** C119's five newly swept
 planes and their cardinals; C34's axis C enumeration; C01's file census and the
@@ -154,7 +179,9 @@ reported.
 under `sudo` writes the string it hunts into the log it reads; on 2026-09-19 that
 cost two conclusions, one of which reached the operator as a suspected intrusion.
 
-**Twenty-EIGHT keys are now spent.** `interference` was added 2026-09-20 (ninth
+**Twenty-NINE keys are now spent.** `durability` was added 2026-09-21 (twelfth run) — invented, 1 mint, and it is the FIFTH confirmation that a key which turns on the INSTRUMENT is worth more than one that only turns on the estate: its best yield was a bound on this audit's own evidence (netdata's alarm transition log at 5 days against 55 days of metrics) and a PREDICATE that retired a blocker the previous run had declared unreachable read-only. It also confirmed the declared-overlap discipline: three domains placed the key's main form inside C39/C68 and refused to mint for it.
+
+**Twenty-EIGHT keys were spent before it.** `interference` was added 2026-09-20 (ninth
 run) — invented, 1 mint, and it is the FOURTH confirmation that a key which turns
 on the INSTRUMENT is worth more than one that only turns on the estate. Here the
 instrument was this skill: it measured that **~79 % of posture runs are caused by
@@ -174,10 +201,20 @@ seventh run, 3 mints): `time`, `order`, `identity`, `scale`, `authority`,
 `residue`, `concurrency`, `plurality`, `dependency`, `granularity`, `locality`,
 `repetition`, `reversibility`, `quiescence`, `collision`, `commensurability`,
 `aggregation`, `staleness`, `attendance`, `oracle`, `asymmetry`,
-`independence`. The mint rate reads 5, 11, 12, 7, 2, 4, 1, 0, 2, 1, 2, 2, 3, 1,
-0, 2, 2, 1, 2, 4, 0, 1, 1, 2, 2, 3, **3**. **It is no longer decaying**, and the
-two consecutive zero-mint runs the criterion needs have still never been
-achieved. A run that reuses a key proves nothing.
+`independence`, `substitution`, `interference`, `tolerance`, `durability`. The
+mint rate reads 5, 11, 12, 7, 2, 4, 1, 0, 2, 1, 2, 2, 3, 1,
+0, 2, 2, 1, 2, 4, 0, 1, 1, 2, 2, 3, 3, 0, 1, 1, **1**. **It is no longer
+decaying**, and the two consecutive zero-mint runs the criterion needs have
+still never been achieved. A run that reuses a key proves nothing.
+
+**For whoever writes key thirty.** `durability` was easy to evidence for the
+same reason `tolerance` was: every retention is a constant on disk and every
+demanded depth is a constant in a spec, so the key reduced to putting two
+numbers side by side. Both named candidates remain unspent — **`admission`**
+(what does each mechanism do with a subject born after it was written) and
+**`credulity`** (what does this believe without checking, because it comes from
+a party the estate does not control) — as does `cost`, with its standing
+warning. Prefer, again, a dimension whose instances already leave a trace.
 
 **`cost` remains the only named unspent candidate**, and the register's warning
 about it stands: it shares `scale`'s weakness, little of it leaving a trace you
