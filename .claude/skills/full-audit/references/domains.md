@@ -15,20 +15,28 @@ earlier — which would have sent eight agents to re-derive settled work. Rebuil
 it from `classes.md`'s OPEN table at the start of every run; if the two
 disagree, `classes.md` wins.
 
-As of the TENTH run of 2026-09-20, key `substitution`. **Rebuilt from
+As of the ELEVENTH run of 2026-09-20, key `tolerance`. **Rebuilt from
 `classes.md`'s OPEN table — do not trust this copy if the two disagree.** The
 ninth run's copy of this block claimed "ONE OPEN CLASS: C119" while the register
-carried three, and contradicted itself sixteen lines later by saying every domain
-was in the "no OPEN class" state. Both sentences are deleted rather than
-corrected; a rule for reconstructing the list is what keeps being wrong.
+carried three, and contradicted itself sixteen lines later. A rule for
+reconstructing the list is what keeps being wrong, so the membership is written
+out in full.
 
-**THREE OPEN CLASSES, and here is the whole membership with its owner:**
+**FOUR OPEN CLASSES, and here is the whole membership with its owner:**
 
 | Class | Property | Owner | What is left |
 |---|---|---|---|
-| C119 | A detector whose own act is a member of the set it examines | `network` + `services`, and now four more | Two planes swept — `network` 39/39, `services` 262/262, both bounded by the SURFACE, which is what the ninth run asked for. **Five planes remain**: Kuma monitors and netdata alarms (`observability`), host units (`system`), the deploy itself (`ansible-deploy`), and this skill's own method |
-| C34 | A documentary artefact contradicting the sibling it cites | `project-manager` | Axis A (code citing a document) CLOSED 44/44; axis B 1/1; axis D 23/23. **Axis C, document citing document, is N=460 with 33 swept.** The unit must be the claim–referent pair, not the grep line — a verb regex is a mechanism and will not close it |
-| C01 | A documentary statement whose content contradicts the deployed artefact | `project-manager`, with every domain feeding it | **REOPENED 2026-09-20.** Its 123/123 closure covered 81 files, all of them `.md`. Comments in `ansible/**/*.yml`, `ops/*.sh` and `compose.yaml` were never in the space and produced four instances in one evening. The file set to bound is "tracked files that carry comments" |
+| C120 | A guard whose trip point sits at the wrong distance from the rupture it guards | **every domain**, and that is the point | MINTED 2026-09-20 by five domains independently. Six incomparable slices swept — `system` 13, `security` 14, `backup` 28/28, `network` 22/22, `ansible-deploy` 117 rendered budgets with 31 measured, main session 18/18 host units. **Every one is a DOMAIN bound; none is the property.** The route: enumerate the guards whose RUPTURE point is already on record — a measured worst case, a declared ceiling, a retained range — and treat the rest as a provoked-measurement problem, which read-only cannot reach |
+| C119 | A detector whose own act is a member of the set it examines | `ansible-deploy`, and it is the last plane | **SIX PLANES OF SEVEN SWEPT.** `network` 39/39, `services` 262/262, `system` 19/19, `observability` 37/37 Kuma + 66/66 netdata, main session 5/5. `ansible-deploy` returned **47/47 with 0 defective** and declared the bound instead of claiming the class: the deploy's real self-reference is that it RENDERS the detectors of every other plane. **Bounding it needs (spec, artefact) pairs, not tasks** |
+| C34 | A documentary artefact contradicting the sibling it cites | `project-manager` | Axes A (44/44), B (1/1), D (23/23) closed. **Axis C is bounded at last and by the PROPERTY: 467 occurrences, 333 relations, 79 referents, 84 citing documents.** Swept 110/110 links, 69/69 glosses, 269/357 supported claims. **~48 claims were never opened one by one, and lexical support proves the subject is present, not that the claim is uncontradicted.** The unit is right; the rest is reading |
+| C01 | A documentary statement whose content contradicts the deployed artefact | `project-manager`, with every domain feeding it | **BOUNDED: 198 tracked files carrying comments, 13 757 comment lines, 11 666 prose statements.** Swept `ansible/` 176/176, `docker/` 10/10, `ops/` 156/156, `usb-tamper`+`killswitch` 121/121 clean. **REOPENED a THIRD time one level higher: a comment in a RENDERED file — `/etc/goss/posture.yaml`, the systemd units — has never been in any space, and 2 instances live only there** |
+
+**Do not re-derive what the eleventh run established.** C119's five newly swept
+planes and their cardinals; C34's axis C enumeration; C01's file census and the
+four clean strata; C120's six slices. And do not re-propose the two remedies the
+main session withdrew after measurement: the `/`-widened masking class (it
+redacts paths in `sudo.log`, 270 extra lines against 1) and journald as the
+redactor's log destination (it is the one store the masking cannot filter).
 
 **C12 LEFT the OPEN column on 2026-09-20 (tenth run)**, ENUMERATED by two
 complementary bounds — `security` 76/76 (value, consumer) pairs derived from the
