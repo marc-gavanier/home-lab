@@ -141,8 +141,8 @@ parts that need a thought experiment.
 # The register
 
 Runs of 2026-08-15 through 2026-09-20 (NINTH run, key `interference`).
-**119 recorded classes: 2 OPEN (C119 minted, C12 REOPENED), 9 GATED, 7 closed by
-decision, plus the DECLINED list; everything else ENUMERATED.** The ENUMERATED figure is no longer
+**119 recorded classes: 3 OPEN (C119 minted, C12 and C34 REOPENED), 9 GATED, 7
+closed by decision, plus the DECLINED list; everything else ENUMERATED.** The ENUMERATED figure is no longer
 carried here as a number — it was wrong by two for an unknown length of time and
 nobody could check it, because no membership was ever written. Count the rows.
 
@@ -842,7 +842,7 @@ were declared instance-only** (C07, C41, C45, C49, C59, C69, C82, C90, C91,
 C111, C116) and the discipline held: six of eight domains returned an explicit
 "no mint".
 
-### The counter: 0 OPEN in, 2 OPEN out, 1 minted, 1 REOPENED, class total 118 -> 119
+### The counter: 0 OPEN in, 3 OPEN out, 1 minted, 2 REOPENED, class total 118 -> 119
 
 **The termination clock RESETS.** The mint rate now reads `commensurability` 0,
 `aggregation` 1, `staleness` 1, `attendance` 2, `oracle` 2, `asymmetry` 3,
@@ -6549,7 +6549,7 @@ them; do not re-derive without a new symptom.
 | C31 | A name resolving differently inside and outside | split DNS **21/21** (was recorded 18/18 — corrected 2026-09-19, fifth run, and the deployed dnsmasq confirms 21), single DoH upstream, 2590/2590 queries | 08-29, 09-19 |
 | C32 | A port reachable from outside that should not be | probed from the offsite uplink with a known-open control | 08-19, 08-29 |
 | C33 | A broken relative link or a path that does not exist | **113 links** (was recorded 104 — re-measured 2026-09-19, sixth run), 123 absolute paths; the sixth run also read 108 absolute paths with 25 absent and **0 defects**, all container-internal, offsite-only, conditional or documented-ephemeral | 08-29, 09-19 |
-| C34 | A service page contradicting its ADR, its runbook or its container | 20 pages × 3 axes | 08-22 |
+| C34 | A documentary artefact contradicting the sibling it cites | **REOPENED 2026-09-20 (ninth run, evening).** Swept 08-22 as 20 service pages × 3 axes — a space bounded by a DIRECTORY while the property is not. The instance that reopens it lives in CODE: `roles/base/tasks/logging.yml` justified keeping the journal on the unencrypted SD card because "boot logs ... are what the 'unexplained poweroff -> reflash' runbook reads to decide", and the runbook it names says the opposite at `boot-and-unlock.md:70` — "the journal lives on the SD, so it proves nothing", precisely because anyone who can pull the card can forge it. **A false rationale blocked a real security fix for months and nobody had put the two sentences side by side.** Tenth payment of the wrong-axis shape. **Route to bounding it, and it is derivable**: enumerate every comment in the repo that cites a documentary artefact by name, then check the claim against what that artefact says — `grep -rn '\.md' --include='*.yml' --include='*.j2'` gives the numerator | **OPEN** |
 | C35 | A push monitor carrying a constant instead of its script's message | 12, now 15; all at `maxretries=0` | 08-19, 08-29 |
 | C36 | An unsized tmpfs | **41**, not 37, parsed rather than grepped; re-measured 41/41 with 0 unsized (corrected 2026-09-19, fifth run) | 08-21 |
 | C37 | A WAL-mode SQLite copied without its `-wal` | **CLOSED 2026-09-13 night-second by two derivations bounded by the PROPERTY**, after the 08-29 sweep's dump-mechanism bound had reopened it: `backup` 65/65 (7 dump hooks + 13 exclude expressions + 15 operator copies + 28 authoritative reads + 2 delete sites) and `project-manager` 31/31 over the operator procedures in `docs/`+`knowledge/`. **0 defective on either.** The cardinals differ and that is derivation-relative, not a defect. `.backup` WAL completeness proven by an off-host control rather than asserted; `wg-easy.db`/`gravity.db`/`fail2ban.sqlite3` measured as `delete` mode and so not members. Blind spots stated and DIFFERENT: `backup`'s keys on the `.db`/`.sqlite` token (bounded from the filesystem instead, 23 stores at depth 6), `project-manager`'s cannot see a procedure that exists only in the operator's head. **ENUMERATED, not GATED** — nothing derives the (copy site, journal mode) relation | 08-29, 09-13 |
