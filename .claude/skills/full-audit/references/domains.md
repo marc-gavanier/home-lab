@@ -15,38 +15,35 @@ earlier — which would have sent eight agents to re-derive settled work. Rebuil
 it from `classes.md`'s OPEN table at the start of every run; if the two
 disagree, `classes.md` wins.
 
-As of the SIXTH run of 2026-09-19, key `oracle`. **Rebuilt from `classes.md`'s
-OPEN table — do not trust this copy if the two disagree.**
+As of the SEVENTH run of 2026-09-19, key `asymmetry`. **Rebuilt from
+`classes.md`'s OPEN table — do not trust this copy if the two disagree.**
 
-**ONE OPEN CLASS. The counter went 1 -> 1; C109 and C110 were ACCEPTED by the
-operator and C111 and C112 were minted, so the class total went 110 -> 112.**
-C44 stays open, its cardinal moved to **TIER A 16, coverage 4/16 = 25 %**
-(`docker` demoted on the #15 predicate), and **the sixth run found why it has
-never closed: this register records the cardinal WITHOUT the membership.** It
-refers to admissions `#13`/`#15`/`#16` of a 27-row list that exists nowhere in
-the file; only 11 of the 16 are nameable. **Writing those 27 rows is the next
-run's first task and it is bookkeeping, not research.** Until it exists, no run
-can state N/N and no new cardinal should be trusted. **The termination clock
-RESETS.**
+**TWO OPEN CLASSES. The counter went 1 -> 2 and the class total 112 -> 115**:
+C113, C114 and C115 were minted, C114 and C115 arriving ENUMERATED. **The
+termination clock RESETS.**
 
-**What `oracle` proved, for whoever writes key twenty-six.** It was invented
-rather than taken off the list, and it paid in the ASSERTIONS — a third
-territory, distinct from the estate (`attendance`, `aggregation`) and from the
-instruments (`staleness`, `commensurability`). Its two mints both concern where
-an expectation comes from rather than whether a mechanism runs. **The rule it
-confirms for a fourth time: a key that turns on the thing doing the checking is
-worth more than one that turns on the thing being checked.**
+**C44's month-long blocker is GONE.** The 27 rows this register cited by number
+without ever writing down are transcribed in `classes.md`, derived from scratch:
+16 TIER A (4 covered), 2 TIER B, 1 TIER C, 4 with no readout, 3 degraded, 1
+excluded. **Do not re-derive them and do not produce a fresh cardinal.** Read the
+two reserves written beside the number before quoting it: the 16 is not provably
+the register's old 16, and rows 15 (`hostname`) and 16 (`swap`) are named as
+contestable, which would give 26 or 25. Coverage is 4 in every case.
 
-**And it produced the run's most useful negative result, which is a discipline
-result rather than a finding: three of the eight agents' headline claims were
-written decisions reported as gaps, and one proposed a fix that the repository
-had already tried and reverted with the reasoning left in place at the point of
-the code.** Read the code before proposing to change it; this estate writes down
-why it did things.
+**What `asymmetry` proved, for whoever writes key twenty-seven.** It was taken
+off the list rather than invented, and unlike every recent key it paid in BOTH
+territories — the estate (a detector blind by a factor of 43 000, five files
+with no copy, real 404s nobody could see) and the instruments (C07 widened by a
+derivation, a refuted register entry, a new instrument trap). **The rule it adds:
+where a previous sweep measured an inclusion, the other direction is unmeasured
+by construction, and that is a mint waiting to be counted** — C114 exists only
+because someone asked which of a month's `N/N` results were `subset-of` rather
+than `=`.
 
 | Class | Owner | What is left to do |
 |---|---|---|
-| C44 | `system` | **SIXTH RUN — the blocker is BOOKKEEPING, not research. TIER A is 16 (`docker` demoted on the #15 predicate: daemon.json declares 6 values, `docker info` resolves 3, and `shutdown-timeout` + `log-opts.{max-size,max-file}` are exposed by no daemon readout, measured 0/0/0 with `LoggingDriver`=1 as the positive control). Coverage 4/16 = 25 %.** `fail2ban` was tested for demotion and SURVIVED (`get <jail> action <act> port` and `get actions` resolve the 5 keys with no `get <key>` verb). A clock admission was tested and REJECTED — `timedatectl show-timesync` resolves everything but `/etc/systemd/timesyncd.conf.d/` is empty, so no declared intent. **THE REASON IT CANNOT CLOSE: this register records the cardinal WITHOUT the membership.** It refers to `#13`/`#15`/`#16` of a 27-row list that exists nowhere; only **11 of 16** are nameable (the 4 covered + the 6 read on 09-19 + #13 firmware). That is why the cardinal has moved 19 -> 17 -> 16 across three runs — each re-derives it against a list it cannot read. **FIRST TASK: transcribe the 27 rows into `classes.md`. Do not close C44, and do not trust a new cardinal, until they are there.** **FOUR sub-spaces remain closed — TIMER 13/13, DEPLOY-TAG 26/26, HOST-HARDENING 20/20, and the comparator route's own cardinal. Do not re-derive any of them.** Four subsystems have no resolver at all — pam, needrestart, smartd, cloud-init; systemd is excluded on normalisation. Two reserves hold: the route compares `/etc` to effective state, so a writer that rewrites the `/etc` file the estate owns moves both sides together (the `pam-auth-update` shape); and the route's cadence is daily, which is C44 applied to its own output |
+| C44 | `system` | **The membership is WRITTEN — the remaining work is not bookkeeping any more.** 12 of 16 TIER A subsystems carry no comparator; the question "is every subsystem with a resolve-everything readout covered" answers NO. **Do not re-derive** TIMER 13/13, DEPLOY-TAG 26/26, HOST-HARDENING 20/20, or the 27 rows. Two reserves still hold: a writer that rewrites the `/etc` file the estate owns moves both sides together (`pam-auth-update`), and the route's own cadence is daily. Qualification worth carrying: 3 of the 4 deployed comparators re-read a FILE, not the executing process — only `sysctl` reads `/proc/sys` |
+| C113 | `network`, converged with `security` | **A control whose FUNCTION is to refuse, verified only where it ADMITS.** Bounded to 4 in `network`, overflows into `security`, whole-estate cardinal NOT derived — that is the sweep. Two live instances recorded and NOT remedied: `vpn-only`'s 3 assertions all pass if the middleware vanishes, and 6 Pi-hole assertions cover provisioning with none covering that blocking is ON. `security`'s inclusion-vs-equality derivation is the measurable backbone: **21 set assertions, 9 equality, 12 inclusion**, and that 21 is a declared LOWER BOUND |
 
 **Six domains own no OPEN class, and that is the normal state now.** Their job is
 the one that demoted C02, C13, C20, C26 and C17: re-read the GATED assertions in
@@ -54,26 +51,20 @@ their area and ask whether each is DERIVED from the thing it guards or is merely
 list of the instances once found. `backup` did exactly that on 2026-08-31 and again
 on 2026-09-19, finding C15's recorded cadence wrong both times.
 
-**ONE GATE IS RED — C07, and it is `observability`'s.** Unchanged in kind and
-sharper in measurement: a floor rendered by one Jinja expression from ONE
-collector's interval, compared against a fleet. `apps.plugin` fell 22.4 % -> 4.50 %
-of a core against a cadence factor of 5, so the 2026-09-18 fix landed — but the
-gate certifies the go.d **docker** collector at 0.70 % while `cgroups.plugin` runs
-at netdata's stock 1 s for **6.91 % across 995 charts**, with no alarm, no goss
-check and no push monitor reading a cgroups context. A derived floor must key on
-`(chart context) -> update_every` from `/api/v1/charts`. **The gate was not
-widened, so the row stays red.**
-
-**CORRECTED 2026-09-19 (fifth run): keying that floor on the CONTEXT does not
-work.** `(context -> update_every)` is NOT a function — `disk.space` and
-`disk.inodes` each carry both 1 and 5, because the `/tmp` charts run at 5 s.
-Measured twice, with a reachability control (host `000`, container `200`), and
-after the measuring agent's own scratch file was removed, so it is structural.
-**Use a per-plugin floor**: 4 plugins carry >100 charts and it comes up red on
-exactly one member, against 1712 of 3838 charts for a naive `>= 5`. And there is
-no cheap route — the light endpoints (`/api/v1|v2|v3/contexts`) do not carry
-`update_every` at all, 383/383 missing, so it is `/api/v1/charts`, 5.3 MB,
-0.74 s. `proc.plugin`, 531 charts at 1 s, is named nowhere either.
+**NO GATE IS RED — C07 was widened and deployed GREEN on 2026-09-20.** Read this
+before quoting the older text, which says it is red and says a cheap route does
+not exist. The rule that closed it keys on the PLUGIN, not the context: *no
+plugin whose charts feed no curated alarm may collect more samples/s than the
+busiest plugin that does*. Both sides derive live — consumers from the `on:`
+lines of `health.d`, rates from `/api/v1/charts`. Made to fail on purpose in five
+directions including the one that matters (a consumer list containing a cgroup
+context returns OK, so the rule is not structurally stuck red), plus a
+retroactive positive control on 2026-09-17 that marks `apps.plugin`. It found
+`cgroups.plugin` at 1002 samples/s with zero consumers on its first run; set to
+5 s. Live: `ok 316`, goss plan 409 -> 410. **The CONTEXT axis really is not a
+function — that measurement stands. The claim that there was no cheap route was
+true only of that axis**: `netdata.conf` renders `[plugin:X] update every` for 58
+sections, 23.9 KB, 0.23 s.
 
 **C03-T IS NO LONGER RED ON ITS NAMED DEFECT — read this before quoting the
 register's older text.** Both clauses of the deployed `/etc/goss/posture.yaml`
@@ -137,19 +128,19 @@ reported.
 under `sudo` writes the string it hunts into the log it reads; on 2026-09-19 that
 cost two conclusions, one of which reached the operator as a suspected intrusion.
 
-**Twenty-FIVE keys are now spent** (`oracle` added 2026-09-19, sixth run — it
-minted 2 and it bit on the ASSERTIONS, a third territory after the estate and
-the instruments): `time`, `order`, `identity`, `scale`, `authority`,
+**Twenty-SIX keys are now spent** (`asymmetry` added 2026-09-19, seventh run —
+3 mints, and it bit in BOTH the estate and the instruments; `oracle` the sixth
+run, 2 mints, on the ASSERTIONS): `time`, `order`, `identity`, `scale`, `authority`,
 `representation`, `vacuity`, `exclusivity`, `interruption`, `succession`,
 `residue`, `concurrency`, `plurality`, `dependency`, `granularity`, `locality`,
 `repetition`, `reversibility`, `quiescence`, `collision`, `commensurability`,
-`aggregation`, `staleness`, `attendance`, `oracle`. The mint rate across them
-reads 5, 11, 12, 7, 2, 4, 1, 0, 2, 1, 2, 2, 3, 1, 0, 2, 2, 1, 2, 4, 0, 1, 1, 2,
-**2**. A run that reuses one proves nothing. **The pair of consecutive zero-mint
+`aggregation`, `staleness`, `attendance`, `oracle`, `asymmetry`. The mint rate
+across them reads 5, 11, 12, 7, 2, 4, 1, 0, 2, 1, 2, 2, 3, 1, 0, 2, 2, 1, 2, 4,
+0, 1, 1, 2, 2, **3**. A run that reuses one proves nothing. **The pair of consecutive zero-mint
 runs the criterion needs has still never been achieved.** Still proposed and
-unspent: `asymmetry` and `cost` — the register records that `cost` shares
-`scale`'s weakness, little of it leaving a trace you can measure tonight. **Key
-twenty-six must be invented or must be `asymmetry`.**
+unspent: `cost` alone — and the register records that it shares `scale`'s
+weakness, little of it leaving a trace you can measure tonight. **Key
+twenty-seven must be invented; there is no named candidate left worth taking.**
 
 **What `staleness` proved, for whoever writes key twenty-four.** It was taken off
 the proposed list rather than invented, and the register had predicted a low mint

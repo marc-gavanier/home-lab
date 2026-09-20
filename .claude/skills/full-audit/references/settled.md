@@ -24,6 +24,72 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-09-19/20 (SEVENTH run) — key `asymmetry`, one PR, deployed from the branch before merge
+
+The operator asked for everything in a single PR. What shipped, and the rule
+each one encodes:
+
+- **The direction a month of documentary sweeps had never measured.** Every one
+  of them verified `{what the docs name} subset-of {what exists}`. **Rule: an
+  inclusion measured in one direction is half a measurement — ask which set is
+  derivable from the machine, and sweep it the other way.** It produced the
+  three missing secrets, the five wg-easy sites, a monthly prune job documented
+  nowhere, three ADR citations pointing at the wrong ADR, and five stale tables.
+- **A detector that sampled a <=2 s pulse once a day.** The premise "the
+  firmware latches undervoltage into the rpi_volt hwmon alarm" is false and it
+  was written in FOUR templates, carrying the cadence in two of them. **Rule:
+  when a comment states the physical property that justifies a cadence, verify
+  the property — and verify it in the artefact you actually run**, which here
+  meant reading both driver strings out of the shipped module binary rather
+  than trusting upstream source.
+- **An exclusion whose premise was checked in one direction only.** "Every byte
+  of it is a second copy" was true of the ingestion and false of the inventory:
+  five files, one of them a whole book, existed only inside an excluded
+  archive. **Rule: an exclusion is a claim about a set difference, so measure
+  the difference, not the process that was supposed to produce it.** The
+  replacement lists the siblings rather than the parent, so a staging directory
+  invented later fails toward being backed up.
+- **C07 widened by a derivation with no hand-chosen constant**, and the
+  collector it found on its first run. **Rule: when a floor cannot be keyed on
+  the axis you tried, try another axis before accepting a literal** — the
+  context axis is not a function, the plugin axis is. `cgroups.plugin` went from
+  1002 samples/s with zero consumers to 200.4. Deployed and green.
+- **Where a document repeats what the machine already knows, it now prints the
+  command that regenerates it** rather than a day and an hour. Two files had
+  contradicted themselves seventy lines apart on the same cadence.
+
+### Declined or recorded without a remedy this run
+
+- **Transmission's intermittent 404s. DECLINED by the operator**, who identified
+  the load as Transmission downloading — a better explanation than the
+  audit-load hypothesis the session was carrying. The mechanism is real and
+  worth remembering: a 5 s healthcheck timeout under contention makes Traefik
+  drop the router, and the estate cannot see it (alarm needs `min -10m` against
+  an actuator acting in seconds; the monitor goes PENDING, which escalates with
+  the wrong text). **Do not re-propose lengthening the probe timeout.**
+- **C113's two remedies** (an assertion in the deny direction for `vpn-only`,
+  and one for `dns.blocking.active`) were NOT shipped. Not declined — not put.
+- **C115's 19 restore procedures** carry no expected result. Not shipped; the
+  remedy is documentary, and the operator has already declined timed restore
+  drills, so do not bundle the two.
+- **Nothing observes that a fail2ban filter still MATCHES.** `security` declined
+  to propose anything: the only honest check needs a deliberate authentication
+  failure, which the operator declined, and a frozen sample would be
+  self-certifying. **Recorded so the next run does not re-derive it.**
+
+### Instrument traps paid, both by the main session
+
+- **An un-`sudo`'d glob over a root-only directory expands to nothing — FOURTH
+  payment**, this time by the session whose own brief carried the warning.
+- **A positive control inside the instrument's horizon proves nothing about its
+  reach.** NEW IN KIND. Docker's event buffer goes back 2 min 30 s; a control
+  taken inside that window proved only that the instrument works NOW, and a
+  "zero events" reading nearly became a conclusion about a question 45 minutes
+  old. **A control must be comparable to the question in the dimension that
+  matters — here age, not validity.**
+
+---
+
 ## Shipped on 2026-09-19 (SIXTH run) — key `oracle`, one PR, deployed from the branch before merge
 
 The operator answered all eight findings and asked for a single PR. What shipped,
