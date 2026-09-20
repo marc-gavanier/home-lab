@@ -243,7 +243,19 @@
       # Config on /mnt/data (secrets never on the SD card): started by
       # mnt-data.mount (add-wants below), not at boot.
       RequiresMountsFor=/mnt/data
-      StartLimitIntervalSec=300
+      # Set EXPLICITLY, because the DEFAULT window makes `failed` unreachable
+      # and the unit then reads `active`/`success` while looping: measured
+      # 2026-09-20, 15 restarts and not one of the 59 283 Kuma beats saw it.
+      # The default window is 10 s and RestartSec is 10, so five attempts span
+      # 40 s, the burst counter resets between them, and the limiter can never
+      # fire. The rule, from stack-startup: the window must span BURST whole
+      # attempts. Type=notify with the inherited TimeoutStartSec of 1min30 puts
+      # one attempt on the HANG path at 90 + 10 = 100 s, which is the path that
+      # matters here (rclone hanging on a dead endpoint is the documented
+      # failure above), so the window must be at least 5 x 100 = 500 s. 600 s
+      # is that with room, and a first draft of 300 s would have left the hang
+      # path exactly as unreachable as the default did.
+      StartLimitIntervalSec=600
       StartLimitBurst=5
 
       [Service]

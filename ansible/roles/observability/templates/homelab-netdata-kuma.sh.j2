@@ -151,6 +151,22 @@ done
 # between runs. A grace period a watchdog grants itself from its own memory is
 # the #289 defect written a second time, and this adapter is not going to be
 # the place it gets written again.
+# Measured, not chosen: netdata's container started 2026-09-20T13:54:06Z and
+# its health engine produced a first verdict at 14:07:13Z — 787 s. The 300 s
+# this replaces therefore declared a fault 487 s early, six times in fifteen
+# days: monitors 35 and 37 red for 7 min 33 and 6 min 17 on 09-20 with nothing
+# wrong, each carrying "netdata up 310s and its health engine has evaluated no
+# alarm". A monitor that is red when nothing is wrong is how an operator is
+# taught to ignore it, which is the failure this whole adapter exists against.
+#
+# The floor the mechanism gives is 900 s: the longest curated `lookup` window
+# is 600 s and nothing can be evaluated before one window has passed, plus
+# ~300 s for the collectors to come up. 1200 s is the operator's call on top of
+# that, and the asymmetry justifies it — this branch only DEFERS the dead-man's
+# switch, never disarms it, so being late costs detection latency on a health
+# engine that is genuinely dead, while being early costs a false alarm every
+# time netdata restarts. The `unreachable` path, which is the real dead-man's
+# switch, is not touched by this value.
 STARTUP_GRACE=1200
 netdata_uptime=-1
 netdata_started="$(docker inspect "$CONTAINER" 2>/dev/null | jq -r '.[0].State.StartedAt // empty' 2>/dev/null)"
