@@ -4,6 +4,17 @@ Description=Restic REST server (append-only backup target)
 After=network-online.target
 Wants=network-online.target
 RequiresMountsFor={{ backup_mount_point }}
+# Set EXPLICITLY: the default window is 10 s and RestartSec is 10, so five
+# attempts span 40 s, the burst counter resets between them, and this unit
+# could never reach `failed` -- `systemctl --failed` would stay empty through
+# a crash loop. The rule, from stack-startup: the window must span BURST whole
+# attempts. Type=simple, so a start does not wait for readiness and one
+# attempt costs RestartSec alone: 5 x 10 = 50 s, and 300 s is that with room.
+# (vault-mount needs 600 s for the same burst because Type=notify puts its
+# attempts on a 90 s timeout path; the number is not transferable.)
+# What this adds is visibility, not detection: a dead rest-server was already
+# caught from the homelab side, by the assertion that reads the live process
+# rather than the unit's state.
 StartLimitIntervalSec=300
 StartLimitBurst=5
 

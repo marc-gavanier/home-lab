@@ -1017,9 +1017,15 @@ session, not by the agent**: `killswitch`, arbitrated away 2026-09-02. The other
 two were fixed 2026-09-21 — `vault-mount` (rupture on record: 15 restarts on
 2026-09-20 while reading `active`/`success`, the eleventh run having fixed the
 cause and not the guard) and the offsite `rest-server` (rupture not on record,
-C15 is the existing net under it). Both were given `StartLimitIntervalSec=300`
-with `StartLimitBurst=5`, placed in `[Unit]` — the main session's first patch put
-them in `[Service]`, where systemd ignores them, and caught it before commit.
+C15 is the existing net under it). `vault-mount` was given
+`StartLimitIntervalSec=600` and `rest-server` `300`, both with
+`StartLimitBurst=5` and both in `[Unit]`. **The two numbers differ because an
+attempt does**: `rest-server` is `Type=simple` and an attempt costs `RestartSec`
+(50 s for five), while `vault-mount` is `Type=notify` inheriting a 90 s start
+timeout, so an attempt on the hang path costs 100 s and five need 500 s. The
+main session's first patch put both directives in `[Service]`, where systemd
+ignores them, and gave both units 300 s — two errors of the same family, both
+caught by re-reading and by writing the derivation down rather than by testing.
 
 ### Live defects shipped, ranked by what was happening without anyone knowing
 

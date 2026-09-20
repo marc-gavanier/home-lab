@@ -44,13 +44,23 @@ RETAINED.
   2026-09-20, two monitors red for 7 min 33 and 6 min 17 with nothing wrong, six
   such non-incidents in fifteen days. The agent derived 900 s from the longest
   curated `lookup` window plus collector startup; **the operator chose 1 200 s.**
-- **Two restart limiters made reachable**: `StartLimitIntervalSec=300` /
-  `StartLimitBurst=5` on `vault-mount` (`roles/claude-code/tasks/vault.yml`) and
-  on the offsite `rest-server`
+- **Two restart limiters made reachable**, and **the two windows are different
+  on purpose**: `StartLimitIntervalSec=600` / `StartLimitBurst=5` on
+  `vault-mount` (`roles/claude-code/tasks/vault.yml`), `300` / `5` on the
+  offsite `rest-server`
   (`roles/offsite-backup/templates/rest-server.service.j2`). With `RestartSec=10`
   against the undeclared default window of 10 s, five attempts span 40 s and the
   burst counter resets between them, so `failed` was unreachable and
-  `systemctl --failed` could never see either unit.
+  `systemctl --failed` could never see either unit. **The window must span BURST
+  whole ATTEMPTS, and an attempt is not the same length on both units**:
+  `rest-server` is `Type=simple`, so a start does not wait and an attempt costs
+  `RestartSec` alone (5 x 10 = 50 s, 300 s with room); `vault-mount` is
+  `Type=notify` and inherits `DefaultTimeoutStartUSec=1min30`, so an attempt on
+  the HANG path — the documented rclone failure this unit exists to survive —
+  costs 90 + 10 = 100 s and the window must reach 5 x 100 = 500 s. **The first
+  patch gave both 300 s**, which would have left `vault-mount` exactly as
+  unreachable on the hang path as the default did; caught on 2026-09-21 by
+  writing the derivation down, not by testing. See the instrument traps.
 - **The resticprofile profile locks moved from `/var/lock` to `/run/lock`**
   (`roles/deploy/templates/resticprofile.yaml.j2`, both profiles). `/var/lock`
   is a real directory on the root filesystem on BOTH hosts — dev 45826 against
@@ -114,11 +124,21 @@ RETAINED.
 
 ## Instrument traps paid on 2026-09-21 (twelfth run) — four, and TWO were the main session's own
 
-1. **`StartLimitIntervalSec` in `[Service]` is silently ignored** — systemd
+1. **`StartLimitIntervalSec` is silently ignored in `[Service]`** — systemd
    moved it to `[Unit]`. The main session wrote it into the wrong section for
    both units and caught it by re-reading the rendered template rather than by
    testing. A unit that ignores the directive looks exactly like one that
    honours it.
+1b. **And then sized the window against the WRONG PATH.** Both units first got
+   300 s. `vault-mount` is `Type=notify` and inherits a 90 s start timeout, so
+   an attempt on the hang path costs 100 s and five need 500 s — the very path
+   the unit exists to survive, since its documented failure is rclone hanging
+   on a dead endpoint. 300 s would have left it as unreachable as the default.
+   **Caught only when the operator asked for the derivation to be written into
+   the comment**, which is the argument for that convention: the number that
+   cannot be derived in writing is the number that is wrong. A guard sized
+   against the fast path of a mechanism whose slow path is the failure mode is
+   itself a C120 instance, produced by the run that closed C120.
 2. **Two lock objects with similar names.** The main session attributed its
    `/var/lock` discovery to issue #331 and was wrong: #331 concerns restic
    REPOSITORY locks, which live inside the repository on `/mnt/data` and survive
