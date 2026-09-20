@@ -376,10 +376,15 @@ fi
 # --- TLS certificate expiry ---
 # Watches the OUTCOME rather than the renewal, and that is the point (#157).
 #
-# Uptime Kuma checks expiry on 15 of the 18 certificates. Three are unwatched:
+# Uptime Kuma checks expiry on 15 of the 21 certificates. Six are unwatched:
 # dns (its monitor is type=dns and never opens TLS), proxy (type=port, a bare
-# TCP connect) and services (Kuma cannot monitor itself). Both of the first two
-# are green, named after the service whose certificate they cannot see.
+# TCP connect), services (Kuma cannot monitor itself), and indexers, series and
+# films, whose monitors are type=keyword with expiry_notification=0. The first
+# two are green, named after the service whose certificate they cannot see.
+# Counted 2026-09-20: 21 distinct domain.main in acme.json, 15 monitors at
+# expiry_notification=1. This comment read "15 of the 18 ... Three" while the
+# estate had grown to 21 — the watched count did not move when the three *arr
+# services arrived, so the gap widened in silence rather than the coverage.
 #
 # Traefik would NOT hide a failure — measured rather than assumed: the string
 # "Unable to obtain ACME certificate for domains" is in the binary and is
