@@ -193,6 +193,36 @@ command:
         { echo "nothing pulls the DDNS boot run when /mnt/data mounts"; exit 1; }
     exit-status: 0
 
+  # The journal store moved to the encrypted volume on 2026-09-20, because
+  # journald records `_CMDLINE` for every process and the audit of that day found
+  # live credentials in it — on the SD card, which is not encrypted.
+  #
+  # What this guards is not the move, it is the ONE procedure that silently
+  # undoes it. A reflash and re-provision — a routine recovery here, and the very
+  # step boot-and-unlock.md prescribes after an unexplained poweroff — gives back
+  # a distribution that creates /var/log/journal on the card. `Storage=auto` then
+  # writes there until the unlock, and the bind mount arrives afterwards and
+  # HIDES those files rather than removing them: credentials on the card, under a
+  # mount point, invisible to anyone who looks at /var/log/journal. Nothing else
+  # in this estate would notice, because every other signal — the journal reads
+  # fine, the cap holds, the store is on /mnt/data — is satisfied by that state.
+  #
+  # Both conditions, because either alone passes on the broken setup: the path
+  # must be a MOUNT POINT (a directory that merely exists is the defect), and its
+  # source must be the encrypted device (a tmpfs or a stray bind would satisfy
+  # the first test). `findmnt` is read from the kernel's mount table, not from a
+  # unit file, so it answers what is mounted rather than what was intended.
+  journal-store-is-on-the-encrypted-volume:
+    exec: |
+      src=$(findmnt -no SOURCE --target /var/log/journal 2>/dev/null)
+      mountpoint -q /var/log/journal ||
+        { echo "/var/log/journal is a plain directory on the SD card, not a mount point — a reflash puts credentials back on unencrypted storage"; exit 1; }
+      case "$src" in
+        /dev/mapper/data_crypt*) : ;;
+        *) echo "the journal store is mounted from '$src', not from the encrypted volume"; exit 1 ;;
+      esac
+    exit-status: 0
+
   # --- The lock nothing removes (#331) ---------------------------------------
   # Two locks left by an interrupted session on 2026-09-05 at 11:28 outlived the
   # deploy, outlived a reboot, and were still there the next morning. The 03:00
