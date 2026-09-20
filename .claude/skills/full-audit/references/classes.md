@@ -140,12 +140,23 @@ parts that need a thought experiment.
 
 # The register
 
-Runs of 2026-08-15 through 2026-09-20 (EIGHTH run, key `independence`).
-**118 recorded classes: 0 OPEN, 9 GATED, 99 ENUMERATED, 7 closed by decision,
-plus the DECLINED list — which the eighth run grew by three minted classes and
-five arbitrations.**
+Runs of 2026-08-15 through 2026-09-20 (NINTH run, key `interference`).
+**119 recorded classes: 1 OPEN (C119), 9 GATED, 7 closed by decision, plus the
+DECLINED list; everything else ENUMERATED.** The ENUMERATED figure is no longer
+carried here as a number — it was wrong by two for an unknown length of time and
+nobody could check it, because no membership was ever written. Count the rows.
 
-**THE REGISTER HAS NO OPEN CLASS FOR THE FIRST TIME SINCE 2026-08-15.** C44 and
+**THE NINTH RUN OF 2026-09-20 USED `interference` — what does this mechanism do
+TO what it observes? — and the counter went 0 -> 1 with ONE mint.** The clock
+RESETS. The OPEN column had been empty for one run. C119 arrives OPEN rather
+than ENUMERATED **because its sweep was bounded by two mechanisms (pgrep sites,
+then one log detector) while its property is not** — the ninth payment of that
+trap, declared rather than discovered later. Three live defects shipped and
+verified the same day; the sharpest was inside a GATED class and is therefore a
+BROKEN GATE, not an audit result. See that run's section.
+
+**THE REGISTER HAD NO OPEN CLASS FOR THE FIRST TIME SINCE 2026-08-15** (eighth
+run, superseded by the line above). C44 and
 C113 were both swept to a count this run and both had their remedies DECLINED by
 the operator. **That is not the termination criterion and must not be read as
 it**: the criterion needs no OPEN class *and* two consecutive runs minting zero
@@ -445,7 +456,22 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
-## OPEN — 0 (after the EIGHTH run of 2026-09-20, key `independence`)
+## OPEN — 1 (after the NINTH run of 2026-09-20, key `interference`)
+
+| ID | Property | What bounds the space, and what stopped the sweep |
+|---|---|---|
+| C119 | **A detector whose own act is a member of the set it examines** — so it can read its own trace as data, and its verdict is in part a measurement of itself | Space: deployed detectors × the surface each examines, restricted to the pairs where the detector's own execution can appear on that surface. **NOT BOUNDED.** Swept 5, 2 defective, by two unrelated mechanisms: `services` enumerated pattern-matching probes searching a shared medium for a literal from their own argv (2 of 28 healthchecks + 2 of 229 posture assertions, 4/4, **1 defective**), and `network` found the access-log credential detector whose only in-scope instances are written by the estate's own 15 push reporters (**1 defective, FIXED 2026-09-20**). Neither bound contains the other and neither is the property. **The route to bounding it is stated rather than attempted: enumerate the deployed detectors, then for each one the surface it reads, then ask whether its own execution reaches that surface.** The audit's own method is inside this class — `sudo grep` writing the string it hunts into `auth.log` is its purest instance and has been paid three times |
+
+**The OPEN column was empty for exactly one run.** Recording C119 as ENUMERATED
+over the 5 sites actually swept would have kept it empty and shown a second
+consecutive zero-mint run, which is the number this file exists to stop anyone
+from manufacturing. Its two sweeps were bounded by MECHANISMS while its property
+is not — the ninth payment of the trap that reopened C10, C18, C26, C37, C87 and
+C88, and the first time it has been declared in the minting row itself.
+
+---
+
+## SUPERSEDED — OPEN table of the EIGHTH run of 2026-09-20, key `independence`
 
 **Empty for the first time since this register was opened.** C44 and C113 both
 left it this run — swept to a count, remedies arbitrated and DECLINED. Read the
@@ -787,6 +813,187 @@ separate correction — **the marker is not a provenance instrument.**
 C92 and C03-R were closed as review rules once their spaces proved non-derivable.
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
+
+## The run of 2026-09-20 (NINTH) — the key was `interference`, and it turned on the audit's own method
+
+The twenty-eighth key, **invented**. The file recorded that only `cost` remained
+named and that it shared `scale`'s weakness. Three candidates were put to the
+operator with each weakness stated first — `interference`, `admission`,
+`credulity` — and the operator asked for a recommendation rather than choosing
+blind. The six-word question no class among the 118 had asked:
+
+> **What does this mechanism do TO what it observes?**
+
+All 118 asked whether a mechanism REPORTS correctly — at what cadence (C44),
+at what grain (C107), from which notion of correct (C111), in which direction
+(C113), whether anyone reads it (C85). **Not one asked whether the act of
+measuring, checking or healing changes, resets, costs or destroys the state it
+is judging.** The register had paid that shape three times without a word for
+it: the `sudo grep` that writes the string it hunts into `auth.log`, `udevadm
+test` powering the Pi off, the heal timer resurrecting a container stopped for
+maintenance.
+
+Five admissible shapes went into all eight briefs — (a) the instrument that
+writes to the medium it reads, (b) the probe that destroys the evidence, (c) the
+autonomous actor that cannot tell maintenance from failure, (d) the cost borne
+by the subject, (e) the measurement that cannot be repeated. **Eleven overlaps
+were declared instance-only** (C07, C41, C45, C49, C59, C69, C82, C90, C91,
+C111, C116) and the discipline held: six of eight domains returned an explicit
+"no mint".
+
+### The counter: 0 OPEN in, 1 OPEN out, 1 minted, class total 118 -> 119
+
+**The termination clock RESETS.** The mint rate now reads `commensurability` 0,
+`aggregation` 1, `staleness` 1, `attendance` 2, `oracle` 2, `asymmetry` 3,
+`independence` 3, `interference` **1**. The pair of consecutive zero-mint runs
+has still never been achieved.
+
+**C119 was minted OPEN rather than ENUMERATED, and that is the run's only
+discretionary call.** Two agents reached its property from unrelated directions,
+but both sweeps were bounded by a MECHANISM — pgrep call sites on one side, one
+log detector on the other — while the property is not. Recording it ENUMERATED
+over the five sites actually swept would have kept the OPEN column empty and
+shown a second consecutive zero-mint run. That is the number this file exists to
+stop anyone from manufacturing.
+
+### The run's real output is that the key turned on the audit itself
+
+Fourth confirmation of the rule that a key which turns on the INSTRUMENT is worth
+more than one that only turns on the estate — and the first time the instrument
+in question is this skill. Three measurements, none of which anyone had ever
+made:
+
+- **143 runs of `homelab-posture.service` in 30 days, of which ~30 are
+  scheduled.** One per day when nobody is watching; 9, 11, 13 and 19 on the days
+  an audit or a deploy ran. **~79 % of the beats a run reads as evidence are
+  produced by runs.** This is the measured cause of a defect the register has
+  recorded four times as bad luck — "the audit's own baseline lied" — and it is
+  structural, not accidental.
+- **91 % of the Traefik access log** (27 775 of 30 525 lines/24 h) is the estate
+  observing itself.
+- **89.5 % of today's journal** is the observer; 60 362 messages against 14 on a
+  quiet day.
+
+**The correct response is NOT to reduce the observation.** It is to stop reading
+the most recent verdict as evidence without asking who produced it — which the
+baseline rules in this file already say, and which this run is the first to
+quantify.
+
+### Live defects, ranked by what was happening without anyone knowing
+
+1. **A BROKEN GATE, and it is the worst of the three.** `/etc/goss/posture.yaml`
+   counted lost Kuma reports with `journalctl … -o short-iso --grep … | grep -c .`.
+   **`journalctl` writes `-- No entries --` to STDOUT**, so `2>/dev/null` does not
+   remove it and a loss-free day counts as ONE loss. The fast path `[ "$lost" -eq
+   0 ] && exit 0` was therefore dead; `newest` became `--`; and **`date -d "--"`
+   does not fail — it returns today's local midnight** (measured on the host:
+   `1789855200`, byte-identical to `date -d "today 00:00"`). Every run judged
+   recovery against a fabricated loss and **excluded 9 of the 15 push monitors**
+   from the second clause. Live before/after on the host: old form `lost=1`, new
+   form `lost=0`, zero real losses in three days. The offsite twin uses `-o cat`
+   and was never affected — **the space is 2 sites, 1 defective.** This is a C03
+   instance inside the GATED half, so it is a red test, not an audit result, and
+   it does not count toward this run's total.
+2. **C119's live half** — see the class row. Fixed and verified the same day.
+3. **Six writes per deploy reporting `changed=0`.** `roles/deploy/tasks/nextcloud.yml`
+   re-applied `readonly` and `filesystem_check_changes` to three external storages
+   on every deploy under `changed_when: false`, so the report was byte-identical
+   whether it had just silently undone a change made in the web UI or done
+   nothing. The listing it already loops over carries each option's current
+   value; the write is now guarded by it and declares itself when it fires.
+   **Verified by the deploy's own arithmetic**: with `changed_when: true` in
+   place, six writes would have made `changed` >= 9 against the three files that
+   did change; the recap read `changed=6`.
+
+### The fixture lesson, paid a THIRD time
+
+C03-T's gate was proven to fail on purpose in six runs — against a database the
+test itself wrote, which is why the mute-reporter defect survived (recorded
+2026-09-13). Tonight's counting defect survived the same six runs **for the
+mirror reason: they stubbed `journalctl`**, so the sentinel the real binary
+writes was never in the fixture. **A gate proven against a fixture is proven
+against the fixture's model of the world.** Both of this class's repairs were
+therefore verified differently: the two corrected assertions were executed
+VERBATIM from the deployed `/etc/goss/posture.yaml` against the live estate, and
+made to fail by injecting a synthetic line into the real pipeline's input rather
+than by replacing the pipeline.
+
+### Rejected, requalified or corrected — 5, and two were the main session's own
+
+1. **`services`' mint was not one.** Its instance — the redactor healthcheck's
+   `pgrep` matching its own argv — is **C29's vacuous liveness half, DECLINED by
+   the operator on 2026-09-02**. The generalised property survived as half of
+   C119; the remedy did not, and must not be re-proposed.
+2. **`security` overstated its own finding by a wide margin.** It reported that a
+   fail2ban ban on the offsite "cuts the backup path AND the only admin path —
+   recovery needs physical presence". Measured by the main session: the
+   `nftables` action is `type = multiport` on the SSH port alone, `rest-server`
+   listens on `*:8000`, and `bantime=3600` with no increment. **The backup is
+   untouched and the ban expires by itself in an hour.** The finding survived,
+   two orders of severity smaller.
+3. **`ansible-deploy` reported 50 posture runs in 30 days, 9 scheduled.** The
+   real figures are **143 and ~30**, counted with a control. The correction made
+   the finding stronger, not weaker.
+4. **Main session: the baseline said `homelab-backup.service` ran 49 s.** It ran
+   **4 min 37 s** (`InactiveExitTimestamp` 03:00:08 -> 03:04:45). `backup` caught
+   it. See the instrument traps.
+5. **Main session: `systemctl show -p A -p B --value`** was read as returning the
+   values in the order asked. It does not. A `LastTriggerUSec` dated tomorrow was
+   the symptom.
+
+### Instrument traps paid — 3, and TWO were the main session's own
+
+1. **NEW — `systemctl show` with several `-p` and `--value` does not preserve the
+   order of the properties asked for.** It prints them in systemd's own order, so
+   positional parsing silently transposes fields. Name one property per call, or
+   drop `--value` and read the `key=value` form.
+2. **NEW, and it invalidated a baseline figure — for a `oneshot` unit with
+   several `ExecStart=` lines, `ExecMainStartTimestamp` dates only the LAST
+   one.** `homelab-backup.service` has two, so the field understated the unit's
+   run by 3 min 48 s. **Read `InactiveExitTimestamp` for a unit's span**; it is
+   the counterpart of the trap that says `Result` alone means nothing.
+3. **SIXTH payment of the un-`sudo`'d glob**, by `security`, caught by its own
+   positive control before it reached a conclusion.
+
+### The register lied about itself in FOUR places — fifth consecutive run
+
+`project-manager` was sent at the register again and it paid again. All four
+confirmed independently by the main session before correction:
+
+- **Two rows in the ENUMERATED table carried the state `OPEN`** — C105 and C113 —
+  against a header claiming `0 OPEN`. Both were MINTING rows never updated when
+  their class closed; C105's own closure row sits 4 200 lines above it saying
+  `28/28`. **The mechanism is two rows for one class, which is exactly how this
+  happens, and C119 now has two rows as well.**
+- **The ENUMERATED heading read "36 here" over 69 rows**, and excluded C27, which
+  has a row there.
+- **The GATED table still reads as ten members**, because C12's row was left in
+  place by the eighth run's fix, which diagnosed it in prose and did not remove
+  it. **Third consecutive night this heading has been wrong, twice inside a
+  correction written for that same defect.** It now carries the membership as a
+  literal list with an instruction not to reconstruct it by counting.
+
+### Clean, and measured — the negatives that closed questions
+
+- **ACME spends nothing.** One resolver, no on-demand knob, `notBefore` spread
+  over 10 distinct days: no verification can trigger an issuance.
+- **Cache-warming is not happening.** The health probe's 16-hex random label is
+  forwarded 288x/24 h (its own cadence), Kuma's DNS monitor forwarded 0 of 1 450,
+  and nothing deployed reads a query row, rate or hit-rate anyway.
+- **The nightly dumps cost the running services nothing observable.** Kuma beats
+  inside the 44 s dump phase are flat (109/80/84/76 ms); the 4-7x latency spike
+  lands a minute later on `start scan`.
+- **The offsite check does not pollute what it verifies**: `locks/` empty on both
+  repositories, and restic's exclusive repo lock — not resticprofile's two
+  profile locks — is what serialises them.
+- **No lockout counter exists to consume**: `pam_faillock` is not enabled
+  anywhere, so shape (e) is empty in the security domain.
+- **`homelab-stack-heal` took 0 actions inside any backup window** over 9 runs
+  and 5 665 lines, while genuinely acting on three containers outside them.
+- **Kuma's heartbeat budget is per-monitor**, so no reporter can evict another's
+  history.
+
+---
 
 ## The run of 2026-09-20 (EIGHTH) — the key was `independence`, and the operator declined all of it
 
@@ -6190,7 +6397,22 @@ Seven in the morning, C09 in the evening. C02's row records its downgrade.
 | C07 | A collector whose polling cost is disproportionate to the granularity of what it feeds | **GREEN since 2026-09-20 (widened and deployed; see the note below the table). It read RED here for two days after the fix shipped — corrected 2026-09-20, eighth run.** The gate is genuinely derived, and it is bounded by ONE COLLECTOR: `((600 / netdata_docker_update_every) * 0.833)` renders both the alarm threshold and the goss floor, for the docker collector. `apps.plugin` is outside it and was never declared at all — measured at 22.4 % of a core inside netdata's 42.7 %, machine at rest, against 85.6 % for all 32 containers. The ninth payment of the same trap: the derivation is sound and it keys on the wrong axis. `update every = 5` shipped 2026-09-18; the gate was then widened onto the PLUGIN axis and deployed green on 2026-09-20 — `no plugin whose charts feed no curated alarm may collect more samples/s than the busiest plugin that does`, both sides derived live. Re-verified 2026-09-20 (eighth run): evaluates OK, discriminates on three controls, `cgroups.plugin` 1002 -> 200 samples/s |
 | C08 | A threshold probe that samples at an instant which cannot contain the peak it guards | **Closed by decision.** The homelab reads `Power Cycle Min/Max`, which resets each boot. The offsite keeps the instantaneous reading and reports its peak instead — its only maximum is lifetime, and a threshold on a figure that cannot come back down latches red forever |
 
-## GATED — 8 here, plus C07 recorded above, GREEN again since 2026-09-20 (C21 left this table 2026-09-19, fifth run — downgraded to ENUMERATED, see its row)
+## GATED — the nine members are **C07, C11, C14, C15, C18, C19, C41, C81 and C03-T**
+
+**That list IS the membership. Do not reconstruct it by counting unstruck rows in
+the table below — doing so gives ten, because C12's row is still there.** C12 is
+ENUMERATED and is not a member; its row is kept for its derivation only. C07 is
+recorded above the table rather than inside it, and is GREEN since 2026-09-20.
+C21 left on 2026-09-19 (fifth run), C10, C13, C16, C17 and C20 earlier; each
+struck row says so.
+
+**This heading has now been wrong three nights running, each time in a different
+way, and twice in a correction written to fix the previous error.** 2026-09-19
+named four classes of which two were closed by decision and one ENUMERATED;
+2026-09-20 (eighth run) replaced it with the correct nine but left the table
+readable as ten; this is the third attempt. The residual that survived both
+earlier fixes was C12's row, which the eighth run diagnosed in prose and did not
+remove.
 
 A finding in any of these is a broken gate, not an audit result.
 
@@ -6249,7 +6471,14 @@ check, and it is stated as one.
   measured, and `/run/traefik/access.log` appears 99 s after its container starts
   while its healthcheck requires the file.
 
-## ENUMERATED — 36 here; the rest (C03, C06, C09, C13, C27, C39, C43, C75) are recorded in their own sections above. **C01 left this table on 2026-09-11, was REOPENED, and CLOSED 2026-09-19 at 123/123 — its state lives in its own row above, not in any summary table (pointer corrected 2026-09-20). REOPENED, see the OPEN table**
+## ENUMERATED — **69 rows below**, counted 2026-09-20 (ninth run). C03, C06, C09, C13, C39, C43 and C75 are recorded in their own sections above and have no row here; **C27 DOES have a row here and the old heading wrongly excluded it**. **C01 left this table on 2026-09-11, was REOPENED, and CLOSED 2026-09-19 at 123/123 — its state lives in its own row above, not in any summary table (pointer corrected 2026-09-20).**
+
+**The heading said "36 here" over 69 rows, for an unknown length of time.** It
+was found by `project-manager` on 2026-09-20 and confirmed by the main session
+with a count. The rule this file keeps re-learning, and keeps breaking in its own
+prose: **write the membership, or write nothing — never a number a reader cannot
+check without recounting.** The number above is a count of rows in the table
+immediately below it and nothing else; if you add a row, recount it.
 
 Swept completely at least once. Re-check only after a change that could reopen
 them; do not re-derive without a new symptom.
@@ -6311,7 +6540,7 @@ them; do not re-derive without a new symptom.
 | C100 | **A recovery condition asserted from a mechanism's CURRENT STATE when its failure was a property of its CADENCE — so one out-of-band run clears the alarm while the schedule stays unrepaired** | **20/20**, derived by `observability` over the recovery conditions of the deployed health paths. 1 live instance measured end to end: `homelab-health.sh:643` reads `systemctl show -p Result`, the 12:24 hand-run supplied a success, monitor 20 returned `status=1` at 10:40:55 UTC and is still green, and the next SCHEDULED run of the unit that failed is Tue 2026-09-15 01:00 — ~38 h of green over an unexercised cadence. The machine-side twin of the `settled.md` instrument trap *a unit's current state is not its cadence's history*. **ENUMERATED, not GATED**: nothing asserts that a clearing condition names the same mechanism as the failing one | 09-13 |
 | C103 | **A status field read as the current verdict that does not carry WHICH execution produced it, nor whether one occurred at all** | **MINTED 2026-09-19, systemd slice swept 14/14 control timers + 3 offsite, Kuma slice NOT swept.** Four histories read `Result=success`: never started in this unit's life, started before the last boot (the service timestamps are cleared by it, the timer's `LastTriggerUSec` is not), started and ended non-zero under `SuccessExitStatus=1` — **7 of the 14** carry it deliberately — and started a minute ago and passed. Proven with a negative control (`rescue.service`) and a positive one (`offsite-health`): `offsite-smart-test` ran 2026-09-01, and on the service object it is byte-identical to `homelab-image-retention`, which has never run. The discriminator exists and had **0 occurrences in the repo**. Shipped: the health script now reports a timer that FIRED SINCE THIS BOOT whose service never started (monotonic pair, reboot-safe, verified on the offsite), and the posture beat carries `scheduled run` / `manual run` | **ENUMERATED — CLOSED 37/37 monitors, 111 field-reads, in the second run of 2026-09-19; this row still read OPEN until the sixth run corrected it.** The sixth run completed its remaining residual at **54/54**: exactly **1** published quantity has a programmatic consumer (`msg like '%deep check%'`, goss :1235/:1246). The rest are informational by construction — the decision is taken producer-side before the beat is built — which is a true measurement and a weak defect, consistent with the operator's decline |
 | C104 | **A harness that publishes the cause when the cause is its OWN and discards it when the cause belongs to the assertion** | **MINTED 2026-09-19, ENUMERATED 219/219.** goss never prints what a check wrote — verified against the deployed binary, a declared `stdout:` renders the literal `"object: *bytes.Reader"` — while goss's own timeout renders as `Error Command execution timed out (30s)`. **28 of the 219** `exec:` checks carry ≥2 `exit 1` branches with distinct messages and no `stdout:`; the intersection is exact, every multi-branch check is in it. Live proof: `miniflux-no-feed-silently-unscheduled` pushed `Expected 1 to be numerically eq 0` on three consecutive scheduled runs for one of three causes it could not name, two of which are repaired at the probe and one at the estate. Remedy shipped on the 5 branches of the 3 checks that have fired this month: `exit 2` = could not measure, `exit 1` = property violated, the only field that survives into the alert | ENUMERATED |
-| C105 | **A documented procedure that produces — or erases — exactly the state an assertion discriminates on, with neither side saying so** | **MINTED 2026-09-19, space NOT bounded.** 16 documentary sites derived from both ends (12 `docker compose down <svc>`, 4 timer disarms), **0 annotated**, against 2 pre-announcements of red in the whole repo. The instance that bites: `restore-from-backup.md:652` disarms `homelab-backup.timer`, the assertion deployed 2026-09-18 22:58 then prints `control timer(s) present but not armed` every day of a 7-33 h restore, and the boxed warning three lines above says that re-arming that timer `rm -rf`s the dumps being restored — **the red invites the forbidden act**. The inverse direction sits outside those 16 by construction: the certificate ratchet keeps its reference on the SD card and its referent on LUKS, so a reflash — a routine recovery here — re-seeds `cert_high` at the current count and a real loss can never fire. **Annotating the 16 is DECLINED by the operator** (a restore is exceptional; a surveillance outage is acceptable there); the class stays | OPEN |
+| C105 | **A documented procedure that produces — or erases — exactly the state an assertion discriminates on, with neither side saying so** | **MINTED 2026-09-19, space NOT bounded.** 16 documentary sites derived from both ends (12 `docker compose down <svc>`, 4 timer disarms), **0 annotated**, against 2 pre-announcements of red in the whole repo. The instance that bites: `restore-from-backup.md:652` disarms `homelab-backup.timer`, the assertion deployed 2026-09-18 22:58 then prints `control timer(s) present but not armed` every day of a 7-33 h restore, and the boxed warning three lines above says that re-arming that timer `rm -rf`s the dumps being restored — **the red invites the forbidden act**. The inverse direction sits outside those 16 by construction: the certificate ratchet keeps its reference on the SD card and its referent on LUKS, so a reflash — a routine recovery here — re-seeds `cert_high` at the current count and a real loss can never fire. **Annotating the 16 is DECLINED by the operator** (a restore is exceptional; a surveillance outage is acceptable there); the class stays | **ENUMERATED — CLOSED 28/28 in the second run of 2026-09-19; this MINTING row still read OPEN until 2026-09-20 (ninth run), contradicting the header and its own closure row above. The remedy — annotating the 16 sites — is DECLINED.** |
 | C106 | **A parameter whose "not supplied" sentinel and whose "supplied but empty" value normalise to the same object, so two opposite intents produce one argv** | **MINTED 2026-09-19, ENUMERATED 2/2** — the parameters fed by `{{ x … if x is defined else omit }}`, `compose.yml:75` and `:120`. Demonstrated on a local fixture: `-e deploy_services=` gives `defined=True value=[]`, then `docker_compose_v2.py:479` folds `None` and `[]` together and the argv is **byte-identical to a full-stack deploy** — which arms every pending image pin. `rotate-a-secret.md:149` hands the operator that exact line with `<svc>` to fill in. **The fix is DECLINED by the operator**; the class stays | ENUMERATED |
 | C107 | **An assertion that consumes its own instrument's output at a COARSER GRAIN than the instrument produced it** — the finer signal is collected, rendered as prose, and never gates | **CLOSED 2026-09-19 (fourth run), ENUMERATED** by two complementary bounds that converge on lynis: 32/32 deployed executables and 12/12 supervision-plane instruments. Neither bound contains the other. **Do not re-derive; do not quote the "NOT BOUNDED" text that its minting row still carries above** | ENUMERATED |
 | C108 | **A container resolving a MUTABLE tag, where the running image and the tag's current referent can diverge with nothing observing it** | **MINTED 2026-09-19 (fourth run), ENUMERATED 32/32** — 31 containers resolve a mutable tag, 1 is digest-pinned. Its gate is `containers-run-the-image-their-tag-designates` (`posture.yaml:198`). **Gate promotion still UNMET as of the sixth run**: the spec's mtime is 13:54:02, the timer's `LastTriggerUSec` is 11:07:08 — BEFORE the spec — and the 17:39 run was manual. Next scheduled chance 2026-09-20 11:09:12 (not 11:01, which this file carried in error). The two divergences it found are resolved, 32/32, 0 divergence. **This row did not exist until the sixth run** | ENUMERATED, gate unpromoted |
@@ -6319,12 +6548,13 @@ them; do not re-derive without a new symptom.
 | C110 | **A stated trigger — a deadline or a condition — for an action only a human performs, with no deployed instrument evaluating it, so "on time", "overdue" and "never done once" come out identical** | **PROPOSED by the fifth run, ACCEPTED by the operator 2026-09-19 (sixth run). ENUMERATED.** Bounded from both sides independently and with no contact: `ansible-deploy` on the clock axis (**N=5** time-bounded operator obligations, 5/5 swept, covered **0/5**) and `project-manager` **and** `network` on the event axis (**N=15**, 7 mechanically observable, covered **0/7**; `network` counted 10 statements / 9 distinct conditions / 5 countable / 0 instrumented / **2 already triggered**). Positive control: `goss-offsite-health.yaml.j2:515` proves the repo knows how to annotate. **This row did not exist until the sixth run** | ENUMERATED |
 | C111 | **An assertion whose expected value is regenerated from the same declaration that produces the state it observes** — so it mirrors the estate's state rather than its intent, and cannot detect a weakening | **MINTED 2026-09-19 (sixth run), key `oracle`, shape (b).** Space: the four generated specs. `/etc/goss/posture.yaml` = **226 named checks** (goss's plan count is 406 — each `stdout:` pattern counts separately; do not conflate them). **108/226 independent, 115/226 mirroring, 3 hand-lists**; of 171 per-container checks, 64 carry independent intent and **107 mirror compose**. Measured on the deployed file by the main session: **9 of 32 `-read-only-rootfs` assert `/^false$/`**, plus 2 `-no-new-privileges` asserting `false` and 16 `-cap-add` asserting a set — **27 checks that can only turn red if somebody HARDENS a service**. Two agents converged from opposite ends: `security` read the derivation as a virtue (C11 DERIVED, 9/9), `ansible-deploy` as a fault (11 checks sit in `{% if %}` and CEASE TO EXIST with their declaration, 226 -> 225, nothing asserting the count). **Both are right; the tension is the class.** **The "easy fix" does NOT exist** — emitting the complement was tried on 2026-09-05 and reverted, reasoning at `goss-posture.yaml.j2:548-560` (`Config.User` carries the IMAGE's user; socket-proxy `root`, collabora `1001`). The remedy is an INTENT DECLARATION separate from the configuration, the pattern already shipped for sshd/sysctl/postfix/ufw | ENUMERATED, remedy outstanding |
 | C112 | **A guarantee whose ENFORCER sits outside every host the estate can run a command on, where the apparently-covering assertion is bound to an internal proxy and stays green through the enforcer's failure** | **MINTED 2026-09-19 (sixth run), key `oracle`, shape (e) applied to authority.** Space rule: per guarantee in `docs/` and the ADRs, name the enforcer and keep the off-estate ones. **5 in network — 2 unfalsifiable, 1 partial, 2 falsifiable.** Unfalsifiable: the router's forward table in the NEGATIVE direction (`ufw-enforces-every-rule-the-inventory-declares` is ALLOW-only and 80/443/53 are already in its ALLOW set, so a router reset republishing them stays green), and the Cloudflare zone (DDNS looks up one name, nothing enumerates). **Counterweight recorded because it bounds the damage: the POSITIVE direction IS falsifiable** — the offsite's only channel is the tunnel, so a lost opening reddens Kuma #18 in ~25 h. **The estate can see a lost opening and never an added one.** This is the generalisation of C32's attendance and explains why C32 never closed. Whole-estate cardinal NOT derived — bounded in network only | ENUMERATED in network, space open elsewhere |
-| C113 | **A control whose FUNCTION is to refuse, whose only deployed verification exercises it in the direction where it ADMITS** — so the predicate is satisfied as fully by "it works" as by "it is gone" | **MINTED 2026-09-19 (seventh run). OPEN — bounded to 4 in `network`, overflows into `security`, whole-estate cardinal NOT derived.** Two instances on two independent mechanisms. `vpn-only`: its 3 deployed assertions all pass if the middleware disappears (`!= 403` x2, a `grep` of the FILE x1); the deny direction WAS reproduced live, against the register's own C30 row which says it no longer can be — `docker exec netdata curl --resolve ...:172.20.0.3` returns **403, 9 bytes, "Forbidden"**, with an admitted source returning 200 as the control. Pi-hole: 6 assertions cover provisioning (gravity 79 963, adlist status, freshness, the dnsproxy namespace) and `grep -c "blocking.active\|0.0.0.0"` on the deployed spec returns **0**, so `dns.blocking.active=false` leaves everything green. Converged on from the other side by `security`, which measured the Traefik allowlist guarded by 3 assertions all in the "wide enough" direction and **0** in the "not too wide" one. Remedies NOT shipped | OPEN |
+| C113 | **A control whose FUNCTION is to refuse, whose only deployed verification exercises it in the direction where it ADMITS** — so the predicate is satisfied as fully by "it works" as by "it is gone" | **MINTED 2026-09-19 (seventh run). OPEN — bounded to 4 in `network`, overflows into `security`, whole-estate cardinal NOT derived.** Two instances on two independent mechanisms. `vpn-only`: its 3 deployed assertions all pass if the middleware disappears (`!= 403` x2, a `grep` of the FILE x1); the deny direction WAS reproduced live, against the register's own C30 row which says it no longer can be — `docker exec netdata curl --resolve ...:172.20.0.3` returns **403, 9 bytes, "Forbidden"**, with an admitted source returning 200 as the control. Pi-hole: 6 assertions cover provisioning (gravity 79 963, adlist status, freshness, the dnsproxy namespace) and `grep -c "blocking.active\|0.0.0.0"` on the deployed spec returns **0**, so `dns.blocking.active=false` leaves everything green. Converged on from the other side by `security`, which measured the Traefik allowlist guarded by 3 assertions all in the "wide enough" direction and **0** in the "not too wide" one. Remedies NOT shipped | **ENUMERATED 2026-09-20 (eighth run) by two complementary bounds, 16/16 and 197/197; remedies DECLINED the same day. This row still read OPEN until the ninth run corrected it.** |
 | C114 | **A documentary enumeration of a live, machine-derivable set, verified only in the direction `{listed} subset-of {live}`** | **MINTED 2026-09-19 (seventh run), ENUMERATED 13/13** — 5 clean, 8 with a gap, **28 live objects absent from the table that enumerates their kind**. A month of documentary sweeps had measured nothing else: 113/113 links, 65/65 runbook paths, 18/18 cited units, 34/34 rendered artefacts, 80/80 bind mounts, 116 ADR promises — every one an inclusion. Not C01 (an omission is not a contradiction), not C32, not C111 (these tables regenerate from nothing). The sharpest instance is also a lesson about method: `homelab-image-retention` is absent from the "16 periodic jobs" census **because that census walks the evidence channels**, so a job with no channel cannot appear in it — the same shape that reopened C10 and that produced C18's axis defect. Shipped: the three missing secrets, the five wg-easy sites, the retention job in two places, 3 ADR citations, subdomains 18 -> 21, phases 5 -> 6, the RAM budget, and the sidecars named as having no page | ENUMERATED |
 | C115 | **A recovery procedure whose success criterion is that its last command completed, with no stated expected RESULT** | **MINTED 2026-09-19 (seventh run), ENUMERATED 19/19.** PROPOSED by the sixth run and correctly not claimed then — the space was one file of ~17 runbooks. `backup` bounded it: **19 executable procedures** (11 in `restore-from-backup.md`, 4 service pages of 18 sections, LUKS, offsite recovery, compose, the Kuma repair). **11 of 19 carry no post-restore check at all**, Vaultwarden among them, and **2 of 19 state an expected value** — correcting the sixth run's "0 of 11", since Immich states one (66 tables, 9 283 assets). The asymmetry measured in both directions: 46 named assertions by failure mode on the WRITE path, 2 written expectations on the READ path. The values already exist — the 2026-08-15 drill recorded 591 ciphers, 168 tables, 1 repo/1 user — and are never carried into the procedures. **Remedy NOT shipped**: documentary, no timed drill, no script | ENUMERATED |
 | C116 | **A detector whose only delivery channel terminates inside the subject it detects** | **MINTED 2026-09-20 (eighth run), key `independence`, shape (c). DECLINED by the operator the same day — "je m'en fiche complètement", never raise again.** Space: per alerting path, the components a verdict must traverse ∩ the subjects that path covers. Remediable cardinal **1**. Netdata instantiates `homelab_container_down` on uptime-kuma; its only consumer is `homelab-netdata-kuma.sh:364` pushing to Kuma. Main session verified the last link with a control: `/etc/netdata/health_alarm_notify.conf` does not exist, the stock file carries `SEND_DISCORD="YES"` with `DISCORD_WEBHOOK_URL=""` and `DEFAULT_RECIPIENT_DISCORD=""` (control: the same grep matches 30 `SEND_*` lines), Kuma holds 1 notification row bound to 37 monitors, and `grep -c uptime-kuma /usr/local/bin/homelab-health.sh` = 0. A single failure of uptime-kuma defeats that alarm's delivery, all 15 push reporters, **both gated fuses C41 and C03-T**, Kuma's 22 probes and the single Discord notification. Bounded by heal every 2 min. **NOT to be confused with "60 netdata alarms can reach nobody", measured and rejected in the sixth run** — the adapter IS the path; what is new is that the path terminates in the subject | **DECLINED** |
 | C117 | **A declared credential separation where each credential is stored inside the store the other protects** | **MINTED 2026-09-20 (eighth run), key `independence`. DECLINED by the operator the same day** — an independent offline copy exists outside the estate, so the residual risk is accepted; never raise again. ADR-010:37 claimed "Homelab repo password is useless against the offsite repo, and vice versa". The two values are genuinely distinct (hash-compared, env == file on both). But `/mnt/data/secrets` is a backup `source:` (deployed `/opt/homelab/resticprofile.yaml:240`) with no exclude covering it, and the profile's second `ExecStart` copies those snapshots offsite, so the property holds in both directions. Availability untouched — append-only still refuses deletes; what was void is the blast-radius claim. **The documentary half WAS shipped**: ADR-010's row now reads "NOT a blast-radius guarantee", with the reasoning and a generic recommendation to keep an offline copy, cross-referencing the LUKS header runbook which already argues the identical circular dependency. **Main-session note: the session contradicted the agent here and was WRONG** — it read the `source:` block to line 215 when the block runs to 241 | **DECLINED**, documentary half shipped |
 | C118 | **A guard that demands a value and a fallback that supplies one, sitting in the same resolution chain — so the guard can never observe the absence it exists to detect, and the fallback propagates into both the configuration and the assertion that would check it** | **MINTED 2026-09-20 (eighth run), key `independence`, shapes (e)+(d). DECLINED by the operator the same day** on the ground that coherence is what matters and a port number is weak security either way; never raise again. Adjacency to C29 was declared by the minting agent rather than hidden. Space: 99 `required: true` options over 11 `meta/argument_specs.yml`; 0 defeated by a role default (no role has `defaults/main.yml`), 69/99 pre-satisfied by a committed inventory file, **5 whose committed fallback is a value no host should run with** — `domain: example.com`, `ssh_port_hardened: 22`, `traefik_acme_email: ''`, `hostname: homelab`, `extra_fsck_filesystems: []`. Joint defeat measured on the guard branch (synthetic role: with the fallback `ok=2 changed=0 failed=0`; delete the fallback only -> `fatal: missing required arguments`) and traced on the other four consumers: `ssh.yml:11`, `firewall.yml:122/134/146`, `fail2ban.yml:180`, `goss-posture.yaml.j2:1569` — which asserts the variable it just rendered. **LATENT, never live**: the deployed spec asserts the vaulted port and the daemon listens on it, not on 22. **The sharpest part is documentary and survives the decline**: `group_vars/all.yml:8-16` argues in four sentences that `homelab_ip` gets no default, citing C29 by name — and line 20 is `ssh_port_hardened: 22` | **DECLINED** |
+| C119 | **A detector whose own act is a member of the set it examines** — so it can read its own trace as data, and its verdict is in part a measurement of itself | **MINTED 2026-09-20 (ninth run), key `interference`. OPEN — the space is NOT bounded and the minting row says so rather than leaving it to be found.** Swept 5 by two unrelated mechanisms, 2 defective. (a) `services`: pattern-matching probes searching a shared medium for a literal from their own argv — 2 of 28 healthchecks + 2 of 229 posture assertions, **4/4, 1 defective**, and that one is `traefik-log-redactor`'s `pgrep -f "tail -F ..."`, which is **C29's vacuous liveness half, DECLINED by the operator on 2026-09-02 — the remedy must never be re-proposed**; recorded here only so a tenth run does not rediscover it. (b) `network`: `traefik-access-log-carries-no-credential` and the redactor it grades are both anchored on `[?&]`, so neither can see a credential in the PATH; Kuma puts its push token there and the estate's own 15 push reporters are the ONLY writers of that shape — 1 283 lines in 24 h carried a live token in clear while the assertion reported `bad=0`. **FIXED and verified the same day**: redactor pass added, assertion extended with `pat_path`, proven in both directions against the DEPLOYED text (live estate exit 0; a synthetic line injected into its input -> `1 credential value(s) reached a durable container log`, exit 1). The 1 283 lines left the disk with the container recreate — 0 files under the Docker data root hold a `/api/push/<token>`, against a positive control of 1 holding the masked form. **The audit's own method is inside this class**: `sudo grep` writing the string it hunts into `auth.log`, paid three times | **OPEN** |
 
 ## DECLINED
 

@@ -15,10 +15,20 @@ earlier — which would have sent eight agents to re-derive settled work. Rebuil
 it from `classes.md`'s OPEN table at the start of every run; if the two
 disagree, `classes.md` wins.
 
-As of the EIGHTH run of 2026-09-20, key `independence`. **Rebuilt from
+As of the NINTH run of 2026-09-20, key `interference`. **Rebuilt from
 `classes.md`'s OPEN table — do not trust this copy if the two disagree.**
 
-**THERE ARE NO OPEN CLASSES.** C44 and C113 were both swept to a count on
+**ONE OPEN CLASS: C119**, minted by the ninth run and owned jointly by
+`services` and `network`, because the two halves of its sweep came from those two
+domains and neither contains the other. **Its property is: a detector whose own
+act is a member of the set it examines.** Swept 5, 2 defective, both bounds
+bounded by a MECHANISM while the property is not — so the next run's job on it is
+to bound the space properly: enumerate the deployed detectors, then for each the
+surface it reads, then ask whether its own execution reaches that surface.
+**One of its two defective members is C29, DECLINED — the property is recorded,
+the remedy is not to be re-proposed.**
+
+**Before the ninth run there were NO OPEN CLASSES.** C44 and C113 were both swept to a count on
 2026-09-20 and both had their remedies DECLINED by the operator. The class total
 went 115 -> 118: C116, C117 and C118 were minted and **all three were declined
 the same day**. **The termination clock RESETS** — the criterion needs an empty
@@ -134,7 +144,20 @@ reported.
 under `sudo` writes the string it hunts into the log it reads; on 2026-09-19 that
 cost two conclusions, one of which reached the operator as a suspected intrusion.
 
-**Twenty-SEVEN keys are now spent** (`independence` added 2026-09-20, eighth
+**Twenty-EIGHT keys are now spent.** `interference` was added 2026-09-20 (ninth
+run) — invented, 1 mint, and it is the FOURTH confirmation that a key which turns
+on the INSTRUMENT is worth more than one that only turns on the estate. Here the
+instrument was this skill: it measured that **~79 % of posture runs are caused by
+audits and deploys rather than by the timer**, which is the structural cause of
+the "the audit's own baseline lied" entry the register has written four times as
+if it were bad luck. Whoever writes key twenty-nine should know that the two
+candidates put beside it and not chosen are still unspent: **`admission`** (what
+does each mechanism do with a subject born after it was written — high risk of
+producing C86/C114 instances rather than mints) and **`credulity`** (what does
+this believe without checking, because it comes from a party the estate does not
+control — overlaps `oracle`'s borrowed-oracle shape and C108/C112/C86).
+
+The older list follows (`independence` added 2026-09-20, eighth
 run — 3 mints, all three DECLINED by the operator the same day; `asymmetry` the
 seventh run, 3 mints): `time`, `order`, `identity`, `scale`, `authority`,
 `representation`, `vacuity`, `exclusivity`, `interruption`, `succession`,

@@ -24,6 +24,100 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-09-20 (NINTH run) — key `interference`, one PR, deployed from the branch before merge
+
+Three corrections, all verified against the running systems before the branch was
+opened for merge, and each one carrying the rule it encodes:
+
+- **A sentinel counted as data.** `journalctl` writes `-- No entries --` to
+  **stdout**, so `2>/dev/null` does not remove it and `grep -c .` returns 1 on a
+  loss-free day. Downstream, `date -d "--"` **does not fail** — it returns today's
+  local midnight — so the check judged recovery against a fabricated loss and
+  dropped 9 of 15 push monitors from its second clause. Keeping only
+  timestamp-shaped lines is immune to the sentinel's wording. **Rule: a command
+  that prints a human-readable "nothing here" on stdout is not a silent command,
+  and `2>/dev/null` is not a filter for it.** Second rule, from the same line:
+  **`date -d` accepts far more than it should — validate what you pass it, or
+  check that the result is not suspiciously round.**
+- **A redactor and the assertion that grades it, both blind in the same
+  direction.** Both anchored on `[?&]`, so neither could see a credential carried
+  in a PATH; Uptime Kuma puts its push token there. 1 283 lines in 24 h held a
+  live token in clear while the assertion reported `bad=0`. **Rule: when a
+  detector and the thing it grades share an expression, they share its blind
+  spot, and the verdict cannot reveal it.** The masking pass added is
+  deliberately one known path rather than a generic token-shaped-segment rule —
+  over-redacting a query value costs nothing, over-redacting a path would stop
+  the log from saying which endpoint was called.
+- **Six writes per deploy reporting no change.** Nextcloud's external-storage
+  options were re-applied unconditionally under `changed_when: false`. **Rule:
+  `changed_when: false` is a claim that the task cannot change anything, not a
+  way to keep a recap quiet; if the task writes, the report must be able to say
+  so.** The guard uses the listing the loop already consumes, and accepts both
+  `"1"` and `true` because the value arrives as a string — a future version
+  emitting the other form would otherwise re-run the task every deploy and
+  report a change each time, which is the same defect inverted.
+
+### DECLINED on 2026-09-20 (ninth run) — do not re-propose
+
+- **fail2ban's `ignoreip` names the host's own address rather than the address
+  that authenticates to it.** Measured on both hosts with an argv-safe pattern:
+  offsite ignores its own LAN address and **423/423** authentications arrive from
+  the tunnel; homelab ignores its own and **4507/4507** arrive from the
+  workstation. `maxretry=3`, `findtime=600`, `bantime=3600`. **Operator: with
+  key-only authentication and no password path, a repeated refusal means the key
+  is wrong, and then the ban changes nothing about what has to be done — the key
+  has to be reloaded either way.** The argument holds and the numbers support it:
+  0 failures and 0 bans on both hosts since installation. Do not re-propose an
+  `ignoreip` change, in any form.
+  **The one residual, recorded because it is NOT what was declined**: `MaxAuthTries`
+  is 3 on both hosts and the workstation's client runs `IdentitiesOnly no`, so a
+  future agent holding three or more keys could be refused **with a valid key**
+  and ban itself for an hour. The agent currently holds one. The remedy is one
+  line in the operator's own `~/.ssh/config` (`IdentitiesOnly yes`), outside this
+  repository, and it removes the trigger rather than the consequence.
+- **C29's vacuous liveness half, re-found and re-declined.** An agent minted it
+  as a new class; it is the instance the operator declined on 2026-09-02. The
+  generalised property was kept as half of C119 **solely to stop a tenth
+  rediscovery**; the remedy (`pgrep -x awk`) stays declined.
+
+### Measured and rejected — added 2026-09-20 (ninth run)
+
+- **"A fail2ban ban would cut the offsite backup path."** No. The `nftables`
+  action is `type = multiport` on the SSH port alone and `rest-server` listens on
+  `*:8000`; `bantime` is 3600 with no increment. The ban costs an hour of admin
+  SSH and nothing else.
+- **"The purge of the leaked access-log lines has to be performed."** It did not:
+  recreating `traefik-log-redactor` during the deploy destroyed the old
+  container's json log with it. Verified after the fact — **0 files under the
+  Docker data root hold a `/api/push/<token>`, against a positive control of 1
+  holding the masked form**, and the container directory count equals the
+  container count, so no orphan log survived. The operator had authorised the
+  write; it was not needed and was not made.
+
+### Instrument traps paid on 2026-09-20 (ninth run) — three, and TWO were the main session's own
+
+- **`systemctl show -p A -p B --value` does not return the values in the order
+  asked.** systemd prints them in its own order, so positional parsing transposes
+  fields silently. The symptom was a `LastTriggerUSec` dated tomorrow. Ask for one
+  property per call, or drop `--value` and read `key=value`.
+- **For a `oneshot` unit with several `ExecStart=` lines,
+  `ExecMainStartTimestamp` dates only the LAST one.** It understated
+  `homelab-backup.service` by 3 min 48 s in this run's own baseline. **Read
+  `InactiveExitTimestamp` for a unit's span.**
+- **Sixth payment of the un-`sudo`'d glob**, caught by its own positive control.
+
+### The method note this run owes the next one
+
+`interference` was applied to the audit itself and the numbers are in
+`classes.md`: **~79 % of posture runs are produced by audits and deploys rather
+than by the timer**, 91 % of the access log and 89.5 % of the journal are the
+estate observing itself. The conclusion is not to observe less. It is that
+**"the most recent verdict" is not evidence until you know who caused it** — read
+`LastTriggerUSec`, compare the verdict's timestamp to the mtime of what it
+graded, and say which run you are quoting.
+
+---
+
 ## Shipped on 2026-09-20 (EIGHTH run) — key `independence`. DOCUMENTATION ONLY
 
 The operator declined every mechanism this run proposed and asked for one thing:
