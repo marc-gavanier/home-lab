@@ -4,6 +4,8 @@ Description=Restic REST server (append-only backup target)
 After=network-online.target
 Wants=network-online.target
 RequiresMountsFor={{ backup_mount_point }}
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 User=rest-server
