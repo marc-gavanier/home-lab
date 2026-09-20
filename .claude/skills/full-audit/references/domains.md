@@ -15,35 +15,39 @@ earlier — which would have sent eight agents to re-derive settled work. Rebuil
 it from `classes.md`'s OPEN table at the start of every run; if the two
 disagree, `classes.md` wins.
 
-As of the SEVENTH run of 2026-09-19, key `asymmetry`. **Rebuilt from
+As of the EIGHTH run of 2026-09-20, key `independence`. **Rebuilt from
 `classes.md`'s OPEN table — do not trust this copy if the two disagree.**
 
-**TWO OPEN CLASSES. The counter went 1 -> 2 and the class total 112 -> 115**:
-C113, C114 and C115 were minted, C114 and C115 arriving ENUMERATED. **The
-termination clock RESETS.**
+**THERE ARE NO OPEN CLASSES.** C44 and C113 were both swept to a count on
+2026-09-20 and both had their remedies DECLINED by the operator. The class total
+went 115 -> 118: C116, C117 and C118 were minted and **all three were declined
+the same day**. **The termination clock RESETS** — the criterion needs an empty
+OPEN column *and* two consecutive zero-mint runs, and this run minted three.
 
-**C44's month-long blocker is GONE.** The 27 rows this register cited by number
-without ever writing down are transcribed in `classes.md`, derived from scratch:
-16 TIER A (4 covered), 2 TIER B, 1 TIER C, 4 with no readout, 3 degraded, 1
-excluded. **Do not re-derive them and do not produce a fresh cardinal.** Read the
-two reserves written beside the number before quoting it: the 16 is not provably
-the register's old 16, and rows 15 (`hostname`) and 16 (`swap`) are named as
-contestable, which would give 26 or 25. Coverage is 4 in every case.
+**So every domain this run is in the "no OPEN class" state**, and its job is the
+one that demoted C02, C13, C20, C26 and C17: re-read the GATED assertions in its
+area and ask whether each is DERIVED from the thing it guards or is merely a list
+of the instances once found.
 
-**What `asymmetry` proved, for whoever writes key twenty-seven.** It was taken
-off the list rather than invented, and unlike every recent key it paid in BOTH
-territories — the estate (a detector blind by a factor of 43 000, five files
-with no copy, real 404s nobody could see) and the instruments (C07 widened by a
-derivation, a refuted register entry, a new instrument trap). **The rule it adds:
-where a previous sweep measured an inclusion, the other direction is unmeasured
-by construction, and that is a mint waiting to be counted** — C114 exists only
-because someone asked which of a month's `N/N` results were `subset-of` rather
-than `=`.
+**Read `settled.md`'s DECLINED section of 2026-09-20 before writing any brief.**
+Five things were arbitrated away that a fresh agent will otherwise rediscover
+and propose: alerting-path coupling (never again, in any form), the two restic
+passwords, the `ssh_port_hardened: 22` fallback chain, deny-direction assertions
+of every kind, and the mtime comparator for C44. Two of those are the most
+"findable" defects in the estate, so expect to have to decline them on the
+agent's behalf.
 
-| Class | Owner | What is left to do |
-|---|---|---|
-| C44 | `system` | **The membership is WRITTEN — the remaining work is not bookkeeping any more.** 12 of 16 TIER A subsystems carry no comparator; the question "is every subsystem with a resolve-everything readout covered" answers NO. **Do not re-derive** TIMER 13/13, DEPLOY-TAG 26/26, HOST-HARDENING 20/20, or the 27 rows. Two reserves still hold: a writer that rewrites the `/etc` file the estate owns moves both sides together (`pam-auth-update`), and the route's own cadence is daily. Qualification worth carrying: 3 of the 4 deployed comparators re-read a FILE, not the executing process — only `sysctl` reads `/proc/sys` |
-| C113 | `network`, converged with `security` | **A control whose FUNCTION is to refuse, verified only where it ADMITS.** Bounded to 4 in `network`, overflows into `security`, whole-estate cardinal NOT derived — that is the sweep. Two live instances recorded and NOT remedied: `vpn-only`'s 3 assertions all pass if the middleware vanishes, and 6 Pi-hole assertions cover provisioning with none covering that blocking is ON. `security`'s inclusion-vs-equality derivation is the measurable backbone: **21 set assertions, 9 equality, 12 inclusion**, and that 21 is a declared LOWER BOUND |
+**What C44 leaves behind, so nobody re-derives it.** 27/27 subsystems swept.
+**Coverage is 1 of 16 TIER A, not the 4 this file carried for a month** —
+`sshd -T`, `postconf -h` and `ufw status` all read the declared FILE, not the
+executing process; only `sysctl` reads `/proc/sys`. The sshd and postfix cases
+are C111 instances. Do not re-derive TIMER 13/13, DEPLOY-TAG 26/26,
+HOST-HARDENING 20/20, or the 27 rows.
+
+**What C113 leaves behind.** Two complementary bounds, neither containing the
+other: `network` 16/16 mechanisms (3 deny-covered, 4 admit-only, 9 uncovered),
+`security` 197/197 deny-subject assertions of 329 (186 fail-safe, 11 stay
+green). **Only 2 of 197 verify that a control actually refuses.**
 
 **Six domains own no OPEN class, and that is the normal state now.** Their job is
 the one that demoted C02, C13, C20, C26 and C17: re-read the GATED assertions in
@@ -106,8 +110,10 @@ three different bounds and 59 is not reproducible.
 
 **Rows corrected in the THIRD 2026-09-19 run.** **Seven classes carry cardinals
 frozen at a 28-container estate against 32 today** — C25 is 80 bind mounts not 62,
-C36 is 41 tmpfs not 37, C50's Docker half is 28 not 25, and C22/C24/C38 move 28 to
-32. C53's row says 34 handlers / 1 flush point; it is 41 / 3. **C21 is an ARGUMENT,
+C36 is 41 tmpfs not 37, C50's Docker half is 28 not 25, and C24/C38 move 28 to
+32. **C22 does NOT move — its space is healthchecks (28 of 32), and 28 was
+already right; corrected 2026-09-20.** C40 is the eighth frozen row and reads
+26 of 32, not 29/29. C53's row says 34 handlers / 1 flush point; it is 41 / 3. **C21 is an ARGUMENT,
 not a gate** — nothing would notice a bound being added to the deployed `copy:`.
 C74's offsite residual is FIXED. **A15 is NOT resolved and its withdrawal matters:**
 the two `ufw reload`s its test relied on never happened, so the control never ran.
@@ -128,19 +134,35 @@ reported.
 under `sudo` writes the string it hunts into the log it reads; on 2026-09-19 that
 cost two conclusions, one of which reached the operator as a suspected intrusion.
 
-**Twenty-SIX keys are now spent** (`asymmetry` added 2026-09-19, seventh run —
-3 mints, and it bit in BOTH the estate and the instruments; `oracle` the sixth
-run, 2 mints, on the ASSERTIONS): `time`, `order`, `identity`, `scale`, `authority`,
+**Twenty-SEVEN keys are now spent** (`independence` added 2026-09-20, eighth
+run — 3 mints, all three DECLINED by the operator the same day; `asymmetry` the
+seventh run, 3 mints): `time`, `order`, `identity`, `scale`, `authority`,
 `representation`, `vacuity`, `exclusivity`, `interruption`, `succession`,
 `residue`, `concurrency`, `plurality`, `dependency`, `granularity`, `locality`,
 `repetition`, `reversibility`, `quiescence`, `collision`, `commensurability`,
-`aggregation`, `staleness`, `attendance`, `oracle`, `asymmetry`. The mint rate
-across them reads 5, 11, 12, 7, 2, 4, 1, 0, 2, 1, 2, 2, 3, 1, 0, 2, 2, 1, 2, 4,
-0, 1, 1, 2, 2, **3**. A run that reuses one proves nothing. **The pair of consecutive zero-mint
-runs the criterion needs has still never been achieved.** Still proposed and
-unspent: `cost` alone — and the register records that it shares `scale`'s
-weakness, little of it leaving a trace you can measure tonight. **Key
-twenty-seven must be invented; there is no named candidate left worth taking.**
+`aggregation`, `staleness`, `attendance`, `oracle`, `asymmetry`,
+`independence`. The mint rate reads 5, 11, 12, 7, 2, 4, 1, 0, 2, 1, 2, 2, 3, 1,
+0, 2, 2, 1, 2, 4, 0, 1, 1, 2, 2, 3, **3**. **It is no longer decaying**, and the
+two consecutive zero-mint runs the criterion needs have still never been
+achieved. A run that reuses a key proves nothing.
+
+**`cost` remains the only named unspent candidate**, and the register's warning
+about it stands: it shares `scale`'s weakness, little of it leaving a trace you
+can measure tonight, and it overlaps C07 heavily. Key twenty-eight is otherwise
+an invention.
+
+**What `independence` proved, for whoever writes key twenty-eight.** It was
+invented, and it paid in the estate rather than the instruments — but the
+operator declined all three mints, which is a result this register had never
+recorded before and should not treat as failure. **The rule it adds: when a
+sweep's output is a risk the operator accepts, the register's job changes from
+tracking a remedy to preventing the rediscovery.** Two of the three declined
+findings (the alerting path, the deny-direction gap) are among the most
+findable defects in the estate; every future brief must decline them on the
+agent's behalf or waste a domain's budget. It also confirmed, for the fourth
+consecutive run, that **the audit's own baseline is the least trustworthy
+artefact in the process** — and for the first time it lied in the optimistic
+direction's opposite, reporting a gap that did not exist.
 
 **What `staleness` proved, for whoever writes key twenty-four.** It was taken off
 the proposed list rather than invented, and the register had predicted a low mint

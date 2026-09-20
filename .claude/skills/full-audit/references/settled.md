@@ -24,6 +24,129 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-09-20 (EIGHTH run) — key `independence`. DOCUMENTATION ONLY
+
+The operator declined every mechanism this run proposed and asked for one thing:
+"s'il y a des erreurs dans la doc corrige les". What shipped, and the rule each
+one encodes:
+
+- **ADR-010's blast-radius claim was false and now says so.** "Homelab repo
+  password is useless against the offsite repo, and vice versa" became "two
+  distinct values, so neither is derivable from the other. NOT a blast-radius
+  guarantee", with the reasoning below the table and a cross-reference to the
+  LUKS header runbook, which already argues the identical circular dependency
+  for a different secret. **Rule: when a second document already reasons about
+  the same shape, point at it instead of re-deriving it.** The table was
+  re-aligned (all rows 198 chars).
+- **A verification step that verified nothing.** `kill-switch.md` told the
+  reader to run `journalctl -u killswitch.service` and look for "armed". That
+  command does not show the line at all, and the line is logged
+  unconditionally before the first connection is attempted. Replaced with
+  `journalctl -t killswitch` plus an `ss` check for an established socket, and
+  a paragraph saying plainly which of the three commands proves anything.
+  **Rule: a verification step must be able to fail; if you cannot say what
+  makes it print something different, it is decoration.**
+- **A comment whose numerator stood still while its denominator grew.**
+  `homelab-health.sh.j2:379` said Kuma watches "15 of the 18 certificates.
+  Three are unwatched". Live: 21 certificates, still 15 watched, **six**
+  unwatched — the three `*arr` services arrived with `expiry_notification=0`
+  and nothing moved the watched count. **Rule: a coverage statement written as
+  "N of M" rots from the M end, silently, and the gap widens without the
+  sentence changing.**
+- **Five self-contradictions in `classes.md`**, one of which was the previous
+  night's fix for the same defect. Detail in the register's eighth-run section.
+
+### DECLINED on 2026-09-20 — do not re-propose, any of these, ever
+
+All five were put with measurements and all five were arbitrated by the
+operator the same day. Three of them became DECLINED classes (C116, C117, C118)
+rather than being dropped, so the mint count stays honest.
+
+- **The alerting path that terminates inside uptime-kuma (C116).** Netdata has
+  no recipient of its own; Kuma is the only channel; a Kuma failure silences
+  the alarm about Kuma, the 15 push reporters, both gated fuses and the single
+  Discord notification. Remedy offered was a netdata-native Discord recipient
+  for one alarm. **Operator: "je m'en fiche complètement, note de ne plus jamais
+  me parler de ça." NEVER RAISE ALERTING-PATH COUPLING AGAIN**, in any form, in
+  any run, however new the evidence.
+- **The two restic passwords sharing a fate (C117).** **Operator: accepted
+  risk, an independent offline copy exists outside the estate. Never raise
+  again.** **PUBLIC-REPO RULE, ABSOLUTE: never write in the repository — or in
+  any issue, PR, commit message or published text — that the operator holds
+  these passwords offline, nor by what means.** Recommending the practice in
+  the abstract is permitted and was done in ADR-010; stating that it has been
+  done is not.
+- **The guard/fallback chain, `ssh_port_hardened: 22` (C118).** **Operator:
+  what matters is coherence, and if the fallback fired everything would move
+  to 22 coherently; a port is weak security anyway and not worth panicking
+  over.** The argument is sound — the failure mode is an access annoyance, not
+  a hole. Do not re-propose deleting the five committed fallbacks.
+- **Deny-direction assertions (C113's remedies).** **Operator: "je ne trouve
+  pas ça très pertinent."** This retires the two remedies the seventh run left
+  unshipped (`vpn-only`, `dns.blocking.active`) and everything the eighth run's
+  sweep found — the 11 assertions that stay green, and the three uncovered
+  controls (`DOCKER-USER` DROPs, `killswitch.service`, the USB tamper flag).
+  The 2-of-197 figure may be cited as context by a later run. It may not be
+  cited as a proposal.
+- **The mtime comparator for C44.** A real and simple remedy —
+  `mtime(file) < start(daemon)`, six lines, one rule for sixteen subsystems —
+  **declined because it would fire on every legitimate edit-without-restart**,
+  and a noisy check gets ignored. **What replaced it is one sentence of
+  documentation**: the four comparators check that the deploy applied what the
+  repo declares, and do not detect an external writer. Do not propose this rule
+  or any successor without a live drift to point at.
+- **The 10 h 54 min posture-grading window.** **Operator: it resolves itself,
+  11 hours is acceptable.** Do not propose a `systemd.path` trigger, or any
+  other way to grade a freshly deployed spec sooner.
+
+### The rule-7 violation of 2026-09-20 — committed by the session enforcing it, and a 7-day-old exposure it uncovered
+
+**The main session wrote the vaulted SSH port into `classes.md` three times**
+while recording C44's evidence and C118's row — into a file tracked in a PUBLIC
+repository, hours after writing rule 7 ("never propose writing a secret or a
+port number into the repo") into all eight agent briefs. Caught by its own
+post-edit diff check, redacted to `<vaulted>` before any commit. **The lesson is
+not "be careful": it is that verbatim command output is the highest-risk text an
+audit produces, because its value is precisely that it was not paraphrased.**
+Grep the diff for the vaulted values before every commit, not after.
+
+**The check that caught it also found the port had already been public for seven
+days.** Two occurrences predating this run, both introduced by commit `ed430df`
+(2026-09-13, itself an audit-run commit): `classes.md:3380` and
+`ansible/inventory/host_vars/homelab/main.yml:23`, both in a comment recording a
+port-reachability test. **Left in place, not redacted** — the value is already in
+public git history, so editing the working tree does not unpublish it and would
+only hide the exposure from the next audit. **Raised to the operator as a
+decision: rotate the port, or accept it and drop the pretence that it is
+secret.** Note the tension to resolve either way:
+`security/meta/argument_specs.yml:16` marks it `no_log: true` with the
+description "the port is deliberately not published", and `group_vars/all.yml`
+argues the same in prose.
+
+### Instrument traps paid on 2026-09-20 — six, and THREE were the main session's own
+
+- **A false GAP, new in direction** — three previous runs produced a false
+  CLEAN. `ExecMainExitTimestamp` read while a unit is mid-run looks exactly
+  like a unit that never ran. Read `LoadState` and `ExecMainStartTimestamp`.
+- **A partial read of a multi-line block is a false negative with no symptom.**
+  A `source:` list read to line 215 of a block ending at 241 produced a
+  confident contradiction of a correct agent. Read to the end of the block.
+- **A wrong path returns zero, and zero looks like data.** Paid twice in one
+  run by the main session, on a netdata config and on `acme.json`
+  (`/mnt/data/services/traefik/acme.json` does not exist; the file is one level
+  down under `acme/`, and it holds 21 certificates, not 0). Both were caught by
+  adding a control; neither would have been caught without one.
+- **FIFTH payment of the un-`sudo`'d glob**, this time with a new symptom: read
+  through one, every netdata plugin reads `serves=false`, which is
+  indistinguishable from healthy rather than obviously empty.
+- **NEVER run `udevadm test` on a USB device path.** If a `RUN+=` rule fires,
+  the Pi powers off and recovery needs physical presence.
+- **`journalctl -u <unit>` drops `logger` output that `journalctl -t <tag>`
+  shows.** Cost the kill-switch runbook a verification command that printed
+  nothing for an unknown length of time.
+
+---
+
 ## Shipped on 2026-09-19/20 (SEVENTH run) — key `asymmetry`, one PR, deployed from the branch before merge
 
 The operator asked for everything in a single PR. What shipped, and the rule

@@ -41,9 +41,25 @@ There is **no remote power-on** by design. Recovery requires physical presence:
 After a deploy or reboot, confirm it's listening (no poweroff involved):
 
 ```bash
-systemctl is-active killswitch.service        # active
-journalctl -u killswitch.service -n 5 -o cat  # "armed — listening on ntfy topic (outbound)"
+systemctl is-active killswitch.service   # active
+sudo journalctl -t killswitch -n 5 -o cat
+sudo ss -tnp state established '( dport = :443 )' | grep curl
 ```
+
+**Neither of the first two commands proves the switch works, and the third is
+the one that does.** `active` only says the wrapper loop is alive, and the
+`armed` line is written unconditionally *before* the first connection is
+attempted — the stream can be down, reconnecting, or refused for hours with
+both readings unchanged. The listener really did reconnect on 2026-09-15 at
+08:50:14 and the journal recorded nothing about it. The `ss` line is the honest
+check: an established socket to the ntfy host means the stream is actually up.
+
+Note the flag: `journalctl -u killswitch.service` shows only systemd's own
+start/stop lines and **drops the `armed` message entirely**, because the script
+logs through `logger`. Use `-t killswitch`, not `-u`.
+
+The end-to-end test below is stronger still, and it is the only one that
+exercises the receive path.
 
 Safe end-to-end test (does **not** power off) — publish a deliberately wrong body:
 

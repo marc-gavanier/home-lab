@@ -34,9 +34,25 @@ failed).
 | Offsite repo init   | `--copy-chunker-params`          | Preserves dedup across repos                                                                                                              |
 | Disk encryption     | None (ext4)                      | Restic already encrypts; the Pi reboots unattended after power cuts                                                                       |
 | Repo password       | NOT stored on the offsite Pi     | A stolen Pi/SSD yields ciphertext only — this replaces LUKS                                                                               |
-| Repo passwords      | Distinct per repo                | Homelab repo password is useless against the offsite repo, and vice versa                                                                 |
+| Repo passwords      | Distinct per repo                | Two distinct values, so neither is derivable from the other. NOT a blast-radius guarantee — see below                                     |
 | rest-server deploy  | systemd binary, not Docker       | Minimal surface: no Docker daemon at all on the offsite Pi                                                                                |
 | Homelab → peer path | Host is its own wg-easy client   | wg0 lives in the wg-easy container; the host peers via loopback ("homelab-host", 10.8.0.5) so the path is identical before/after the move |
+
+**What "distinct per repo" does and does not buy.** Two different values mean
+neither password can be derived from the other, so a leak of one is not
+automatically a leak of both. It is not a blast radius: the secret store sits
+inside the backup set, so the two values do not fail independently, and the
+nightly copy carries that property offsite with everything else. Read the row
+as protection against guessing, not as a partition of the damage.
+
+The consequence is the same circular dependency the LUKS header runbook already
+warns about, and the same answer applies: **both repository passwords should
+also exist as an offline copy, on separate media, kept away from the Pi** — a
+copy no automated process on either host can reach, and openable with something
+you will still have *in the disaster*. See
+[the LUKS header runbook](../runbooks/luks-header-backup.md) for the reasoning
+in full; it applies here unchanged. A repository whose password is lost with
+the machine is ciphertext for good.
 
 Consequences of the no-password-on-offsite rule:
 
