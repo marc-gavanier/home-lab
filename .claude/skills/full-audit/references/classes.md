@@ -76,7 +76,16 @@ OPEN  ──swept N/N, counted──▶  ENUMERATED  ──assertion deployed─
 - **DECLINED** — the operator considered it and said no. Re-raising requires a
   new fact, not a new argument.
 
-## The three rules
+## The three rules — and a fourth added 2026-09-21
+
+0. **No fix without its gate (ADR-037).** A correction is finished when an
+   assertion exists that fails if the property returns, or when the absence of
+   one is written down as accepted with its reason. It is numbered zero because
+   it governs what happens AFTER the three below have done their work, and
+   because thirteen consecutive runs obeyed all three and still gated nothing:
+   14 assertions deployed over that weekend, 4 ever made to fail on purpose,
+   **zero classes reaching GATED**. Enumeration without a gate is a sweep you
+   will pay for twice.
 
 1. **A finding is never recorded alone.** It is recorded as an instance of a
    class. If it fits none, **mint a new class** — that is the only move that

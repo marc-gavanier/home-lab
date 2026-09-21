@@ -203,6 +203,29 @@ Two things must appear explicitly:
 State plainly when a finding lands in a GATED class: that is a broken gate, it
 does not belong in the audit's count, and it is reported as a red test.
 
+## No fix without its gate — ADR-037, and it applies from the next run
+
+A correction is not finished when the defect is gone. It is finished when
+either **an assertion exists that fails if the property returns**, or the
+absence of one is **written down as accepted**, with the reason.
+
+The weekend of 2026-09-18 to 09-21 is why this is a rule and not an
+aspiration: it fixed some sixty things, deployed 14 new assertions, made 4 of
+them fail on purpose, and moved **zero** classes into the GATED state. Every
+one of those fixes is an instance the next run can find again.
+
+Two honest ways to satisfy it, and one that does not count:
+
+- **Derive the assertion from the thing it guards.** A rule keyed on the
+  property closes the class; a list of the instances found today closes the
+  instances. C11's spec is generated from `compose.yaml`; C07's rule keys on
+  the plugin and both its sides derive live. That is the standard.
+- **Write the acceptance down.** "No gate, because the remedy the operator
+  declined is the only one that exists" is a complete answer. It goes in
+  `settled.md` so the next run does not rediscover it as an omission.
+- **Not: a check that covers the area.** If you cannot say which assertion
+  goes red and on what input, there is no gate.
+
 ## After the run
 
 1. **Update `references/classes.md` first** — state transitions, new cardinals,
