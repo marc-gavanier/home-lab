@@ -120,6 +120,16 @@ Write to <scratchpad>/audit/<domain>.md, in this order:
 3. INSTANCES, grouped under their class: what it is, the measured
    evidence (command + output), the real impact, what you propose.
    Separate CONFIRMED from SUSPECTED.
+4. For EVERY live defect in 3, TWO lines. First, its cost if nobody had
+   found it: DATA, AVAILABILITY, SECRET or BELOW THE FLOOR — and say
+   which, not "serious". Noise that erodes trust in a monitor is not
+   availability. Second, which DEPLOYED instrument would
+   have surfaced it without this audit, and what output would have
+   differed — the assertion that goes red, the beat that carries it, the
+   alarm that fires. If none, write NONE. Naming a check that "covers
+   the area" is not an answer; name the output that changes. This ratio
+   is the audit's termination criterion, so guessing it corrupts the
+   only number that says when this work can stop.
 
 If nothing: say so, and list what you checked to establish it. An
 evidenced "clean" closes a class; a speculative list closes nothing.
@@ -170,9 +180,12 @@ from different angles, it is usually real.
 
 ## Synthesise — the report is a register diff
 
-Open with the counter: **how many classes were OPEN, how many closed, how many
-minted, how many remain**. That number is the answer to "is this finished yet",
-and it is the only part of the report that is comparable between runs.
+Open with three numbers. **The counter** — how many classes were OPEN, how many
+closed, how many minted, how many remain — which says how the work is organised.
+**How many findings sat above the severity floor** (cost data, availability or a
+secret), which is the one that decides whether the cadence can change.
+And **the detection ratio**: of the live defects this run found, how many a
+deployed instrument was already reporting. `classes.md` holds all three.
 
 Then, and only then, the instances. Rank them by *what is happening right now
 without anyone knowing*, then by cost the day it matters, then by cost to fix.
@@ -206,14 +219,31 @@ does not belong in the audit's count, and it is reported as a red test.
 
 Not "a run that found nothing" — that is unfalsifiable, because what a run finds
 depends on the search key it was given, and the key is written fresh every time.
-The criterion is in `references/classes.md` and it is this:
+The rule is in `references/classes.md`, it was **replaced on 2026-09-21**, and
+it no longer talks about finishing:
 
-> **No OPEN class remains, and two consecutive runs, each using a different
-> search key, mint zero new classes.**
+> **The audit stops being run on demand and becomes PERIODIC when two
+> consecutive runs, each using a different search key, find nothing that would
+> have cost DATA, AVAILABILITY or a SECRET.**
 
-The first half says the known perimeter is worked down. The second tests whether
-the perimeter itself is complete, which is the only defence against measuring
-only what someone already thought to look at.
+A living estate keeps producing defects — the register has the number, and it
+is flat at three to nine live findings per run across nine different keys. So
+the question is not "is it finished?" but "can I stop asking?"
+
+**Score every live defect against the three costs, one line each.** DATA is
+loss or corruption of something no other live copy holds. AVAILABILITY is a
+service the household cannot reach, or a recovery path that would not work on
+the day. SECRET is a credential read by something that should not, or one that
+left the estate. Noise that erodes trust in a monitor is not availability;
+documentary findings, blind spots in the audit's own instruments and guards
+that cannot trip with no observed consequence are all below the floor. Below
+the floor still gets fixed. It just does not decide the cadence.
+
+**Also score, and report, the detection ratio** — for each live defect, which
+deployed instrument would have surfaced it without this audit, and what output
+would have differed. It is an indicator, not a gate: it says whether the estate
+is learning to police itself. The twelfth run scored 0 of 6, and that is what
+revealed that thirteen runs had gated nothing at all.
 
 A pass with no *findings* is still a real and expected outcome — it is the point
 of re-running after corrections. It is credible when each report says what was

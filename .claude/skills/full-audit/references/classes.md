@@ -1,7 +1,9 @@
 # The class register
 
-The audit's unit of progress, and the only object in this skill that can reach
-zero.
+The audit's unit of progress — how the work is organised, assigned and counted
+within a run. **It is no longer what says the work is over**: since 2026-09-21
+that is the detection ratio, and the termination criterion below explains why
+the class count could not do the job.
 
 ## Why the unit had to change
 
@@ -86,82 +88,123 @@ OPEN  ──swept N/N, counted──▶  ENUMERATED  ──assertion deployed─
    mints the classes that are missing. The report to the operator opens with the
    OPEN counter, not with a list.
 
-## The termination criterion
+## The stopping rule — REPLACED TWICE on 2026-09-21, and this is the one that holds
 
-> **The audit is finished when the register holds no OPEN class, and two
-> consecutive runs, each using a different search key, mint zero new classes.**
+> **The audit stops being run on demand and becomes PERIODIC when two
+> consecutive runs, each using a different search key, find nothing that would
+> have cost DATA, AVAILABILITY or a SECRET.**
 
-The second half is the real guarantee. "No OPEN class" only says the known
-register is worked down; the zero-mint runs test whether the register itself is
-complete. Without it you measure only what you already thought to look at.
+Note what it does not say. It does not say the audit ends — a living estate
+that deploys, upgrades and grows will keep producing defects, and the data
+below says so plainly. It says the audit stops being the thing you reach for
+when you want to know whether something is wrong, and becomes a scheduled
+sweep. **The question changed from "is it finished?" to "can I stop asking?"**
 
-The honest weakness is the mint rate — it is the one unbounded term. Its defence
-is that minting has been driven by new search keys rather than by new territory,
-and that the two-run rule makes an incomplete register visible instead of
-invisible.
+### The three costs, defined so the judgement is not a matter of taste
 
-**The evening run of 2026-08-29 put a number on that weakness, and it is not
-reassuring.** Its key was *time* — anything with a period, a window, a deadline
-or a clock. It minted **five** classes and reopened two, from a register that had
-just been worked down to two OPEN classes. The reason is visible in hindsight:
-all 38 classes then on file asked whether something was *configured* correctly.
-Not one asked whether it was *timed* correctly. A single new dimension therefore
-paid five classes.
+Every live defect is scored against these, in the run's report, one line each:
 
-The lesson for whoever writes the next key: pick a dimension, not a topic. The
-keys that have paid were dimensions the register had no vocabulary for.
+- **DATA** — loss or corruption of something not reconstructible from another
+  live copy. A media library a rescan rebuilds is not data loss; a snapshot
+  chain that cannot be restored is.
+- **AVAILABILITY** — a service unreachable to the operator or the household, or
+  a recovery path that would not work on the day it is needed. Noise that
+  erodes trust in a monitor is NOT availability, however annoying.
+- **SECRET** — a credential readable by something that should not read it, or
+  one that left the estate.
 
-**The evening run of 2026-08-30 used `order` and minted eleven** — more than
-`time` did — which confirms the mechanism rather than the pessimism: eleven
-classes existed all along and nothing had a word for them. The clock on the
-termination criterion therefore resets. **Both dimensions this sentence once
-named as unused — `identity` and `scale` — have since been spent, on 2026-08-30
-and 2026-08-31. There is no named unused dimension left; the next key must be
-invented.**
+Everything else is below the floor and does not block: documentary findings,
+blind spots in the audit's own instruments, guards that cannot trip where no
+consequence has been observed, cosmetic and structural items the operator has
+declined. They are still found, still reported, still fixed. They just do not
+decide when the cadence changes.
 
-**Four keys have since been invented rather than taken off a list —
-`authority` (2 mints), `representation` (4), `vacuity` (1) and, on 2026-09-05,
-`exclusivity` (ZERO).** The mint rate across the seven dimensions now reads
-5, 11, 12, 7, 2, 4, 1, 0, and the decay is monotonic over the last four keys.
-That is the first evidence this file has ever carried that the register may be
-approaching completeness rather than merely being sampled. **One zero-mint run
-is not the criterion; two consecutive ones, with different keys, are. 2026-09-05
-midday is the first.**
+**The scoring is per finding and it is written down**, the way the detection
+ratio is. A run that reports "nothing serious" without scoring its findings one
+by one has not been scored.
 
-**Twenty-two keys later, on 2026-09-20, `substitution` minted zero as well, and
-the count of consecutive zero-mint runs stands at one — `interference` minted one
-the same day and broke every earlier streak.** The warning that belongs beside
-it: this run's zero was earned by handing five findings to two classes that
-already owned them, one of which had to be REOPENED from a 123/123 closure to
-take them. A zero obtained the other way — by declining candidates, or by
-pointing the next run at the same dimension — would look identical in this line
-and would mean nothing.
+### The unfalsifiability guard, unchanged and still mandatory
 
-**The streak died at one. On 2026-09-20 `tolerance` minted C120, and the mint
-rate over the last four keys now reads 1, 0, 1, 1.** The clock resets to zero
-consecutive zero-mint runs. The lesson is the one this section already states and
-it has now been paid a ninth time: a key that is a DIMENSION the register has no
-vocabulary for pays, and a key that is a topic does not. Every one of the 119
-classes standing before this run asked whether a mechanism was configured,
-ordered, timed or comparable; none asked about the DISTANCE between a guard's
-trip point and the rupture it guards. One new axis, five independent proposals,
-six live defects.
+A run qualifies only when every report says what was checked to establish its
+conclusion, the checks were made against running systems, and the previously
+reported defects were verified gone rather than assumed gone. "Nothing above
+the floor" without that evidence is not a qualifying run; it is a run that was
+not performed.
 
-**The warning for whoever writes the twelfth key is the mirror of the one above.**
-`tolerance` was easy to evidence because every threshold is a constant on disk and
-netdata retains the range of what it guards, so "has this condition ever been
-true, and could it be?" was answerable from data already kept. That is the
-property the register asked for after `scale` went badly, and it is why this key
-paid in measurements rather than in philosophy. Prefer the next dimension the same
-way: pick one whose instances already leave a trace.
+### A discipline note, recorded the day the rule was written
 
-One caution for whoever writes the `scale` key. `order` and `time` both had a
-property this file should not take for granted: every instance was observable
-on the machine tonight. `scale` mostly is not, and the mandate's rule 1 —
-"an evidenced clean beats a speculative list" — will bite harder there. Prefer
-the parts of scale that leave a trace already (retention windows, growth rates
-in netdata, a store whose oldest record is younger than its own period) over the
-parts that need a thought experiment.
+**The run that invented this rule did not claim to have passed it.** Of the
+twelfth run's six live defects, five are plainly below the floor and one is
+arguable — `vault-mount` looped 15 times unseen on 2026-09-20, and the same
+unit's failure mode took Remote Control down for hours on 2026-07-31, so
+"silent restart loop on the vault mount" has an availability history. It
+recovered by itself this time. **Scoring your own run as the first of the two
+is exactly the self-serving arithmetic this register exists to prevent**, so
+the count starts at the next run.
+
+### Why the two previous rules were retired — the arithmetic, so neither returns
+
+**Rule 1, in force 2026-08-15 to 2026-09-21**: *no OPEN class remains, and two
+consecutive runs, each using a different search key, mint zero new classes.*
+
+- **Zero-mint runs: 4 of 31, never two consecutive** (`exclusivity`,
+  `granularity`, `commensurability`, `substitution`). The OPEN column reached
+  zero once, on 2026-09-20, and refilled at the next run.
+- The mint rate decayed and then stopped: 4.5 per run over the first ten keys,
+  1.7 over the next eleven, 1.5 over the last ten, whose sequence reads
+  1, 1, 2, 2, 3, 3, 0, 1, 1, 1 — a plateau.
+- Expected wait for two consecutive zeros at that rate: **25 to 70 further
+  runs**, from the Poisson mean and from the observed frequency respectively.
+  A lottery, not a criterion. And it measured the REGISTER, an artefact this
+  skill writes itself, rather than the estate.
+
+**Rule 2, in force for about an hour on 2026-09-21**: *two consecutive runs
+find no live defect that a deployed instrument was not already reporting.*
+Proposed by the session, agreed by the operator, then **withdrawn by the
+operator on the correct ground that it was strictly harder than the rule it
+replaced**, and the session had not noticed:
+
+- A class discovered for the first time is by construction watched by nothing,
+  so any run that finds something new scores below 1. **Rule 2 contains rule 1
+  and adds a requirement.**
+- Occurrences in 31 runs: **0**, against rule 1's 4. Retired before it was ever
+  used.
+- It survives as an INDICATOR, not a gate — see below. It is worth measuring
+  and it is not worth waiting for.
+
+**What the data says about both, and it is the real reason neither works.**
+Live defects per run over the nine runs where the register lists them
+separately, in order: **6, 9, 7, 7, 0, 3, 3, 6, 6**. The zero is `independence`,
+where the operator declined everything. Nine runs, nine different keys, between
+three and nine live defects each, **and the line does not descend**. The estate
+is not running out of defects, because each new key looks along an axis the
+previous ones had no word for. Any rule of the form "a run finds nothing" waits
+on an event this data says is improbable.
+
+**What IS converging, and neither retired rule could see it.** The count is
+flat; the COST collapsed. The founding defect of 2026-08-15 was a dead-man's
+switch that had never worked — a safety mechanism in total silent failure. The
+worst of 2026-09-12 was worse. The worst of 2026-09-21 was a blind spot in the
+audit's own evidence store, and the second worst was a monitor crying wolf.
+Nothing that night would have cost data, availability or a secret. **That is
+the convergence, and it is why the floor is set on cost rather than on count.**
+
+### The detection ratio — kept as an indicator, not as a gate
+
+For every live defect, name the deployed instrument that would have surfaced it
+WITHOUT this audit, and show the output that would have differed: the assertion
+that goes red, the beat that carries it, the alarm that fires. Naming a check
+that "covers the area" does not count.
+
+It answers a question the stopping rule does not: **is the estate learning to
+police itself, or is each run just fixing instances?** The first measurement,
+2026-09-21, is **0 of 6**, and it exposed something the class counter had
+hidden for thirteen runs: **zero classes reached GATED over the whole weekend**,
+while 14 new assertions were deployed and only 4 of those were ever made to
+fail on purpose. The weekend ENUMERATED and did not GATE. That is worth knowing
+every run, and it is not worth waiting for.
+
+---
 
 ---
 
