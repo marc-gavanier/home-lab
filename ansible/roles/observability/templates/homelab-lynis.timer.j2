@@ -6,17 +6,29 @@ Description=Weekly lynis security audit
 # Weekly (not monthly): Uptime Kuma caps the push heartbeat interval at 24 days,
 # so a monthly cadence would flag DOWN between runs. Weekly fits comfortably
 # (Kuma interval ~8 days) and gives a finer dead-man's signal.
-# Tuesday 00:30, moved 2026-09-13 from a bare `weekly` (= Monday 00:00). The
-# operator ingests media at the weekend, and the weekly block was regrouped
-# ahead of the nightly backup for that reason; this joins it for coherence
-# rather than out of necessity — lynis takes no restic lock and could not
-# starve anything. Max measured 353 s, so it clears well before the local
-# maintenance at 01:00.
-OnCalendar=Tue *-*-* 00:30
+# Tuesday 08:00, moved 2026-09-22 from 00:30 — which had itself moved
+# 2026-09-13 from a bare `weekly` (= Monday 00:00) to join the weekly block
+# sitting ahead of the nightly backup. That placement was coherent but wrong
+# for what this audit measures: at 00:30 it ran five and a half hours BEFORE
+# apt-daily-upgrade's window, so it sampled the host at its least-patched
+# moment of the day. On 2026-09-22 it reported PKGS-7392 for four security
+# updates published the previous afternoon and installed at 06:04 the same
+# morning — a red monitor for the whole week with unattended-upgrades working
+# exactly as designed. An audit that runs before the patch window measures the
+# window, not the posture.
+#
+# 08:00 clears both morning neighbours: apt-daily-upgrade is OnCalendar 06:00
+# with 60m of jitter and was measured at 25 min, so its worst case ends near
+# 07:30, and homelab-disk lands around 07:07. Lynis leaves the weekly block it
+# joined on 09-13; it takes no restic lock, so nothing there depended on it.
+OnCalendar=Tue *-*-* 08:00
 Persistent=true
-# 15m, not 1h. An hour of jitter from 00:30 reaches 01:30, which is inside the
-# local maintenance window; the point of a fixed block is defeated by a delay
-# wider than the gaps between its members.
+# 15m, kept from the 00:30 placement but for a new reason. The old one — an
+# hour of jitter would reach the 01:00 local maintenance — no longer applies:
+# nothing is scheduled between homelab-disk at 07:07 and homelab-posture at
+# 11:07, so an hour would be harmless here. It stays narrow because the
+# constraint that matters now is the lower bound, not the upper: the run must
+# not drift back toward the apt window it was moved away from.
 RandomizedDelaySec=15m
 
 [Install]

@@ -95,6 +95,32 @@ This is the same operating caveat as the check-mode count in the Consequences
 below, arriving from the other tool: a number that cannot reach zero has to be
 read rather than zeroed.
 
+**`PKGS-7392` — "Found one or more vulnerable packages". Real every time, and
+it was still measuring the wrong thing. Recorded 2026-09-22.** The audit ran at
+00:30 that morning and reported four pending security updates
+(`libexpat1`, `libexpat1-dev`, `libxml2`, `rsyslog`), taking the index from 73
+to 68. Nothing was broken: the updates had been published the previous
+afternoon, and `apt-daily-upgrade` installs on a 06:00 timer with 60 min of
+jitter. The audit simply ran five and a half hours ahead of the patch window,
+so it sampled the host at its least-patched moment of the day — any security
+update published between Monday morning and Tuesday 00:30 reddened the monitor
+for the week with unattended-upgrades working exactly as designed.
+
+ADR-013 had already named this shape and solved it for the other instrument:
+the Pi health monitor age-gates its pending-update count to 48 h precisely "so
+the daily u-u cycle doesn't flash it red". That reasoning was never carried
+across to this one. The fix here is the cheaper of the two — the timer moved to
+**Tuesday 08:00**, clear of `apt-daily-upgrade`'s worst case (~07:30) and of
+`homelab-disk` at 07:07 — because a weekly audit has no reason to run before
+the daily patch window, and moving it needs no threshold to tune.
+
+What this warning does NOT excuse: the same run's four packages were still
+pending at 14:45 that day, and that part *was* a defect — needrestart had
+truncated the 06:04 upgrade. The timing artifact and the truncation arrived
+together and were, at first, mistaken for one thing. They are separate: the
+artifact explains why the monitor turned red at 00:30, the truncation explains
+why it would have stayed red all week. See ADR-013.
+
 **`TIME-3185` was the other one, and it WAS fixed** — see
 `roles/security/tasks/hardening.yml`. It is recorded here because the shape is
 worth telling apart: lynis warns above 2048 s of clock-file age and systemd's
