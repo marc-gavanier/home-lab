@@ -35,6 +35,7 @@
       $nrconf{restart} = 'a';
       $nrconf{override_rc} = {
           qr(^docker\.service$) => 0,
+          qr(^unattended-upgrades\.service$) => 0,
       };
     mode: "0644"
 
