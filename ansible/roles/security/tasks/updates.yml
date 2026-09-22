@@ -21,6 +21,12 @@
 # docker.service is blacklisted: auto-restarting it would bounce all ~19
 # containers (colliding with staged startup, ADR-007). Container userspace is
 # Renovate's lane; a host docker lib bump waits for the next deliberate reboot.
+# unattended-upgrades.service is blacklisted since 2026-09-22: that morning the
+# sweep that followed the glib upgrade stopped it mid-transaction and SIGTERMed
+# the very run performing the upgrade, so four of the eight packages were never
+# attempted. This entry only removes it from needrestart's restart list — it
+# does NOT protect it when dbus itself is restarted, which kills the bus
+# clients outright. ADR-013 carries the measurement and the residual exposure.
 - name: updates | Ensure the needrestart drop-in directory exists
   ansible.builtin.file:
     path: /etc/needrestart/conf.d

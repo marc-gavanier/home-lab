@@ -94,6 +94,48 @@ deliberate reboot posture.
    > an operator watching. It cannot happen unattended at 06:00. That is the
    > property worth protecting, and it is now in the verification list below
    > rather than being inferred from the needrestart config.
+
+   > **Amended 2026-09-22 — a second exclusion, and the limit of both.**
+   > `unattended-upgrades.service` now sits beside `docker.service` in
+   > `override_rc`, because the sweep killed the upgrade that invoked it.
+   >
+   > Measured that morning: the run started at 06:04:09 on eight packages; the
+   > four glib packages landed by 06:04:16; at 06:04:28 needrestart restarted
+   > the daemons mapping the new glib and stopped
+   > `unattended-upgrades.service` among them; the run driving the transaction
+   > took its own SIGTERM one second later, spun on "SIGTERM received, will
+   > stop" for twenty-five minutes and exited 1 at 06:29:32. `libexpat1`,
+   > `libexpat1-dev`, `libxml2` and `rsyslog` were never attempted. No hold and
+   > no pin were involved — a simulated `apt-get upgrade` installed all four.
+   > So any security update touching glib or a library of that class truncates
+   > itself and abandons whatever sorts after it.
+   >
+   > The exclusion was verified the same day: in the 15:04 sweep the service no
+   > longer appears in needrestart's restart list.
+   >
+   > **It does not close the whole exposure, and the residue is worth naming.**
+   > When dbus itself is among the patched libraries, needrestart takes a
+   > different path — `restart-dbus.service`, which runs
+   > `loginctl terminate-session <ids> ; systemctl restart dbus.service ;
+   > daemon-reexec ; systemctl restart <the logind family>`. At 15:04:49 both
+   > `unattended-upgrades.service` and `networkd-dispatcher.service` exited
+   > `status=1/FAILURE` in that same second, and needrestart restarted neither:
+   > they are not on its list, they simply lost their bus. `override_rc` cannot
+   > help, because nothing is restarting them — they are killed sideways. Both
+   > were left `failed` until an operator cleared them; the Kuma "Pi health"
+   > monitor caught the second within seven minutes via
+   > `systemd-no-failed-units`.
+   >
+   > **Not established:** whether that path would truncate an in-flight
+   > unattended-upgrades run the way the 06:04 sweep did. On 15:04 there was no
+   > such run — the upgrade was manual. The mechanism is plausible, since the
+   > blocker's stop is what signals a running upgrade, but it has not been
+   > observed and should not be written down as if it had.
+   >
+   > **Operational consequence, independent of all the above:** a manual
+   > `apt upgrade` over SSH terminates the operator's own session as soon as
+   > dbus is in scope. It is neither a reboot nor a tunnel failure — check
+   > `uptime` before concluding, and `systemctl --failed` afterwards.
 3. **Bounded-latency reboot policy** for the irreducible kernel/core-lib residue,
    tiered by *reachability*, not raw CVSS:
    - **Routine** kernel/core-lib bump (no active exploitation, or an LPE with no
@@ -150,6 +192,10 @@ deliberate reboot posture.
 
   If that line ever disappears, a stack-wide restart becomes possible at 06:00
   with nobody watching.
+- After any upgrade that touched dbus, `systemctl --failed` must be empty. The
+  dbus restart path kills bus clients without restarting them (2026-09-22:
+  `unattended-upgrades` and `networkd-dispatcher`), and a failed unit is the
+  only trace left.
 - `apt-config dump Unattended-Upgrade::Automatic-Reboot` → `false` on homelab,
   `true` on offsite.
 - Simulate a held update → Kuma "Pi health" goes DOWN after the 48 h threshold.
