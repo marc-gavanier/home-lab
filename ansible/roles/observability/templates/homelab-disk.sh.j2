@@ -344,7 +344,11 @@ ext4_bad=""
 # containers". Counting what was actually visited is the whole fix, and putting
 # the count in the message makes the locked case visible instead of silent.
 ext4_seen=0
+ext4_devs=""
 while read -r src tgt; do
+    src="${src%%\[*}"
+    case " $ext4_devs " in *" $src "*) continue ;; esac
+    ext4_devs="$ext4_devs $src"
     ext4_seen=$((ext4_seen + 1))
     hdr=$(dumpe2fs -h "$src" 2>/dev/null) || { ext4_bad="$ext4_bad $tgt(unreadable)"; continue; }
     state=$(awk -F: '/^Filesystem state/ { gsub(/^ +| +$/, "", $2); print $2 }' <<<"$hdr")
