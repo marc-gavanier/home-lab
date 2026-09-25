@@ -2033,6 +2033,7 @@ services:
     image: netdata/netdata:v2.11.1
     container_name: netdata
     restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    stop_grace_period: 90s
     # Netdata's plugins are **setuid root** (4755: apps.plugin, cgroup-network,
     # go.d.plugin, network-viewer…), which is why no-new-privileges is absent
     # below. A setuid binary still only gets the container's bounding set, so
@@ -2430,8 +2431,9 @@ services:
       # 120 s came from a warm measurement of the s6 init (~90 s). On a cold
       # boot with the disk saturated it is not close: started 00:14:04, first
       # served by 00:21:53 on 2026-08-27 — 7 min 49 s. It went unhealthy on
-      # that boot, and on the one before it.
-      start_period: 600s
+      # that boot, and on the one before it. 600 s then went unhealthy on the
+      # cold boot of 2026-09-24, healthy only ~800-830 s after start.
+      start_period: 900s
       start_interval: 15s
     labels:
       - "traefik.enable=true"

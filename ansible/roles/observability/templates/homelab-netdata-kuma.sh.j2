@@ -165,11 +165,15 @@ done
 # that, and the asymmetry justifies it — this branch only DEFERS the dead-man's
 # switch, never disarms it, so being late costs detection latency on a health
 # engine that is genuinely dead, while being early costs a false alarm every
-# time netdata restarts. The `unreachable` path, which is the real dead-man's
-# switch, is not touched by this value.
+# time netdata restarts. Since 2026-09-25 it also covers the `unreachable` path,
+# but only for a container docker reports as running: on the
+# cold boot of 2026-09-24 netdata took 301 s to answer at all, and the retry
+# above gives up after at most 150 s.
 STARTUP_GRACE=1200
 netdata_uptime=-1
-netdata_started="$(docker inspect "$CONTAINER" 2>/dev/null | jq -r '.[0].State.StartedAt // empty' 2>/dev/null)"
+netdata_state="$(docker inspect "$CONTAINER" 2>/dev/null |
+    jq -r '.[0] | "\(.State.Running) \(.State.StartedAt)"' 2>/dev/null)"
+read -r netdata_running netdata_started <<< "${netdata_state:-false }"
 if [ -n "$netdata_started" ]; then
     epoch="$(date -d "$netdata_started" +%s 2>/dev/null || true)"
     [ -n "$epoch" ] && netdata_uptime=$(( $(date +%s) - epoch ))
@@ -178,11 +182,13 @@ fi
 # Three outcomes where there used to be one, because they call for three
 # different actions and the old single message named none of them:
 #
-#   unreachable   netdata is not answering at all. Already correct before this
-#                 change and kept verbatim — on 2026-08-30 at 01:05 the three
-#                 attempts were three `docker exec` refusals against a stopped
-#                 container, and the DOWN they produced was the dead-man's
-#                 switch working, not a false alarm.
+#   unreachable   netdata is not answering at all. DOWN when the container is
+#                 stopped, absent or older than STARTUP_GRACE —
+#                 on 2026-08-30 at 01:05 the attempts were `docker exec`
+#                 refusals against a stopped container, and the DOWN they
+#                 produced was the dead-man's switch working. UP only while a
+#                 running container is younger than STARTUP_GRACE, so a hung
+#                 netdata is reported at most STARTUP_GRACE late.
 #   no-verdict,   the startup window above. Reported UP, because "netdata came
 #   young        back 40 seconds ago" is not a fault and waking someone for it
 #                 is how a monitor teaches its operator to ignore it. The beat
@@ -196,8 +202,14 @@ UNAVAILABLE_MSG=""
 case "$API_STATE" in
     ok) ;;
     unreachable)
-        UNAVAILABLE_STATUS=down
-        UNAVAILABLE_MSG="netdata unreachable" ;;
+        if [ "$netdata_running" = true ] &&
+           [ "$netdata_uptime" -ge 0 ] && [ "$netdata_uptime" -lt "$STARTUP_GRACE" ]; then
+            UNAVAILABLE_STATUS=up
+            UNAVAILABLE_MSG="netdata started ${netdata_uptime}s ago and is not answering yet"
+        else
+            UNAVAILABLE_STATUS=down
+            UNAVAILABLE_MSG="netdata unreachable"
+        fi ;;
     *)
         if [ "$netdata_uptime" -ge 0 ] && [ "$netdata_uptime" -lt "$STARTUP_GRACE" ]; then
             UNAVAILABLE_STATUS=up

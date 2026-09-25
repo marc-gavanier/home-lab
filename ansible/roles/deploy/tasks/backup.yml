@@ -154,9 +154,11 @@
       # rides on it — so it should wait through a surprise and then give up
       # loudly rather than sit on the lock until morning.
       #
-      # The boot catch-up is the case that actually needs it: Persistent=true
-      # on five timers means a Pi that was off on a Tuesday fires all of them
-      # at once, maintenance and backup included.
+      # The boot catch-up does NOT need it, contrary to what this said until
+      # 2026-09-25: Persistent=true fires a missed run at boot, before the
+      # volume is unlocked, and Requires=mnt-data.mount fails it once the
+      # device job times out (90 s, measured 2026-09-01). A missed night is
+      # never caught up; the backup freshness monitor is what reports it.
       ExecStart=/usr/local/bin/resticprofile --lock-wait 30m -c /opt/homelab/resticprofile.yaml -n homelab backup
       ExecStart=/usr/local/bin/resticprofile --lock-wait 30m -c /opt/homelab/resticprofile.yaml -n homelab copy
       EnvironmentFile=/opt/homelab/backup.env
@@ -214,8 +216,8 @@
       #
       # --lock-wait, because the profile lock is SHARED with the nightly backup.
       # It is kept after the 2026-09-13 reschedule even though this unit now
-      # runs BEFORE the backup rather than after it: the boot catch-up still
-      # puts the two in the same instant, and the maintenance has no deadline,
+      # runs BEFORE the backup rather than after it: a run delayed into the
+      # backup's window still meets it, and the maintenance has no deadline,
       # so waiting is free.
       #
       # Why the order was inverted. This used to fire at Sunday 05:00, two

@@ -156,9 +156,12 @@
 
       clear_gate
 
-      # Arm the USB tamper response (ADR-008) as soon as the volume key is in
-      # RAM — that key is exactly what the tamper poweroff protects. Guarded:
-      # the arm command ships with the usb-tamper role, deployed after storage.
+      # Arm the USB tamper response (ADR-008) once the volume is checked and
+      # mounted — NOT as soon as the key is in RAM. The key is in RAM for the
+      # whole e2fsck above, which takes minutes on the monthly run, and a
+      # poweroff there would interrupt a repair on a disk that is itself on
+      # USB. Guarded: the arm command ships with the usb-tamper role, deployed
+      # after storage.
       if [ -x /usr/local/bin/homelab-tamper-arm ]; then
         /usr/local/bin/homelab-tamper-arm
       fi
@@ -168,7 +171,7 @@
       # (~5-8 min); don't hold the operator's shell hostage for that.
       systemctl start --no-block homelab-services.target
 
-      echo "Done. DNS returns in ~1-3 min, full stack in ~8 min."
+      echo "Done. DNS returns in ~2-3 min; the heaviest services answer ~20 min after a cold boot."
       echo "Follow progress with: journalctl -t homelab-startup -b -f"
 
 - name: unlock | Install lock script
