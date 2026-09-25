@@ -16,6 +16,9 @@
 - name: Install the mnt-data.mount unit (no fstab/crypttab)
   ansible.builtin.import_tasks: mount.yml
 
+- name: Keep the persistent journal on the encrypted volume
+  ansible.builtin.import_tasks: journal.yml
+
 - name: Install the homelab-unlock / homelab-lock scripts
   ansible.builtin.import_tasks: unlock.yml
 

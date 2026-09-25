@@ -1,7 +1,9 @@
 ---
 - name: Reboot required
-  ansible.builtin.debug:
-    msg: "A reboot is required to apply changes. Reboot manually or re-run with --tags reboot."
+  ansible.builtin.file:
+    path: /var/run/reboot-required
+    state: touch
+    mode: "0644"
 
 - name: Restart systemd-resolved
   ansible.builtin.service:

@@ -26,7 +26,7 @@
 # HOW IT AVOIDS THE BOOT PATH, which is the part that has to be right. The
 # volume is unlocked by hand, so nothing in the boot path may wait for it.
 # `Storage=auto` means journald writes persistently ONLY if /var/log/journal
-# exists — and on this host it does not: it is created by the mount unit below
+# exists — and on this host it does not: it is created by the mount unit in storage/tasks/journal.yml
 # when the volume appears. Before the unlock the journal is in RAM; after it,
 # the directory exists and `journalctl --flush` moves the buffer in. Nothing in
 # sysinit.target waits for anything, and `systemd-journal-flush.service` is left
@@ -90,76 +90,6 @@
       SystemMaxFileSize=50M
       RuntimeMaxUse=300M
   notify: Restart systemd-journald
-
-# The mount is NOT listed in mnt-data.mount.wants itself: the flush service
-# below requires it, so it is pulled in with the right ordering and there is
-# only one activation link to reason about. systemd creates /var/log/journal
-# for us, as the mount point.
-#
-# What keeps the journal off the card is NOT that the directory is absent —
-# this comment said so until 2026-09-20 and it was false. The directory exists
-# on the SD card and is created before the volume is unlocked (measured on the
-# 2026-09-20 boot: inode created 15:38, volume mounted 15:46, directory empty).
-# What holds journald volatile until the mount appears is upstream's own
-# `RequiresMountsFor=/var/log/journal` in systemd-journal-flush.service, which
-# resolves to this mount unit. Nothing in this repository declares that line,
-# so an upstream change to it would move the journal back onto the card in
-# silence — which is what `journal-store-is-on-the-encrypted-volume` in the
-# posture spec is there to catch.
-- name: logging | Journal store on the encrypted volume (mount unit)
-  ansible.builtin.copy:
-    dest: /etc/systemd/system/var-log-journal.mount
-    mode: "0644"
-    content: |
-      # Ansible managed — rendered from the home-lab repo, edits on the host will be overwritten
-      [Unit]
-      Description=Journal store on the encrypted volume
-      Requires=mnt-data.mount
-      After=mnt-data.mount
-
-      [Mount]
-      What=/mnt/data/log/journal
-      Where=/var/log/journal
-      Type=none
-      Options=bind
-  notify: Reload systemd units
-
-- name: logging | Flush the RAM journal onto the encrypted volume once it is mounted
-  ansible.builtin.copy:
-    dest: /etc/systemd/system/homelab-journal-persist.service
-    mode: "0644"
-    content: |
-      # Ansible managed — rendered from the home-lab repo, edits on the host will be overwritten
-      [Unit]
-      Description=Move the volatile journal onto the encrypted volume
-      Requires=var-log-journal.mount
-      After=var-log-journal.mount
-      ConditionPathIsMountPoint=/var/log/journal
-
-      [Service]
-      Type=oneshot
-      RemainAfterExit=yes
-      ExecStart=/usr/bin/journalctl --flush
-  notify: Reload systemd units
-
-- name: logging | Ensure the journal directory exists on the encrypted volume
-  ansible.builtin.file:
-    path: /mnt/data/log/journal
-    state: directory
-    owner: root
-    group: systemd-journal
-    mode: "2755"
-
-# Same pattern, same guard and same reason as the three units already wired this
-# way (ddns, vault-mount, wg-quick@wg0): the volume's own mount is what starts
-# it. Do NOT `enabled: false` this to "clean up" — that wipes the link, which is
-# the only activation path.
-#
-# noqa command-instead-of-module: the systemd module cannot manage add-wants links.
-- name: logging | Persist the journal whenever the encrypted volume mounts  # noqa: command-instead-of-module
-  ansible.builtin.command: systemctl add-wants mnt-data.mount homelab-journal-persist.service
-  args:
-    creates: /etc/systemd/system/mnt-data.mount.wants/homelab-journal-persist.service
 
 # /tmp defaults to the SD card. A tmpfs /tmp removes that write surface
 # entirely (RAM is plentiful on both hosts) and satisfies CIS's /tmp

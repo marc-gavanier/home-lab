@@ -106,6 +106,11 @@
 # `systemctl stop` on a TIMER does not touch a service already running; a heal
 # that is mid-flight when the deploy starts still finishes. This narrows the
 # window, it does not close it, and saying so is the honest version.
+- name: compose | Check whether the crash-heal timer is installed
+  ansible.builtin.stat:
+    path: /etc/systemd/system/homelab-stack-heal.timer
+  register: compose_heal_timer
+
 - name: compose | Deploy services, with crash-heal suspended
   block:
     - name: compose | Suspend crash-heal for the recreate
@@ -113,6 +118,7 @@
         name: homelab-stack-heal.timer
         state: stopped
       changed_when: false
+      when: compose_heal_timer.stat.exists
 
     - name: compose | Deploy services
       community.docker.docker_compose_v2:
@@ -126,6 +132,7 @@
         name: homelab-stack-heal.timer
         state: started
       changed_when: false
+      when: compose_heal_timer.stat.exists
 
 - name: compose | Show deployment actions
   ansible.builtin.debug:

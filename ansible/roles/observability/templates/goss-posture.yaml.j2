@@ -1438,6 +1438,10 @@ command:
         echo "recording its run, or the status file shape moved"
         exit 1
       fi
+      if [ "$(jq -r '.profiles.homelab.check.success' "$sf")" = false ]; then
+        echo "the check of $t FAILED: $(jq -r '.profiles.homelab.check.error // "no error recorded"' "$sf")"
+        exit 1
+      fi
       day=$(date -d "$t" +%-d 2>/dev/null) || { echo "cannot parse check time '$t'"; exit 2; }
       secs=${d%%.*}
       case "$secs" in ''|*[!0-9]*) echo "duration '$d' is not a number"; exit 2 ;; esac

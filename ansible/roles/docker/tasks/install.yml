@@ -21,15 +21,11 @@
     repo: "deb [arch=arm64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
     state: present
 
-- name: install | Install Docker Engine
-  ansible.builtin.apt:
-    name:
-      - docker-ce
-      - docker-ce-cli
-      - containerd.io
-      - docker-compose-plugin
-    state: present
-    update_cache: true
+- name: install | Create the Docker configuration directory
+  ansible.builtin.file:
+    path: /etc/docker
+    state: directory
+    mode: "0755"
 
 # `shutdown-timeout` is the whole of #288, and it is a DAEMON-WIDE budget rather
 # than a per-container one — which is what the audit's first diagnosis got wrong.
@@ -113,6 +109,16 @@
       }
     mode: "0644"
   notify: Restart Docker
+
+- name: install | Install Docker Engine
+  ansible.builtin.apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-compose-plugin
+    state: present
+    update_cache: true
 
 # Also ensured by unlock-integration.yml, deliberately duplicated so neither file
 # depends on the other's import order.
