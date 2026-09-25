@@ -169,7 +169,8 @@ carries. `notify()` now forces `-G` and strips the suffix.
 A monitor that has never received a real beat is the same failure one step earlier: a single
 `OK` at creation time (the operator's test `curl`) then nothing. Check before trusting it —
 `SELECT datetime(time), status, msg FROM heartbeat WHERE monitor_id=<id> ORDER BY time DESC`
-against a read-only copy of `kuma.db`, per [uptime-kuma.md](../../docs/05-services/uptime-kuma.md).
+against the live `kuma.db` opened with `mode=ro`, as `ops/kuma-dump.sh` opens it — never a copy,
+which misses the write-ahead log and drops the newest beats ([uptime-kuma.md](../../docs/05-services/uptime-kuma.md)).
 
 ## Draining a backlog
 

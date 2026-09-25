@@ -147,6 +147,10 @@ deliberate reboot posture.
    on `/var/run/reboot-required`; it now also reports the pending-security-update
    count (via `apt-check`), age-gated to alarm only after 48 h so the daily u-u
    cycle doesn't flash it red. A held/failed/stuck update can no longer hide.
+   > **Amended by the monitor split.** Both conditions now wait on a person, so
+   > `homelab-health.sh` pushes them to the **`Pi pending action`** monitor, not
+   > `Pi health` (which stays UP on a pending reboot — measured 2026-09-24). They
+   > fold back into `Pi health` only when the pending push URL is not configured.
 5. **Containers** (the bulk of the exposed surface) — Renovate weekly PRs +
    manual merge, plus `osvVulnerabilityAlerts` so an OSV-flagged CVE raises a PR
    off-schedule instead of waiting up to 7 days for the Saturday batch.
@@ -198,7 +202,7 @@ deliberate reboot posture.
   only trace left.
 - `apt-config dump Unattended-Upgrade::Automatic-Reboot` → `false` on homelab,
   `true` on offsite.
-- Simulate a held update → Kuma "Pi health" goes DOWN after the 48 h threshold.
+- Simulate a held update → Kuma "Pi pending action" goes DOWN after the 48 h threshold.
 
 See also: ADR-011 (secrets off SD / LUKS-unlock), ADR-010 (offsite backup),
 ADR-007 (staged startup); [boot & unlock runbook](../runbooks/boot-and-unlock.md);

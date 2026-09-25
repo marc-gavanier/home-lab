@@ -72,11 +72,11 @@ All services run as Docker containers, orchestrated by Docker Compose. Persisten
 
 Every figure above is an estimate except nine, all measured at idle: Collabora's
 573 MB (ADR-021), which grows with the number of documents open at once; Dozzle's
-30 MB (ADR-023), which does not — it holds no logs, it streams them; IT-Tools'
+30 MB (measured 2026-08-04), which does not — it holds no logs, it streams them; IT-Tools'
 4 MB (ADR-024), which is nginx serving static files and nothing else;
-Calibre-Web's 353 MB (ADR-025); and Miniflux's 77 MB (ADR-026), of which the Go
+Calibre-Web's 353 MB (ADR-025); and Miniflux's 77 MB (measured 2026-08-13), of which the Go
 binary is only **14 MB** — the Postgres beside it costs four times the reader;
-and Forgejo's **101 MB** (ADR-028), below the 120-160 MB the shortlist budgeted,
+and Forgejo's **101 MB** (measured 2026-08-15), below the 120-160 MB the shortlist budgeted,
 for a forge holding a full mirror in 6.9 MB of disk. And the three `arr`
 figures, measured 2026-09-19 as cgroup `anon` plus `memory.swap.current` — the
 page cache each one also holds (82-96 MB apiece) is reclaimable and is

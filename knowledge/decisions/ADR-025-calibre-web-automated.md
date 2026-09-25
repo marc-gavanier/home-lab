@@ -124,7 +124,9 @@ unauthenticated HTTP probe, because the login page is served by a process that i
 fine while the library handling is not.
 
 The compose healthcheck therefore probes `/login` explicitly rather than
-inheriting the image's, with a **600 s** `start_period`. The 120 s this ADR carried
+inheriting the image's, with a **900 s** `start_period` since 2026-09-25: the
+600 s it replaced went `unhealthy` on the cold boot of 2026-09-24, which took
+~800-830 s to healthy against 469 s on the first cold measurement. The 120 s this ADR carried
 until 2026-08-29 came from a *warm* measurement of the s6 init (~90 s), which is not
 what a cold boot costs; the service page was corrected first and this ADR was missed,
 which is #203's pattern running in the opposite direction. Treat (ADR, service page)

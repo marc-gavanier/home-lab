@@ -56,8 +56,9 @@ them as evidence:
   after first start, the way ADR-025 did it.
 - **`read_only` is not set, and was not attempted.** calibre-web documents an
   image that genuinely cannot run read-only; for these three the honest state is
-  "unknown". Same for the 300 s `start_period`, which is a guess until a cold
-  boot says otherwise.
+  "unknown". The `start_period` began as a 300 s guess; it is 600 s since
+  c964bba (a warm first start took 246-262 s), and the cold boot of 2026-09-24
+  had sonarr, radarr and prowlarr healthy within ≤383, ≤450 and ≤440 s.
 
 The version pins are measured: 2.5.2, 4.0.19 and 6.3.0 were each confirmed to
 publish a `linux/arm64` manifest before being written here. Radarr's stable tag

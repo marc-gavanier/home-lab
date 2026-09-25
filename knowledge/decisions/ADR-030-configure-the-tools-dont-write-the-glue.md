@@ -187,6 +187,12 @@ Consequence: the 57 stock alarms keep reaching nobody, exactly as
 `docs/07-observability/README.md` decided — but now *by construction* rather than
 because a field was left blank. Nothing about the existing Kuma path changes.
 
+> **Amended 2026-08-23 (6fabf33).** The `homelab` role was never kept: curated
+> alarms are written `to: silent` like the stock ones, and a host-side adapter
+> (`homelab-netdata-kuma.sh`) pushes each into its own Uptime Kuma monitor, so
+> Netdata notifies nobody and Kuma is the only channel. See
+> `docs/07-observability/README.md`, "Since ADR-030 there is a third option".
+
 ### The migration rule — this is the part that guarantees no do-and-undo
 
 > **One check at a time. The bash line is deleted only after its replacement has
@@ -356,6 +362,8 @@ the spike for the biggest one**, which is why it deletes nothing.
   to read it. It is preserved: the stock alarms still reach nobody. What changes
   is that curated signals stop being written in bash and start being declared as
   alarms on a role that the stock set does not address.
+  (Amended: they are declared `to: silent` and read by the Kuma adapter — see
+  the routing design.)
 - **Build an open-source tool for this.** Considered and **rejected on
   evidence**. The gap that would have justified it — a declarative engine for
   curated host assertions with routing — is already filled by what is installed:

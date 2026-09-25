@@ -24,6 +24,59 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-09-25 (THIRTEENTH run) — key `initiality`, one PR, deployed from the branch before merge
+
+- **The journal-on-volume block moved from `base/tasks/logging.yml` to
+  `storage/tasks/journal.yml`.** `base` runs on the offsite, which has no
+  `mnt-data.mount`, so `add-wants` failed there on every run since `e273399`.
+- **`deploy` stats `homelab-stack-heal.timer` before suspending it**, and
+  **`daemon.json` is written before `docker-ce` is installed** — both only
+  mattered on a fresh provision.
+- **The `Reboot required` handler touches `/var/run/reboot-required`** instead
+  of printing a debug line, so the `pending` monitor asks for the reboot boot
+  settings need.
+- **netdata→Kuma adapter: a running netdata younger than `STARTUP_GRACE` that
+  does not answer at all is reported UP.** Stopped or absent stays DOWN.
+  `RestartCount` is useless as a crash-loop guard here: netdata runs with
+  `restart: "no"` and the heal timer's `docker start` does not increment it.
+- **netdata `stop_grace_period: 90s`.** The general extension stays DECLINED;
+  this is the per-container, measured-loss exception, like transmission's.
+- **calibre-web `start_period: 900s`** (cold boot 2026-09-24: ~800-830 s).
+- **The deep-check posture assertion reads `.success` first.**
+- **Comments corrected**: the unlock script's arming comment and timing message,
+  ADR-008's arming sentence, and the two `backup.yml` comments that described a
+  boot catch-up.
+
+## Decisions taken on 2026-09-25 (thirteenth run) — do not re-propose
+
+- **The USB tamper response stays armed AFTER the integrity check and the
+  mount, not at `cryptsetup open`.** The key sits unprotected in RAM for the
+  length of `e2fsck` — under a second normally, minutes on the monthly forced
+  check. Arming earlier would let a touched cable power off the Pi in the middle
+  of a repair on a disk that is itself on USB. The window is accepted and
+  documented in ADR-008.
+- **`homelab-health`'s 240 s unit gate is NOT raised for `claude-remote-control`'s
+  cold-boot wait** (551 s on 2026-09-24, 228 s on 09-20). 0 of 2 reports were
+  delivered, and the gate is shared by every unit. Re-raise only with a
+  delivered false red.
+- **`/var/lock/offsite-copy.lock` is left in place.** It is a `flock` target
+  that a runbook still uses by hand; a flock is released on process exit
+  whatever the file's persistence. Inert by construction.
+
+## Instrument traps paid on 2026-09-25 (thirteenth run)
+
+1. **Pi-hole's FTL database has no rows for the queries answered while it
+   reloads its history at start** — 292-311 s on a cold boot, 70-130 s warm,
+   93 queries missing on 2026-09-24. Read a boot timeline from `pihole.log`.
+2. **The journal's wall clock is ~73-100 s off before NTP on every boot.** Boot
+   timelines are read in monotonic time or after the first sync.
+3. **Two instruments, one fact.** A first verdict dated from netdata's own data
+   (779 s) and from the adapter's log (<= 986 s) are a value and an upper
+   bound; the adapter logs nothing on the steady path.
+4. **`pkill -f` on the host matches the agent's own SSH command line.** It
+   killed its own session. Stop a runaway remote command with the local
+   timeout, never with a pattern kill on the host.
+
 ## Shipped on 2026-09-21 (TWELFTH run) — key `durability`, one PR, deployed from the branch before merge
 
 Six live corrections and nine documentary ones. The key asked one question of

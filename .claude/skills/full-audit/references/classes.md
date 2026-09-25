@@ -524,7 +524,39 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
-## OPEN — 3 (after the TWELFTH run of 2026-09-21, key `durability`)
+## OPEN — 2 (after the THIRTEENTH run of 2026-09-25, key `initiality`)
+
+| ID | Property | What bounds the space, and what stopped the sweep |
+|---|---|---|
+| C122 | **A play whose task N consumes an artefact that only a LATER task M > N of the same play produces** — so the play converges only on a host where M already ran once, and a fresh host (or a host that never runs M) fails at N | **MINTED 2026-09-25 (thirteenth run), key `initiality`.** Space: every reference from a task to a unit, file or path that another task of the SAME playbook installs, ordered by play order. Swept: the systemd-module subset, **55 unit targets, 2 defective** — `add-wants mnt-data.mount` in `base` before `storage` installs the unit (and `offsite.yml` never installs it at all, so the offsite play has failed at `base` since `e273399`, 2026-09-20), and `homelab-stack-heal.timer` stopped by `deploy` before `stack-startup` installs it. Plus one out-of-subset instance found by the same reading: `docker-ce`'s postinst starts dockerd before `daemon.json` exists, so a first provision pulls the image set onto the SD card. **All three fixed 2026-09-25.** **What stops closure: the path/template subset (files and templates one role reads and another writes) is NOT swept.** No gate: nothing runs a play against a fresh host |
+| C01 | **A documentary statement whose content contradicts the deployed artefact** | **ONE MORE STRATUM CLOSED, the class is not.** Added 2026-09-25: **the `initiality` slice of `docs/`+`knowledge/` 75/75** — every statement about boot, reboot, first deploy or first run, confronted with three cold boots (09-11, 09-20, 09-24) in monotonic time: 58 clean, 6 partial, 11 contradicted, 5 not checkable; all 17 wrong ones corrected the same day. Previously: `ansible/` 176/176, `docker/` 10/10, `ops/` 156/156, `usb-tamper`/`killswitch` 121/121, instruction files 123/123, the RENDERED stratum 53/53, the `durability` slice 24/24. What remains is the rest of the documentary prose |
+
+**C121 LEFT this table, ENUMERATED by EVENT, the route its own row named.** Six
+planes: host boot `system` 18/18 (both hosts), container recreation `services`
+43/43 stores over 32 containers, deploy `ansible-deploy` 23/23 witnesses,
+interrupted run `backup` 13/13 leftovers, `security` 6/6, `network` 6/6. Live
+instances left, both inert and recorded rather than fixed: `/var/lock/offsite-copy.lock`
+(a `flock` target, which is released on process exit whatever the file's
+persistence) and `/run/crond.reboot` in five writable layers (0 `@reboot`
+entries read it). The twelfth run's profile-lock move to `/run/lock` was
+verified to hold across the 2026-09-24 boot. Not GATED.
+
+**C34 LEFT this table, ENUMERATED on axis C at 464/464, with a declared
+residual.** The "~48 never opened" residual of the twelfth run could not be
+recovered — no file held its membership, and the 467/333/79/84 counts came from
+no written rule. `project-manager` re-derived the axis from a WRITTEN rule
+(links, bare `.md` names, `ADR-NNN`: 461 rows, plus 3 `ADR-008/009`-style rows
+opened by hand) and opened every row: 302 clean, 140 pointer-only, 11 partial,
+6 misdirected, 5 contradicted; the main session's re-read moved one verdict each
+way. The full list lives in the run's scratchpad report, not in the repo.
+**Residual, declared: citations with no filename and no ADR number** ("the boot
+runbook") have no lexical form a rule can enumerate.
+
+---
+
+## SUPERSEDED — OPEN table of the TWELFTH run of 2026-09-21, key `durability`
+
+### It read: OPEN — 3 (after the TWELFTH run of 2026-09-21, key `durability`)
 
 | ID | Property | What bounds the space, and what stopped the sweep |
 |---|---|---|
@@ -981,6 +1013,116 @@ separate correction — **the marker is not a provenance instrument.**
 C92 and C03-R were closed as review rules once their spaces proved non-derivable.
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
+
+## The run of 2026-09-25 (THIRTEENTH) — the key was `initiality`, and the trace was one day old
+
+The key: **does a mechanism behave on its FIRST cycle after a reset — host boot,
+container recreation, service restart, deploy, empty store, first run of a
+timer — the way it behaves in steady state?** Four forms were put in every
+brief: (a) a detector with no baseline on its first cycle, (b) a delay measured
+on a warm start and applied to a cold one, (c) an initial state produced by the
+deploy or the image that differs from the one the steady state maintains, (d) a
+catch-up that does on the first cycle what the steady state never does. It was
+chosen because the host had rebooted 22 h earlier (kernel 1064 -> 1065), so every
+instance had a fresh trace, and because that boot was the first cold one since
+the twelfth run's unproven `STARTUP_GRACE=1200`.
+
+### The counter: 3 OPEN in, 2 OPEN out, 1 minted, class total 121 -> 122
+
+C121 and C34 left; C122 arrived; C01 stays. The consecutive zero-mint count stays
+at zero. **Seven of eight agents minted nothing and declared their overlaps**;
+`ansible-deploy` wrote C122's property and space, then declined to mint it on a
+partial sweep, and the main session minted it because the three instances fit no
+class on file — every standing class asks about a running system, none about the
+ORDER in which a play builds one.
+
+### The twelfth run's unproven change, now proven — and the path it did not cover
+
+`STARTUP_GRACE=1200` held on the path it was aimed at: on the cold boot, netdata
+(started 20:30:43Z) gave its first verdict at **779 s**, and two adapter runs at
+416 s and 716 s went out UP where 300 s would have sent DOWN. `system` bounded it
+at <= 986 s from the adapter's own log; the two are the same fact seen through
+different instruments, resolved by reading the journal. **But the `unreachable`
+path was outside the grace by design**, and netdata's API itself took ~301 s to
+answer on a cold boot against a retry that spans at most 150 s: monitors 35 and
+37 were red ~2 min 40 s with nothing wrong, on 2 of the last 5 boots. Fixed
+2026-09-25: a running container younger than the grace is reported UP; stopped or
+absent stays DOWN. The container runs with `restart: "no"`, so `RestartCount`
+cannot discriminate a crash loop and was deliberately not used.
+
+### Live defects shipped, ranked by what was happening without anyone knowing
+
+1. **The offsite play has failed at `base` since 2026-09-20** (C122). Measured:
+   `mnt-data.mount` is `not-found` on the offsite; the task has no `when:`. The
+   journal-on-volume block moved from `base` to `storage/tasks/journal.yml`,
+   after `mount.yml`; `storage` never runs on the offsite.
+2. **Every reboot loses ~14 min of netdata metrics.** 26 of 32 containers were
+   force-killed at shutdown; netdata sat on the 10 s default. `system.cpu` is
+   `null` from 20:06 to 20:19Z on 2026-09-24 (the agent said 17.5 min from
+   `system.load`; the main session measured 14 on `system.cpu`). netdata got
+   `stop_grace_period: 90s`. This is a NEW FACT against the declined general
+   extension, not a re-raise of it: a per-container measured loss, the
+   transmission precedent.
+3. **The cold-boot false red on monitors 35/37** — above.
+4. **ADR-008 said protection starts when the key enters RAM; the code arms after
+   the integrity check and the mount.** The window is < 1 s normally and minutes
+   on the monthly forced check, which was due at the next unlock. The ORDER was
+   kept — arming before `e2fsck` would let a touched cable interrupt a repair on
+   a disk that is itself on USB — and the comment and the ADR now say so.
+5. **First-provision defects** (C122): the heal-timer suspend now `stat`s the
+   timer first; `daemon.json` is written before `docker-ce` is installed; the
+   `Reboot required` handler now touches `/var/run/reboot-required`, so the
+   `pending` monitor asks for the reboot a fresh provision needs (C109 member).
+6. **calibre-web `start_period` 600 -> 900 s** (C120 member): healthy ~800-830 s
+   after start on the cold boot, unhealthy ~1 min. Not a broken gate — C120 is
+   ENUMERATED, not GATED; `services` mislabelled it.
+7. **`restic-deep-check-was-observed-not-claimed` ignored `.success`** — a failed
+   check would have been reported as a dropped subset flag. It now reports the
+   recorded error.
+
+### Documentary corrections shipped
+
+17 C01 statements (11 contradicted, 6 partial) and the worth-fixing C34 rows,
+among them: `pihole.md` telling the operator to delete `pihole.toml` (FTLCONF
+values are re-applied at every start); the reboot runbook and ADR-013 naming
+`Pi health` where the pending reboot shows on `Pi pending action`; the
+observability README still at 300 s; the skew alarm "in `pending`" that has only
+reported since 2026-09-12; "full stack in ~8 min" when the heavy tier answers
+~20 min after a cold unlock (also in the unlock script's own message); the two
+template comments describing a boot catch-up that cannot run
+(`Requires=mnt-data.mount` fails it before the unlock).
+
+### Rejected, requalified or corrected — 5
+
+- `services`: calibre-web as a "broken C120 gate" — C120 is not GATED.
+- `project-manager`: the skew alarm "removed on 09-12" — it changed channel
+  (`efaacf8`); the contradiction stands, the wording did not.
+- `services` 17.5 min vs main session 14 min of lost metrics — different charts.
+- `observability` 779 s vs `system` <= 986 s — a value and a bound, not a
+  disagreement.
+- `system`'s health-gate suspicion (240 s against `claude-remote-control`'s
+  551 s cold wait): 0 of 2 deliveries, the author proposed nothing unless it
+  lands, and raising a gate shared by every unit costs detection on all of them.
+  Recorded, not fixed.
+
+### A rule-5 violation, self-declared
+
+`security` ran a `pkill -f` on the homelab to stop an over-wide journal scan; it
+matched and ended only its own SSH session. The main session verified 0 failed
+units and 32/32 containers afterwards. No damage — but the brief forbids process
+control on the hosts and the next brief should say `pkill` by name.
+
+### Clean, and measured
+
+Firewall up 0 s before the network (ufw 102.8 s, link 106.2 s, first container
+277 s); DNS back 153 s after the unlock (142 s on 09-20; 11 s warm); 21 ACME
+certificates re-read, 0 requested; 0 SERVFAIL in the first 15 min; AppArmor
+enforced on netdata from its first start with 0 denials; the backup's first run
+after the boot on schedule with 46/46 dump checks (7 min against 2-3, on 4/4
+first runs after a boot, stored bytes unchanged); 0 container restarts during the
+climb and 0 heal-timer actions; monitor 36 cleared on the first post-boot beat.
+
+---
 
 ## The run of 2026-09-21 (TWELFTH) — the key was `durability`, and it paid in a PREDICATE
 
@@ -7377,7 +7519,7 @@ them; do not re-derive without a new symptom.
 | C31 | A name resolving differently inside and outside | split DNS **21/21** (was recorded 18/18 — corrected 2026-09-19, fifth run, and the deployed dnsmasq confirms 21), single DoH upstream, 2590/2590 queries | 08-29, 09-19 |
 | C32 | A port reachable from outside that should not be | probed from the offsite uplink with a known-open control | 08-19, 08-29 |
 | C33 | A broken relative link or a path that does not exist | **113 links** (was recorded 104 — re-measured 2026-09-19, sixth run), 123 absolute paths; the sixth run also read 108 absolute paths with 25 absent and **0 defects**, all container-internal, offsite-only, conditional or documented-ephemeral | 08-29, 09-19 |
-| C34 | A documentary artefact contradicting the sibling it cites | **LEFT THIS TABLE — it is in the OPEN table, and that row is the one to read, not this one.** This row said `REOPENED 2026-09-20 (ninth run, evening)` while sitting in the ENUMERATED section with the state `OPEN`, and the OPEN table did not carry the class at all — the defect this file recorded about itself on the ninth run, paid a third time, and the mechanism is always the same: two rows for one class. The ninth run reopened it on a rationale in `roles/base/tasks/logging.yml` refuted by `boot-and-unlock.md:70`. The tenth run closed its axis A at 44/44 and left axis C at 33 of 460. | **See the OPEN table** | **UPDATED 2026-09-20 (eleventh run): axis C re-derived BY THE PROPERTY — 467 occurrences, 333 distinct source->referent relations, 79 referents, 84 citing documents. Swept 110/110 links, 69/69 glosses, 269/357 supported claims; ~48 never opened individually, which is what still blocks. The cardinal 460 this file carried was derivable from NO written rule. Read the OPEN table.**
+| C34 | A documentary artefact contradicting the sibling it cites | **ENUMERATED 2026-09-25 (thirteenth run): axis C 464/464 from a written rule, residual declared — read the thirteenth run's section.** Earlier history of this row follows. This row said `REOPENED 2026-09-20 (ninth run, evening)` while sitting in the ENUMERATED section with the state `OPEN`, and the OPEN table did not carry the class at all — the defect this file recorded about itself on the ninth run, paid a third time, and the mechanism is always the same: two rows for one class. The ninth run reopened it on a rationale in `roles/base/tasks/logging.yml` refuted by `boot-and-unlock.md:70`. The tenth run closed its axis A at 44/44 and left axis C at 33 of 460. | **See the OPEN table** | **UPDATED 2026-09-20 (eleventh run): axis C re-derived BY THE PROPERTY — 467 occurrences, 333 distinct source->referent relations, 79 referents, 84 citing documents. Swept 110/110 links, 69/69 glosses, 269/357 supported claims; ~48 never opened individually, which is what still blocks. The cardinal 460 this file carried was derivable from NO written rule. Read the OPEN table.**
 | C35 | A push monitor carrying a constant instead of its script's message | 12, now 15; all at `maxretries=0` | 08-19, 08-29 |
 | C36 | An unsized tmpfs | **41**, not 37, parsed rather than grepped; re-measured 41/41 with 0 unsized (corrected 2026-09-19, fifth run) | 08-21 |
 | C37 | A WAL-mode SQLite copied without its `-wal` | **CLOSED 2026-09-13 night-second by two derivations bounded by the PROPERTY**, after the 08-29 sweep's dump-mechanism bound had reopened it: `backup` 65/65 (7 dump hooks + 13 exclude expressions + 15 operator copies + 28 authoritative reads + 2 delete sites) and `project-manager` 31/31 over the operator procedures in `docs/`+`knowledge/`. **0 defective on either.** The cardinals differ and that is derivation-relative, not a defect. `.backup` WAL completeness proven by an off-host control rather than asserted; `wg-easy.db`/`gravity.db`/`fail2ban.sqlite3` measured as `delete` mode and so not members. Blind spots stated and DIFFERENT: `backup`'s keys on the `.db`/`.sqlite` token (bounded from the filesystem instead, 23 stores at depth 6), `project-manager`'s cannot see a procedure that exists only in the operator's head. **ENUMERATED, not GATED** — nothing derives the (copy site, journal mode) relation | 08-29, 09-13 |
@@ -7436,6 +7578,7 @@ them; do not re-derive without a new symptom.
 | C118 | **A guard that demands a value and a fallback that supplies one, sitting in the same resolution chain — so the guard can never observe the absence it exists to detect, and the fallback propagates into both the configuration and the assertion that would check it** | **MINTED 2026-09-20 (eighth run), key `independence`, shapes (e)+(d). DECLINED by the operator the same day** on the ground that coherence is what matters and a port number is weak security either way; never raise again. Adjacency to C29 was declared by the minting agent rather than hidden. Space: 99 `required: true` options over 11 `meta/argument_specs.yml`; 0 defeated by a role default (no role has `defaults/main.yml`), 69/99 pre-satisfied by a committed inventory file, **5 whose committed fallback is a value no host should run with** — `domain: example.com`, `ssh_port_hardened: 22`, `traefik_acme_email: ''`, `hostname: homelab`, `extra_fsck_filesystems: []`. Joint defeat measured on the guard branch (synthetic role: with the fallback `ok=2 changed=0 failed=0`; delete the fallback only -> `fatal: missing required arguments`) and traced on the other four consumers: `ssh.yml:11`, `firewall.yml:122/134/146`, `fail2ban.yml:180`, `goss-posture.yaml.j2:1569` — which asserts the variable it just rendered. **LATENT, never live**: the deployed spec asserts the vaulted port and the daemon listens on it, not on 22. **The sharpest part is documentary and survives the decline**: `group_vars/all.yml:8-16` argues in four sentences that `homelab_ip` gets no default, citing C29 by name — and line 20 is `ssh_port_hardened: 22` | **DECLINED** |
 | C119 | **A detector whose own act is a member of the set it examines** — so it can read its own trace as data, and its verdict is in part a measurement of itself | **LEFT THIS TABLE — ENUMERATED 2026-09-21 (twelfth run) on its seventh and last plane, `ansible-deploy` 31/31 by (spec, artefact) pairs. Read the twelfth run's section, not this row.** Until 2026-09-21 this row carried the NINTH run's state ("swept 5, the space is NOT bounded") while the OPEN table carried the eleventh's, so an agent reading the row re-derived work already done. |
 | C120 | **A guard whose trip point sits at the wrong distance from the rupture it guards** — either OUTSIDE the range the guarded quantity can occupy, so the guard is decorative while appearing armed, or SHORTER than the work the mechanism explicitly permits itself | **LEFT THIS TABLE — ENUMERATED 2026-09-21 (twelfth run)** on the route this register named, six domains, with the provoked-measurement residual declared rather than swept. Read the twelfth run's section, not this row. |
+| C121 | **A token whose validity ends with an event, kept on a medium that outlives the event, with nothing to expire it** — the mirror of C39 | **ENUMERATED 2026-09-25 (thirteenth run) by EVENT**: boot 18/18, container recreation 43/43, deploy 23/23, interrupted run 13/13, security 6/6, network 6/6. Two inert instances recorded, not fixed. Not GATED |
 
 ## DECLINED
 
