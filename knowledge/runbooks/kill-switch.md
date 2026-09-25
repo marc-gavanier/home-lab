@@ -33,8 +33,10 @@ There is **no remote power-on** by design. Recovery requires physical presence:
 1. Restore power to the Pi (plug it back / flip the smart plug).
 2. Let it boot. Unlock the encrypted data volume (`/mnt/data`) as on any boot —
    LUKS passphrase.
-3. The unlock triggers the staged startup: DNS back in ~1–3 min, full stack in
-   ~8 min. Details in the [boot & unlock runbook](boot-and-unlock.md).
+3. The unlock triggers the staged startup: all waves dispatched in ~8-10 min;
+   DNS back ~2-3 min after the unlock; the heavy tier (Immich, Calibre-Web,
+   Collabora) answers ~20 min after the unlock on a cold boot. Details in the
+   [boot & unlock runbook](boot-and-unlock.md).
 
 ## Verify the service is armed
 

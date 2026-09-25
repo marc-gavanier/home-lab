@@ -109,13 +109,16 @@ else.
 
 ## Health
 
-- Healthcheck: `curl -fsS http://127.0.0.1:8083/login`, with a **600 s**
-  `start_period`. The 120 s this page claimed until 2026-08-29 came from a warm
+- Healthcheck: `curl -fsS http://127.0.0.1:8083/login`, with a **900 s**
+  `start_period` since 2026-09-25 (it was 600 s). The 120 s this page claimed until 2026-08-29 came from a warm
   measurement of the s6 init (~90 s); a cold boot with the disk saturated is not
   close to it. Measured 2026-08-27: started 00:14:04, first served 00:21:53 —
   **7 min 49 s**, and the container went unhealthy on that boot and the one
-  before it (#258). A container reporting `(health: starting)` for several
-  minutes after a cold boot is the design here, not a fault.
+  before it (#258). That first cold measurement (469 s) was not the worst case:
+  the cold boot of 2026-09-24 took ~800-830 s to healthy and went `unhealthy`
+  for about a minute against the 600 s budget, hence 900 s. A container reporting
+  `(health: starting)` for several minutes after a cold boot is the design here,
+  not a fault.
 - **Not the image's own healthcheck.** During the capability testing, two broken
   variants reported `healthy` while failing to create `/app` caches or to install
   `/config/processed_books/*`. `docker ps` would have said the service was fine.

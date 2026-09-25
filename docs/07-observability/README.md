@@ -147,19 +147,23 @@ The ring belongs to the CONTAINER: every recreation starts it empty. Measured
 12 h 17. So a weekly writer is only answerable from this log when the redactor
 has been running longer than a week, and the `window=48h` of
 `traefik-access-log-carries-no-credential` is satisfied by a floor of
-`seen>=1`, not by the window. ADR-034 carries the open decision.
+`seen>=1`, not by the window.
 
 
 There is exactly one deliberate exception to "whatever the state", added by #289
 and worth stating because the sentence above would otherwise be false. A netdata
 that has just restarted answers HTTP 200 with an empty `alarms` object for
-somewhere between 25 s and roughly 4 minutes depending on load — measured, by
-restarting it and polling. The adapter used to read that as "unreachable" and
+somewhere between 25 s and roughly 4 minutes on a warm restart — measured, by
+restarting it and polling. A cold boot is longer: on 2026-09-24 its HTTP API
+first answered ~301 s after the container started, and the first verdict came
+779 s after. The adapter used to read that as "unreachable" and
 push every group DOWN, which is how 14 non-actionable notifications were sent in
-14 days. It now discriminates on netdata's own start time: unreachable is still
-DOWN, an empty answer from a netdata up **longer** than 300 s is DOWN and says
-so in words anyone can act on, and an empty answer from one that came back
-seconds ago is UP with a message naming the window. The switch is deferred by at
+14 days. It now discriminates on netdata's own start time, with a 1200 s grace:
+an empty answer from a netdata up **longer** than that is DOWN and says
+so in words anyone can act on, and an empty answer from one inside it is UP with
+a message naming the window. Since 2026-09-25 the grace also covers
+"unreachable", but only while docker reports the container running and younger
+than the grace; a stopped or absent container is still DOWN. The switch is deferred by at
 most that grace, never disarmed — and the one way to hide behind it, a netdata
 restarting faster than the grace, is closed from outside by
 `netdata-health-engine-has-verdicts` in the posture spec.
@@ -454,7 +458,7 @@ exemption list: netdata and Collabora are the only two without
 `no-new-privileges` (both run binaries that must gain privilege after `exec` —
 setuid plugins and file capabilities respectively), and the check now asserts
 they must **not** have it, catching an accidental addition just as readily as a
-removal. Their reasons live in ADR-017 and ADR-021.
+removal. Their reasons live in ADR-018 and ADR-021.
 
 Separate from `Pi health` on purpose — a posture drift is not an outage, and it
 should not compete with temperature and disk alerts for attention. It also
@@ -1002,8 +1006,11 @@ Both write sources are bounded so they can never fill the SD card:
   `traefik-log-redactor` carries `20m` × `10` for that reason (ADR-034), and
   the ring is emptied by every recreation of the container.
 - journald: persistent but capped at `SystemMaxUse=1500M`, via a drop-in
-  (`ansible/roles/base/tasks/logging.yml`). Persistence is deliberate — the
-  boot logs are what the "unexplained poweroff" runbook reads.
+  (`ansible/roles/base/tasks/logging.yml`). Since 2026-09-20 the persistent
+  store is on the encrypted volume, mounted at the unlock
+  (`ansible/roles/storage/tasks/journal.yml`): before the unlock only the
+  volatile current-boot journal is readable, so the "unexplained poweroff"
+  runbook cannot rely on previous boots' logs when it decides.
 
 ## Reading the UFW log
 

@@ -153,7 +153,7 @@ ansible-playbook playbooks/site.yml --tags deploy --ask-vault-pass --extra-vars 
 ansible-playbook playbooks/site.yml --tags deploy --ask-vault-pass --extra-vars "deploy_services='uptime-kuma netdata'"
 ```
 
-> **Note**: The `storage` role only creates top-level directories (`services/`, `media/`, `backups/`). Per-service subdirectories are created automatically by Docker via volume mounts at first start.
+> **Note**: The `storage` role only creates top-level directories (`services/`, `media/`, `backups/`). Per-service subdirectories are created by Docker via volume mounts at first start (root, 0755), except those `roles/deploy/tasks/data_dirs.yml` creates first with an explicit mode (e.g. `vaultwarden`, `traefik/acme`, `wireguard` at 0700).
 
 ## Step 8 — SSH Client Configuration
 

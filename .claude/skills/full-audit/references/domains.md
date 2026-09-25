@@ -15,16 +15,15 @@ earlier — which would have sent eight agents to re-derive settled work. Rebuil
 it from `classes.md`'s OPEN table at the start of every run; if the two
 disagree, `classes.md` wins.
 
-As of the TWELFTH run of 2026-09-21, key `durability`. **Rebuilt from
+As of the THIRTEENTH run of 2026-09-25, key `initiality`. **Rebuilt from
 `classes.md`'s OPEN table — do not trust this copy if the two disagree.**
 
-**THREE OPEN CLASSES, and here is the whole membership with its owner:**
+**TWO OPEN CLASSES, and here is the whole membership with its owner:**
 
 | Class | Property | Owner | What is left |
 |---|---|---|---|
-| C121 | A token whose validity ends with an event, kept on a medium that outlives it, with nothing to expire it | **unassigned — pick by the EVENT, not by the domain** | MINTED 2026-09-21. Mirror of C39. `backup` swept its own plane 7/7 (4 correct, 3 defective, all the same file) and that is a DOMAIN bound. The route: enumerate by the event that ends a token's meaning — boot, container recreation, service restart, deploy — and ask which stores survive it. The mechanism is measured: `/var/lock` is a real directory on BOTH hosts, not the tmpfiles symlink to `/run/lock`, so anything written there is persistent on an image that reads as volatile |
-| C34 | A documentary artefact contradicting the sibling it cites | `project-manager` | Axes A (44/44), B (1/1), D (23/23) closed; axis C bounded by the property (467 occurrences, 333 relations, 79 referents, 84 citing documents), 110/110 links and 69/69 glosses swept, 40 more claims opened individually on 2026-09-21. **What blocks it is bookkeeping, not reading: the "~48 never opened" residual was recorded WITHOUT its membership, so the overlap with this run's 40 is unknown and the remainder is between 8 and 48. The next run to measure it must publish the LIST** |
-| C01 | A documentary statement whose content contradicts the deployed artefact | `project-manager`, with every domain feeding it | 198 tracked files carrying comments, 13 757 comment lines, 11 666 prose statements. Swept: `ansible/` 176/176, `docker/` 10/10, `ops/` 156/156, `usb-tamper`+`killswitch` 121/121, instruction files 123/123, **the RENDERED stratum 53/53 (2026-09-21)** and **the `durability` slice of `docs/`+`knowledge/` 24/24**. What remains is the rest of the documentary prose |
+| C122 | A play whose task N consumes an artefact only a later task M > N of the same play produces | `ansible-deploy` | MINTED 2026-09-25. The systemd-unit subset is swept (55 targets, 2 defective, fixed). **The path/template subset is not**: every file or template one role reads and a later role writes, in play order, for BOTH playbooks — `offsite.yml` plays roles that were written for the homelab |
+| C01 | A documentary statement whose content contradicts the deployed artefact | `project-manager`, with every domain feeding it | Swept: `ansible/` 176/176, `docker/` 10/10, `ops/` 156/156, `usb-tamper`+`killswitch` 121/121, instruction files 123/123, the RENDERED stratum 53/53, the `durability` slice 24/24, **the `initiality` slice 75/75 (2026-09-25)**. What remains is the rest of the documentary prose |
 
 **C119 and C120 both LEFT the OPEN column on 2026-09-21 — do not re-derive
 either.** C119: seven planes of seven, the last being `ansible-deploy`'s 31/31

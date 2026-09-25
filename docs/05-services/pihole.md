@@ -65,7 +65,7 @@ confirm it now reads the MAC.
 ## Pi-hole v6 Gotchas
 
 - **Environment variables**: `WEBPASSWORD` and `DNSMASQ_LISTENING` no longer work. Use `FTLCONF_webserver_api_password` and `FTLCONF_dns_listeningMode` instead.
-- **Config persistence**: env vars are only read on first start. Once `pihole.toml` exists in the volume, env vars are ignored. Delete `pihole.toml` to force re-read.
+- **Config persistence**: `FTLCONF_*` values are re-applied at every start and lock the key in the UI; `pihole.toml` keeps every other setting, so there is no need to delete it to make an env var take effect.
 - **Listening mode**: must be set to `all` (not `LOCAL`) for Pi-hole to accept DNS queries from the LAN through Docker's NAT.
 - **Password**: set via `pihole setpassword` command (Ansible handles this automatically).
 - **`pihole setpassword` takes no flags**: it treats its argument as the new password, whatever

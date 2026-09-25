@@ -27,14 +27,15 @@ off it or bounded:
   biggest hidden write source on a Docker Pi (`docker` role)
 - **Swap** on the HDD, never the SD (systemd `.swap` unit, `swappiness=10`)
 - **systemd journal** kept persistent but capped (`SystemMaxUse`, drop-in
-  `99-homelab.conf`) — bounds growth without losing boot logs (`base` role)
+  `99-homelab.conf`) — bounds growth without losing boot logs (`base` role);
+  since 2026-09-20 it is stored on the encrypted volume, bind-mounted at the
+  unlock, so it is off the card too (`storage` role)
 - **`/tmp` on tmpfs** (RAM), size-capped — removes the temp-file write surface
 - **`noatime`** on every write surface (SD root, `/mnt/data`, offsite disk)
 
 `log2ram` was evaluated and deliberately **not** used: once the journal is
 capped and Docker logs are off-card, the residual `/var/log` traffic is
-negligible, and log2ram's RAM buffer loses the newest logs on a power cut —
-working against the "unexplained poweroff → reflash" diagnosis policy.
+negligible, and log2ram's RAM buffer loses the newest logs on a power cut.
 
 ### Kernel
 - `cgroup_memory=1 cgroup_enable=memory` in boot parameters (required for Docker)
@@ -46,7 +47,7 @@ The Pi has no real-time clock. With no RTC and no `/usr/lib/clock-epoch`,
 systemd advances the clock at boot to **the mtime of its own binary** — measured
 2026-07-28 17:04:45, and identical on both hosts because they carry the same
 package. Everything logged from power-on until the first NTP reply carries that
-date, roughly **90 seconds** of it.
+date — **142 seconds** of it, measured on three boots.
 
 That is not a cosmetic problem, because the journal *orders by it*. On the
 reboot of 2026-08-30 17:00 the journal recorded the boot as beginning
@@ -75,6 +76,10 @@ Verified on the reboot of 2026-08-30 17:29: the journal puts the boot at
 32 days** — the kernel banner is the first line again, and the new segment is
 named for today instead of becoming the oldest file on the host.
 
+It did not hold on the reboot of 2026-09-11: 569 kernel lines imported from the
+ring buffer before the clock was set carry `2026-09-05 22:56:10`, a skew of
+**6 days**. The reboots of 2026-09-20 and 2026-09-24 measured 88 s and 73 s.
+
 One detail is worth keeping because it contradicts what the code expected:
 `systemd-journald.service` still starts with the wrong clock — its
 `ExecMainStartTimestamp` reads 2026-07-28 17:05:14, about two monotonic seconds
@@ -88,7 +93,7 @@ the control rather than a second patient:
 
 | Check | Fires |
 |-------|-------|
-| journal-vs-boot skew, in the `pending` monitor | from the first second of a bad boot, whether or not the vacuum has run |
+| journal-vs-boot skew over 600 s | reported in `Pi health` from the first second of a bad boot; alarms in `pending` only once the journal reaches 80 % of its cap |
 | `Booting Linux on physical CPU` missing from this boot | only once the records are already gone |
 | `fake-hwclock-data-is-fresh`, on both hosts | when nothing has saved the time in two hours |
 
@@ -147,7 +152,7 @@ See `docs/06-backup/` for backup strategy.
 |-------------------------|--------------------------------------------------------------------------|----------------------------------------------------------------------------------------------|
 | `/mnt/data` (HDD)       | `e2fsck -p` inside `homelab-unlock`, on the still-unmounted mapper       | every unlock — about a second on a clean filesystem, a real scan after an unclean shutdown   |
 | `/` (SD)                | `e2fsck -p` in the **initramfs**, before systemd starts                  | **every boot**, in full — not when a trigger is due. See below                               |
-| `/mnt/backup` (offsite) | `e2fsck -p` at boot, which fstab's `passno=2` pulls in                   | every boot, same reason — measured 10.5 s, +1.6 s on total boot (2026-08-29)                 |
+| `/mnt/backup` (offsite) | `e2fsck -p` at boot, which fstab's `passno=2` pulls in                   | clean-flag skip in 0.16 s on normal boots; full check (10.5 s) only on the monthly interval  |
 | both                    | the daily disk report reads the superblock error counters (`ext4 clean`) | daily — this catches errors the kernel **already noticed**, which is not a consistency check |
 
 Neither root filesystem had ever been checked before 2026-08-25. `Last checked`
@@ -164,10 +169,11 @@ because of an unmet condition check (ConditionPathExists=!/run/initramfs/fsck-ro
 ```
 
 The initramfs has already done it — and the initramfs runs before any time sync
-on a host with no RTC, so its clock reads a frozen value. On both Pis that value
-is `2026-07-28 17:04`, which is also what four consecutive boots stamp as their
-first journal entry. Every superblock therefore looks future-dated to it, and
-`/run/initramfs/fsck.log` says so on every boot:
+on a host with no RTC, so its clock is behind. It first read a frozen
+`2026-07-28 17:04` on both Pis; it now tracks the previous boot's start
+(homelab on 2026-09-24: `now = Sun Sep 20 13:42:10`; offsite: `Sun Sep 6
+02:00:00`). Every superblock therefore looks future-dated to it, and
+`/run/initramfs/fsck.log` says so on every boot (an August sample):
 
 ```
 writable: Superblock last write time (Wed Aug 26 20:55:35 2026,
@@ -180,8 +186,8 @@ Three consequences, and the first is the one that matters:
    either trigger would ever have asked for. The gap this section was written to
    close is closed, by an accident rather than by the triggers.
 2. **Neither trigger can fire.** A full check resets the mount count and rewrites
-   `Last checked` backwards to the frozen value, which is why both hosts read
-   `Last checked: Tue Jul 28` and `Mount count: 1` after three and four boots.
+   `Last checked` backwards to the initramfs clock, which is why the homelab
+   reads `Last checked: Sun Sep 20` and `Mount count: 1` on the 2026-09-24 boot.
    Lowering `root_fsck_max_mounts` would change nothing.
 3. **`Last checked` is not a freshness indicator here.** Do not read it as one.
 

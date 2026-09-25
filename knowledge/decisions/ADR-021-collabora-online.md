@@ -13,7 +13,7 @@ no official arm64 image, and 4 GB RAM recommended on a host that already runs
 The open question was never *whether it runs* — it was what it would do to a
 stack where, at the time of this decision, 12 of 21 containers held no
 capability at all, 17 had a read-only root filesystem, and `no-new-privileges`
-had exactly one documented exception (netdata, ADR-017). Those figures are kept
+had exactly one documented exception (netdata, ADR-018). Those figures are kept
 as written because they are what the decision was weighed against; measured
 again on 2026-09-20 the same stack reads 16 of 32, 23 of 32, and two exceptions
 — this one being the second.

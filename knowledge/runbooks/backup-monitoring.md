@@ -71,7 +71,7 @@ reports to its own push monitor, same pattern as the offsite check:
 
 | Monitor               | Pinged by                                            | Interval       | Vault variable                                    |
 |-----------------------|------------------------------------------------------|----------------|---------------------------------------------------|
-| Pi restic prune+check | `resticprofile -n homelab prune`+`check` (Sun 05:00) | 691200 s (8 d) | `local_maintenance_kuma_push_url` (homelab local) |
+| Pi restic prune+check | `resticprofile -n homelab prune`+`check` (Tue 01:00) | 691200 s (8 d) | `local_maintenance_kuma_push_url` (homelab local) |
 
 Create the Push monitor first (8 d interval covers a weekly run plus grace), then set
 `local_maintenance_kuma_push_url` in `local.yml` and redeploy with the same

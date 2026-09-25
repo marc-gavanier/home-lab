@@ -131,7 +131,7 @@ Defense in depth — each layer is secured independently. If one layer falls, th
   binary that must gain privilege at `exec`, and in both cases the flag fails
   *silently* rather than loudly:
   - **Netdata** — setuid-root plugins that read other processes' `/proc` for
-    per-app charts; the flag blocks it outright (ADR-017).
+    per-app charts; the flag blocks it outright (ADR-018).
   - **Collabora** — `coolforkit-caps` carries file capabilities; with the flag
     on, the container stays `running` and serves its discovery endpoint while
     no document can ever open (ADR-021).

@@ -25,6 +25,11 @@ failed).
 > computed it. The guarantee is now *stronger*, not weaker: a missed night is
 > recovered whenever it is next noticed, not only within seven days. This
 > paragraph said otherwise until 2026-08-29.
+>
+> **Correction (2026-09-25).** "An optimisation, not a correctness requirement"
+> is the framing ADR-031 itself retracted: the window defined what the offsite
+> repository contained, and the first unbounded copy back-filled 18 snapshots
+> older than a week (ADR-031, "The copy is no longer bounded to seven days").
 
 | Aspect              | Choice                           | Rationale                                                                                                                                 |
 |---------------------|----------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|

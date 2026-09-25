@@ -41,7 +41,8 @@ sudo sed -i 's/^AllowUsers .*/AllowUsers <your-user>/' <mount>/etc/ssh/sshd_conf
 
 **Also delete `<mount>/var/lib/fail2ban/fail2ban.sqlite3`** whenever failed
 logins preceded the lockout: fail2ban persists bans there and re-applies them
-at boot — you can be locked out by a stale ban *even after fixing sshd*, with
+when it starts, ~30 s after the unlock (it waits for the encrypted volume) —
+you can be locked out by a stale ban *even after fixing sshd*, with
 no way left to unban yourself. The file is state only; fail2ban recreates it.
 
 ## 3. Unmount cleanly, boot, unlock

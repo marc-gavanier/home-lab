@@ -42,7 +42,13 @@ A udev rule fires on **every** USB device `add` **or** `remove` event and runs
   coldplug replay at boot (which re-emits `add` for every present device) can
   never fire the response. Events are still logged while disarmed (audit trail).
 - **Arming is automatic**: `homelab-unlock` arms right after mounting the
-  volume — protection starts the moment the key enters RAM. `homelab-lock`
+  volume. The key enters RAM earlier, at `cryptsetup open`, and stays there
+  unprotected for the whole integrity check that precedes the mount: under a
+  second on a clean volume, minutes on the monthly forced check (3 min 27 s
+  measured). Arming before the check was considered and rejected — a poweroff
+  would interrupt an `e2fsck` repair on a disk that is itself on USB, so a
+  cable touched during the check would cost filesystem integrity rather than a
+  reboot. `homelab-lock`
   disarms first. `homelab-tamper-arm` / `homelab-tamper-disarm` cover physical
   maintenance (touching cables, moving the disk).
 - **Response is poweroff**, reusing the ADR-006 model: RAM (and the LUKS key)

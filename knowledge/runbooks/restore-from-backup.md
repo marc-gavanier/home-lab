@@ -532,8 +532,8 @@ docker compose down wg-easy    # `down`, never `stop`: the heal timer brings a
                                # stopped container back within 2 min (ADR-007)
 
 # The store is `wg-easy.db`, NOT the `wg0.json` sitting beside it. That file is
-# the pre-v15 peer store, kept deliberately as a rollback (ADR-020); copying it
-# over the database, or leaving the database missing so wg-easy finds only it,
+# the pre-v15 peer store (ADR-020's rollback copy is the one in the v14 rollback
+# directory, not this one); copying it over the database, or leaving the database missing so wg-easy finds only it,
 # is how a restore silently rebuilds the wrong generation of peers.
 cp /mnt/data/tmp/restore/mnt/data/backups/dumps/wg-easy.sqlite3 \
    /mnt/data/services/wireguard/wg-easy.db

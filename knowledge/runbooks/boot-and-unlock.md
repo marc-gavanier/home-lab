@@ -21,7 +21,7 @@ What to expect and do when the Pi comes back up. Design rationale in
 
 ## Normal sequence
 
-1. **Boot (~1 min).** The Pi boots from the unencrypted SD. SSH is available
+1. **Boot (~2 min; SSH listens ~107 s after power-on).** The Pi boots from the unencrypted SD. SSH is available
    **on the LAN**, and only there — the VPN is down until step 2 finishes, for
    the reason in the box above. **Nothing else is up either** — no Docker, no
    swap, no `/mnt/data`, no LAN DNS (point a client at `1.1.1.1` if you need
@@ -68,10 +68,14 @@ What to expect and do when the Pi comes back up. Design rationale in
    the passphrase you are about to type (evil maid). Pulling the SD requires
    the Pi to be off — so an **unexplained poweroff is the tamper signal**.
    Expected causes: your own shutdown, a power cut, a [kill-switch](kill-switch.md)
-   or [usb-tamper](usb-tamper.md) trigger *that you remember* — the journal
-   lives on the SD, so it proves nothing. If you cannot account for the
+   or [usb-tamper](usb-tamper.md) trigger *that you remember* — since
+   2026-09-20 the persistent journal lives on the encrypted volume, so before
+   the unlock only the current boot's volatile journal is readable, and it
+   proves nothing about the downtime. If you cannot account for the
    downtime, do **not** unlock: reflash the SD and re-provision with Ansible
    first (~1 h; all service state lives on the encrypted HDD, nothing is lost).
+   Then reboot once: boot settings (`config.txt`, `cmdline.txt`) only apply at
+   the next boot, and the `Pi pending action` monitor flags it until then.
 
 3. **Unlock:**
 
@@ -242,8 +246,8 @@ the one thing not to do.
 Security updates install automatically but **never auto-reboot** the homelab (a
 reboot = locked volume + outage until you unlock — ADR-011/013). `needrestart`
 restarts host daemons on a patched library without a reboot, so only **kernel /
-core-init** updates leave a pending reboot. When one does, the "Pi health"
-Kuma monitor goes DOWN (`/var/run/reboot-required`). Schedule the reboot+unlock
+core-init** updates leave a pending reboot. When one does, the "Pi pending
+action" Kuma monitor goes DOWN (`/var/run/reboot-required`). Schedule the reboot+unlock
 by *reachability*, not raw CVSS:
 
 | Situation | Reboot+unlock within |
