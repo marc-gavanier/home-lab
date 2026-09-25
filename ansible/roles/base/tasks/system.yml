@@ -53,6 +53,8 @@
   ansible.builtin.apt:
     upgrade: dist
     autoremove: true
+  environment:
+    NEEDRESTART_SUSPEND: "1"
 
 - name: system | Install essential packages
   ansible.builtin.apt:
