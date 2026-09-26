@@ -41,10 +41,13 @@ extra_hosts:
 ### "nextcloud is not configured as a trusted domain"
 **Cause:** notify_push reaches Nextcloud via `NEXTCLOUD_URL=http://nextcloud`, but
 `nextcloud` isn't in `trusted_domains`.
-**Fix:** add it to the env in `compose.yaml`:
-```yaml
-NEXTCLOUD_TRUSTED_DOMAINS: drive.${DOMAIN} nextcloud
+**Fix:** redeploy — the `deploy` role's `occ config:system:set trusted_domains`
+task writes `localhost`, `drive.<domain>` and `nextcloud` on every run. Check with:
+```bash
+docker exec -u www-data nextcloud php occ config:system:get trusted_domains
 ```
+Do not edit `NEXTCLOUD_TRUSTED_DOMAINS` in `compose.yaml` for this: the image
+reads it only on the first install, so on an existing instance it changes nothing.
 
 ### "<ip> is not trusted as a reverse proxy by Nextcloud"
 **Cause:** the notify_push container's IP (on the internal Docker subnet, e.g.

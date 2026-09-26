@@ -161,6 +161,14 @@ and closed per line, which is why they rotated correctly throughout. The offsite
 Pi runs no Pi-hole and has no `/var/log/pihole` — both checked when this was
 fixed.
 
+The only rotator in the container is `pihole flush once quiet`, which cron runs
+at midnight and which calls `logrotate --force` with its own state file. `--force`
+ignores the period, so every stanza rotates daily whatever it says — a `weekly`
+there is never read. Retention is therefore set in generations: `rotate 21` keeps
+three weeks of `FTL.log` and `webserver.log`. Until 2026-09-26 they carried the
+image's `weekly` + `rotate 3`, which kept three days. `--force` still honours
+`notifempty`: an empty log is not rotated.
+
 ## Restore
 
 **Stop both containers first. This costs the house its DNS for the length of

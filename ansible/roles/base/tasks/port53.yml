@@ -11,7 +11,7 @@
   notify: Restart systemd-resolved
   when: free_port_53 | default(true)
 
-- name: port53 | Point resolv.conf to upstream DNS temporarily
+- name: port53 | Point resolv.conf to upstream DNS
   ansible.builtin.copy:
     dest: /etc/resolv.conf
     content: |

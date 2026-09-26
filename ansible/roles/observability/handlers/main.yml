@@ -24,14 +24,22 @@
 # collector configs still need the restart, and only the alarms get the reload.
 
 - name: Reload netdata health
-  ansible.builtin.command:
-    cmd: docker exec netdata netdatacli reload-health
+  ansible.builtin.shell:
+    cmd: |
+      set -e
+      id=$(docker ps -aq --filter 'name=^netdata$')
+      [ -n "$id" ] || exit 0
+      docker exec netdata netdatacli reload-health
   changed_when: true
 
 # Still a restart, and deliberately: no netdatacli verb reloads a go.d
 # collector. The cost is a few seconds of collection, not history — the metrics
 # database lives on the volume since ADR-019.
 - name: Restart netdata
-  ansible.builtin.command:
-    cmd: docker restart netdata
+  ansible.builtin.shell:
+    cmd: |
+      set -e
+      id=$(docker ps -aq --filter 'name=^netdata$')
+      [ -n "$id" ] || exit 0
+      docker restart netdata
   changed_when: true
