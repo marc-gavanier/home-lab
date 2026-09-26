@@ -1,83 +1,40 @@
 # Vaultwarden
 
-Self-hosted password manager, compatible with Bitwarden clients.
+Self-hosted password manager for Bitwarden clients: passwords, notes, cards,
+identities, TOTP codes.
 
-## Access
+## At a glance
 
-- URL: `https://vault.example.com`
-- Admin panel: `https://vault.example.com/admin` (use the plain token from `local.yml`)
+| Item   | Value                                                                              |
+|--------|------------------------------------------------------------------------------------|
+| URL    | `https://vault.example.com`; admin at `/admin` with the plain token from `local.yml` |
+| Data   | `/mnt/data/services/vaultwarden/` (SQLite, attachments, keys)                      |
+| Backup | Restic, daily, plus a consistent `sqlite3 .backup` copy (`backup_sqlite_dumps`)    |
+| ADR    | ADR-016                                                                            |
 
-## What It Does
+## How it works
 
-- Stores passwords, notes, credit cards, identities
-- Auto-fill in browsers and mobile apps
-- Secure password generation
-- TOTP (2FA) code storage
+- `vaultwarden_admin_token` and `vaultwarden_admin_salt` (16 hex bytes) are in the
+  encrypted `local.yml`.
+- The `deploy` role hashes the token with `python3-argon2` (Argon2id, m=65540, t=3,
+  p=4, hash_len=32, fixed salt: deterministic) into the Docker secret
+  `/mnt/data/secrets/docker/vaultwarden_admin_token_hash`, read via `ADMIN_TOKEN_FILE`.
+- Redeploying a new token does **not** rotate it: `admin_token` in Vaultwarden's
+  `config.json` wins. Use [rotate-a-secret.md](../../knowledge/runbooks/rotate-a-secret.md)
+  → "Rotating the Vaultwarden admin token".
 
-## Admin Token Security
+## Common tasks
 
-The `ADMIN_TOKEN` is stored as an Argon2id hash (not plain text) — Vaultwarden recommends this to avoid leaking the admin token if config files are exposed.
+First account (`SIGNUPS_ALLOWED=false`):
 
-Ansible automates the hashing:
-- `vaultwarden_admin_token` (plain) and `vaultwarden_admin_salt` (16 hex bytes) live in encrypted `local.yml`
-- The `deploy` role hashes the token using `python3-argon2` (Argon2id, m=65540, t=3, p=4, hash_len=32) with the fixed salt → **deterministic** output, no caching needed
-- The resulting `$argon2id$...` hash is written to a **Docker secret**,
-  `/mnt/data/secrets/docker/vaultwarden_admin_token_hash`, and the container reads
-  it through `ADMIN_TOKEN_FILE` — not from the environment, and not from `.env`
-  (ADR-016). `VAULTWARDEN_ADMIN_TOKEN_HASH` no longer exists anywhere.
+1. `/admin` → **Users** > **Invite User**, your email. Without SMTP nothing is sent,
+   but the email can now register.
+2. Register at `/#/register` with that email.
+3. Enable 2FA (Account Settings > Security > Two-step Login); save the recovery code.
 
-Login at `/admin` uses the **plain token** — Vaultwarden compares it against the stored hash.
+Clients: the [Bitwarden apps](https://bitwarden.com/download/); set the server URL
+to `https://vault.example.com` before logging in.
 
-> **Changing the vault value and redeploying does not rotate this token.**
-> Vaultwarden keeps its own `config.json` in the data directory, it holds an
-> `admin_token` key, and that key **wins over the environment**. The deploy will
-> report `changed`, the handler will restart the container, and the old token will
-> still open `/admin` — the appearance of work without the operation. The two
-> values happen to agree today, so nothing reports the contradiction.
->
-> The procedure that actually works is in
-> [`knowledge/runbooks/rotate-a-secret.md`](../../knowledge/runbooks/rotate-a-secret.md)
-> → "Rotating the Vaultwarden admin token". Follow it rather than this page.
-
-## Client Setup
-
-### Browser Extension
-Install the [Bitwarden extension](https://bitwarden.com/download/) for your browser. In settings, set the server URL to `https://vault.example.com` before logging in.
-
-### Mobile (Android/iOS)
-Install the [Bitwarden app](https://bitwarden.com/download/), set the server URL to `https://vault.example.com`.
-
-### Desktop
-Install the [Bitwarden desktop app](https://bitwarden.com/download/), set the server URL to `https://vault.example.com`.
-
-## First Steps
-
-1. With `SIGNUPS_ALLOWED=false`, you can't self-register. Use the admin panel to invite yourself:
-   - Open `/admin`, log in with the plain token
-   - **Users** > **Invite User**, enter your email
-   - Without SMTP, the invitation isn't emailed but allows registration for that email — go to `/#/register` with the same email
-2. Enable 2FA (Account Settings > Security > Two-step Login) and save the recovery code
-3. Install the browser extension + mobile app
-4. Import passwords from your current manager if applicable
-
-## Data
-
-| Path                              | Content                            |
-|-----------------------------------|------------------------------------|
-| `/mnt/data/services/vaultwarden/` | SQLite database, attachments, keys |
-
-## Backup
-
-Backed up daily by Restic. Vaultwarden uses SQLite: the live file is in the snapshot, and a
-consistent `sqlite3 .backup` copy is dumped beside it before every run (`backup_sqlite_dumps`).
-
-## Restore
-
-Restoring the service folder alone is **not** enough, which is why the procedure
-is not repeated here: that folder holds the *live* `db.sqlite3`, and a copy of a
-live SQLite database taken while the service runs can be a torn one. The nightly
-backup writes a consistent `sqlite3 .backup` copy alongside it, and that is the
-file to restore.
-
-Full procedure: `knowledge/runbooks/restore-from-backup.md` → "Restore
-Vaultwarden (SQLite)".
+Restore: restore the consistent `.backup` copy, not the live `db.sqlite3`, which
+can be torn. Follow [restore-from-backup.md](../../knowledge/runbooks/restore-from-backup.md)
+→ "Restore Vaultwarden (SQLite)".

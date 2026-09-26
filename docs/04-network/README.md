@@ -1,5 +1,8 @@
 # Network
 
+How traffic reaches the home lab: one public VPN port, split DNS on the LAN, and Traefik serving
+every service over TLS to the LAN and the VPN only (ADR-002).
+
 ## Architecture
 
 ```
@@ -8,15 +11,34 @@ Internet → ISP Router (IPv4 full stack, port forwarding)
                ├─ 51820/udp  → Pi (WireGuard)
                └─ 51413      → Pi (Transmission peer port, open for seeding)
 
-  80/443 are NOT forwarded — removed in late July 2026. Traefik listens, but
-  only the LAN and the VPN can reach it. See "What is actually reachable" below.
+  80/443 are NOT forwarded. Traefik listens, but only the LAN and the VPN can reach it.
 ```
 
-## Domain: example.com
+## What is reachable from the internet
 
-### Subdomains
+| Port      | From the internet                  |
+|-----------|------------------------------------|
+| 80        | not forwarded                      |
+| 443       | not forwarded                      |
+| 53        | not forwarded                      |
+| 51820/udp | WireGuard                          |
+| 51413     | open (Transmission peer port, tcp) |
 
-All services are **VPN-only**. The `vpn-only` middleware is applied globally on Traefik's `websecure` entrypoint — any request not coming from the LAN (192.168.1.0/24), WireGuard subnet (10.8.0.0/24), or the `proxy` Docker bridge network (172.18.0.0/16) gets `403 Forbidden`. The docker entry is not decoration: full-tunnel VPN clients are hairpin-NATed back into the bridge and arrive as `172.18.0.1`, never as `10.8.0.x`. The WireGuard entry serves the offsite Pi, whose push to `services.example.com` stays inside the tunnel and reaches Traefik unmasqueraded. See `docker/configs/traefik/dynamic/middlewares.yml` before tightening either.
+The only TCP port an internet scanner can connect to is Transmission's. Measured from the offsite
+Pi's uplink, with a known-open port as a control.
+
+## Subdomains
+
+All services are VPN-only. The `vpn-only` middleware is applied to Traefik's `websecure`
+entrypoint: a request that does not come from one of these ranges gets `403 Forbidden`.
+
+| Range            | Why it is allowed                                                         |
+|------------------|---------------------------------------------------------------------------|
+| `192.168.1.0/24` | LAN                                                                       |
+| `10.8.0.0/24`    | WireGuard: the offsite Pi's push to `services.example.com` arrives as-is  |
+| `172.18.0.0/16`  | `proxy` bridge: full-tunnel VPN clients are hairpin-NATed and arrive as `172.18.0.1` |
+
+Read `docker/configs/traefik/dynamic/middlewares.yml` before tightening any of them.
 
 | Subdomain              | Service      |
 |------------------------|--------------|
@@ -42,175 +64,106 @@ All services are **VPN-only**. The `vpn-only` middleware is applied globally on 
 | `series.example.com`   | Sonarr       |
 | `indexers.example.com` | Prowlarr     |
 
-### DNS
+## Public DNS
 
-- **Provider**: Cloudflare (DNS only, not proxied)
-- **Records**: only `vpn.example.com` needs a public A record (to bootstrap the tunnel).
-  Service subdomains use ACME **DNS-01**, so they need no public A record and are kept
-  out of public DNS (ADR-014). No wildcard — per-host certs, so subdomains served
-  elsewhere (e.g. a static site on GitHub Pages) are unaffected.
-- **Dynamic IP**: a systemd timer (`homelab-ddns.timer`, every 15 min) runs
-  `cloudflare-ddns.sh`, which keeps the `vpn` A record on the current public IPv4
-  via the Cloudflare API (updates only on change; recreates the record if missing).
+- Provider: Cloudflare, DNS only, not proxied.
+- Only `vpn.example.com` has a public A record, to bootstrap the tunnel.
+- Service subdomains get certificates through ACME DNS-01, so they need no public record and stay
+  out of public DNS (ADR-014).
+- No wildcard: certificates are per host, so subdomains served elsewhere (for example a static
+  site on GitHub Pages) are unaffected.
+- Dynamic IP: `homelab-ddns.timer` runs `cloudflare-ddns.sh` every 15 min. It keeps the `vpn`
+  A record on the current public IPv4, updates only on change, and recreates the record if
+  it is missing.
 
-### Resolver (Pi-hole → encrypted upstream)
+## Resolver
 
-- **Pi-hole** is the LAN resolver (ad/tracker blocking, split DNS, lists). Clients
-  talk only to Pi-hole.
-- **Encrypted egress**: Pi-hole forwards upstream to a **dnsproxy** sidecar
-  (`127.0.0.1#5053`, sharing Pi-hole's netns), which proxies to **Quad9 over DoH**.
-  It replaced cloudflared on 2026-07-27: Cloudflare **removed** the `proxy-dns`
-  feature in 2026.2.0, so the container this depended on stopped existing rather
-  than breaking (ADR-015, issue #50). The upstreams are addressed **by IP**
-  (`9.9.9.9`, `149.112.112.112`) on purpose — a service that *is* the DNS path
-  should not need DNS to start; Quad9's certificate carries IP SANs, so TLS
-  validation is unchanged
-  (RFC 8484 / HTTP2). Queries **that go through Pi-hole** — i.e. the LAN clients
-  and the VPN clients — no longer leave in cleartext to the ISP. The host's own
-  lookups and the containers' do: they use `/etc/resolv.conf` (`1.1.1.1`,
-  `8.8.8.8`) via Docker's embedded resolver, measured 31 of 32 containers — the
-  32nd, `traefik-log-redactor`, runs on `network_mode: none` and therefore has
-  no embedded resolver and no socket to resolve through at all. Measure it from
-  the host, on each container's `ResolvConfPath`: Dozzle and Collabora ship no
-  `cat`, so reading that file from inside them answers "no embedded resolver"
-  for two containers that have one. See
-  the consequences section of ADR-015, which used to claim the wider perimeter.
-- **`resolvectl` is not the host's resolver — do not diagnose the host with it.**
-  The host resolves through glibc, which reads `/etc/resolv.conf`. `resolvectl`
-  asks systemd-resolved, which uses the DNS server `eth0` got from DHCP — Pi-hole —
-  so it answers like a LAN client: `192.168.1.100` for split-DNS names that the
-  host itself resolves to the public address, or not at all. Its answer also
-  changes with its cache. To see what the host resolves, use
-  `getent ahostsv4 <name>`.
-- The upstream is pinned in `compose.yaml` (`FTLCONF_dns_upstreams`), not the
-  manual `pihole.toml` — version-controlled, no drift. See ADR-015.
+- Pi-hole is the LAN resolver (blocking, split DNS). LAN and VPN clients talk only to Pi-hole.
+  See [Pi-hole](../05-services/pihole.md).
+- Pi-hole forwards to a `dnsproxy` sidecar on `127.0.0.1#5053` (it shares Pi-hole's network
+  namespace), which sends queries to Quad9 over DoH (ADR-015).
+- The upstreams are IPs (`9.9.9.9`, `149.112.112.112`) so the DNS path needs no DNS to start.
+  Quad9's certificate carries IP SANs, so TLS validation still works.
+- The upstream is set in `compose.yaml` (`FTLCONF_dns_upstreams`), not in `pihole.toml`.
+- Only queries that go through Pi-hole are encrypted. The host and the containers resolve through
+  `/etc/resolv.conf` (`1.1.1.1`, `8.8.8.8`) via Docker's embedded resolver, in cleartext.
+  `traefik-log-redactor` runs on `network_mode: none` and resolves nothing.
+- To check a container's resolver, read its `ResolvConfPath` from the host. Dozzle and Collabora
+  ship no `cat`, so reading from inside them gives a false answer.
+
+**Do not diagnose the host with `resolvectl`.** The host resolves through glibc and
+`/etc/resolv.conf`; `resolvectl` asks systemd-resolved, which uses Pi-hole from DHCP and answers
+like a LAN client (`192.168.1.100` for split-DNS names). Use:
+
+```bash
+getent ahostsv4 <name>
+```
 
 ## Traefik
 
-- Entrypoints: 80 (http→https redirect over VPN), 443 (TLS, vpn-only middleware applied globally)
-- ACME: Let's Encrypt via **DNS-01** (Cloudflare API, scoped token) — per-host certs, no inbound
-  needed, so no public A record or open :80 is required for issuance (ADR-014)
-- Middlewares: vpn-only (default on websecure), rate limiting, secure headers, nextcloud-headers
-- Dashboard: accessible via LAN/VPN only
+- Entrypoints: 80 (redirect to https), 443 (TLS, `vpn-only` applied globally).
+- Certificates: Let's Encrypt via DNS-01 with a scoped Cloudflare token, per host, no inbound
+  port needed (ADR-014).
+- Middlewares: `vpn-only` (default on websecure), rate limiting, secure headers,
+  `nextcloud-headers`.
+- A new service inherits `vpn-only` automatically.
 
-## Security Model
+Details: [Traefik](../05-services/traefik.md).
 
-### What is actually reachable
+## Docker networks
 
-Measured from the offsite Pi's uplink on 2026-08-15, with a known-open port as a
-control so that a timeout means something:
+| Compose name  | Name on the host      | Subnet          | Usage                                   |
+|---------------|-----------------------|-----------------|-----------------------------------------|
+| `proxy`       | `proxy`               | `172.18.0.0/16` | Services exposed via Traefik            |
+| `internal`    | `homelab_internal`    | `172.19.0.0/16` | Inter-service communication (DB, cache) |
+| `socketproxy` | `homelab_socketproxy` | `172.20.0.0/16` | Traefik ↔ docker-socket-proxy only      |
 
-| Port      | From the internet                                |
-|-----------|--------------------------------------------------|
-| 80        | not forwarded                                    |
-| 443       | not forwarded                                    |
-| 51820/udp | WireGuard — the handshake proves it              |
-| 51413     | **open** (Transmission peer port, tcp confirmed) |
-
-So the only TCP port an internet scanner can connect to is Transmission's. This
-page claimed the opposite in both directions for weeks: it advertised 80/443 as
-exposed after the forward had been removed, and never mentioned the one port
-that is genuinely open. ADR-013 was corrected on 2026-08-02; this summary was
-not, which is why the numbers above now carry the date they were measured.
-
-**Defense in depth via VPN-gated access:**
-
-- Traefik returns `403 Forbidden` for all HTTPS traffic that is not from LAN, VPN, or Docker bridge networks
-- That rule is real and verified applied on every router — but note it has never been exercised by internet traffic, since 80/443 are not forwarded. It guards the LAN and the VPN, and it is the safety net if a forward is ever re-added
-- Any future CVE in a hosted service requires an authenticated VPN client to exploit — today reinforced by the absence of any path in at all
-- Adding a new service inherits the protection automatically (default middleware on entrypoint)
-
-## Docker Networks
-
-| Compose name | Name on the host      | Usage                                   |
-|--------------|-----------------------|-----------------------------------------|
-| `proxy`      | `proxy`               | Services exposed via Traefik            |
-| `internal`   | `homelab_internal`    | Inter-service communication (DB, cache) |
-| `socketproxy`| `homelab_socketproxy` | Traefik ↔ docker-socket-proxy only      |
-
-`proxy` is declared `external: true`, so its name is unprefixed; the other two are
-created by Compose and carry the project prefix. Address these by the host name
-when operating on them: `docker network inspect internal` returns `[]`, not the
-live network.
-
-A bare `internal` network did exist for a while — an empty orphan, rebuilt
-thirty-nine minutes after its first hand removal by two Ansible tasks that looped
-over `[proxy, internal]` although only `proxy` needs to pre-exist. Those loops now
-name `proxy` only, and the orphan was removed for good on 2026-08-22: nothing
-recreates it, and `docker network ls` no longer lists it.
+- `proxy` is `external: true`, so it has no prefix. The other two carry the project prefix.
+- Use the host name: `docker network inspect internal` returns `[]`.
+- Expected subnets live in `docker_expected_subnets` and are asserted.
 
 ## Addresses a third party assigns
 
-Six addresses in this lab are decided by somebody else — the ISP, the router's
-DHCP server, or the Docker daemon — and written into configuration that assumes
-they hold. None of them is wrong today. All six are one third-party decision
-away from breaking, and before #292 five of them would have broken silently.
+Each one is pinned, derived at run time from whoever assigns it, or watched.
 
-The rule applied, one line per address: **pinned, derived at run time from the
-authority that assigns it, or watched.**
+| Address                | Assigned by          | Treatment |
+|------------------------|----------------------|-----------|
+| Public IPv4            | ISP                  | Derived: the DDNS job re-reads it every 15 min |
+| Offsite endpoint       | DHCP at remote site  | Derived: `offsite-wg-reresolve` re-resolves the peer name |
+| homelab LAN address    | router, one-day lease | Watched: `lan-address-is-the-one-the-configuration-hardcodes` |
+| LAN subnet             | router               | Neither; accepted |
+| `proxy` network        | Docker default pool  | Watched: `traefik-allowlist-covers-the-live-proxy-subnet` |
+| `homelab_internal`     | Docker default pool  | Watched: `docker-networks-are-where-the-configuration-expects-them` |
+| `homelab_socketproxy`  | Docker default pool  | Same assertion |
 
-| Address | Assigned by | Today | Treatment |
-|---------|-------------|-------|-----------|
-| Public IPv4 | the ISP | — | **derived** — the DDNS job re-reads it every 15 min and pushes the record |
-| The offsite's endpoint | DHCP at the remote site | — | **derived** — `offsite-wg-reresolve` re-resolves the peer name, which is the recovery path a home address change needs |
-| homelab LAN address | the router, **one-day lease** | `<pi-lan-ip>`, hardcoded through `homelab_ip` into every split-DNS record, the compose env and the resolver handed to every VPN client | **watched** — `lan-address-is-the-one-the-configuration-hardcodes`. Redeploying after `homelab_ip` changes does not reach the VPN devices: each one keeps the old resolver in the config it imported, so re-download and re-import every client config from wg-easy |
-| LAN subnet | the router | `192.168.1.0/24`, hardcoded in `host_vars/homelab/main.yml`, `security/tasks/firewall.yml` and Traefik's `middlewares.yml` | **neither derived nor watched**, accepted — it only moves with a new router. If it does, every one of those sites must be edited by hand: until then LAN clients get 403 from Traefik, no DNS and no SSH, while the VPN keeps working |
-| `proxy` network | Docker's default pool | `172.18.0.0/16` | **watched against both authorities** — `traefik-allowlist-covers-the-live-proxy-subnet` |
-| `homelab_internal` | Docker's default pool | `172.19.0.0/16` | **watched** — `docker-networks-are-where-the-configuration-expects-them` |
-| `homelab_socketproxy` | Docker's default pool | `172.20.0.0/16` | same assertion |
+- **LAN address** (`<pi-lan-ip>`) is hardcoded through `homelab_ip` into every split-DNS record,
+  the compose env and the resolver given to VPN clients. If it changes, redeploy, then
+  re-download and re-import every client config from wg-easy: each device keeps the old resolver.
+- **LAN subnet** (`192.168.1.0/24`) is hardcoded in `host_vars/homelab/main.yml`,
+  `security/tasks/firewall.yml` and Traefik's `middlewares.yml`. A new router that changes it
+  means editing all three by hand; until then LAN clients get 403, no DNS and no SSH, while the
+  VPN keeps working.
+- **`proxy` subnet** matters most: every VPN client reaches Traefik through it. Docker has no
+  `ipam_config` for it, so a recreated network can move, and `vpn-only` would then refuse every
+  VPN client. The assertion compares the live network against the allowlist file.
 
-### Why the proxy subnet is the one that matters
+## ISP configuration
 
-Traefik's `vpn-only` middleware admits `172.18.0.0/16` because that is where the
-`proxy` network happens to live, and **every VPN client reaches Traefik through
-it**. The range was deliberately narrowed from `172.16.0.0/12`, which had also
-admitted the Docker socket proxy's network — a good change that makes a
-re-allocation fatal rather than harmless. Docker assigns these from a pool with
-no `ipam_config`, so a network recreated after the others comes back somewhere
-else, and the day `proxy` moves off 172.18 that line refuses every VPN client:
-discovered from outside the house, in the worst case.
+Requirements:
 
-That one assertion therefore compares the **live network** against the
-**allowlist file**, not against a remembered value — those two are the
-authorities, and a check that agrees with a third copy of the answer proves
-nothing about them.
+- **IPv4 full stack**, not CGNAT, or port forwarding fails. SFR/Red users must ask support to
+  leave CGNAT.
+- **Static DHCP lease** for the Pi (`<pi-lan-ip>`).
+- **Port forwarding**: 51820/UDP and 51413 → Pi. Nothing else.
 
-Pinning with `ipam_config` was the other option and was not taken: it requires
-recreating the networks, `proxy` is `external: true`, and recreating it means
-stopping every container attached to it. Watching costs three assertions and no
-downtime.
+Warnings, to check after any box reset or ISP change:
 
-### The comment that had gone stale
+- **Never forward 53/TCP+UDP.** Pi-hole listens on `0.0.0.0:53` with no application guard; only
+  the box keeps it off the internet. An open resolver is a reflection amplifier.
+- **Never forward 80/443.** It would re-open the perimeter this lab closed on purpose (ADR-002).
 
-Two places in the repository named a subnet the machine no longer used — one
-placing `homelab_socketproxy` at 172.21 when it sits at 172.20, the other
-describing 172.20 as the range a phantom network had taken, which is now a live
-one. Both corrected. Where these networks are is a measurement, kept in
-`docker_expected_subnets` and asserted; it is no longer prose.
+Gotchas:
 
-## ISP Configuration
-
-### Requirements
-
-- **IPv4 full stack** (not CGNAT) — required for port forwarding. SFR/Red users must request a rollback from CGNAT via support.
-- **Static DHCP lease** for the Pi (<pi-lan-ip>)
-- **Port forwarding**: 51820/UDP (WireGuard) and 51413 (Transmission peer port) → Pi.
-  **80/TCP and 443/TCP are deliberately NOT forwarded** — the forward was removed in
-  late July 2026, and Traefik now serves the LAN and the VPN only. Re-adding them
-  after a box reset or an ISP swap would silently re-open the perimeter this lab
-  closed on purpose; see the reachability table above.
-
-  **And 53/TCP+UDP must not be forwarded either — that one matters more.**
-  Pi-hole publishes the resolver on `0.0.0.0:53` so the LAN can use it, so the
-  only thing keeping it off the internet is the box's forward list. It is the
-  one published port with **no application-layer guard behind it**: 80 and 443
-  reach Traefik, which enforces `vpn-only`, while 53 reaches the resolver
-  directly. An open resolver is a reflection amplifier, and it would be found in
-  hours. This warning named the web ports and omitted it — checked from the
-  offsite uplink with a known-open port as a control, it is closed today.
-
-### Gotchas
-
-- SFR/Red boxes default to CGNAT (WAN IP in 10.x.x.x range). Port forwarding silently fails.
-- The box warns "IPv4 configurations may not work due to IPv6 WAN routing" — this is the CGNAT symptom.
-- Mobile networks (SFR, Red, Free) block incoming ports even in IPv6 — VPN outbound connections work fine.
+- SFR/Red boxes default to CGNAT (WAN IP in `10.x.x.x`). Port forwarding then fails silently.
+- The box warning "IPv4 configurations may not work due to IPv6 WAN routing" is the CGNAT symptom.
+- Mobile networks (SFR, Red, Free) block incoming ports even in IPv6. Outbound VPN works.

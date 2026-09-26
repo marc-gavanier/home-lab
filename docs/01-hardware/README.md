@@ -1,5 +1,7 @@
 # Hardware
 
+The boards and peripherals the lab runs on.
+
 ## Raspberry Pi 4 Model B
 
 | Specification | Value                                                           |
@@ -24,10 +26,7 @@
 
 ## Important Notes
 
-- **USB power**: the 5TB external HDD should be independently powered if possible, to avoid overloading the Pi's USB bus
-- **Cooling**: the case with active fan is essential — the Cortex-A72 throttles at 80°C
-- **SD card**: A2 class recommended for IOPS. Minimize writes to extend lifespan
-- **RAM**: this host runs an 8 GB board. The original 4 GB one was not retired —
-  it is the offsite backup target (ADR-010), so documents that say 4 GB are
-  correct when they are talking about `offsite`, and so are the ADRs written
-  while the main host still had 4 GB
+- **USB power**: power the 5 TB HDD independently if possible, so it does not overload the Pi's USB bus.
+- **Cooling**: the active fan is essential; the Cortex-A72 throttles at 80°C.
+- **SD card**: use A2 class for IOPS and keep writes low (see [System](../02-system/README.md#sd-write-reduction)).
+- **RAM**: this host has 8 GB. The original 4 GB board is now the offsite backup target (ADR-010), so "4 GB" in offsite docs and older ADRs is correct.

@@ -1,126 +1,71 @@
 # Runbook — Restore from backup (Restic)
 
-> **Last tested: 2026-08-15** — on site, homelab cut off (see *Drill record* below, which
-> also holds the 2026-07-27 offsite drill). On 2026-07-19: Immich built-in dump restored
-> end-to-end into a throwaway VectorChord postgres (search_path transform +
-> `--single-transaction --set ON_ERROR_STOP=on`):
-> 66 tables, `vector`/`vchord`/`vectors` extensions, 9 283 `asset` rows + 9 247 `smart_search`
-> embeddings. Vaultwarden `.backup` restored from the snapshot (`PRAGMA integrity_check` = ok).
-> Local prune+check timer exercised (deep read-data + metadata paths).
-> Earlier (2026-07-11): `restic check --read-data-subset=2%`, Vaultwarden scratch restore,
-> Nextcloud dump into a throwaway MariaDB (156 tables).
+Use this page to get files, a service, a database or the whole host back from the
+local Restic repository. Last tested 2026-08-15 (see [Drill record](#drill-record)).
 
-Backups are made by `homelab-backup.timer`, which runs resticprofile (ADR-031), into the Restic repo
-at `/mnt/data/backups/restic-repo`. They cover `/mnt/data/services` (service data),
-`/mnt/data/media` (photos/music/videos), `/mnt/data/secrets` (the credential files —
-omitted from this list until #178, though the backup has always included them), the
-DB dumps, and `/opt/homelab`. See
-`docs/06-backup/README.md`.
+What the backup covers: [`docs/06-backup/README.md`](../../docs/06-backup/README.md).
+When the homelab itself is lost, start with *Disaster recovery* in
+[`offsite-backup.md`](offsite-backup.md).
 
-## Where this runbook stages — `/mnt/data/tmp/restore`, never `/tmp`
+## Before you start
 
-Every `--target` below writes to `/mnt/data/tmp/restore`, on the encrypted disk.
-**Do not "simplify" them back to `/tmp`.** `/tmp` on this host is a RAM disk —
-`tmpfs size=1048576k`, so 1 GiB and no more, whatever `free` reports — and the
-restores here are not small:
+Rules that apply to every procedure on this page:
 
-| What a step stages | Size on 2026-08-31 |
-|-----------------------------------------------|--------------------|
-| Immich's dump directory (7 files, `keepLastAmount: 7`) | **595 MiB** |
-| The whole `/mnt/data/backups/dumps` folder | tens of MiB |
+- **Stage in `/mnt/data/tmp/restore`, never `/tmp`.** `/tmp` is a 1 GiB RAM disk
+  (`tmpfs size=1048576k`); the Immich dumps alone are about 595 MiB. `/mnt/data/tmp`
+  is not cleared at reboot, so delete the scratch directory when you are done.
+- **Delete `/mnt/data/tmp/restore` before every `restic restore`, even if you think
+  it is empty.** Restic does not remove files the snapshot lacks, so a second restore
+  into the same tree mixes two snapshots — and the `rsync -a --delete` steps below
+  then copy that mix into production. An interrupted, restarted restore is the usual
+  way this happens.
+- **`docker compose down <service>`, never `docker stop`.** The heal timer restarts,
+  every two minutes, any container that exited non-zero, is `created` or `dead`, or
+  has been unhealthy for 15 minutes (ADR-007). `down` removes the container from its view.
+- **`<service>` is the compose service name.** It matches the container name
+  everywhere except `immich-machine-learning` (container `immich-ml`).
+- **An `--include` that matches nothing restores zero files and exits 0.** No
+  output means nothing was restored. Check the path with `restic ls` first.
+- Run `ansible-playbook playbooks/site.yml --tags storage` after every restore: see
+  [Ownership after a restore](#ownership-after-a-restore).
 
-The Immich step alone would take 595 MiB of a 1 GiB ceiling. It fits today with
-429 MiB to spare and fails with a hard ENOSPC in the middle of a restore once the
-library grows by roughly two thirds. **Say that as a photo count, not as a date**:
-the dumps grew 13.5 KB in the six days to 2026-08-31, so a calendar projection
-gives decades and means nothing — the dump tracks the number of assets (9 489
-today) and the ceiling arrives around 16 000.
-
-`/mnt/data/tmp/` has 3.6 TB free and is the convention
-`uptime-kuma-migration-failure.md` already uses. The one thing it costs you: it
-is not cleared at reboot, so remove the scratch directory when you are done.
-
-## Prerequisites
-
-Restic needs the repo credentials and a HOME (for its cache). As root on the Pi:
+Open the repository, as root on the Pi:
 
 ```bash
 sudo -i
-set -a; . /opt/homelab/backup.env; set +a   # RESTIC_REPOSITORY, RESTIC_PASSWORD
+set -a; . /opt/homelab/backup.env; set +a
 export HOME=/root
-restic snapshots          # list snapshots
+restic snapshots
 ```
 
-## The staging directory — clear it BEFORE every restore, never after
-
-Every procedure below stages into the same fixed path, `/mnt/data/tmp/restore`.
-**Delete that directory before each `restic restore`, and do it even if you are
-sure it is empty.** Each recipe carries the line; this section says why, once.
-
-`restic restore` overwrites the files a snapshot contains. It does **not** remove
-files already in the target that the snapshot does not contain. So a second
-restore into a staging tree left over from a first one produces the **union of
-two snapshots** — the newer files, plus whatever only the older one had.
-
-That would be a curiosity if the staging tree were only ever read by hand. It is
-not: two of these procedures then run
-
-```
-rsync -a --delete /mnt/data/tmp/restore/mnt/data/services/<svc>/ /mnt/data/services/<svc>/
-```
-
-and `--delete` makes the staging tree the AUTHORITY over a live service
-directory. A stale file that survives in staging is therefore *restored into
-production*, and a file the real snapshot dropped comes back.
-
-The case that makes this likely rather than theoretical is the one you will
-actually be in: a restore that was interrupted — a tunnel that dropped, a
-password retyped, a wrong snapshot ID spotted halfway — and then started again.
-The second attempt is the dangerous one, and it looks identical to the first.
-
-Nothing in this repository has ever cleared this directory automatically, and
-nothing does now: the deletion is a line in each recipe, where the person
-running it can see it.
+Expected: a list of snapshots, the newest from last night's 03:00 run.
 
 ## Restore a single file or folder
 
-```bash
-# Safest: restore into a scratch dir, then copy out what you need
-sudo rm -rf /mnt/data/tmp/restore   # ALWAYS, first — see "The staging directory" above
-restic restore latest --target /mnt/data/tmp/restore --include /mnt/data/services/vaultwarden
+1. Find the exact path in the snapshot. The listing is not recursive: one line per
+   album, named `YYYY-MM-DD - Title`.
 
-# Or restore in place (OVERWRITES existing files)
-restic restore latest --target / --include "/mnt/data/media/photos/2019-08-15 - Bretagne"
-```
+   ```bash
+   restic ls latest /mnt/data/media/photos | grep -F 2019-08-15
+   ```
 
-**`--include` that matches nothing is SILENT.** restic restores zero files and
-exits 0, and the only difference from a successful restore is the absence of
-output you were not reading anyway. The example above used to say
-`/mnt/data/media/photos/2019`, which cannot match: the library is laid out as
-`YYYY-MM-DD - Title`, sixty-four of them, with no year directories at all. It
-was the only in-place example in this file, i.e. the line an operator copies and
-edits under pressure, and the conclusion you draw from a silent zero is that the
-photos are gone.
+2. Restore into staging, then copy out what you need:
 
-So check the path exists in the snapshot BEFORE restoring, and do it with a
-listing rather than by eye:
+   ```bash
+   sudo rm -rf /mnt/data/tmp/restore
+   restic restore latest --target /mnt/data/tmp/restore --include /mnt/data/services/vaultwarden
+   ```
 
-```bash
-# the path filter is NOT recursive without --recursive: this lists the immediate
-# contents of the photos directory, which is what you want here — one line per
-# album, so you can see the exact directory name to pass to --include.
-restic ls latest /mnt/data/media/photos | grep -F 2019-08-15
-```
+   Or restore in place. This **overwrites** existing files:
+
+   ```bash
+   restic restore latest --target / --include "/mnt/data/media/photos/2019-08-15 - Bretagne"
+   ```
+
+3. Check it worked: restic reported restored files. No output means the path matched
+   nothing — go back to step 1.
 
 ## Restore one service
-
-`compose down`, never `docker stop`. Every two minutes the heal timer
-restarts any compose container that exited with a non-zero code, is
-`created` or `dead`, or has been unhealthy for 15 minutes; it skips only a
-clean exit 0. Whether `docker stop` ends in 0 or in 143/137 depends on how the
-image handles SIGTERM, so a stopped container may come back on top of the
-files being restored, with the service reading them as they change (ADR-007).
-Removing the container takes it out of the timer's view entirely.
 
 ```bash
 cd /opt/homelab
@@ -129,576 +74,517 @@ restic restore latest --target / --include /mnt/data/services/<service>
 docker compose up -d <service>
 ```
 
-> **This command alone is NOT a complete restore for a service that has a
-> database.** Since 2026-08-31 the live database datadirs are excluded from the
-> snapshot on purpose — the dump is the consistent copy, the datadir is the torn
-> one (`resticprofile.yaml`, `exclude:`). The command above therefore restores
-> the files and silently leaves the database at whatever state is on disk, and it
-> **exits 0** either way. Verified on the snapshot of 2026-09-03 with
-> `restic ls latest <path>`:
->
-> | `--include` path | What comes back | Then also do |
-> |---|---|---|
-> | `services/miniflux` | **the empty directory, nothing else** — `db` is its only content | "Restore Miniflux" below |
-> | `services/nextcloud` | `data/` (the user files) — **no `db`** | "Restore a database" below |
-> | `services/immich` | `upload/`, `ml-cache` — **no `db`** | "Restore Immich" below |
-> | `services/uptime-kuma` | the directory — **no `kuma.db`** | "Restore Uptime Kuma" below |
-> | `services/pihole` | config, gravity, lists — **no query history** | nothing: a rescan rebuilds it |
-> | `services/netdata` | config — **no `cache/`** | nothing: it regenerates |
->
-> **Every other service comes back from this command alone — but for six of
-> them the database that comes back is the LIVE one, not the consistent one.**
-> Vaultwarden, Forgejo, wg-easy, Sonarr, Radarr and Prowlarr are all dumped
-> nightly *and* left in the snapshot, so `--include` restores their `.db` and
-> exits 0 with no warning, having handed you whatever WAL state happened to be
-> on disk. Measured 2026-09-13: `radarr.db-wal` held 3.77 MB of committed
-> transactions outside the main file, `sonarr.db-wal` 696 KB. Prefer the dump —
-> each has its own section below, except Vaultwarden and Forgejo which already
-> did.
->
-> The distinction to keep straight: the four database rows in the table above
-> (Miniflux, Nextcloud, Immich, Uptime Kuma) restore **nothing** for the
-> database, which is loud and obvious. These six restore **something plausible
-> but possibly torn**, which is quiet. The second failure mode is the one that
-> reaches production.
->
-> How this got here is worth one sentence, because it is the shape to watch for:
-> `resticprofile.yaml` stated the rule that makes an exclusion safe — *"exclude
-> nothing that a documented restore procedure reads"*, in a comment removed by
-> #390 (`git show 4b1c7c7^:ansible/roles/deploy/templates/resticprofile.yaml.j2`)
-> — and the rule was checked against the per-service procedures further down
-> this file and not against the generic one right here. One file was edited; its sibling was not.
+Each service's own doc lists its exact path.
 
-`<service>` is the **compose service name**, not the container name. They
-are identical for every service here except `immich-machine-learning`,
-whose container is named `immich-ml`; `compose` answers "no such service"
-rather than doing nothing quietly.
+**This is not a complete restore for a service with a database, and it exits 0
+either way.** The live database directories are excluded from the snapshot (the
+dump is the consistent copy):
 
-(Each service's own doc lists its exact path.)
+| `--include` path       | What comes back                          | Then also do                                                  |
+|------------------------|------------------------------------------|---------------------------------------------------------------|
+| `services/miniflux`    | the empty directory only                 | [Restore Miniflux](#restore-miniflux-postgresql)              |
+| `services/nextcloud`   | `data/` (user files), no `db`            | [Restore a database](#restore-a-database)                     |
+| `services/immich`      | `upload/`, `ml-cache`, no `db`           | [Restore Immich](#restore-immich-postgresql--vectorchord--pgvectors) |
+| `services/uptime-kuma` | the directory, no `kuma.db`              | [Restore Uptime Kuma](#restore-uptime-kuma-sqlite)            |
+| `services/pihole`      | config, gravity, lists, no query history | nothing: it rebuilds                                          |
+| `services/netdata`     | config, no `cache/`                      | nothing: it regenerates                                       |
+
+For Vaultwarden, Forgejo, wg-easy, Sonarr, Radarr and Prowlarr the command does
+restore a `.db`, but it is the **live** file, possibly with committed transactions
+still in its `-wal`. Use the dump instead: each has its own section below.
 
 ## Ownership after a restore
 
-Five services start **as** uid 999 rather than as root (`user:` in
-`compose.yaml`), which is what lets them run with no capability at all
-(ADR-017). The consequence for a restore: **they can no longer repair the
-ownership of their own data directory**, because `CHOWN` is gone.
+Run this **after every restore**. Restic returns the ownership and modes the files
+had in the snapshot, not what the current configuration expects.
 
-Measured on the running host, so the list below is the one to act on:
+These containers run as uid 999 with no `CHOWN` capability (ADR-017), so they
+cannot fix their own data directory:
 
-| Service | Data directory to own |
-|---|---|
-| `nextcloud-db` | `/mnt/data/services/nextcloud/db` |
-| `immich-db` | `/mnt/data/services/immich/db` |
-| `miniflux-db` | `/mnt/data/services/miniflux/db` |
-| `nextcloud-redis` | none — no bind mount, nothing to repair |
-| `immich-redis` | none — no bind mount, nothing to repair |
+| Service           | Data directory                      |
+|-------------------|-------------------------------------|
+| `nextcloud-db`    | `/mnt/data/services/nextcloud/db`   |
+| `immich-db`       | `/mnt/data/services/immich/db`      |
+| `miniflux-db`     | `/mnt/data/services/miniflux/db`    |
+| `nextcloud-redis` | none (no bind mount)                |
+| `immich-redis`    | none (no bind mount)                |
 
-`nextcloud-cron` is **not** in this set, whatever ADR-017 used to say: starting
-it as uid 33 was tried and reverted under #28, so it runs as root with `SETUID`
-and `SETGID`.
-
-`restic restore` runs as root and preserves ownership, so a normal restore is
-safe. What is not safe is recreating a datadir by hand — `mkdir`, `cp -r` out of
-`/mnt/data/tmp/restore`, or an `rsync` without `-a` — which leaves it owned by root.
-Postgres then refuses to start ("data directory has wrong ownership") and
-MariaDB fails on its first write.
+A directory recreated by hand (`mkdir`, `cp -r`, `rsync` without `-a`) ends up owned
+by root: Postgres then refuses to start ("data directory has wrong ownership") and
+MariaDB fails on its first write. Fix it by hand:
 
 ```bash
-# After any hand-made copy into a database directory — all three, miniflux
-# included: it is a uid-999 datadir on a container with cap_drop: ALL, so it has
-# nothing left to repair itself with.
 chown -R 999:999 /mnt/data/services/nextcloud/db /mnt/data/services/immich/db /mnt/data/services/miniflux/db
 chmod 700        /mnt/data/services/nextcloud/db /mnt/data/services/immich/db /mnt/data/services/miniflux/db
-# Or simply let Ansible do it:
+```
+
+Or let Ansible do it, from `ansible/`:
+
+```bash
 ansible-playbook playbooks/site.yml --tags storage --ask-vault-pass
 ```
 
-Run that **after every restore**, not only after a hand-made copy: restic
-returns files with the ownership and permissions they had *in the snapshot*,
-which is not necessarily what the current configuration expects. Measured in the
-2026-07-27 drill below — the restored Nextcloud datadir came back mode 755, the
-value it had before that morning's change to 700.
+`nextcloud-cron` runs as root; it needs nothing.
 
 ## Restore a database
 
-DB dumps are taken before each backup and captured in the snapshot at
-`/mnt/data/backups/dumps/`. They are deleted from disk after each successful run (a failed run leaves them in place, and
-then they are the newest copy), so otherwise restore them from a snapshot first:
+The dumps live in `/mnt/data/backups/dumps/`. They are deleted from disk after each
+successful run (a failed run leaves them, and then they are the newest copy), so
+normally you restore them from a snapshot first.
+
+Ten databases are dumped. Nextcloud is restored here; every other one needs more than
+an import and has its own section:
+
+| Database                           | Section                                                                          |
+|------------------------------------|----------------------------------------------------------------------------------|
+| Vaultwarden (SQLite)               | [Restore Vaultwarden](#restore-vaultwarden-sqlite)                               |
+| Immich (PostgreSQL)                | [Restore Immich](#restore-immich-postgresql--vectorchord--pgvectors)             |
+| Miniflux (PostgreSQL)              | [Restore Miniflux](#restore-miniflux-postgresql)                                 |
+| Forgejo (SQLite)                   | [Restore Forgejo](#restore-forgejo-sqlite)                                       |
+| Uptime Kuma (SQLite)               | [Restore Uptime Kuma](#restore-uptime-kuma-sqlite)                               |
+| wg-easy (SQLite)                   | [Restore wg-easy](#restore-wg-easy-sqlite)                                       |
+| Sonarr / Radarr / Prowlarr (SQLite) | [Restore Sonarr / Radarr / Prowlarr](#restore-sonarr--radarr--prowlarr-sqlite) |
+
+A service missing from this table is not dumped: the snapshot holds only its files as
+they were on disk.
+
+Nextcloud (MariaDB), in maintenance mode:
 
 ```bash
-sudo rm -rf /mnt/data/tmp/restore   # ALWAYS, first — see "The staging directory" above
+sudo rm -rf /mnt/data/tmp/restore
 restic restore latest --target /mnt/data/tmp/restore --include /mnt/data/backups/dumps
 
-# Nextcloud (MariaDB) — put it in maintenance mode around the import
 docker exec -u www-data nextcloud php occ maintenance:mode --on
 docker exec -i nextcloud-db sh -c \
   'MYSQL_PWD=$(cat /run/secrets/nextcloud_db_password) mariadb -u"$MYSQL_USER" "$MYSQL_DATABASE"' \
   < /mnt/data/tmp/restore/mnt/data/backups/dumps/nextcloud.sql
 docker exec -u www-data nextcloud php occ maintenance:mode --off
-
-# Every OTHER database has its own section below, and needs more than an import
-# — the target reset, or the service stopped first. Do not improvise from here:
-#
-#   Vaultwarden (SQLite)              -> "Restore Vaultwarden"
-#   Immich (PostgreSQL)               -> "Restore Immich"      (search_path handling)
-#   Miniflux (PostgreSQL)             -> "Restore Miniflux"
-#   Forgejo (SQLite)                  -> "Restore Forgejo"
-#   Uptime Kuma (SQLite)              -> "Restore Uptime Kuma"
-#   wg-easy (SQLite)                  -> "Restore wg-easy"
-#   Sonarr / Radarr / Prowlarr (SQLite) -> "Restore Sonarr / Radarr / Prowlarr"
 ```
-
-That is ten databases in all — the same ten the coverage table in
-`docs/06-backup/README.md` lists. If you are reading this because a service is
-missing from both, it is not dumped, and the snapshot holds only whatever was on
-disk when the backup ran.
 
 ## Restore Vaultwarden (SQLite)
 
-The nightly backup writes a consistent `sqlite3 .backup` copy to
-`/mnt/data/backups/dumps/vaultwarden.sqlite3` (captured in the snapshot). Restore
-that file rather than the live `db.sqlite3` from the service folder — the live
-copy can carry a torn WAL. Restore it as the new database:
+Restore the dump `vaultwarden.sqlite3`, not the live `db.sqlite3`, which can carry a
+torn WAL.
 
-```bash
-sudo rm -rf /mnt/data/tmp/restore   # ALWAYS, first — see "The staging directory" above
-restic restore latest --target /mnt/data/tmp/restore --include /mnt/data/backups/dumps
+1. Get the dumps:
 
-cd /opt/homelab
-docker compose down vaultwarden
-# Drop any stale WAL/SHM so SQLite reopens cleanly from the restored DB
-rm -f /mnt/data/services/vaultwarden/db.sqlite3-wal /mnt/data/services/vaultwarden/db.sqlite3-shm
-cp /mnt/data/tmp/restore/mnt/data/backups/dumps/vaultwarden.sqlite3 \
-   /mnt/data/services/vaultwarden/db.sqlite3
-docker compose up -d vaultwarden
-```
+   ```bash
+   sudo rm -rf /mnt/data/tmp/restore
+   restic restore latest --target /mnt/data/tmp/restore --include /mnt/data/backups/dumps
+   ```
 
-(Attachments/sends/rsa keys live alongside the DB in `/mnt/data/services/vaultwarden`
-and are already restored by a full service restore — see "Restore one service".)
+2. Stop the service, drop the stale WAL/SHM, copy the dump in, start it:
+
+   ```bash
+   cd /opt/homelab
+   docker compose down vaultwarden
+   rm -f /mnt/data/services/vaultwarden/db.sqlite3-wal /mnt/data/services/vaultwarden/db.sqlite3-shm
+   cp /mnt/data/tmp/restore/mnt/data/backups/dumps/vaultwarden.sqlite3 \
+      /mnt/data/services/vaultwarden/db.sqlite3
+   docker compose up -d vaultwarden
+   ```
+
+Attachments, sends and RSA keys sit beside the database in
+`/mnt/data/services/vaultwarden`; [Restore one service](#restore-one-service) brings them back.
 
 ## Restore Immich (PostgreSQL — VectorChord / pgvecto.rs)
 
-Immich takes its **own** scheduled DB backup (Admin → Settings → Backup), written
-to `/mnt/data/services/immich/upload/backups/*.sql.gz` and captured in the restic
-snapshot (`/mnt/data/services` is in the set). Restore follows Immich's official
-procedure: the `search_path` `sed` transform is **mandatory** for the vector
-extensions, and the dump must be loaded into a **freshly-initialised** database.
+Immich writes its own DB dump (Admin → Settings → Backup) to
+`/mnt/data/services/immich/upload/backups/*.sql.gz`, which is in the snapshot.
+The datadir is not: the dump is the **only** copy.
 
-> ⚠️ Our stack is one shared `compose.yaml`, and the Immich DB is a **bind mount**
-> (`services/immich/db`), not a named volume — so **never** run
-> `docker compose down -v` (it would target every service's volumes). Reset only
-> the Immich DB directory, as below.
+### Before you start
 
-```bash
-# 1. Get the newest dump (from disk, or restore the folder from a snapshot first):
-sudo rm -rf /mnt/data/tmp/restore   # ALWAYS, first — see "The staging directory" above
-restic restore latest --target /mnt/data/tmp/restore \
-  --include /mnt/data/services/immich/upload/backups
-# `sudo sh -c`, NOT `sudo ls`: the directory is 0700 root since #272, and a glob
-# in `sudo ls /path/*.sql.gz` is expanded by YOUR shell, which cannot read it —
-# you get "no matches" rather than a permission error, which reads like an empty
-# backup directory. The restored copy under /tmp is root-owned 0700 for the same
-# reason, so it needs the same form.
-DUMP=$(sudo sh -c 'ls -t /mnt/data/services/immich/upload/backups/*.sql.gz' | head -1)
-# (or: DUMP=$(sudo sh -c 'ls -t /mnt/data/tmp/restore/mnt/data/services/immich/upload/backups/*.sql.gz' | head -1))
+- **Never `docker compose down -v`.** The stack is one shared `compose.yaml`; `-v`
+  targets every service's volumes. Reset only the Immich DB directory.
+- The dump must load into a **fresh** database, through the `search_path` `sed`
+  transform (mandatory for the vector extensions).
+- `--single-transaction --set ON_ERROR_STOP=on` stops on a SQL error but **not** on a
+  truncated input: psql can commit a partial table and exit 0. That is why step 2
+  tests the file, and why steps 4 and 6 are gated on its result — a pasted block
+  cannot then delete or overwrite the live database with a bad dump.
 
-# 1b. PROVE the dump is complete before anything is destroyed. This is not
-#     belt-and-braces: step 2 deletes the live database, the datadir is
-#     excluded from the restic set (the dump is the ONLY copy), and `ls -t`
-#     above deliberately picks the NEWEST file — which is exactly the one a
-#     restic restore or a dump job interrupted halfway would have left
-#     truncated. A truncated .gz costs nothing to detect and everything to miss.
-#
-#     `sudo`, for the same reason as the `ls` above: the file is root-owned
-#     under a root-only directory, so an unprivileged `gzip -t` fails with
-#     "permission denied" — which reads exactly like a corrupt dump and would
-#     stop a perfectly good restore.
-sudo gzip -t "$DUMP" && DUMP_OK=yes || DUMP_OK=no
-echo "dump integrity: $DUMP_OK  ($DUMP)"
+### Steps
 
-# Record what a complete restore must reproduce, while the old database is
-# still there. Compared again at step 6.
-BEFORE_ASSETS=$(docker exec immich-db psql -U immich -d immich -tAc \
-  'select count(*) from asset;' 2>/dev/null || echo unknown)
-echo "asset rows before restore: $BEFORE_ASSETS"
+1. Pick the newest dump, from disk or from a snapshot. Use `sudo sh -c`, not
+   `sudo ls`: the directory is `0700 root`, so your own shell cannot expand the glob
+   and you get "no matches".
 
-cd /opt/homelab
+   ```bash
+   sudo rm -rf /mnt/data/tmp/restore
+   restic restore latest --target /mnt/data/tmp/restore \
+     --include /mnt/data/services/immich/upload/backups
+   DUMP=$(sudo sh -c 'ls -t /mnt/data/services/immich/upload/backups/*.sql.gz' | head -1)
+   ```
 
-# 2. Remove Immich's containers and reset the DB dir so the container re-runs
-#    initdb (fresh, empty `immich` database owned by the `immich` superuser).
-#    `down`, not `stop`: a stopped container that exited non-zero is resurrected
-#    by the heal timer within two minutes, and here that lands on a datadir
-#    being deleted.
-#    `immich-machine-learning` is the COMPOSE SERVICE; `immich-ml` is only its
-#    container_name, and compose rejects the whole command with "no such
-#    service" if you pass it. That matters more here than anywhere else in this
-#    file: the very next line deletes the database directory, so a command that
-#    removes nothing leaves you deleting a datadir under a running Postgres.
-#    Both lines are GATED on step 1b rather than sequenced after it. A runbook
-#    is pasted as a block, and "stop here if the check failed" is advice a
-#    pasted block does not follow. `exit` would be worse — in an interactive
-#    shell it closes the operator's session mid-restore.
-[ "$DUMP_OK" = yes ] && docker compose down immich-server immich-machine-learning immich-db immich-redis
-[ "$DUMP_OK" = yes ] && rm -rf /mnt/data/services/immich/db/*
+   Or, from the restored copy:
 
-# 3. Bring the DB back up empty and wait until it is healthy:
-docker compose up -d immich-db
-until [ "$(docker inspect -f '{{.State.Health.Status}}' immich-db)" = healthy ]; do sleep 2; done
+   ```bash
+   DUMP=$(sudo sh -c 'ls -t /mnt/data/tmp/restore/mnt/data/services/immich/upload/backups/*.sql.gz' | head -1)
+   ```
 
-# 4. Load the dump. `--single-transaction --set ON_ERROR_STOP=on` aborts on the
-#    first SQL ERROR and rolls back — it does NOT make the import atomic with
-#    respect to a TRUNCATED input, and the difference is the whole reason for
-#    step 1b. A pg_dump carries its rows inside `COPY … FROM stdin` blocks; a
-#    cut that lands on a record boundary reads as a clean end of input, so psql
-#    commits the partial table and exits 0 with an empty stderr. Measured over
-#    thirty truncation points on this exact pipeline: twelve committed
-#    silently, eighteen were caught. Note also that the pipeline's exit status
-#    is psql's, so the `gunzip` that failed upstream shows up only as one line
-#    on stderr — which is why step 1b tests the file instead of trusting this:
-#    Gated too, and this is the gate that matters most: if step 2 was skipped
-#    because the dump is bad, the LIVE database is still there — and an
-#    ungated load would pour a truncated dump straight into it.
-[ "$DUMP_OK" = yes ] && sudo gunzip --stdout "$DUMP" \
-| sed "s/SELECT pg_catalog.set_config('search_path', '', false);/SELECT pg_catalog.set_config('search_path', 'public, pg_catalog', true);/g" \
-| docker exec -i immich-db psql \
-    --dbname=immich --username=immich \
-    --single-transaction --set ON_ERROR_STOP=on
+2. Prove the dump is complete (`sudo`: an unprivileged `gzip -t` fails with
+   "permission denied", which looks like corruption):
 
-# 5. Start the rest of the stack:
-docker compose up -d immich-server immich-machine-learning immich-redis
-```
+   ```bash
+   sudo gzip -t "$DUMP" && DUMP_OK=yes || DUMP_OK=no
+   echo "dump integrity: $DUMP_OK  ($DUMP)"
+   ```
+
+   Expected: `dump integrity: yes`. If `no`, stop here.
+
+3. Record the current asset count, to compare after the restore:
+
+   ```bash
+   BEFORE_ASSETS=$(docker exec immich-db psql -U immich -d immich -tAc \
+     'select count(*) from asset;' 2>/dev/null || echo unknown)
+   echo "asset rows before restore: $BEFORE_ASSETS"
+   ```
+
+4. Remove the Immich containers and empty the DB directory, so the container re-runs
+   `initdb`:
+
+   ```bash
+   cd /opt/homelab
+   [ "$DUMP_OK" = yes ] && docker compose down immich-server immich-machine-learning immich-db immich-redis
+   [ "$DUMP_OK" = yes ] && rm -rf /mnt/data/services/immich/db/*
+   ```
+
+5. Start the empty database and wait for it:
+
+   ```bash
+   docker compose up -d immich-db
+   until [ "$(docker inspect -f '{{.State.Health.Status}}' immich-db)" = healthy ]; do sleep 2; done
+   ```
+
+6. Load the dump:
+
+   ```bash
+   [ "$DUMP_OK" = yes ] && sudo gunzip --stdout "$DUMP" \
+   | sed "s/SELECT pg_catalog.set_config('search_path', '', false);/SELECT pg_catalog.set_config('search_path', 'public, pg_catalog', true);/g" \
+   | docker exec -i immich-db psql \
+       --dbname=immich --username=immich \
+       --single-transaction --set ON_ERROR_STOP=on
+   ```
+
+7. Start the rest:
+
+   ```bash
+   docker compose up -d immich-server immich-machine-learning immich-redis
+   ```
+
+### Check it worked
+
+Count first — a partial database still shows a working timeline:
 
 ```bash
-# 6. Sanity-check by COUNTING, not by looking. A database loaded from a
-#    truncated dump serves a working timeline and a working search — the
-#    2026-07-19 drill established the right shape ("verified by loading, never
-#    by listing") and its numbers: 66 tables, 9 283 `asset` rows, 9 247
-#    `smart_search` embeddings. Compare against $BEFORE_ASSETS from step 1b, or
-#    against the drill if the old database was already gone.
 docker exec immich-db psql -U immich -d immich -tAc 'select count(*) from asset;'
 docker exec immich-db psql -U immich -d immich -tAc \
   "select count(*) from information_schema.tables where table_schema='public';"
 ```
 
-Then log in and confirm the timeline and search (VectorChord) work — after the
-counts agree, not instead of them. The photo/video files themselves live in
-`services/immich/upload` and `media/photos` — restore those from a snapshot too
-if they were lost.
+Expected: the asset count matches `$BEFORE_ASSETS`. If the old database was already
+gone, compare with the 2026-07-19 drill: 66 tables, 9 283 assets. Then log in and
+check the timeline and search.
+
+The photos and videos themselves are in `services/immich/upload` and `media/photos`:
+restore those too if they were lost.
 
 ## Restore Miniflux (PostgreSQL)
 
-The nightly backup writes a plain-SQL `pg_dump` to
-`/mnt/data/backups/dumps/miniflux.sql` (captured in the snapshot). Restore that,
-**not** the datadir under `services/miniflux/db` — which is not there to restore
-in any case: it is in the profile's `exclude:` list, alongside `nextcloud/db`
-and `immich/db`, for the reason this file gives above. restic would walk it file
-by file while Postgres writes, so a snapshot copy would be a torn cluster, and
-excluding it is what stops anyone reaching for one. This paragraph said the
-datadir was in the restic set; it has not been since the exclusion shipped. The
-dump carries no `--clean`, so it has to be loaded into a freshly-initialised
-database.
+Restore the dump `miniflux.sql`. The datadir `services/miniflux/db` is excluded from
+the snapshot. The dump has no `--clean`, so it loads into a fresh database.
 
-> `down`, not `stop`: the crash-heal timer brings back containers it finds
-> exited with a non-zero code, which a `docker stop` can leave, so a merely
-> stopped service can return mid-restore (`homelab-stack-heal.sh`).
+1. Get the dumps:
+
+   ```bash
+   sudo rm -rf /mnt/data/tmp/restore
+   restic restore latest --target /mnt/data/tmp/restore --include /mnt/data/backups/dumps
+   ```
+
+2. Check the dump ends the way `pg_dump` output ends (ON_ERROR_STOP does not catch a
+   truncated file):
+
+   ```bash
+   tail -c 200 /mnt/data/tmp/restore/mnt/data/backups/dumps/miniflux.sql
+   ```
+
+3. Remove both containers, so nothing writes during the load:
+
+   ```bash
+   cd /opt/homelab
+   docker compose down miniflux miniflux-db
+   ```
+
+4. Empty the datadir so the entrypoint re-runs `initdb`. Clear the parent, not
+   `db/18/docker`: Postgres 18 keeps PGDATA one level below the mount.
+
+   ```bash
+   rm -rf /mnt/data/services/miniflux/db/*
+   ```
+
+5. Start the empty database and wait for it:
+
+   ```bash
+   docker compose up -d miniflux-db
+   until [ "$(docker inspect -f '{{.State.Health.Status}}' miniflux-db)" = healthy ]; do sleep 2; done
+   ```
+
+6. Load the dump:
+
+   ```bash
+   docker exec -i miniflux-db psql \
+       --dbname=miniflux --username=miniflux \
+       --single-transaction --set ON_ERROR_STOP=on \
+     < /mnt/data/tmp/restore/mnt/data/backups/dumps/miniflux.sql
+   ```
+
+7. Start the reader:
+
+   ```bash
+   docker compose up -d miniflux
+   ```
+
+Role and database are both `miniflux` unless `miniflux_db_user` / `miniflux_db_name`
+are overridden in `local.yml`.
+
+Check it worked: count entries, then log in at `https://rss.<domain>` and check the
+feed list and unread counts. Miniflux keeps all its state in Postgres; nothing else
+to restore.
 
 ```bash
-sudo rm -rf /mnt/data/tmp/restore   # ALWAYS, first — see "The staging directory" above
-restic restore latest --target /mnt/data/tmp/restore --include /mnt/data/backups/dumps
-
-cd /opt/homelab
-
-# 1. Remove both containers — the reader too, so nothing writes during the load:
-docker compose down miniflux miniflux-db
-
-# 2. Reset the datadir so the entrypoint re-runs initdb. Clear the parent, not
-#    db/18/docker: Postgres 18 keeps PGDATA one level below the mounted volume.
-rm -rf /mnt/data/services/miniflux/db/*
-
-# 3. Bring the database back up empty and wait until it is healthy:
-docker compose up -d miniflux-db
-until [ "$(docker inspect -f '{{.State.Health.Status}}' miniflux-db)" = healthy ]; do sleep 2; done
-
-# 4. Load the dump. Same caveat as Immich's step 4 above: this aborts on the
-#    first SQL ERROR, not on an input that ends early. The dump is plain SQL
-#    here, so there is no `gzip -t` to run — check that it ends the way pg_dump
-#    ends before loading it, and count rows afterwards:
-#      tail -c 200 /mnt/data/tmp/restore/mnt/data/backups/dumps/miniflux.sql
-docker exec -i miniflux-db psql \
-    --dbname=miniflux --username=miniflux \
-    --single-transaction --set ON_ERROR_STOP=on \
-  < /mnt/data/tmp/restore/mnt/data/backups/dumps/miniflux.sql
-
-# 5. Start the reader again:
-docker compose up -d miniflux
+docker exec miniflux-db psql -U miniflux -d miniflux -tAc 'select count(*) from entries;'
 ```
-
-(Role and database are both `miniflux` unless `miniflux_db_user` /
-`miniflux_db_name` were overridden in `local.yml`.)
-
-Sanity-check by counting first — `docker exec miniflux-db psql -U miniflux
--d miniflux -tAc 'select count(*) from entries;'` — then log in at
-`https://rss.<domain>` and confirm the feed list and the unread counts. Nothing else to restore — Miniflux keeps all of its state in
-Postgres, which is why its container needs no writable filesystem at all.
 
 ## Restore Forgejo (SQLite)
 
-Two halves, and both are needed. The database
-(`/mnt/data/backups/dumps/forgejo.sqlite3`, a consistent `sqlite3 .backup` copy)
-holds the users, the repository list and the mirror settings; the repositories
-themselves are plain files under `services/forgejo/data/git/repositories` that
-restic restores directly. Restore only one and you get a forge that lists
-repositories it cannot serve, or serves repositories it does not list.
+Restore both halves: the database (`forgejo.sqlite3` dump: users, repository list,
+mirror settings) and the repositories (files under
+`services/forgejo/data/git/repositories`). One without the other gives a forge that
+lists repositories it cannot serve, or the reverse.
 
-```bash
-sudo rm -rf /mnt/data/tmp/restore   # ALWAYS, first — see "The staging directory" above
-restic restore latest --target /mnt/data/tmp/restore \
-  --include /mnt/data/backups/dumps \
-  --include /mnt/data/services/forgejo
+1. Get the dumps and the service directory:
 
-cd /opt/homelab
-docker compose down forgejo
+   ```bash
+   sudo rm -rf /mnt/data/tmp/restore
+   restic restore latest --target /mnt/data/tmp/restore \
+     --include /mnt/data/backups/dumps \
+     --include /mnt/data/services/forgejo
+   ```
 
-# Repositories and config — skip if only the database was lost:
-rsync -a --delete /mnt/data/tmp/restore/mnt/data/services/forgejo/ /mnt/data/services/forgejo/
+2. Stop the service:
 
-# Database. The doubled data/data is the rootless layout, not a typo: the host
-# directory forgejo/data is mounted at /var/lib/gitea, and APP_DATA_PATH sits
-# one level under that. Drop any stale WAL/SHM so SQLite reopens cleanly.
-rm -f /mnt/data/services/forgejo/data/data/forgejo.db-wal \
-      /mnt/data/services/forgejo/data/data/forgejo.db-shm
-cp /mnt/data/tmp/restore/mnt/data/backups/dumps/forgejo.sqlite3 \
-   /mnt/data/services/forgejo/data/data/forgejo.db
+   ```bash
+   cd /opt/homelab
+   docker compose down forgejo
+   ```
 
-chown -R 1000:1000 /mnt/data/services/forgejo   # `git` in the rootless image
-docker compose up -d forgejo
-```
+3. Restore repositories and config (skip if only the database was lost):
 
-Sanity-check: log in at `https://git.<domain>`, then Repository → Settings →
-Mirror Settings → *Synchronize Now*. There are no mirror credentials to restore:
-the pull runs tokenless by decision (ADR-028), which also means issues and pull
-requests were never mirrored — only the git objects come back.
+   ```bash
+   rsync -a --delete /mnt/data/tmp/restore/mnt/data/services/forgejo/ /mnt/data/services/forgejo/
+   ```
+
+4. Restore the database. `data/data` is the rootless layout, not a typo.
+
+   ```bash
+   rm -f /mnt/data/services/forgejo/data/data/forgejo.db-wal \
+         /mnt/data/services/forgejo/data/data/forgejo.db-shm
+   cp /mnt/data/tmp/restore/mnt/data/backups/dumps/forgejo.sqlite3 \
+      /mnt/data/services/forgejo/data/data/forgejo.db
+   ```
+
+5. Fix ownership (`git` is uid 1000 in the rootless image) and start:
+
+   ```bash
+   chown -R 1000:1000 /mnt/data/services/forgejo
+   docker compose up -d forgejo
+   ```
+
+Check it worked: log in at `https://git.<domain>`, then Repository → Settings →
+Mirror Settings → *Synchronize Now*. Only git objects come back: the mirror is
+tokenless (ADR-028), so issues and pull requests were never mirrored.
 
 ## Restore Uptime Kuma (SQLite)
 
-Restore this one early, not last. Every dead-man's switch in the lab — nightly
-backup, offsite copy, weekly audit, disk report, feed digest — terminates in a
-Kuma push monitor, so until Kuma is back nothing is watching the recovery
-itself. The database also has no second copy anywhere: Kuma v2 has no
-configuration export, and the monitors were entered by hand in the web UI.
+Restore it **early**: every dead-man's switch ends in a Kuma push monitor, so nothing
+watches the recovery until Kuma is back. The database is the only copy of the
+monitors (Kuma v2 has no config export).
 
-```bash
-sudo rm -rf /mnt/data/tmp/restore   # ALWAYS, first — see "The staging directory" above
-restic restore latest --target /mnt/data/tmp/restore \
-  --include /mnt/data/backups/dumps \
-  --include /mnt/data/services/uptime-kuma
+1. Get the dumps and the service directory **from the same snapshot**. The push
+   tokens are in the database; an older database than the config leaves every push
+   monitor silently DOWN.
 
-cd /opt/homelab
-docker compose down uptime-kuma
+   ```bash
+   sudo rm -rf /mnt/data/tmp/restore
+   restic restore latest --target /mnt/data/tmp/restore \
+     --include /mnt/data/backups/dumps \
+     --include /mnt/data/services/uptime-kuma
+   ```
 
-# Drop any stale WAL/SHM so SQLite reopens cleanly against the restored file.
-rm -f /mnt/data/services/uptime-kuma/kuma.db-wal \
-      /mnt/data/services/uptime-kuma/kuma.db-shm
-cp /mnt/data/tmp/restore/mnt/data/backups/dumps/uptime-kuma.sqlite3 \
-   /mnt/data/services/uptime-kuma/kuma.db
-chown root:root /mnt/data/services/uptime-kuma/kuma.db   # the image runs as root
+2. Stop the service, drop the stale WAL/SHM, copy the dump in, start it:
 
-docker compose up -d uptime-kuma
-```
+   ```bash
+   cd /opt/homelab
+   docker compose down uptime-kuma
+   rm -f /mnt/data/services/uptime-kuma/kuma.db-wal \
+         /mnt/data/services/uptime-kuma/kuma.db-shm
+   cp /mnt/data/tmp/restore/mnt/data/backups/dumps/uptime-kuma.sqlite3 \
+      /mnt/data/services/uptime-kuma/kuma.db
+   chown root:root /mnt/data/services/uptime-kuma/kuma.db
+   docker compose up -d uptime-kuma
+   ```
 
-Sanity-check by *function*, not by a green container: log in at
-`https://services.<domain>`, confirm the monitor count, and confirm the
-notification channel is still attached (Settings → Notifications) — a restored
-monitor list that notifies nobody looks healthy and is not.
-
-The push tokens come back inside the database, so the push URLs held in
-`local.yml` and `backup.env` keep matching and the dead-man's switches resume on
-their own. That only holds because both halves ride the same snapshot: if you
-ever restore the database from an *older* snapshot than the configuration, the
-tokens diverge and every push monitor stays silently DOWN.
+Check it worked: log in at `https://services.<domain>`, check the monitor count, and
+check the notification channel is still attached (Settings → Notifications).
 
 ## Restore wg-easy (SQLite)
 
-Read this one before you need it. wg-easy holds every WireGuard peer, and the
-tunnel is the only route to this Pi, to the offsite Pi, and — because
-`/etc/wireguard/wg0.conf` is a symlink to `/mnt/data/secrets/wg0.conf` on the
-encrypted volume — to the unlock itself. A restore you get wrong here is not a
-service outage; it is the loss of the way back in. Do it with someone able to
-reach the machine physically, or do it knowing that is the fallback.
+### Before you start
 
-It joined the dump set on 2026-09-11 and had no procedure here until
-2026-09-12, which is the gap this section closes.
+The tunnel is the only way into this Pi, into the offsite Pi, and into the unlock
+itself (`/etc/wireguard/wg0.conf` links to `/mnt/data/secrets/wg0.conf`). A wrong
+restore loses the way back in. Do it with someone able to reach the machine
+physically, or accept that as the fallback.
 
-```bash
-sudo rm -rf /mnt/data/tmp/restore   # ALWAYS, first — see "The staging directory" above
-restic restore latest --target /mnt/data/tmp/restore \
-  --include /mnt/data/backups/dumps
+- The store is `wg-easy.db`, **not** `wg0.json` beside it (the pre-v15 peer store).
+  Using `wg0.json`, or leaving the database missing, rebuilds the wrong peers.
+- `wg-easy.db` holds the peers wg-easy serves. The Pi's own tunnel config
+  (`/mnt/data/secrets/wg0.conf`) comes back with the secrets, not with this database.
+  You need both.
 
-cd /opt/homelab
-docker compose down wg-easy    # `down`, never `stop`: the heal timer can bring a
-                               # stopped container back within 2 min (ADR-007)
+### Steps
 
-# The store is `wg-easy.db`, NOT the `wg0.json` sitting beside it. That file is
-# the pre-v15 peer store (ADR-020's rollback copy is the one in the v14 rollback
-# directory, not this one); copying it over the database, or leaving the database missing so wg-easy finds only it,
-# is how a restore silently rebuilds the wrong generation of peers.
-# Drop any stale WAL/SHM so SQLite reopens cleanly against the restored file.
-rm -f /mnt/data/services/wireguard/wg-easy.db-wal \
-      /mnt/data/services/wireguard/wg-easy.db-shm
-cp /mnt/data/tmp/restore/mnt/data/backups/dumps/wg-easy.sqlite3 \
-   /mnt/data/services/wireguard/wg-easy.db
+1. Get the dumps:
 
-chown root:root /mnt/data/services/wireguard/wg-easy.db   # the image runs as uid 0
-chmod 600 /mnt/data/services/wireguard/wg-easy.db
+   ```bash
+   sudo rm -rf /mnt/data/tmp/restore
+   restic restore latest --target /mnt/data/tmp/restore \
+     --include /mnt/data/backups/dumps
+   ```
 
-docker compose up -d wg-easy
-```
+2. Stop the service, drop the stale WAL/SHM, copy the dump in:
 
-Two traps that are documented elsewhere and were not here, which is where they
-are needed:
+   ```bash
+   cd /opt/homelab
+   docker compose down wg-easy
+   rm -f /mnt/data/services/wireguard/wg-easy.db-wal \
+         /mnt/data/services/wireguard/wg-easy.db-shm
+   cp /mnt/data/tmp/restore/mnt/data/backups/dumps/wg-easy.sqlite3 \
+      /mnt/data/services/wireguard/wg-easy.db
+   ```
 
-- **wg-easy writes its own database** since #138 was closed (2026-08-26), so it
-  is a live writer like Forgejo or Kuma: hence the `-wal`/`-shm` cleanup above.
-  Until then it could not, and this bullet said no cleanup was needed.
-- **The host's own admin tunnel is not in this file.** `wg-easy.db` holds the
-  peers wg-easy serves. The interface configuration the Pi itself brings up
-  lives at `/mnt/data/secrets/wg0.conf` on the encrypted volume and comes back
-  with the secrets, not with this database. Restoring one without the other
-  leaves a working peer list nobody can connect to.
+3. Set ownership (the image runs as uid 0) and start:
 
-Sanity-check, and check it before you close the session you still have:
-`docker exec wg-easy wg show wg0 peers | wc -l` against the number of clients
-the UI lists, and one actual handshake from a client — a peer list that loads is
-not a tunnel that works.
+   ```bash
+   chown root:root /mnt/data/services/wireguard/wg-easy.db
+   chmod 600 /mnt/data/services/wireguard/wg-easy.db
+   docker compose up -d wg-easy
+   ```
+
+### Check it worked
+
+Before closing the session you still have: `docker exec wg-easy wg show wg0 peers | wc -l`
+matches the number of clients in the UI, and one client completes a handshake.
 
 ## Restore Sonarr / Radarr / Prowlarr (SQLite)
 
-One procedure for three services: the layout is identical, only the name
-changes. They joined the dump set on 2026-09-13 and had no procedure here until
-later the same day, which is the gap this section closes.
+One procedure for the three. **Restore Prowlarr first**: Sonarr and Radarr get their
+indexers from it.
 
-**Read the warning above before using `--include services/<svc>` on its own.**
-Unlike Uptime Kuma's, these databases are *not* excluded from the snapshot, so a
-plain restore gives you a `.db` file and exit 0 — but it is the live copy, and
-its committed transactions may still be sitting in a `-wal` beside it. Measured
-2026-09-13: `radarr.db-wal` held 3.77 MB, `sonarr.db-wal` 696 KB. The dump under
-`/mnt/data/backups/dumps` is the consistent copy; prefer it.
+- The database holds indexers, the series or film list, quality profiles, download
+  history and root-folder paths.
+- The API key is in `config.xml`, at `/mnt/data/services/$svc/config.xml` on the host
+  (`/config/config.xml` only inside the container).
+- The media is **not** backed up (`/mnt/data/library`, ADR-035): it is re-acquired
+  from the lists in the database, not restored.
+- A plain `--include services/<svc>` restores the live `.db`, possibly with
+  transactions still in its `-wal`. Use the dump.
 
-What is in each database: the indexer definitions, the series or film list, the
-quality profiles, the download history and the root-folder paths. What is *not*:
-the media itself, which lives under `/mnt/data/library`, and the API key,
-which is in `config.xml` beside the database — `/mnt/data/services/$svc/config.xml`
-on the host, which the container sees as `/config/config.xml`. Every other
-command in this section is a host command, so use the host path; `/config`
-exists only inside the container.
+1. Choose the service and get the files:
 
-> **The media is NOT restored separately, and this sentence used to say it
-> was.** `library/movies` and `library/shows` left the restic source on
-> 2026-09-13 (ADR-035), deliberately: 325 GiB of re-downloadable content. There
-> is no backup copy to restore from, separately or otherwise. What comes back
-> from restic is the *arr databases, which hold the series and film lists — so
-> the library is rebuilt by re-acquiring it, not by restoring it.
+   ```bash
+   svc=sonarr
+   sudo rm -rf /mnt/data/tmp/restore
+   restic restore latest --target /mnt/data/tmp/restore \
+     --include /mnt/data/backups/dumps \
+     --include /mnt/data/services/$svc
+   ```
 
-```bash
-svc=sonarr        # or radarr, or prowlarr — everything below follows from this
+   Set `svc` to `sonarr`, `radarr` or `prowlarr`.
 
-sudo rm -rf /mnt/data/tmp/restore   # ALWAYS, first — see "The staging directory" above
-restic restore latest --target /mnt/data/tmp/restore \
-  --include /mnt/data/backups/dumps \
-  --include /mnt/data/services/$svc
+2. Stop the service:
 
-cd /opt/homelab
-docker compose down $svc       # `down`, never `stop`: the heal timer can bring a
-                               # stopped container back within 2 min (ADR-007)
+   ```bash
+   cd /opt/homelab
+   docker compose down $svc
+   ```
 
-# Config and everything that is not the database — skip if only the database
-# was lost. config.xml (and the API key in it) comes back here.
-rsync -a --delete /mnt/data/tmp/restore/mnt/data/services/$svc/ /mnt/data/services/$svc/
+3. Restore config and everything but the database, `config.xml` included (skip if
+   only the database was lost):
 
-# Database, from the DUMP. Drop any stale WAL/SHM first so SQLite reopens
-# cleanly rather than replaying a journal that belongs to the old file.
-rm -f /mnt/data/services/$svc/$svc.db-wal \
-      /mnt/data/services/$svc/$svc.db-shm
-cp /mnt/data/tmp/restore/mnt/data/backups/dumps/$svc.sqlite3 \
-   /mnt/data/services/$svc/$svc.db
+   ```bash
+   rsync -a --delete /mnt/data/tmp/restore/mnt/data/services/$svc/ /mnt/data/services/$svc/
+   ```
 
-# PUID=1000 / PGID=1003 in the LinuxServer image. The directory is 0700 and the
-# database 0644 by decision: config.xml holds the API key, so the directory is
-# what keeps it private (2026-09-13).
-chown -R 1000:1003 /mnt/data/services/$svc
-chmod 700 /mnt/data/services/$svc
-docker compose up -d $svc
-```
+4. Restore the database from the dump:
 
-Sanity-check, and do it for the function rather than the colour — a container
-that answers is not an application that kept its state:
+   ```bash
+   rm -f /mnt/data/services/$svc/$svc.db-wal \
+         /mnt/data/services/$svc/$svc.db-shm
+   cp /mnt/data/tmp/restore/mnt/data/backups/dumps/$svc.sqlite3 \
+      /mnt/data/services/$svc/$svc.db
+   ```
 
-- **Prowlarr** — Indexers: the list is populated, and *Test All* passes. This is
-  the one to restore first: Sonarr and Radarr pull their indexer definitions
-  from it, so a Prowlarr restored after them leaves both with indexers that
-  resolve to nothing.
-- **Sonarr / Radarr** — Series (or Movies) lists the library, and Settings →
-  Media Management shows the root folder as `/data/...`. A root folder that
-  reads as missing means the *directory* is absent — not that a media restore
-  is still pending: there is no media restore (ADR-035, see above). Recreate the
-  root folder and let the *arr re-acquire what the database lists.
-- All three — Settings → General → the API key matches what the reverse proxy
-  and any client already hold. If `config.xml` was lost and regenerated, the key
-  is new and every client has to be updated.
+5. Set ownership (PUID=1000 / PGID=1003) and a `0700` directory (it keeps the API key
+   private), then start:
+
+   ```bash
+   chown -R 1000:1003 /mnt/data/services/$svc
+   chmod 700 /mnt/data/services/$svc
+   docker compose up -d $svc
+   ```
+
+Check it worked:
+
+- **Prowlarr**: Indexers is populated and *Test All* passes.
+- **Sonarr / Radarr**: the Series (or Movies) list is there, and Settings → Media
+  Management shows the root folder as `/data/...`. A missing root folder means the
+  directory is absent: recreate it and let the *arr re-acquire what it lists.
+- **All three**: Settings → General → the API key matches what the reverse proxy and
+  clients hold. A regenerated `config.xml` means a new key to give every client.
 
 ## Full disaster recovery
 
-> **Stop the scheduled timers first, and re-enable them in step 5.** This
-> procedure takes 7-33 hours, so it *will* span 03:00, and the nightly backup's
-> own `run-after` ends with `rm -rf /mnt/data/backups/dumps` — the directory
-> step 2 restores and step 3 reads. Worse, its `run-before` **starts** with the
-> same `rm -rf` before recreating the directory empty, so ANY run destroys the
-> restored dumps at its first step — including one that then fails because the
-> databases are down. Step 3 then finds an empty directory rather than a missing
-> one, and the loss looks like a successful restore.
->
-> ```bash
-> sudo systemctl disable --now homelab-backup.timer homelab-stack-heal.timer
-> ```
->
-> `homelab-stack-heal.timer` goes with it for the reason step 1 already gives
-> below: it restarts whatever crashed mid-restore. `offsite-backup.md` has said
-> to disable the backup timer for a multi-hour seed since 2026-08-29; this page
-> is the one where forgetting it costs the restore itself.
->
-> *(Added 2026-09-13, audit class C90 — two mutators of one object with nothing
-> serialising them.)*
+### Before you start
 
-1. **Re-provision the OS** with Ansible (the OS isn't backed up — it's reproducible): flash
-   Ubuntu, then run **phase 1 only**, from `ansible/`:
+- Plan on **7 to 33 hours** (a day and a half); see [Drill record](#drill-record).
+- **Disable the timers first.** The nightly backup `rm -rf`s
+  `/mnt/data/backups/dumps` at its first step, even if it then fails, so a 03:00 run
+  destroys the dumps step 2 restores — and step 3 finds an empty directory that looks
+  like success. The heal timer restarts whatever crashes mid-restore.
+
+  ```bash
+  sudo systemctl disable --now homelab-backup.timer homelab-stack-heal.timer
+  ```
+
+### Steps
+
+1. **Re-provision the OS.** Flash Ubuntu, then run **phase 1 only**, from `ansible/`.
+   The full playbook would start the whole stack on empty data (fresh databases) and
+   write secrets from `local.yml` that the restored ones then replace. The LUKS disk is
+   passphrase-based and hardware-independent.
+
    ```bash
    ansible-playbook playbooks/site.yml --tags phase1 --ask-vault-pass
    ```
-   The LUKS disk is passphrase-based and hardware-independent.
 
-   > **Why the tag, and not the whole playbook.** `--tags phase1` runs `base`,
-   > `storage`, `security`, `docker` and `observability` — everything the
-   > restore needs, and nothing that starts a container. A bare
-   > `ansible-playbook playbooks/site.yml` also runs the `deploy` role, whose
-   > `Run Docker Compose (file, networks, pull, up)` task brings the **entire
-   > stack up against empty data directories**: fresh `initdb` on three
-   > databases, a fresh Nextcloud install. Step 2 would then restore
-   > `/mnt/data/services` — three live database datadirs among them — underneath
-   > running services, which is the failure mode the rest of this runbook spends
-   > three hundred lines avoiding, and `homelab-stack-heal.timer` would restart
-   > whatever crashed mid-restore. There is a second-order hazard on the same
-   > step: `deploy` writes the secrets from `local.yml`, the databases
-   > initialise against those, and step 2 then restores `/mnt/data/secrets` over
-   > them — leaving every service holding credentials its restored database has
-   > never seen. Found by the audit of 2026-08-30; step 3 had said "handled by
-   > the deploy role" while describing a role that had already run two steps
-   > earlier.
-2. **Point Restic at the repo** (local on `/mnt/data`, or the offsite repo — see
-   `offsite-backup.md` when the homelab itself is lost) and restore data.
-   Secrets first, and on their own: `/opt/homelab` holds symlinks *into*
-   `/mnt/data/secrets` (ADR-011), so restoring it first leaves every `.env`
-   dangling — and a container that finds a directory where a secret file
-   should be fails the way #27 did.
+2. **Restore the data.** Point Restic at the local repo, or at the offsite one
+   ([`offsite-backup.md`](offsite-backup.md)). Secrets first, on their own:
+   `/opt/homelab` holds symlinks into `/mnt/data/secrets` (ADR-011). This path does
+   not need `local.yml` (gitignored, not backed up), and it brings back `wg0.conf`,
+   so the tunnel. The dumps exist only in the snapshot, and step 3 needs them.
+
    ```bash
    restic restore latest --target / --include /mnt/data/secrets
    restic restore latest --target / \
@@ -707,174 +593,81 @@ that answers is not an application that kept its state:
      --include /mnt/data/media \
      --include /mnt/data/backups/dumps
    ```
-   `/mnt/data/backups/dumps` is not optional here: the dumps are deleted from
-   disk after each run, so the snapshot is the only place they exist — and step
-   3 needs them.
 
-   > **This path does not depend on `local.yml`, and that is the point.** Step 1
-   > says Ansible can regenerate all of this, which is true — but only while
-   > `local.yml` survives, and `local.yml` is gitignored and lives in no
-   > backed-up path. Restoring `/mnt/data/secrets` is the branch that still
-   > works when it does not. Without it there is also no `wg0.conf`, therefore
-   > no tunnel, on a Pi whose only remote access is that tunnel.
-3. **Import the DB dumps** (see above), then bring services up by running the
-   rest of the playbook — this is the step that starts containers, and it is
-   the first time in this procedure that anything should:
+3. **Import the DB dumps** (sections above), then bring services up with the rest of
+   the playbook. This is the first step that should start any container.
+
    ```bash
    ansible-playbook playbooks/site.yml --ask-vault-pass
    ```
+
    > ⚠️ **This order cannot be followed as written, and the fix is untested.**
    > The imports above `docker exec` into `nextcloud-db`, `immich-db` and the
    > other database containers, which nothing has started at this point. The
    > likely order is: start only the database containers, let them initialise,
    > import, then run the full playbook. It has never been run on the Pi — treat
    > it as a lead, not a procedure, and check each database before going on.
-4. Sanity-check services; re-run `occ files:scan` if media browsing looks stale.
-5. **Re-enable the timers stopped at the top of this section**, and confirm they
-   are actually armed rather than merely enabled:
+
+4. **Sanity-check services.** Re-run `occ files:scan` if media browsing looks stale.
+   Run the [ownership fix](#ownership-after-a-restore).
+
+5. **Re-enable the timers** and check they are armed, not just enabled:
+
    ```bash
    sudo systemctl enable --now homelab-backup.timer homelab-stack-heal.timer
    systemctl list-timers homelab-backup.timer homelab-stack-heal.timer
    ```
-   A restore that leaves the backup timer disabled is a host with no backups.
-   `homelab-health.sh` asserts the timers' last run, not their enablement; the
-   posture spec does (`offsite-parity-register-covers-every-control-timer`), so
-   "Pi security posture" turns red at its next run — do not wait for it.
 
-## Drill record
-
-A restore procedure that has never been executed is a hypothesis. Each drill
-goes here, with what it measured and what it contradicted.
-
-### 2026-08-15 — second drill, **on site, with the homelab cut off**
-
-The July drill restored from the offsite repository *through the tunnel*, which
-still routes via the machine whose loss it insures against. This one was run
-standing next to the offsite Pi, with the WireGuard tunnel down, to answer the
-only question that matters: can the data be read when the homelab no longer
-exists?
-
-Both paths were exercised and produced the same bytes:
-
-| Path | Volume | Time |
-|---------------------------------------|-------------|------|
-| Through the tunnel (rest-server) | 22.819 MiB | 3 s |
-| On site, tunnel down, local repo path | 22.819 MiB | < 1 s |
-
-Verified by *loading*, never by listing:
-
-- `vaultwarden.sqlite3` — `pragma integrity_check` ok, 1 user, **591 ciphers**
-- `forgejo.sqlite3` — `pragma integrity_check` ok, 1 repository, 1 user
-- `nextcloud.sql` — MariaDB header and `Dump completed` trailer, **168 tables**
-
-Repository state read directly off the disk: 343 GB, 20 991 pack files, last
-written the same morning at 03:06 — the nightly copy had landed.
-
-**What the drill contradicted or confirmed:**
-
-1. **The password you reach for first is the wrong one.** The local and offsite
-   repositories have different passwords by design (ADR-010), and the first
-   on-site attempt failed on exactly that. The working value is
-   `offsite_restic_password`, not the local `restic_password`. Knowing *which*
-   secret opens the offsite repository is part of the procedure, not a detail to
-   work out during an incident.
-2. **The recovery toolbox was not reproducible from this repository.** `restic`
-   was present only because someone installed it by hand in July; `sqlite3` was
-   absent, so the integrity check could not run on site at all. A rebuilt
-   offsite Pi would not have been able to read its own repository. Now installed
-   by `roles/offsite-backup/tasks/toolbox.yml`.
-3. **Reaching the Pi by its LAN address trips host-key verification** — the key
-   is known under the tunnel address. Compare the fingerprint against the known
-   entry rather than accepting blindly; they matched.
-4. **The repository needs `sudo` to read**: it belongs to `rest-server`, so an
-   unprivileged `restic -r` fails on `keys/` before ever asking for a password.
-5. **Confirmed**: restic 0.16.4 on both sides, so no repository-format mismatch
-   between reading it in place and reading it from the homelab.
-
-### 2026-07-27 — first drill, from the **offsite** repository (issue #36)
-
-Restored through the WireGuard tunnel from the repo at the relative's house —
-the one that matters when the house is gone — not from the local one.
-
-| What | Volume | Time |
-|--------------------------------|-----------|--------|
-| DB dumps (`nextcloud.sql`, `vaultwarden.sqlite3`) | 13.3 MiB | 2 s |
-| Nextcloud datadir (`services/nextcloud/db`) | 243 MiB | 18 s |
-
-**≈ 13.5 MiB/s** through the tunnel *on this sample*. The whole snapshot is
-**343 GiB across 116 482 files** — and the honest answer for a full restore is
-**between 7 and 33 hours**, not the "around 7 hours" this paragraph used to give.
-
-That figure was one number extrapolated 1 400-fold from a 243 MiB, 18-second
-sample of a single datadir. Both ends of the real range are measured:
-
-| Rate | Where it comes from | 343 GiB takes |
-|--------------|--------------------------------------------------|---------------|
-| 13.5 MiB/s | the burst above, small files already in cache | **7.4 h** |
-| 3.13 MB/s | the sustained nightly tunnel rate over 7 nights | **~33 h** |
-
-Which end you land on depends on the file-size mix and on what the link is doing
-at the time; nothing here can predict it closer. **Plan on a day and a half and
-be pleased if it is a morning** — an estimate that is wrong by 4.5x in the
-optimistic direction is worse than a wide one, because it is the number someone
-uses at 3 a.m. to decide whether to wait for the restore or rebuild from
-scratch.
-
-To narrow it on the day: restore one large directory first, time it, and
-re-extrapolate from that rather than from this table.
-
-Verified by *loading*, never by listing:
-
-- `vaultwarden.sqlite3` — `pragma integrity_check` ok, 1 user, 587 ciphers.
-- The restored datadir **started a MariaDB** under the current hardened
-  configuration (uid 999, no capability, read-only rootfs) and answered
-  queries: 1 user, 18 899 filecache rows.
-- The SQL dump imported into a fresh database in 10 s and produced the *same*
-  counts — so the dump and the datadir agree, which no `ls` would have shown.
-
-**What the drill contradicted or confirmed:**
-
-1. **A restore returns the permissions of the snapshot, not today's.** The
-   datadir came back mode 755 — its value before it was tightened to 700 the
-   same morning. Harmless for MariaDB, fatal for Postgres, and a real trap now
-   that the databases run as uid 999 with no `CHOWN` to repair themselves.
-   **Re-run the storage role after any restore** (see "Ownership after a
-   restore" above). This was written that morning as a precaution; the drill
-   turned it into a measured fact.
-2. **Do not read a retention policy as a floor on what exists.** This entry
-   used to say "Retention starts 2026-07-11, anything older is gone", and used
-   that to justify deleting the Immich v2.7.5 images the same day. It is false:
-   measured 2026-09-21, 18 of the 35 local snapshots predate it and the oldest
-   is 2026-05-14, because the frozen path groups the README documents keep
-   snapshots the live policy would never have retained. Ask the repository
-   rather than the policy:
-
-   ```bash
-   sudo -i
-   set -a; . /opt/homelab/backup.env; set +a
-   resticprofile -c /opt/homelab/resticprofile.yaml -n homelab snapshots --compact
-   ```
-
-   The `-c` is not optional: the profile is not at any path resticprofile
-   searches by default, and without it the command fails with "configuration
-   file 'profiles' … was not found".
-3. **The passphrase survives the house.** The offsite repo password is
-   deliberately absent from the offsite Pi, and every copy that lives at home
-   is taken by the same fire — so the recovery chain rests on it existing in at
-   least two independent places outside the homelab, at least one of them
-   reachable with no network and no other secret. That path was verified cold
-   on 2026-07-27, with no server reachable. **Re-verify at each drill**: it
-   breaks silently — a reinstall or a reorganisation is enough — and it is the
-   only path that survives the house.
-
-**Next drill: 2027-07** (annual). Bring it forward if the storage layout, the
-uid model or the repository backend changes.
+   Expected: both show a next run. Until they do, the host has no backups, and the
+   "Pi security posture" monitor goes red at its next run.
 
 ## Verify a backup without restoring
 
 ```bash
-restic check                  # repo integrity
-restic snapshots --latest 1   # confirm the most recent snapshot exists and is recent
+restic check
+restic snapshots --latest 1
 ```
 
-See also: `docs/06-backup/README.md`, `knowledge/runbooks/backup-monitoring.md`.
+Expected: no errors, and a snapshot from last night.
+
+To see every snapshot that exists — older ones survive the retention policy (see
+[the backup README](../../docs/06-backup/README.md#retention)), so ask the repository,
+not the policy. The `-c` is required: without it resticprofile fails with
+"configuration file 'profiles' … was not found".
+
+```bash
+sudo -i
+set -a; . /opt/homelab/backup.env; set +a
+resticprofile -c /opt/homelab/resticprofile.yaml -n homelab snapshots --compact
+```
+
+## Drill record
+
+Every drill verifies by **loading** the data, never by listing it.
+
+| Date       | Source                                                     | Result                                                                                                                                                             |
+|------------|------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 2026-08-15 | Offsite repo, on site with the tunnel down, and through it | Same 22.819 MiB both ways. `vaultwarden.sqlite3`: integrity ok, 1 user, 591 ciphers. `forgejo.sqlite3`: ok, 1 repo, 1 user. `nextcloud.sql`: 168 tables.          |
+| 2026-07-27 | Offsite repo, through the tunnel                           | `vaultwarden.sqlite3`: ok, 587 ciphers. Nextcloud datadir started MariaDB under the hardened config (18 899 filecache rows); the SQL dump gave the same counts.   |
+| 2026-07-19 | Local                                                      | Immich dump into a throwaway VectorChord postgres: 66 tables, 9 283 `asset`, 9 247 `smart_search`. Vaultwarden `.backup`: integrity ok. Local prune+check timer run. |
+| 2026-07-11 | Local                                                      | `restic check --read-data-subset=2%`, Vaultwarden scratch restore, Nextcloud dump into a throwaway MariaDB (156 tables).                                         |
+
+Full-restore duration, for 343 GiB across 116 482 files through the tunnel:
+
+| Rate       | Source                                   | Time   |
+|------------|------------------------------------------|--------|
+| 13.5 MiB/s | burst, small files                       | 7.4 h  |
+| 3.13 MB/s  | sustained nightly tunnel rate, 7 nights  | ~33 h  |
+
+To narrow it on the day: restore one large directory first, time it, and
+extrapolate from that.
+
+At each drill, re-verify that the offsite repo password can be reached from at least
+two independent places outside the homelab, one of them with no network and no other
+secret. That path breaks silently.
+
+**Next drill: 2027-07** (annual). Bring it forward if the storage layout, the uid
+model or the repository backend changes.
+
+See also: [`docs/06-backup/README.md`](../../docs/06-backup/README.md),
+[`backup-monitoring.md`](backup-monitoring.md).

@@ -1,130 +1,80 @@
 # Nextcloud
 
-Personal cloud — file sync, contacts/calendar, and a browse-only window onto the media libraries.
+Personal cloud: file sync, contacts, calendar, tasks, and a read-only view of the
+media libraries.
 
-## Access
+## At a glance
 
-- URL: `https://drive.example.com` (VPN required — see ADR-002)
-- Admin user: `admin`. **The password is not in the vault** — ADR-016 deleted the
-  `NEXTCLOUD_ADMIN_*` variables deliberately (they were dead weight that leaked the
-  database password), so it lives only in Nextcloud's own database. Store it in
-  Vaultwarden. If it is lost, reset it with
-  `docker exec -u www-data nextcloud php occ user:resetpassword admin`.
+| Item   | Value                                                                                  |
+|--------|----------------------------------------------------------------------------------------|
+| URL    | `https://drive.example.com` (VPN, ADR-002)                                             |
+| Admin  | `admin`. Password only in Nextcloud's database, not the vault (ADR-016): keep it in Vaultwarden |
+| Data   | `/mnt/data/services/nextcloud/data/` (files), `/mnt/data/services/nextcloud/db/` (MariaDB) |
+| Backup | Restic, daily; `nextcloud.sql` dumped before each snapshot. Redis is cache only        |
+| Apps   | Calendar, Contacts, Tasks, Bookmarks, GpxPod, External Sites, [Collabora](collabora.md) (ADR-021), [LibreSign](libresign.md) |
 
-## Architecture
+| Container               | Role                                              |
+|-------------------------|---------------------------------------------------|
+| `nextcloud`             | Apache, the app                                   |
+| `nextcloud-db`          | MariaDB                                           |
+| `nextcloud-redis`       | Memory cache and transactional file locking       |
+| `nextcloud-cron`        | `/cron.sh` every 5 min                            |
+| `nextcloud-notify-push` | Real-time push to clients                         |
 
-Nextcloud runs as **five containers** sharing one data volume:
+## How it works
 
-| Container | Role |
-|-----------|------|
-| `nextcloud` | Apache web server (the app itself) |
-| `nextcloud-db` | MariaDB database |
-| `nextcloud-redis` | Redis — memory cache + transactional file locking |
-| `nextcloud-cron` | Companion running `/cron.sh` every 5 min (system cron, not AJAX) |
-| `nextcloud-notify-push` | Companion running the notify_push binary — real-time update push to clients |
+The deploy (`roles/deploy`) re-applies on every run:
 
-## What It Does
+- `TRUSTED_PROXIES=172.16.0.0/12`: Traefik and notify_push, both on Docker subnets.
+- `trusted_domains` via `occ`: `localhost`, `drive.<domain>`, `nextcloud`.
+  `NEXTCLOUD_TRUSTED_DOMAINS` is read only on first install.
+- HSTS by the Traefik middleware `nextcloud-headers` (`stsSeconds: 31536000`).
+- Redis for `memcache.locking`, APCu for `memcache.local`.
+- `backgroundjobs_mode=cron`, `maintenance_window_start=4` (UTC), `default_phone_region=FR`.
+- `extra_hosts` pins `drive.example.com` to the Pi's LAN IP (DNS hairpin).
+- `richdocuments` (Collabora) is configured by the deploy, not the admin UI.
 
-- File storage and sync across devices (desktop client + mobile app)
-- **Contacts, Calendar, Tasks** over CardDAV/CalDAV (synced to phone via DAVx5)
-- **Browse the media libraries** (photos/music/videos) read-only — see "Media browsing" below
-- Real-time client updates via **notify_push** (no more polling)
-- Productivity apps: Calendar, Contacts, Tasks, Bookmarks, GpxPod, External Sites
-- **Collaborative document editing** through Collabora Online — see
-  [collabora.md](collabora.md). The `richdocuments` connector is enabled and
-  configured by the deploy, not by the admin UI (ADR-021).
-- **Stamping a signature image onto a PDF** with the built-in viewer — image
-  stamp, freehand ink and free text, saved back to the file. Nothing to install,
-  and it is what an administrative form actually asks for.
-- **Verifiable PDF signing** through LibreSign — see [libresign.md](libresign.md).
-  Signatures are issued from a self-signed CA the deploy generates once, and only
-  once (ADR-022). Heavier than the stamp above, and only worth it when the
-  signature has to withstand scrutiny.
+### Media browsing (read-only External Storage, ADR-003)
 
-## Hardening & performance
+| Mount point | Source on disk           | Container path     |
+|-------------|--------------------------|--------------------|
+| `/Photos`   | `/mnt/data/media/photos` | `/external/photos` |
+| `/Music`    | `/mnt/data/media/music`  | `/external/music`  |
+| `/Videos`   | four sources             | `/external/videos` |
 
-Configured via Ansible (`roles/deploy`) — re-applied on every deploy:
+- `/Videos` = `library/movies`, `library/shows` (importer) + `media/videos/home-videos`,
+  `media/videos/music-videos` (operator), ADR-035.
+- `filesystem_check_changes: 1`: a folder is revalidated when opened. Unopened
+  folders need a scan.
+- `/mnt/data/media` is backed up; `/mnt/data/library` (films, series) is not.
 
-- `TRUSTED_PROXIES=172.16.0.0/12` — trust Traefik **and** the notify_push container (both on Docker subnets) so forwarded headers (HTTPS, real client IP) are honored
-- `trusted_domains` set with `occ` to `localhost`, `drive.<domain>` and `nextcloud`, so notify_push can reach `http://nextcloud` internally (the `NEXTCLOUD_TRUSTED_DOMAINS` env is read only on the first install)
-- HSTS set by Traefik middleware `nextcloud-headers` (`stsSeconds: 31536000`)
-- Redis for `memcache.locking` + APCu for `memcache.local`
-- `backgroundjobs_mode=cron`, `maintenance_window_start=4` (UTC), `default_phone_region=FR`
-- `extra_hosts` pins `drive.example.com` to the Pi's LAN IP — avoids DNS hairpin on internal self-calls (see runbook)
+## Common tasks
 
-## Client Setup
-
-### Desktop (Linux)
 ```bash
-sudo apt install nextcloud-desktop
-```
-Connect to `https://drive.example.com`, sign in, choose folders to sync.
-
-### Mobile app (files/photos)
-Install the [Nextcloud app](https://nextcloud.com/install/#install-clients), connect to `https://drive.example.com` (VPN on).
-
-### Contacts / Calendar / Tasks (DAVx5, e.g. /e/OS or Android)
-Use **DAVx5** with the **general login** ("URL and user name"), **not** the Nextcloud login-flow button (the `.well-known` redirect is currently http-only and breaks discovery):
-- URL: `https://drive.example.com/remote.php/dav`  ← the `/remote.php/dav` path is required
-- User: `admin`
-- Password: an **app-password** (Settings → Security → "Devices & sessions" → create)
-
-The same app-password + URL works for any CardDAV/CalDAV client.
-
-## Media browsing (External Storage, read-only)
-
-The media folders are mounted **read-only** into the container and exposed as External Storage so Nextcloud can browse/download them **without duplicating Jellyfin/Navidrome/Immich and without a second copy or sync**:
-
-| Mount point | Source on disk | Container path |
-|-------------|----------------|----------------|
-| `/Photos` | `/mnt/data/media/photos` | `/external/photos` |
-| `/Music`  | `/mnt/data/media/music`  | `/external/music`  |
-| `/Videos` | four sources, see below  | `/external/videos` |
-
-`/Videos` is assembled from four host directories mounted into one container
-tree (ADR-035): `library/movies` and `library/shows`, which an importer writes,
-plus `media/videos/home-videos` and `media/videos/music-videos`, which only the
-operator writes. The External Storage entry still points at `/external/videos`
-and needed no change.
-
-Music reaches that folder by a different route: the workstation mounts
-`/mnt/data/media/music` read-write over sshfs (ADR-033). Nextcloud stays a
-read-only view of whatever lands there.
-
-The three mounts carry `filesystem_check_changes: 1`, so Nextcloud revalidates a
-directory when you open it and media added out-of-band appears on the next
-browse — no scan to run. Nextcloud browses its own index rather than the disk,
-and this option is what keeps the two honest.
-
-It only revalidates what you actually open. After a bulk import into a corner of
-the tree nobody browses, force it:
-```bash
+docker exec -u www-data nextcloud php occ user:resetpassword admin
 docker exec -u www-data nextcloud php occ files:scan --path='admin/files/Photos'
 ```
 
-See ADR-003 for the rationale.
+Clients:
 
-## Data
+- Desktop (Linux): install with the command below, connect to `https://drive.example.com`.
+- Mobile: the [Nextcloud app](https://nextcloud.com/install/#install-clients), VPN on.
+- CardDAV/CalDAV (DAVx5): use the general login, not the login-flow button (the
+  `.well-known` redirect is http-only). URL `https://drive.example.com/remote.php/dav`,
+  user `admin`, an app-password (Settings → Security → "Devices & sessions").
 
-| Path                                 | Content                       |
-|--------------------------------------|-------------------------------|
-| `/mnt/data/services/nextcloud/data/` | Nextcloud files and app data  |
-| `/mnt/data/services/nextcloud/db/`   | MariaDB database              |
+```bash
+sudo apt install nextcloud-desktop
+```
 
-(Redis is a cache only — nothing to back up. Media External Storage points at the existing media libraries: `/mnt/data/media` — photos, music, home and music videos — is in the restic source; `/mnt/data/library` — films and series under `/Videos` — is not.)
+Restore: the dump is not on disk (the backup deletes `/mnt/data/backups/dumps/`
+after each run), and the import needs `maintenance:mode`. Follow
+[restore-from-backup.md](../../knowledge/runbooks/restore-from-backup.md) →
+"Restore a database".
 
-## Backup
+## Troubleshooting
 
-Backed up daily by Restic. Database is dumped before each snapshot (`nextcloud.sql`).
-
-## Restore
-
-The database step is the one that catches people out, which is why the
-procedure is not repeated here. `/mnt/data/backups/dumps/nextcloud.sql` **does
-not exist on disk** — the backup script deletes that whole directory at the end
-of every run. The dump lives inside the restic snapshot and has to be restored
-out of it first, and the application needs `maintenance:mode` on either side of
-the import.
-
-Full procedure: `knowledge/runbooks/restore-from-backup.md` → "Restore a
-database".
+- File stops syncing, log grows, monitors green:
+  [stale locks](../../knowledge/runbooks/nextcloud-stale-locks.md).
+- notify_push self-test fails:
+  [notify_push](../../knowledge/runbooks/notify-push-troubleshooting.md).

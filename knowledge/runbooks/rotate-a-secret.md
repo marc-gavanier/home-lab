@@ -1,207 +1,160 @@
 # Rotating a secret
 
-Writing a new value into the vault and running a deploy rotates **some** of the
-secrets in this lab. For others it produces a `changed` task, a handler that
-visibly restarts the service, and the old credential still in force. This page
-says which is which, and what the second kind needs instead.
-
-The trap is recent and self-inflicted. Before 2026-08-16 a rotation of those
-secrets silently did nothing. On that day eleven Docker secrets gained restart
-handlers, which was correct — a rotated credential the running container never
-re-reads is a real defect, and one of them had run 17 h 44 on a stale key. But
-for four secrets the restart cannot rotate anything, so the evidence of work got
-stronger while the operation stayed impossible (#159).
+Use this page before changing any secret in the vault. A deploy rotates some
+secrets; for others it reports `changed`, restarts the service, and leaves the
+old credential in force.
 
 ## Which is which
 
-| Secret                         | Consumer                     | Does a deploy rotate it?                                                                            |
-|--------------------------------|------------------------------|-----------------------------------------------------------------------------------------------------|
-| `cf_dns_api_token`             | traefik + cloudflare-ddns.sh | **yes for both — but each carrier is behind a different tag; see the note below**                   |
-| `transmission_password`        | transmission                 | **yes** — read at start, but a second copy lives in Kuma; see the warning below                     |
-| `dozzle_users.yml`             | dozzle                       | **yes** — read at start                                                                             |
-| `forgejo_secret_key`           | forgejo                      | **yes**, but see the warning below                                                                  |
-| `miniflux_database_url`        | miniflux                     | **yes** — but on its own it breaks the app; see the database procedure                              |
-| `pihole_password`              | pihole                       | **yes** — a single task sets it and flushes the handler, so the container sees it (`d3ba112`, #333) |
-| `nextcloud_redis_password`     | nextcloud-redis + nextcloud  | **yes** — one vault value, three writes (password file, `redis.conf`, config), all notify           |
-| `nextcloud_redis.conf`         | nextcloud-redis              | **yes** — rendered from `nextcloud_redis_password`; editing it on the host is overwritten           |
-| `searxng_secret_key`           | searxng                      | **yes** — templated into `searxng_settings`, which the container reads at start                     |
-| `restic_password`              | resticprofile, `restic init` | **no, and never rotate it alone** — see the restic procedure below                                  |
-| `offsite_restic_password`      | resticprofile (offsite)      | **no, and never rotate it alone** — see the restic procedure below                                  |
-| `luks_passphrase`              | cryptsetup / `luks_device`   | **no, and the deploy reports `ok`** — see the LUKS procedure below                                  |
-| `wg_password`                  | wg-easy admin UI             | **no** — nothing in the deploy ever sets it; see the wg-easy procedure below                        |
-| `vaultwarden_admin_token_hash` | vaultwarden                  | **no** — `config.json` overrides the environment                                                    |
-| `nextcloud_db_password`        | nextcloud-db + config.php    | **no** — `initdb` only                                                                              |
-| `nextcloud_db_root_password`   | nextcloud-db                 | **no** — `initdb` only                                                                              |
-| `immich_db_password`           | immich-db + immich-server    | **no** — `initdb` only                                                                              |
-| `miniflux_db_password`         | miniflux-db                  | **no** — `initdb` only                                                                              |
-| `miniflux_admin_password`      | miniflux                     | **no** — `CREATE_ADMIN` runs once                                                                   |
-| `forgejo_admin_password`       | forgejo CLI                  | **no** — first deploy only, and it has no handler for that reason                                   |
+| Secret                         | Consumer                     | Does a deploy rotate it?                                                                   |
+|--------------------------------|------------------------------|--------------------------------------------------------------------------------------------|
+| `cf_dns_api_token`             | traefik + cloudflare-ddns.sh | **yes**, but the two carriers sit behind different tags; see [below](#cf_dns_api_token)    |
+| `transmission_password`        | transmission                 | **yes**, then update the copy in Kuma; see [below](#transmission_password)                 |
+| `dozzle_users.yml`             | dozzle                       | **yes** (read at start)                                                                    |
+| `forgejo_secret_key`           | forgejo                      | **yes**, but see [below](#forgejo_secret_key)                                              |
+| `miniflux_database_url`        | miniflux                     | **yes**, but alone it breaks the app; see [Rotating a database password](#rotating-a-database-password) |
+| `pihole_password`              | pihole                       | **yes**                                                                                    |
+| `nextcloud_redis_password`     | nextcloud-redis + nextcloud  | **yes** (password file, `redis.conf`, config all notify)                                   |
+| `nextcloud_redis.conf`         | nextcloud-redis              | **yes**, rendered from `nextcloud_redis_password`; host edits are overwritten              |
+| `searxng_secret_key`           | searxng                      | **yes**, via `searxng_settings`, read at start                                             |
+| `restic_password`              | resticprofile, `restic init` | **no, and never rotate it alone**; see [restic](#the-restic-passwords-key-add-first-always) |
+| `offsite_restic_password`      | resticprofile (offsite)      | **no, and never rotate it alone**; see [restic](#the-restic-passwords-key-add-first-always) |
+| `luks_passphrase`              | cryptsetup / `luks_device`   | **no, and the deploy reports `ok`**; see [LUKS](#the-luks-passphrase-a-green-deploy-is-not-evidence) |
+| `wg_password`                  | wg-easy admin UI             | **no**, the deploy never sets it; see [wg-easy](#wg_password-the-deploy-never-sets-it-at-all) |
+| `vaultwarden_admin_token_hash` | vaultwarden                  | **no**, `config.json` overrides the environment; see [Vaultwarden](#rotating-the-vaultwarden-admin-token) |
+| `nextcloud_db_password`        | nextcloud-db + config.php    | **no**, `initdb` only                                                                      |
+| `nextcloud_db_root_password`   | nextcloud-db                 | **no**, `initdb` only                                                                      |
+| `immich_db_password`           | immich-db + immich-server    | **no**, `initdb` only                                                                      |
+| `miniflux_db_password`         | miniflux-db                  | **no**, `initdb` only                                                                      |
+| `miniflux_admin_password`      | miniflux                     | **no**, `CREATE_ADMIN` runs once                                                           |
+| `forgejo_admin_password`       | forgejo CLI                  | **no**, first deploy only                                                                  |
 
-**`cf_dns_api_token` has two carriers and they are not written together.**
-`roles/deploy/tasks/secrets.yml` (tag `secrets`) writes
-`/mnt/data/secrets/docker/cf_dns_api_token` for Traefik, and
-`roles/deploy/tasks/ddns.yml` (tag `ddns`) renders the same vault value into
-`/mnt/data/secrets/ddns.env` for the DDNS updater. Nothing compares the two. A
-run limited to one of those tags rotates one carrier and leaves the other on the
-old value, which is what happened on 2026-09-12: Traefik moved, the DDNS did not,
-and the two values coexisted for eight days with nothing able to notice. The DDNS
-keeps the `vpn` A record fresh, that record is the WireGuard endpoint, and the
-tunnel is the only route in — so revoking "the old token" while the DDNS still
-holds it costs remote access at the next public-IP change. **Rotate it with a
-full deploy, or with both tags, and verify both files before revoking anything
-in the Cloudflare dashboard.**
+### `cf_dns_api_token`
+
+Two carriers, written by different tags, and nothing compares them:
+
+- tag `secrets` (`roles/deploy/tasks/secrets.yml`) writes
+  `/mnt/data/secrets/docker/cf_dns_api_token` for Traefik;
+- tag `ddns` (`roles/deploy/tasks/ddns.yml`) writes
+  `/mnt/data/secrets/ddns.env` for the DDNS updater.
+
+The DDNS keeps the `vpn` A record (the WireGuard endpoint) fresh. If it still
+holds a revoked token, you lose remote access at the next public-IP change.
+
+1. Rotate with a full deploy, or with both tags.
+2. Verify both files hold the new value.
+3. Only then revoke the old token in the Cloudflare dashboard.
 
 ### The restic passwords: `key add` FIRST, always
 
-`restic_password` and `offsite_restic_password` are **not** application
-credentials. They are the encryption keys of the repositories, and a repository
-does not "re-read" a rotated key — it simply stops opening. Deploying a new
-value on its own turns both backups into ciphertext nobody can read, and nothing
-goes red until the next run.
+`restic_password` and `offsite_restic_password` are the repositories' encryption
+keys. Deploying a new value alone makes both backups unreadable, and nothing goes
+red until the next run. Add the new key to the repository first.
 
-The order is the whole procedure, and it is the opposite of every other row in
-the table above: add the new key to the repository first, verify it opens, and
-only then change the value the deploy writes.
+1. Add the new key while the old one still works:
 
-```bash
-# 1. add the new key WHILE the old one still works
-restic -r /mnt/data/backups/restic-repo key add
+   ```bash
+   restic -r /mnt/data/backups/restic-repo key add
+   ```
 
-# 2. prove the new one opens the repository, before anything is changed
-RESTIC_PASSWORD='<new>' restic -r /mnt/data/backups/restic-repo snapshots | tail -3
+2. Prove the new key opens the repository:
 
-# 3. only now put the new value in the vault and deploy
-# 4. any offline copy of this password (ADR-010 recommends one) must be
-#    replaced now: after step 5 an old copy opens nothing, and nothing tells you
-# 5. and only after a successful nightly run, remove the old key
-restic -r /mnt/data/backups/restic-repo key list
-restic -r /mnt/data/backups/restic-repo key remove <old-id>
-```
+   ```bash
+   RESTIC_PASSWORD='<new>' restic -r /mnt/data/backups/restic-repo snapshots | tail -3
+   ```
 
-The offsite repository is append-only, so step 5 there is not a cleanup you can
-redo casually — leave the old key in place unless there is a reason to remove
-it.
+3. Put the new value in the vault and deploy.
+4. Replace any offline copy of this password now (ADR-010): after step 5 an old
+   copy opens nothing.
+5. After a successful nightly run, remove the old key:
 
-This rule lived only inside an Ansible `fail_msg` (`d6d602e`) until 2026-09-11,
-which is to say it existed everywhere except the page that teaches secret
-rotation.
+   ```bash
+   restic -r /mnt/data/backups/restic-repo key list
+   restic -r /mnt/data/backups/restic-repo key remove <old-id>
+   ```
+
+The offsite repository is append-only: leave its old key in place unless you
+have a reason to remove it.
 
 ### The LUKS passphrase: a green deploy is not evidence
 
-`luks_passphrase` is the passphrase of the encrypted data volume, and changing
-it in the vault does **not** change it on the disk. `community.crypto.luks_device`
-with `state: opened` returns `ok` for a volume that is already open: it never
-opens the device, so it never validates the passphrase it was handed. The run is
-green, the keyslot is untouched, and the vault and the disk now disagree.
+Changing `luks_passphrase` in the vault does **not** change the disk.
+`community.crypto.luks_device` with `state: opened` returns `ok` on an open
+volume without testing the passphrase. The disk has **one keyslot**, and a
+mismatch shows up at the next unlock, when `wg0.conf` (on the volume) is not yet
+available and nothing can be fixed remotely.
 
-Two facts make that worse than an ordinary stale secret. The disk carries
-**exactly one keyslot**, so the old passphrase is the only way in. And the
-disagreement surfaces at the next unlock, which is the one moment nothing can be
-repaired remotely: `/etc/wireguard/wg0.conf` is a symlink onto the encrypted
-volume, so there is no tunnel until the volume is open and no remote access
-until the tunnel is up.
+1. Add the new passphrase as a second keyslot:
 
-The order is therefore the restic order — put the new key on the disk first,
-prove it opens, and only then change what the deploy writes.
+   ```bash
+   sudo cryptsetup luksAddKey /dev/sda1
+   ```
 
-```bash
-# 1. add the new passphrase as a SECOND keyslot, while the old one still works
-sudo cryptsetup luksAddKey /dev/sda1
+2. Prove it opens the volume (safe while mounted):
 
-# 2. prove it opens the volume, without closing anything (safe while mounted)
-sudo cryptsetup luksOpen --test-passphrase /dev/sda1 && echo "new passphrase accepted"
+   ```bash
+   sudo cryptsetup luksOpen --test-passphrase /dev/sda1 && echo "new passphrase accepted"
+   ```
 
-# 3. re-take the header backup — the keyslots just changed, and an old header
-#    restore would reinstate the superseded passphrase
-#    (knowledge/runbooks/luks-header-backup.md)
+3. Re-take the header backup ([luks-header-backup](luks-header-backup.md)).
+4. Put the new value in the vault and deploy.
+5. Only after an attended reboot has unlocked with the new passphrase, remove
+   the old keyslot, then re-take the header backup again:
 
-# 4. only now put the new value in the vault and deploy
+   ```bash
+   sudo cryptsetup luksKillSlot /dev/sda1 <old-slot>
+   ```
 
-# 5. remove the old keyslot ONLY after an attended reboot has unlocked with the
-#    new one, then re-take the header backup again
-sudo cryptsetup luksKillSlot /dev/sda1 <old-slot>
-```
-
-Do not collapse steps 4 and 5. Until an unlock has actually succeeded with the
-new passphrase, the old keyslot is the only tested way into the volume — and a
-reboot is an attended operation here, for the reason above.
+Never merge steps 4 and 5: until an unlock succeeds with the new passphrase, the
+old keyslot is the only tested way in.
 
 ### `wg_password`: the deploy never sets it at all
 
-Nothing in the deploy writes the wg-easy admin password. The secret file is
-rendered from the vault, and the re-assertion script only *logs in* with it, so
-a new value produces a `changed` file, a successful run and no rotation. Its
-guard makes this quieter still: when wg-easy is not running the script exits 0,
-so the deploy reports success without having tried.
+The deploy renders the file and only *logs in* with it, so a new value gives a
+`changed` file and no rotation. If wg-easy is down, the script exits 0.
 
-Change it in the wg-easy UI first, then put the same value in the vault so the
-next deploy stops disagreeing with the running service. Do not restart or
-upgrade wg-easy to force the issue while nobody is on site — it is the only path
-to the host.
+⚠️ Do not restart or upgrade wg-easy to force this while nobody is on site: it
+is the only path to the host.
+
+1. Change the password in the wg-easy UI.
+2. Put the same value in the vault.
 
 ### Why the database ones cannot work
 
-`POSTGRES_PASSWORD_FILE` and `MYSQL_PASSWORD_FILE` are read by the image
-entrypoint during `initdb` and never again. Every later start says so:
+`POSTGRES_PASSWORD_FILE` and `MYSQL_PASSWORD_FILE` are read during `initdb` only.
+Every later start says so:
 
 ```bash
 docker logs immich-db   | grep -i "skipping initialization"
 docker logs miniflux-db | grep -i "skipping initialization"
 ```
 
-MariaDB says it differently — `[Entrypoint]: MariaDB upgrade not required`,
-with no initialisation step — but behaves the same way.
+MariaDB prints `[Entrypoint]: MariaDB upgrade not required` instead; same
+behaviour.
 
-### Warning about `transmission_password`: a second copy lives in Kuma
+### `transmission_password`
 
-The deploy rotates it cleanly — but since #191 the Uptime Kuma monitor
-**authenticates**, and its copy of the password lives in `kuma.db`. A rotation
-that stops at the deploy leaves that copy stale, and the monitor goes red with
-no hint of why: nothing on the Pi is wrong, and the runbook you are reading was
-the only place that could have told you.
+The deploy rotates it, but the Uptime Kuma monitor authenticates with its own
+copy in `kuma.db`.
 
-So the rotation has a third step, done by hand because Kuma is v2 and monitors
-are entered manually:
+1. Deploy.
+2. In Kuma: **Transmission → Edit → HTTP Options → Authentication**, set the new
+   password. The monitor is red between steps 1 and 2; that is expected.
+3. Check the monitor returns `200 - OK, keyword is found`.
 
-**Transmission → Edit → HTTP Options → Authentication**, and set the new
-password there.
+Any change that makes a monitor authenticate creates a credential copy in Kuma.
+Transmission is currently the only one.
 
-Do it *after* the deploy. Between the two the monitor is red, which is correct
-and expected — it is reporting a real authentication failure.
+### `forgejo_secret_key`
 
-Verified on 2026-08-22, rotating for real: the value on disk changed, the
-container picked it up (`settings.json` rewritten two seconds after the restart),
-`transmission-remote` accepted the new credential and refused a wrong one, and
-the monitor returned to `200 - OK, keyword is found` — which it can only reach
-authenticated.
-
-This coupling is six days younger than the table above, which is why the table
-did not mention it. **A change that makes a service authenticate creates a
-credential copy wherever it is monitored from**; that is the general form, and
-Transmission is currently the only monitor of the thirty-seven that authenticates.
-
-### Warning about `forgejo_secret_key`
-
-It **is** re-read at every start, so a deploy applies it. That does not make it
-safe to rotate: it encrypts data at rest in the forge. Rotate it only on an
-instance whose data you are prepared to lose, or after checking what depends on
-it.
+A deploy applies it, but it encrypts forge data at rest. Rotate it only on an
+instance whose data you can lose, or after checking what depends on it.
 
 ## Rotating a database password
 
-Three moving parts, and the order is the opposite of the intuitive one.
-
-**Deploy the new value first, change the database second.** Doing it the other
-way round means typing the password into a shell command, and that is a trap
-this runbook was written *into* on 2026-08-19: a `$` in the password was expanded
-by the local shell before `ssh` ever saw it, so the database received a truncated
-variant while every file on the Pi held the right one. Miniflux spent twenty
-minutes unable to authenticate. Deploying first puts the value on the Pi, in the
-secret file, where the next step can read it without it passing through a shell
-at all.
-
-Both orders break the service for the same short window — the moment the
-application and the database disagree — so run the two steps back to back.
+Deploy the new value first, then change the database, back to back: the service
+is broken while the two disagree. This order keeps the password out of any
+shell command (a `$` expanded by the local shell once truncated one).
 
 ### 1. Vault, then deploy
 
@@ -209,10 +162,8 @@ application and the database disagree — so run the two steps back to back.
 ansible-vault edit inventory/host_vars/homelab/local.yml --ask-vault-pass
 ```
 
-**Check that the edit actually saved before deploying.** `ansible-vault edit`
-re-encrypts only if the file changed, so leaving the editor without writing
-leaves everything as it was and says nothing about it. This prints the length
-and not the value:
+Check the edit saved: `ansible-vault edit` writes nothing if you quit without
+saving. This prints the length, not the value:
 
 ```bash
 ansible-vault view inventory/host_vars/homelab/local.yml --ask-vault-pass \
@@ -225,10 +176,11 @@ ansible-playbook playbooks/site.yml --tags deploy -e deploy_services=<svc> --ask
 
 ### 2. Change it in the database, reading the file the deploy just wrote
 
-Quoted here-doc (`<<'REMOTE'`), so the local shell touches nothing and the
-password is never an argument to anything you type.
+The quoted here-doc (`<<'REMOTE'`) keeps the local shell out, and the password
+never appears as an argument.
 
-Postgres — `immich-db`, `miniflux-db`:
+Postgres (`immich-db`, `miniflux-db`). `psql -c` does not interpolate psql
+variables, so the literal is built in the shell with single quotes doubled:
 
 ```bash
 ssh homelab 'docker exec -i immich-db sh' <<'REMOTE'
@@ -239,11 +191,8 @@ psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "ALTER USER \"$POSTGRES_USER\" WIT
 REMOTE
 ```
 
-`psql -c` does **not** interpolate psql variables, so the obvious `-v pw=… -c
-"… PASSWORD :'pw'"` fails with a syntax error — measured. The literal is built in
-the shell instead, with single quotes doubled.
-
-MariaDB — `nextcloud-db`:
+MariaDB (`nextcloud-db`). The statement goes in through stdin, never `-e`, so
+the new password is not in a command line journald may log:
 
 ```bash
 ssh homelab 'docker exec -i nextcloud-db sh' <<'REMOTE'
@@ -256,32 +205,13 @@ SQL
 REMOTE
 ```
 
-The statement goes in through **stdin**, not `-e`. The root password was already
-kept out of the command line by `MYSQL_PWD`, but `-e "… IDENTIFIED BY '$PW'"`
-put the **new** password there instead — at the exact moment the old one is
-being treated as compromised, in a command that is usually run under `sudo` and
-therefore logged whole by journald (#198).
-
-A here-document rather than a pipe from `printf`: `printf` is a shell builtin
-everywhere that matters, so it would spawn no process and expose no argv — but
-that is a property of the shell, not of the command, and a runbook should not
-rest on it. A here-document never puts the value in an argument list at all.
-
-Both forms were run against the live databases with the value already in force —
-a no-op that proves the quoting.
-
 ### 3. Tell the application
 
-- **Immich** and **Miniflux** need nothing. immich-server mounts
-  `immich_db_password` directly; Miniflux's DSN is rebuilt from the same vault
-  variable by step 1, so it follows automatically.
-- **Nextcloud** does need it, and `occ` cannot do it. The compose file
-  deliberately passes the app no `MYSQL_*`, so its credential lives in
-  `config.php` and nothing else carries it — but `occ` bootstraps a database
-  connection before running any command, so at this point in the procedure it
-  fails with `Access denied for user 'nextcloud'`. Measured on 2026-08-19:
-  `occ config:system:set dbpassword` is unusable in the exact situation it would
-  be needed. The file is edited directly instead, from the deployed secret.
+- **Immich, Miniflux**: nothing to do. immich-server mounts
+  `immich_db_password`; Miniflux's DSN is rebuilt from the same vault variable.
+- **Nextcloud**: the credential lives only in `config.php`, and `occ` cannot
+  change it here (it fails with `Access denied for user 'nextcloud'` before
+  running any command). Edit the file from the deployed secret:
 
   ```bash
   ssh homelab 'sudo python3' <<'REMOTE'
@@ -290,7 +220,7 @@ a no-op that proves the quoting.
   pw  = pathlib.Path('/mnt/data/secrets/docker/nextcloud_db_password').read_text().strip()
   assert pw, "empty secret, aborting"
   shutil.copy2(cfg, str(cfg) + '.bak')
-  esc = pw.replace('\\', '\\\\').replace("'", "\\'")   # PHP single-quoted string
+  esc = pw.replace('\\', '\\\\').replace("'", "\\'")
   new, n = re.subn(r"('dbpassword'\s*=>\s*)'(?:\\.|[^'\\])*'",
                    lambda m: m.group(1) + "'" + esc + "'",
                    cfg.read_text(), count=1)
@@ -300,68 +230,57 @@ a no-op that proves the quoting.
   REMOTE
   ```
 
-  It writes through the existing inode, so owner and mode are preserved, and it
-  refuses to guess: exactly one match or nothing is written. Check the result
-  before moving on — a broken `config.php` is a Nextcloud that will not start:
+  It keeps owner and mode, and writes only if exactly one line matches. Check
+  the result (a broken `config.php` means Nextcloud will not start):
 
   ```bash
   ssh homelab "docker exec -u www-data nextcloud php -l /var/www/html/config/config.php
                docker exec -u www-data nextcloud php occ status --output=json"
   ```
 
-  Then **restart `nextcloud-notify-push`**. It reads `config.php` once at start
-  and holds the connection, so it survives the rotation in a state where
-  `occ notify_push:self-test` reports `push server can't load mount info from
-  database` while every other line passes.
+  Then restart `nextcloud-notify-push`, which holds the old connection
+  (self-test otherwise reports `push server can't load mount info from database`):
 
   ```bash
   ssh homelab "docker restart nextcloud-notify-push"
   ssh homelab "docker exec -u www-data nextcloud php occ notify_push:self-test"
   ```
 
-  Had `occ -q config:system:set` been usable, the `-q` would still have mattered:
-  without it the command prints `System config value dbpassword set to string
-  <the password>`, which is how that credential ended up in a terminal
-  transcript on 2026-08-19 and had to be rotated for that reason alone. Any
-  command that touches a secret gets its output suppressed, whether or not you
-  expect it to print one.
+⚠️ Suppress the output of any command that touches a secret:
+`occ config:system:set` without `-q` prints the password.
 
-**Do not** do step 1 without step 2. The deploy reports success, the handler
-restarts the database, and the credential in the file no longer opens it — which
-the posture check reports the next morning, but the service has been broken
-since the restart.
+⚠️ Never do step 1 without step 2: the deploy succeeds, the handler restarts the
+database, and the service is broken until the posture check reports it next
+morning.
 
 ## Rotating the Vaultwarden admin token
 
-`config.json` takes precedence over the environment, and the admin panel
-rewrites that file in full whenever it is saved. So a new hash in the secret is
-inert while `admin_token` sits in `config.json` holding the old one.
+`config.json` overrides the environment, and the admin panel rewrites it in full
+on every save. A new hash in the secret does nothing while `config.json` holds
+`admin_token`.
 
-Change it through the admin panel, or remove the `admin_token` key from
-`config.json` so the environment takes over again, and restart. The daily
-posture check compares the two and reports `config.json overrides compose
-[admin_token]` when they disagree — before #159 it compared nothing at all,
-because compose injects `ADMIN_TOKEN_FILE` while the file holds `admin_token`.
+1. Change the token through the admin panel, or remove the `admin_token` key
+   from `config.json` so the environment takes over.
+2. Restart Vaultwarden.
+
+The daily posture check reports `config.json overrides compose [admin_token]`
+when the two disagree.
 
 ## The acceptance test
 
-The daily posture check (`homelab-posture.service`) is the proof that a rotation
-landed. It asserts that the password in each secret file still opens its
-database. The two Postgres probes address the server **by container name**
-rather than the loopback — `initdb` writes `host all all 127.0.0.1/32 trust`
-into `pg_hba.conf`, so over 127.0.0.1 Postgres accepts any password at all.
-MariaDB has no such rule, so its probe uses 127.0.0.1 and still checks the
-password. It also compares Miniflux's DSN against the database's own secret, since those two can drift apart without
-either side noticing until the next restart.
+The daily posture check (`homelab-posture.service`) proves a rotation landed. It
+asserts each secret file still opens its database, and that Miniflux's DSN
+matches the database secret. Postgres probes use the container name, because
+over 127.0.0.1 `pg_hba.conf` trusts any password; MariaDB's probe uses 127.0.0.1.
 
-To see the verdict without waiting for the timer:
+Run it now:
 
 ```bash
 sudo systemctl start homelab-posture.service
 sudo journalctl -u homelab-posture.service -n 20 --no-pager
 ```
 
-A clean run prints nothing in the journal but systemd's and PAM's own lines; the verdict is the Kuma
-"Pi security posture" beat, which reads `posture OK — N checks (…)`. A failed rotation prints
-`<container>: /run/secrets/<name> no longer opens the database` in the journal and turns that
-beat red.
+- **Pass**: the journal shows only systemd and PAM lines; the Kuma "Pi security
+  posture" beat reads `posture OK — N checks (…)`.
+- **Fail**: the journal shows `<container>: /run/secrets/<name> no longer opens
+  the database`, and the beat turns red.

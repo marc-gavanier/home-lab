@@ -1,54 +1,17 @@
 # Immich
 
-Photo management and backup — personal Google Photos.
+Photo management and backup — a personal Google Photos, with automatic mobile backup, face and
+object recognition, timeline, albums, map view and duplicate detection.
 
-## Access
+## At a glance
 
-- URL: `https://photos.example.com`
-
-## What It Does
-
-- Automatic photo/video backup from mobile devices
-- AI-powered face recognition and object detection
-- Timeline view, albums, sharing
-- Map view (GPS metadata)
-- Duplicate detection
-
-## Client Setup
-
-### Mobile (Android/iOS)
-Install the [Immich app](https://immich.app/download) and connect to `https://photos.example.com`. Enable automatic backup in the app settings.
-
-### Browser
-Access directly at `https://photos.example.com`.
-
-## First Steps
-
-1. Open `https://photos.example.com` — create admin account
-2. Install mobile app and sign in
-3. Enable auto-backup (Settings > Backup > Enable)
-4. Choose which albums/folders to back up
-
-## RAM Warning
-
-Immich is the most RAM-hungry service (~1 GB with machine learning). Monitor with:
-```bash
-ssh homelab "docker stats --no-stream immich-server immich-ml"
-```
-
-If RAM is too tight, disable machine learning by removing the ML container:
-```bash
-ssh homelab "cd /opt/homelab && docker compose down immich-machine-learning"
-```
-
-`immich-machine-learning` is the compose **service**; `immich-ml` is only its
-container name, and `compose` answers "no such service" if you pass it.
-`docker stop` is the wrong tool here too: if the container exits non-zero the
-heal timer brings it back within two minutes, so the RAM never actually frees;
-if it exits 0 the timer leaves it alone. `down` takes it out of the timer's view
-whatever the exit code; the next boot or deploy recreates it either way.
-
-## Data
+| | |
+|---|---|
+| URL | `https://photos.example.com` |
+| Containers | `immich-server`, `immich-ml` (compose service `immich-machine-learning`) |
+| Data | see table below |
+| Backup | restic daily; database via Immich's own scheduled dump |
+| RAM | ~1 GB with machine learning — the heaviest service |
 
 | Path                                  | Content                            |
 |---------------------------------------|------------------------------------|
@@ -57,22 +20,37 @@ whatever the exit code; the next boot or deploy recreates it either way.
 | `/mnt/data/services/immich/ml-cache/` | Machine learning model cache       |
 | `/mnt/data/media/photos/`             | External photo library (read-only) |
 
-## Backup
+## First steps
 
-Backed up daily by Restic. The database is **not** dumped by the backup hooks — Immich
-runs its own scheduled DB backup (Admin → Settings → Backup) to
-`upload/backups/*.sql.gz`, which lives under `/mnt/data/services/immich` and is
-therefore captured in every Restic snapshot. This produces a correctly-formatted
-dump for the VectorChord / pgvecto.rs extensions (a hand-rolled `pg_dump` needs a
-`search_path` transform on restore and is easy to get wrong).
+1. Open `https://photos.example.com` and create the admin account.
+2. Install the [Immich app](https://immich.app/download) and connect to `https://photos.example.com`.
+3. Enable auto-backup (Settings > Backup > Enable).
+4. Choose which albums/folders to back up.
 
-Confirm the built-in backup is enabled (Admin → Settings → Backup) and that
-`upload/backups/` holds a recent `*.sql.gz`. That directory is `0700 root` since
-#272 — the dumps are a credential store, not media — so listing it needs
-`sudo sh -c 'ls -l /mnt/data/services/immich/upload/backups'`, and a bare
-`sudo ls` with a glob would be expanded by your own shell and report no matches.
+## Backup and restore
 
-## Restore
+- The backup hooks do not dump the database. Immich's scheduled DB backup (Admin → Settings →
+  Backup) writes `upload/backups/*.sql.gz`, which restic captures. It handles the VectorChord /
+  pgvecto.rs extensions correctly; a hand-rolled `pg_dump` does not.
+- Check the built-in backup is enabled and `upload/backups/` holds a recent `*.sql.gz`. The
+  directory is `0700 root`, so list it with
+  `sudo sh -c 'ls -l /mnt/data/services/immich/upload/backups'` (a bare `sudo ls` with a glob
+  expands in your shell and finds nothing).
+- Restore needs a fresh DB and a `search_path` transform: follow
+  `knowledge/runbooks/restore-from-backup.md` → "Restore Immich".
 
-The DB restore has extension-specific steps (fresh DB + `search_path` transform).
-Full procedure: `knowledge/runbooks/restore-from-backup.md` → "Restore Immich".
+## Common tasks
+
+Check RAM:
+
+```bash
+ssh homelab "docker stats --no-stream immich-server immich-ml"
+```
+
+Free RAM by removing machine learning. Use `down`, not `docker stop` (the heal timer restarts a
+non-zero exit), and the service name, not the container name `immich-ml`. The next boot or deploy
+recreates it.
+
+```bash
+ssh homelab "cd /opt/homelab && docker compose down immich-machine-learning"
+```

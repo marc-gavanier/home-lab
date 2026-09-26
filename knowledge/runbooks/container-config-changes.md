@@ -1,48 +1,27 @@
 # Runbook — changing a running container's configuration safely
 
-Applies to any `compose.yaml` change that recreates a container: capabilities,
-security options, mounts, users, image pins. Written after a `cap_drop` change
-took the VPN down for three hours (#24).
+Use this page for any `compose.yaml` change that recreates a container: capabilities,
+security options, mounts, users, image pins.
 
-## The two failure modes that matter
+## Before you start
 
-**Crash loop.** The container never becomes usable, and *nothing on the Pi fixes
-it*. The heal timer restarts containers that **exited**; a container restarting
-every few seconds because its configuration is wrong is not that case, and it
-will sit there until a human intervenes. Docker's `restart: unless-stopped`
-actively keeps the loop alive.
+Two failure modes matter:
 
-**Silent degradation.** The container is `healthy`, its HTTP endpoint answers,
-and one internal function is dead. Uptime Kuma kept serving its UI while every
-ping monitor reported `spawn EPERM`, because `/usr/bin/ping` carries
-`cap_net_raw` as a file capability and the exec failed. A status check and a
-`curl` both said green. Assume this mode exists for every service and ask what
-the service *does* beyond answering.
+- **Crash loop.** The container never becomes usable and nothing on the Pi fixes it. The
+  heal timer only restarts containers that have *exited*, and `restart: unless-stopped`
+  keeps the loop alive.
+- **Silent degradation.** The container is `healthy` and answers HTTP, but one function is
+  dead (for example Kuma's ping monitors failing with `spawn EPERM` after a capability drop).
+  For every service, ask what it *does* beyond answering.
 
-## Order of operations
+Critical-path services: Pi-hole (LAN DNS), Traefik (all HTTPS), wg-easy (VPN and the offsite
+link).
 
-1. **Sweep for file-capability binaries FIRST**, before anything else on this
-   page. Step 2 prints a `--cap-add` it cannot fill in on its own: this sweep is
-   its only source, and running them the other way round means sandboxing a
-   capability set that was guessed.
+## Steps
 
-   **Run it from the host, not with `docker exec`.** The obvious form —
-
-   ```bash
-   docker exec "$c" sh -c 'getcap -r /usr/bin /usr/sbin /bin /sbin'
-   ```
-
-   — is blind on 27 of this stack's 32 containers: 27 ship no `getcap`, two of
-   them (Dozzle and Collabora) with no shell at all, so the command fails and
-   the loop moves on. Combined with the rule below — *an image whose sweep comes
-   back empty can take the flag safely* — a container that could not be
-   inspected reads as a container with nothing to find. That is backwards, and
-   it is how a capability gets dropped on the one image that needed it.
-
-   Read the container's own root from the host instead, through
-   `/proc/<pid>/root` — the same handle this repository already uses to compare
-   bind-mount inodes. `getcap` then runs from the host, so nothing the image
-   ships or omits matters:
+1. **Sweep for file-capability binaries first.** Step 2 needs its `--cap-add` list from here.
+   Run it from the host through `/proc/<pid>/root`: `docker exec … getcap` is blind, because
+   most images ship no `getcap` and some have no shell.
 
    ```bash
    for c in $(docker ps --format '{{.Names}}' | sort); do
@@ -57,20 +36,16 @@ the service *does* beyond answering.
    done
    ```
 
-   **`sudo test -d`, not `test -d`.** Writing the guard without `sudo` answers
-   "can *I* see this", not "does this exist": `/proc/<pid>/root` of a root-owned
-   process is unreadable to the operator account, so every container reports
-   `NOT INSPECTED` and the sweep is blind again — 29 of 29 when it was written
-   that way here, which is worse than the `docker exec` form it replaces. The
-   first draft of this very step had that bug. A guard that fails closed on a
-   permission error is the same defect class as the tool it is replacing.
+   - Keep `sudo test -d`: without `sudo`, every container reports `NOT INSPECTED`.
+   - Only `none` allows dropping capabilities or adding `no-new-privileges`. `NOT INSPECTED`
+     or any listed binary means: check by hand, then run the functional probe (step 4).
+   - The same answer decides `no-new-privileges`: a file capability is a privilege gain at
+     exec, which the flag blocks. With the flag, Collabora stays `running` but opens no
+     document. Netdata needs its setuid plugins ([ADR-017](../decisions/ADR-017-drop-all-capabilities.md)).
+   - The sweep shows what to investigate, not what is live (Collabora's `coolmount` bit is
+     outside its bounding set).
 
-   **The point of the `NOT INSPECTED` line is that it is not the same answer as
-   `none`.** Only `none` licenses the drop. Anything else means look again, by
-   hand, before touching that container.
-
-   Measured on 2026-08-31, 29 of 29 containers answered — 25 `none` and 4
-   carriers:
+   Expected carriers:
 
    ```
    collabora:    /usr/bin/coolmount       cap_sys_admin=ep
@@ -80,28 +55,9 @@ the service *does* beyond answering.
    uptime-kuma:  /usr/bin/ping            cap_net_raw=ep
    ```
 
-   Collabora's two are the reason this step moved: the `docker exec` form could
-   never see them, because that container has no shell. Note also that
-   `cap_sys_admin` on `coolmount` is a file bit the container cannot use —
-   `CapBnd` decodes to `cap_chown,cap_fowner,cap_sys_chroot` — so the sweep
-   tells you what to *investigate*, not what is live.
-
-   **The same sweep decides `no-new-privileges`, not just `cap_drop`.** A file
-   capability is a privilege *gain at exec*, which is exactly what the flag
-   blocks — so a binary that shows up here may need the flag left off, and the
-   two questions have one answer. This bit Collabora (#16): `coolwsd` spawns
-   documents through `coolforkit-caps`, and with the flag on the container
-   **stays `running` forever**, serving its discovery endpoint while looping on
-   `Waiting for a new child`. Nothing exits, nothing fails, no document opens.
-   Netdata is the same story with setuid plugins instead (ADR-017). An image
-   whose sweep answers `none` can take the flag safely; one that answers
-   anything else — including `NOT INSPECTED` — needs the functional probe
-   before you believe either setting.
-
-2. **Sandbox second, for anything on the critical path** — Pi-hole (LAN DNS),
-   Traefik (all HTTPS), wg-easy (VPN *and* the offsite link that rides it).
-   A throwaway container with the same image, a copy of the config with the same
-   ownership, and non-conflicting ports reproduces startup faithfully:
+2. **Sandbox critical-path services.** Run a throwaway container with the same image, a copy
+   of the config with the **same ownership** (a fresh `/tmp` dir belongs to your user; the
+   real one may be root-owned), and non-conflicting ports:
 
    ```bash
    docker run -d --name svc-captest --security-opt no-new-privileges:true \
@@ -109,19 +65,11 @@ the service *does* beyond answering.
    docker logs svc-captest | grep -iE "denied|not permitted|unable"
    ```
 
-   Ownership matters: a fresh `/tmp` directory belongs to the host user, while
-   the real one may hold root-owned files. Reproduce both, or the sandbox
-   answers a different question than the one asked.
-
-3. **Never apply to a critical service without an automatic rollback.** Not a
-   plan to roll back — a script that does it unattended, because the tool
-   output may be the last thing anyone reads for hours:
+3. **Apply critical-path changes only with an unattended rollback.** Run from
+   `/opt/homelab`: both paths are relative, and from anywhere else the script silently does
+   nothing, including the rollback.
 
    ```bash
-   # cd FIRST. Both paths below are relative and `docker compose` needs the
-   # file: from the default landing directory this script silently does
-   # nothing on the way out AND nothing on the way back, which is the one
-   # failure an unattended rollback must not have.
    cd /opt/homelab
    cp -a compose.yaml compose.yaml.bak
    scp <new compose>; docker compose up -d <svc>
@@ -130,246 +78,144 @@ the service *does* beyond answering.
    [ "$ok" = yes ] || { cp -a compose.yaml.bak compose.yaml; docker compose up -d <svc>; }
    ```
 
-   The probe must be the *function*, not the status: `dig @127.0.0.1 <domain>`
-   for Pi-hole, `wg show wg0` for wg-easy, an HTTPS response for Traefik.
+   - Pull the new image first (`docker pull`) so a bad tag aborts before the working
+     container is removed. Never send `docker compose up` output to `/dev/null`.
+   - The backup must be older than the change. When changing several services, stage one at
+     a time, or refuse a backup that already holds the new setting:
 
-   **The backup has to be older than the change.** A harness that copies the
-   whole `compose.yaml` per service quietly breaks this after its first run: the
-   file on the Pi already carries every service's change, so the "backup" taken
-   before service #3 already contains service #3's change and rolling back
-   recreates the container identically. That is how the nextcloud-cron attempt
-   under #28 stayed broken after its rollback fired correctly. Either stage one
-   service's change at a time, or make the script refuse to run when the file it
-   is about to keep already contains the new setting:
+     ```bash
+     grep -q '<the new setting>' "$BAK" && { echo "not a rollback point"; exit 2; }
+     ```
 
-   ```bash
-   grep -q '<the new setting>' "$BAK" && { echo "not a rollback point"; exit 2; }
-   ```
+4. **Probe the function of each service**, not its status:
 
-4. **Verify functions, one per service.** What proved useful:
+   | Service        | Probe                                                                                                      |
+   |----------------|------------------------------------------------------------------------------------------------------------|
+   | Traefik        | force a real ACME issuance (throwaway router on a name with no A record; DNS-01 needs none) — cached certs hide a broken config for weeks |
+   | Pi-hole        | resolve a name, a *blocked* name, a split-DNS name; check the log for permission errors even when it resolves |
+   | Databases      | a SQL round-trip, not the healthcheck                                                                      |
+   | Transmission   | RPC with good credentials (409) *and* bad ones (401) — a 409 alone can mean auth is off                    |
+   | wg-easy        | `wg show` handshake ages, then ping a peer; poll for a minute, clients reconnect at their own pace        |
+   | Uptime Kuma    | spawn a ping from inside the container                                                                     |
+   | Nextcloud      | `occ status` plus the age of `core lastcron`                                                               |
+   | Nextcloud cron | `core lastcron` **must advance** — without `SETGID`, busybox `crond` logs "can't set groups" and never runs `cron.php` |
+   | Netdata        | uid of PID 1 = 201, the full plugin list, chart-context counts per family — see `docs/07-observability`   |
+   | Collabora      | convert a file with `/cool/convert-to/pdf`; `/hosting/discovery` proves nothing                            |
 
-   | Service | Probe that actually proves something |
-   |---------|--------------------------------------|
-   | Traefik | force a real ACME issuance (throwaway router on a name with no A record — DNS-01 needs none); cached certs keep serving a broken config for weeks |
-   | Pi-hole | resolve, resolve a *blocked* name, resolve a split-DNS name, check the log for permission complaints even when it resolves |
-   | Databases | a SQL round-trip, not the healthcheck |
-   | Transmission | RPC with good credentials (409) *and* bad (401) — a 409 alone can mean auth is off |
-   | wg-easy | `wg show` peer handshake ages, then ping a peer; recreation drops handshakes and they return at each client's own pace, so poll for a minute before concluding |
-   | Uptime Kuma | spawn a ping from inside the container |
-   | Nextcloud | `occ status` plus the age of `core lastcron` |
-   | Nextcloud cron | `core lastcron` **must advance** — busybox `crond` calls `setgroups()` before every job, so without `SETGID` it logs "can't set groups" once per run and never executes `cron.php`, with the container still Up (#28) |
-   | Netdata | uid of PID 1 = 201, the full plugin list, and the chart-context counts per family — see `docs/07-observability` |
-   | Collabora | convert a file to PDF (`/cool/convert-to/pdf`) — that runs a kit inside a chroot jail; `/hosting/discovery` is answered by the main process and proves nothing about whether a document can open (#16) |
+   - A probe a cache can answer proves nothing. For DNS, query a random label (`NXDOMAIN`
+     passes: upstream replied), and check the container is `running` first.
+   - Check the probe can succeed. The Pi does not use Pi-hole as its resolver, so internal
+     names do not resolve on the host: use `curl --resolve <name>:443:<pi-lan-ip>` or probe
+     from inside the container. Only `drive` and `services` are pinned in `/etc/hosts`.
+     Example of the failing form: `curl https://videos.example.com/health`.
 
-   **A probe a cache can satisfy is not a probe.** Swapping Pi-hole's DoH client
-   on 2026-07-27, the harness reported success while **no upstream container
-   existed at all**: it queried three names it had just resolved itself moments
-   earlier, and Pi-hole answered every one from cache. Uncached names were timing
-   out the whole time. Probe with something that *cannot* be cached — a random
-   label, where `NXDOMAIN` is a passing answer because it proves something
-   upstream replied — and gate on the container actually being `running` before
-   believing any functional result.
-
-   **Pull the replacement before dismantling what works.** The same switch took
-   DNS down because the image was pinned `0.83.0` where the registry publishes
-   `v0.83.0`: `up -d` failed *after* the working container had been removed. A
-   `docker pull` as the first step of the script turns that into an abort with
-   nothing touched. And never send `docker compose up` to `/dev/null` — that is
-   what hid the error.
-
-   **Validate the probe before you trust it.** A probe that cannot succeed turns
-   a working change into a rollback, and then reports the rollback as failed
-   too. On this host the trap is DNS: internal names resolve only in Pi-hole,
-   and the Pi does **not** use Pi-hole as its own resolver, so `curl
-   https://videos.example.com/health` fails on the host with "Could not resolve
-   host" while the service is perfectly healthy. Use `--resolve
-   <name>:443:<pi-lan-ip>`, or probe from inside the container. Only
-   `drive` and `services` are pinned in `/etc/hosts`.
-
-5. **If the image declares `VOLUME` at the path you are changing, `up -d` is not
-   enough.** Compose carries mounts for image-declared volume paths over from
-   the previous container when it recreates, so a mount you *removed* from
-   `compose.yaml` can survive in the running container. It then fails the moment
-   the old source disappears:
+5. **If the image declares `VOLUME` at the path you change, delete the container.** On
+   recreate, Compose carries over mounts for image-declared volume paths, so a removed mount
+   survives until its source disappears and the restart fails with:
 
    ```
    invalid mount config for type "bind": bind source path does not exist: ...
    ```
-
-   Measured on SearXNG, whose image declares `VOLUME /etc/searxng`: the
-   directory mount was replaced by a file mount in `compose.yaml`, the container
-   was recreated and *still* carried the old bind, and once Ansible removed that
-   directory both `--force-recreate` and `docker restart` failed — the service
-   went down at the restart, not at the change. Check the image first, and
-   delete the container rather than recreating it:
 
    ```bash
    docker image inspect <image> --format '{{json .Config.Volumes}}'
    docker rm -f <svc> && docker compose up -d <svc>
    ```
 
-   Then `docker inspect <svc> --format '{{range .Mounts}}...'` to confirm what
-   the container actually got, and restart it once to prove the mount survives.
-   Each such recreation leaves the previous anonymous volume dangling
-   (`docker volume ls -f dangling=true`).
+   Then check `docker inspect <svc> --format '{{range .Mounts}}...'`, restart once to prove
+   the mount survives, and clean up `docker volume ls -f dangling=true`.
 
-6. **Making a container read-only** (ADR-019) — the write set is measurable, so
-   measure it: `docker diff <container>` lists everything written to the image
-   layer since the container was created. Then:
+6. **Making a container read-only** ([ADR-019](../decisions/ADR-019-read-only-rootfs.md)):
+   list the write set with `docker diff <container>`, then:
 
-   - **Mount the leaf, never the parent.** A `tmpfs` on `/run` erases the
-     subdirectories the image made there and the process will not recreate them
-     (`Bind on unix socket: No such file or directory`). Mount `/run/mysqld`,
-     `/run/postgresql`, `/run/netdata`. Check what a directory holds before
-     covering it — netdata's `/var/log/netdata` is all symlinks to `/dev/stdout`.
-   - **`tmpfs` is mounted `noexec` by default.** An init system that stages
-     binaries under `/run` (s6) fails with `Permission denied` on exec. Use
-     `- /run:exec`.
-   - **A write target that shares a directory with image content is a stop.**
-     Both workarounds — `tmpfs` over the directory, or a host copy of what the
-     image ships — hide the next image update. Leave the rootfs writable and
-     write down why.
-   - `docker diff` only shows writes since the container started, so rare paths
-     (log rotation, certificate renewal, weekly jobs) will not appear. Probe
-     those explicitly.
+   - Mount the leaf, never the parent: `/run/mysqld`, `/run/postgresql`, `/run/netdata`, not
+     `/run` (it erases the image's subdirectories: `Bind on unix socket: No such file or
+     directory`). Check what a directory holds first — netdata's `/var/log/netdata` is all
+     symlinks to `/dev/stdout`.
+   - `tmpfs` is `noexec` by default. s6 stages binaries under `/run`: use `- /run:exec`.
+   - A write target that shares a directory with image content is a stop: leave the rootfs
+     writable and write down why.
+   - `docker diff` misses rare paths (log rotation, cert renewal, weekly jobs): probe them.
 
-7. **Leave the Pi's file consistent with the running state.** `docker compose`
-   reads `/opt/homelab/compose.yaml`; if a container was rolled back but the file
-   still holds the broken definition, the next `up` — from the heal timer, a
-   reboot, or an Ansible deploy — reintroduces the failure. Ansible re-templates
-   the file, so a temporary hand-copy is fine, but it must not be left behind.
+7. **Leave `/opt/homelab/compose.yaml` matching the running state.** A rolled-back container
+   with a broken file comes back broken on the next `up` (heal timer, reboot, deploy).
 
-8. **Changing capabilities, `read_only` or `security_opt` means deploying
-   `observability` too** — `--tags deploy,observability`, not `--tags deploy`.
-   The daily posture check does not read `compose.yaml` at runtime: its
-   expectations are *generated from it* when the observability role templates
-   `homelab-posture.sh`. Deploy only the stack and the script keeps yesterday's
-   expectations, so a container that is exactly right is reported as drifted:
+8. **Changing capabilities, `read_only` or `security_opt`: deploy with
+   `--tags deploy,observability`**, not `--tags deploy`. The posture check's expectations are
+   generated from `compose.yaml` into a goss spec by the observability role; without it, a
+   correct container is reported as drifted:
 
    ```
    wg-easy: caps [NET_ADMIN NET_RAW] want [NET_ADMIN NET_RAW SYS_MODULE]
    ```
 
-   Measured on 2026-07-28, when the wg-easy 15 migration dropped `SYS_MODULE`
-   (ADR-020) and a targeted `--tags deploy` left the check accusing a correct
-   container. Harmless but expensive: it looks exactly like a real finding, and
-   the reflex is to go hunting in the container rather than in the expectation.
-   Check the expectations' own copy first — `sudo grep <service> /etc/goss/posture.yaml`
-   against the compose block — before believing a posture finding that arrives
-   right after a deploy.
-
-   > **Corrected 2026-08-29.** This step named
-   > `/usr/local/bin/homelab-posture.sh` until today. ADR-032 moved the
-   > expectations into a goss spec: replayed on wg-easy, the script has **one**
-   > hit and it is a comment, while `/etc/goss/posture.yaml` has fourteen. The
-   > script keeps only what goss cannot express. `sudo` because the spec is not
-   > world-readable.
+   After a deploy, compare `sudo grep <service> /etc/goss/posture.yaml` with the compose
+   block before chasing a posture finding.
 
 ## Restarting a container that others share a namespace with
 
-`network_mode: "service:<other>"` makes one container live inside another's
-network namespace. **Restarting the host container destroys that namespace**,
-and the guest keeps running, attached to the dead one. It does not exit, does
-not fail its healthcheck, and never recovers on its own.
+With `network_mode: "service:<other>"`, restarting the host container destroys the namespace;
+the guest keeps running, detached, and never recovers. Here the pair is `pihole` and
+`dnsproxy` (Pi-hole's only DoH upstream, `127.0.0.1#5053`). Restarting Pi-hole alone causes a
+LAN-wide DNS outage while both containers read `healthy`.
 
-On this stack the pair is `pihole` and `dnsproxy` (Pi-hole's only DoH upstream,
-reached at `127.0.0.1#5053`). The outcome of restarting Pi-hole alone is a
-**LAN-wide DNS outage**: FTL answers, has nowhere to forward, and every uncached
-query times out. Both containers read `healthy`, `systemctl --failed` is empty,
-and the crash-heal timer is blind because neither exited. On the host itself the
-one explicit trace is in Pi-hole's own log:
+Symptoms:
 
-```
-WARNING: Connection error (127.0.0.1#5053): TCP connection failed (Connection refused)
-```
+- The `Pi-hole DNS` Kuma monitor goes down (`queryA ETIMEOUT`). It is the fastest and usually
+  the only signal: check Kuma first.
+- Pi-hole's log shows:
 
-**The `Pi-hole DNS` Kuma monitor does catch it**, and is the fastest signal —
-it is a `type: dns` check resolving a real name, not a port test, so a listening
-`docker-proxy` does not satisfy it. Measured on 2026-07-28: down at 18:21:50
-with `queryA ETIMEOUT`, three minutes after the restart, back at 18:39:50. It
-was also the *only* monitor to trip: everything else resolves through Docker's
-embedded DNS rather than Pi-hole, so there is no notification storm to hide it.
-Check Kuma before the container logs.
+  ```
+  WARNING: Connection error (127.0.0.1#5053): TCP connection failed (Connection refused)
+  ```
 
-That outage came from adding one hostname to the split-DNS template, which fired
-the `Restart pihole` handler for the first time since dnsproxy replaced
-cloudflared. The deploy itself reported only one unrelated failed task.
+Any change to the split-DNS template fires the `Restart pihole` handler, which restarts the
+pair in order. By hand, the fix depends on the trigger:
 
-**Always bring the pair back together, in order** — the handler now does this,
-but doing it by hand needs it too. **The remedy is not the same for the two
-triggers, and using the wrong one leaves DNS dead:**
-
-- After `docker restart pihole` — the container ID is unchanged, so re-attaching
-  works:
+- After `docker restart pihole` (same container ID):
   ```bash
   docker restart pihole && docker restart dnsproxy
   ```
-- After `docker compose up -d pihole`, or anything else that **recreates** the
-  container — `docker restart dnsproxy` is measured to fail here:
+- After `docker compose up -d pihole` or anything that **recreates** pihole — a plain restart
+  of dnsproxy exits 1 against the dead ID and leaves it stopped:
   ```bash
   docker compose up -d --force-recreate dnsproxy
   ```
 
-`HostConfig.NetworkMode` holds a hard container ID resolved once at creation. A
-recreated pihole gets a new ID, so restarting dnsproxy re-runs it against the
-*dead* one: it exits 1 and leaves dnsproxy stopped, which is worse than the
-detached state the restart was meant to repair. Only recreating re-resolves
-`service:pihole`. Measured on a throwaway pair before it was written down
-(#215), and the measurement has been in
-`ansible/roles/deploy/tasks/compose.yml:52-81` ever since — this page gave the
-restart form for both triggers until the audit of 2026-08-30 read the two side
-by side.
+The handler logic is in `ansible/roles/deploy/tasks/compose.yml`.
 
-Before restarting anything, check whether something rides on its namespace:
+Before restarting anything, check what rides on its namespace:
 
 ```bash
 docker ps -q | xargs docker inspect \
   --format '{{.Name}} {{.HostConfig.NetworkMode}}' | grep container:
 ```
 
-The diagnosis order that worked, and the one that did not: the first hypothesis
-was a lost DNAT rule, which cost a round trip — `iptables -t nat -S DOCKER` and
-`ss -lunp` both showed the port path intact. **Read the service's own log before
-theorising about the layer beneath it.**
+Read the service's own log before suspecting the network layer.
 
 ## When `compose up` cannot perform the change
 
-Some image bumps need a **data migration that the image will not do for you**.
-wg-easy 15 is the case that taught this (ADR-020): the configuration moves from
-`wg0.json` to SQLite, and the only import path is an HTTP call that must happen
-*before* the setup is marked complete. Start the new image on the old data
-directory and it finds no database, reopens its setup wizard, and brings up **no
-tunnel at all** — with the container green and nothing in `systemctl --failed`.
+Some image bumps need a data migration the image will not do (wg-easy 15:
+[ADR-020](../decisions/ADR-020-wg-easy-15-migration.md)). Started on old data, it reopens its
+setup wizard and brings up no tunnel, with the container green.
 
-The trap is that the change looks like a one-line image bump in `compose.yaml`,
-so it rides the next deploy — or a Renovate merge — with no migration anywhere.
-Three rules came out of it:
-
-- **Put the migration inside the deploy path, not beside it.** A documented
-  manual step before `compose up` is a step someone will skip. The wg-easy
-  migration ran as an Ansible task placed *between* the compose file copy and
-  `compose up`, self-guarded so it was a no-op once done — and was deleted once
-  it had run (PR #223, ADR-030).
-- **Stage it on a copy and verify before touching production.** Copy the data
-  directory, run the migration against a throwaway container that publishes
-  nothing, and assert the result carries what matters — for a VPN, the same
-  server key and the same peer set. The live service keeps running the whole
-  time; downtime becomes the container swap, seconds, instead of the migration.
-- **Remove the container, do not stop it.** The crash-heal timer resurrects
-  containers it finds exited, every two minutes. A `stop` during a swap can be
-  undone mid-flight, on the new image, against a half-migrated directory. Use
-  `docker compose rm -sf <svc>` — a removed container is invisible to the timer.
-
-And hold the version until then: a Renovate rule with `allowedVersions` costs
-nothing and buys the time to do the above properly.
+- Put the migration inside the deploy path, as a self-guarded Ansible task between the
+  compose file copy and `compose up`; delete it once it has run
+  ([ADR-030](../decisions/ADR-030-configure-the-tools-dont-write-the-glue.md)).
+- Stage it on a copy of the data with a throwaway container that publishes nothing, and
+  check the result (for a VPN: same server key, same peers).
+- Remove the container, do not stop it: the heal timer restarts exited containers every two
+  minutes. Use `docker compose rm -sf <svc>`.
+- Hold the version meanwhile with a Renovate `allowedVersions` rule.
 
 ## Restoring quickly
 
+From the backup copy, or from git with `git show <ref>:docker/compose.yaml`:
+
 ```bash
 cd /opt/homelab
-cp -a compose.yaml.bak compose.yaml     # or: git show <ref>:docker/compose.yaml
+cp -a compose.yaml.bak compose.yaml
 docker compose up -d <svc>
 ```
 
-A container recreation is seconds. What takes time is noticing, so the
-automation in step 3 is worth more than speed here.
+Recreation takes seconds; noticing takes longer, which is why step 3 automates the rollback.

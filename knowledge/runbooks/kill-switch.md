@@ -1,46 +1,46 @@
 # Runbook: Remote Kill Switch (trigger & recovery)
 
-Power the Pi off from anywhere via a secret `ntfy.sh` message, then bring it back.
-Design rationale in [ADR-006](../decisions/ADR-006-remote-kill-switch.md).
+Use this page to power the Pi off from anywhere with a secret `ntfy.sh` message,
+check the switch is armed, bring the Pi back, or change its secrets.
 
-The two secrets live **only** in the vault (`host_vars/homelab/local.yml`) and in
-your offline backup — never in this repo:
+## Before you start
+
+You need both secrets. They live only in the vault
+(`host_vars/homelab/local.yml`) and your offline backup, never in this repo:
 
 | Secret                  | Role                                                 |
 |-------------------------|------------------------------------------------------|
 | `killswitch_ntfy_topic` | the ntfy topic — gatekeeps who can publish/subscribe |
 | `killswitch_keyword`    | exact message body that triggers `poweroff`          |
 
+Keep the trigger line, with the real topic, in your offline backup.
+
 ## Trigger (power off)
 
-From **any** device with internet — a phone, a borrowed laptop — no VPN, no SSH:
+1. From any device with internet (no VPN, no SSH needed):
 
-```bash
-curl -d '<keyword>' https://ntfy.sh/<topic>
-```
+   ```bash
+   curl -d '<keyword>' https://ntfy.sh/<topic>
+   ```
 
-Within ~1–2 s the service logs `TRIGGER received — powering off now` and runs
-`systemctl poweroff`. Any message body that is **not** an exact match is logged as
-`keyword mismatch — ignored` and does nothing.
-
-> Keep the trigger line (with the real topic) in your offline backup — the topic
-> alone is useless without the keyword, but you cannot publish without it.
+   Expected: within ~1–2 s the service logs `TRIGGER received — powering off now`
+   and runs `systemctl poweroff`. Any other body logs `keyword mismatch — ignored`
+   and does nothing.
 
 ## Recovery (power back on)
 
-There is **no remote power-on** by design. Recovery requires physical presence:
+There is no remote power-on. You must be on site.
 
-1. Restore power to the Pi (plug it back / flip the smart plug).
-2. Let it boot. Unlock the encrypted data volume (`/mnt/data`) as on any boot —
-   LUKS passphrase.
-3. The unlock triggers the staged startup: all waves dispatched in ~8-10 min;
-   DNS back ~2-3 min after the unlock; the heavy tier (Immich, Calibre-Web,
-   Collabora) answers ~20 min after the unlock on a cold boot. Details in the
-   [boot & unlock runbook](boot-and-unlock.md).
+1. Restore power (plug back in, or flip the smart plug).
+2. Let it boot, then unlock `/mnt/data` with the LUKS passphrase as on any boot.
+3. Wait for the staged startup: DNS back ~2–3 min after the unlock, all waves
+   dispatched in ~8–10 min, heavy tier (Immich, Calibre-Web, Collabora) ~20 min
+   on a cold boot. Until the unlock the LAN has no DNS: point your client at
+   `1.1.1.1`. Details: [boot & unlock runbook](boot-and-unlock.md).
 
 ## Verify the service is armed
 
-After a deploy or reboot, confirm it's listening (no poweroff involved):
+Run after a deploy or reboot. Nothing powers off.
 
 ```bash
 systemctl is-active killswitch.service   # active
@@ -48,22 +48,13 @@ sudo journalctl -t killswitch -n 5 -o cat
 sudo ss -tnp state established '( dport = :443 )' | grep curl
 ```
 
-**Neither of the first two commands proves the switch works, and the third is
-the one that does.** `active` only says the wrapper loop is alive, and the
-`armed` line is written unconditionally *before* the first connection is
-attempted — the stream can be down, reconnecting, or refused for hours with
-both readings unchanged. The listener really did reconnect on 2026-09-15 at
-08:50:14 and the journal recorded nothing about it. The `ss` line is the honest
-check: an established socket to the ntfy host means the stream is actually up.
+- Only the `ss` line proves it: an established `curl` socket to ntfy means the
+  stream is up. `active` and the `armed` log line are written before any
+  connection, and stay unchanged while the stream is down or reconnecting.
+- Use `journalctl -t killswitch`, not `-u`: the script logs through `logger`,
+  and `-u` drops the `armed` line.
 
-Note the flag: `journalctl -u killswitch.service` shows only systemd's own
-start/stop lines and **drops the `armed` message entirely**, because the script
-logs through `logger`. Use `-t killswitch`, not `-u`.
-
-The end-to-end test below is stronger still, and it is the only one that
-exercises the receive path.
-
-Safe end-to-end test (does **not** power off) — publish a deliberately wrong body:
+End-to-end test of the receive path (does **not** power off):
 
 ```bash
 curl -d 'wrong-keyword-test' https://ntfy.sh/<topic>
@@ -72,24 +63,30 @@ curl -d 'wrong-keyword-test' https://ntfy.sh/<topic>
 
 ## Change the secrets
 
-Rotate the topic/keyword (e.g. if the topic may have leaked):
+Use when the topic may have leaked.
 
-```bash
-openssl rand -hex 16            # new topic
-cd ansible && ansible-vault edit inventory/host_vars/homelab/local.yml   # update both values
-ansible-playbook playbooks/site.yml --tags killswitch --ask-vault-pass
-```
+1. Generate a new topic:
 
-The `Restart killswitch` handler picks up the new env on a running service
-(systemd reads `EnvironmentFile` only at start). **Update your offline backup.**
+   ```bash
+   openssl rand -hex 16            # new topic
+   ```
+
+2. Update both values in the vault and deploy:
+
+   ```bash
+   cd ansible && ansible-vault edit inventory/host_vars/homelab/local.yml   # update both values
+   ansible-playbook playbooks/site.yml --tags killswitch --ask-vault-pass
+   ```
+
+   The `Restart killswitch` handler reloads the service (systemd reads
+   `EnvironmentFile` only at start).
+3. Update your offline backup.
+4. Run [Verify the service is armed](#verify-the-service-is-armed).
 
 ## Related
 
-- [ADR-006](../decisions/ADR-006-remote-kill-switch.md) — design & alternatives.
-- [usb-tamper runbook](usb-tamper.md) — the local sibling: poweroff on any USB
-  plug/unplug while the volume is unlocked ([ADR-008](../decisions/ADR-008-usb-tamper-poweroff.md)).
-- [SSH lockout recovery](ssh-lockout-recovery.md) — the kill switch doubles as
-  the remote *clean-shutdown* tool when the SD card needs offline surgery.
-- [Boot & unlock runbook](boot-and-unlock.md) — what to expect after the power
-  comes back (staged startup, DNS in ~1–3 min after unlock). Until the unlock,
-  the LAN has no DNS — point the client at `1.1.1.1` meanwhile.
+- [ADR-006](../decisions/ADR-006-remote-kill-switch.md): design and alternatives.
+- [usb-tamper runbook](usb-tamper.md): poweroff on any USB plug/unplug while
+  the volume is unlocked ([ADR-008](../decisions/ADR-008-usb-tamper-poweroff.md)).
+- [SSH lockout recovery](ssh-lockout-recovery.md): uses the kill switch as a
+  remote clean shutdown before SD card surgery.

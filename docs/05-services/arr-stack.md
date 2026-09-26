@@ -1,9 +1,7 @@
 # Prowlarr, Sonarr and Radarr
 
-One page for three containers, because they are one mechanism: Prowlarr finds,
-Sonarr and Radarr decide and import. Splitting them across three pages would
-repeat the same layout three times and hide the only thing worth understanding,
-which is how they chain together.
+Three containers, one mechanism: Prowlarr finds, Sonarr and Radarr decide and import. One page,
+because what matters is how they chain.
 
 ```
 Prowlarr        indexers, distributed to the two below
@@ -17,123 +15,62 @@ Sonarr / Radarr import by HARD LINK into library/shows and library/movies
 Jellyfin        reads the library it was already configured with
 ```
 
-## Access
+## At a glance
 
-| Service  | URL                        | Port |
-|----------|----------------------------|------|
+| Service  | URL                         | Port |
+|----------|-----------------------------|------|
 | Prowlarr | `https://indexers.<domain>` | 9696 |
 | Sonarr   | `https://series.<domain>`   | 8989 |
 | Radarr   | `https://films.<domain>`    | 7878 |
 
-LAN or VPN only — the `vpn-only` middleware applies globally on the websecure
-entrypoint, so none of the three is reachable from the internet.
+| | |
+|---|---|
+| Access | LAN or VPN only (`vpn-only` middleware on the websecure entrypoint) |
+| Data | `/config` per service under `services_data_dir` |
+| Media | `library/movies`, `library/shows` — not backed up (ADR-035) |
+| Backup | restic (`/mnt/data/services`) + one SQLite dump each (ADR-031) |
+| Supervision | healthcheck on each container's `/ping` |
+| ADR | [ADR-036](../../knowledge/decisions/ADR-036-automate-the-import-with-the-arr-stack.md), [ADR-035](../../knowledge/decisions/ADR-035-split-the-media-tree-by-who-writes-to-it.md) |
 
-## How It Runs
+## How it works
 
-linuxserver s6 images: the init runs as root, chowns `/config`, then drops to
-`PUID`/`PGID`. They carry the same five capabilities as calibre-web and
-transmission, and **that set is inherited, not measured** — narrowing it needs a
-`docker diff` per container. `read_only` is not set and was not attempted; the
-honest state is unknown rather than impossible (ADR-036).
+- linuxserver s6 images: init runs as root, chowns `/config`, then drops to `PUID`/`PGID`.
+  Same five capabilities as calibre-web and transmission — inherited, not measured; narrowing
+  them needs a `docker diff` per container. `read_only` not attempted (ADR-036).
+- Started in stack-startup wave 3, after Transmission (wave 2), because they call its RPC.
+- Sonarr and Radarr mount `library_dir` whole at `/data`. Keep it one mount: `link()` fails
+  across two bind mounts, so every import would become a copy and break the seed.
+- `media_dir` is not mounted: they cannot touch photos, music, home videos or the Calibre library.
+- API keys: each generates its own in `config.xml` on first start. Prowlarr needs the other two
+  to push indexers, so keys cannot be templated in advance — read them after the first run and
+  put them in the vault. They count as secrets for the C89 audit.
+- `config.xml` holds the API key: the file is `0600` and the directory `0700` (set by the deploy
+  role, `data_dirs.yml`); the databases beside it stay `0644`.
+- The media is not restorable and needs no restore: torrent-sourced, re-obtainable, kept until
+  watched. Losing it costs a re-download.
 
-Started by stack-startup **wave 3**, not wave 1: Sonarr and Radarr talk to
-Transmission's RPC, and Transmission comes up in wave 2.
+## Backup and restore
 
-## The mount that makes an import free
+- The databases are live SQLite in WAL mode, so a restic copy of the `.db` can be torn: committed
+  data may still sit in the `-wal`. A `backup_sqlite_dumps` entry dumps each one first, via the
+  Online Backup API:
 
-Sonarr and Radarr mount `library_dir` **whole** at `/data`. That single mount is
-the entire point: `link()` refuses across two bind mounts even when both resolve
-to the same filesystem, so two mounts would turn every import into a copy — its
-own size again on disk, and a broken seed. Measured in ADR-035.
+  ```sh
+  sqlite3 /mnt/data/services/sonarr/sonarr.db ".backup '…/dumps/sonarr.sqlite3'"
+  ```
 
-`media_dir` is deliberately **not** mounted. These two can write to films,
-series and the download directory, and to nothing the operator produces —
-photos, music, home videos and the Calibre library are out of reach.
+- The `.db` also stays in the snapshot, so `--include services/sonarr` restores a file and exits
+  0 — but not necessarily a consistent one. Use the dump.
+- `logs.db` files are not dumped: they hold only the application log.
+- Restore Prowlarr first (the other two pull indexers from it). Procedure:
+  [`restore-from-backup.md` § Restore Sonarr / Radarr / Prowlarr (SQLite)](../../knowledge/runbooks/restore-from-backup.md#restore-sonarr--radarr--prowlarr-sqlite).
 
-## Secrets
+## Check it works
 
-Each generates its own API key on first start, into its `config.xml`. Prowlarr
-needs the other two's to push indexers to them, so **the keys cannot be
-templated in advance**: read them off the containers after the first run and put
-them in the vault. They are credentials, and they belong in the secret-value set
-the C89 audit sweeps.
-
-## Data and Restore
-
-`/config` per service under `services_data_dir`, inside the restic source with
-the rest of `/mnt/data/services`. It holds the indexer definitions, the series
-and film lists, the quality profiles, the download history — and `config.xml`,
-which carries the API key. That is why the file is `0600` (the deploy role sets
-it, `data_dirs.yml`) and the directory is `0700` on top: the databases beside it
-stay `0644`, and the directory is what keeps them private.
-
-**A plain file restore is not enough on its own — see `## Backup` below.** The
-full procedure is
-[`restore-from-backup.md` § Restore Sonarr / Radarr / Prowlarr (SQLite)](../../knowledge/runbooks/restore-from-backup.md#restore-sonarr--radarr--prowlarr-sqlite);
-restore **Prowlarr first**, because the other two pull their indexer definitions
-from it.
-
-The media itself is not theirs to restore, and there is nothing to restore it
-from: films and series live in `library/movies` and `library/shows`, which are
-**deliberately outside the restic source** since 2026-09-13 (ADR-035). They are
-torrent-sourced, re-obtainable, and kept only until watched. Losing them costs a
-re-download, not a recovery.
-
-## Backup
-
-No new path: `/mnt/data/services` is already backed up wholesale by restic.
-
-Each of the three databases gets one extra step — a `backup_sqlite_dumps` entry
-run from a resticprofile hook (ADR-031), added 2026-09-13 — and the reason is the
-same one that applies to Vaultwarden and Forgejo. These are live SQLite
-databases in WAL mode, so a restic snapshot of the file can capture a torn
-state: the committed transactions sitting in the `-wal` beside it are not in the
-file restic copied.
-
-How much data that is, measured on the running host — all three read at the same
-instant, because a WAL grows and is checkpointed continuously and figures taken
-minutes apart do not belong in the same table:
-
-| File | Committed data outside the main database |
-|-------------------|------------------------------------------|
-| `radarr.db-wal`   | 310 KB |
-| `sonarr.db-wal`   | 286 KB |
-| `prowlarr.db-wal` | 20 KB  |
-
-Those are ordinary values, not a worst case. `radarr.db-wal` was measured at
-**3.77 MB** on 2026-09-13 — which is the figure that justified adding the dumps,
-and the reason to read the table above as "routinely non-zero" rather than as a
-bound.
-
-The dump takes each database through SQLite's Online Backup API into the dump
-directory first:
-
-```sh
-sqlite3 /mnt/data/services/sonarr/sonarr.db ".backup '…/dumps/sonarr.sqlite3'"
-```
-
-**These three differ from Uptime Kuma's database in one way that matters during
-a restore.** Kuma's `kuma.db` is *excluded* from the snapshot, so restoring
-`services/uptime-kuma` visibly gives you no database at all. These are dumped
-*and* left in the snapshot, so a plain `--include services/sonarr` hands you a
-`.db` and exits 0 — it is just not necessarily the consistent one. Prefer the
-dump; the runbook section linked above does.
-
-Their `logs.db` siblings are deliberately not dumped: they hold the application
-log, a rescan of the UI rebuilds nothing anyone needs from them, and losing them
-costs history rather than state.
-
-## Health
-
-Each container probes its own `/ping`. What that proves is that the web
-application answers — not that an import would succeed. The function to watch is
-whether a finished download actually lands in the library as a hard link, which
-shows up as the link count on the imported file being 2 and the free space not
-moving.
+`/ping` proves the web app answers, not that imports work. The real test: an imported file has a
+link count of 2 and free space did not drop.
 
 ## Related
 
-- [ADR-036](../../knowledge/decisions/ADR-036-automate-the-import-with-the-arr-stack.md) — why these three and not Lidarr or Readarr
-- [ADR-035](../../knowledge/decisions/ADR-035-split-the-media-tree-by-who-writes-to-it.md) — the layout that makes hard links possible
 - [Transmission](transmission.md) — the download client they drive
 - [Jellyfin](jellyfin.md) — the reader at the end of the chain

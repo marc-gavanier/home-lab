@@ -1,153 +1,112 @@
 # Runbook — LUKS header backup & restore
 
-The 5 TB data disk is a single LUKS container opened at unlock time (ADR-011,
-manual SSH unlock). Its **header** (LUKS2 metadata + keyslots, 2–16 MB at the
-start of the partition) is what turns the passphrase into the master key. If the
-header is corrupted — a bad sector on the aging HDD, or a botched `cryptsetup`
-operation — the volume is **unrecoverable even with the correct passphrase**.
-That single point of failure would take the live data *and* the local restic
-repo (both on `/mnt/data`) at once; only the offsite repo would survive.
+Use this page to back up the LUKS header of the 5 TB data disk, and to restore it
+if it is damaged. Without a good header the volume is unrecoverable even with the
+right passphrase, taking the live data and the local restic repo with it; only the
+offsite repo would survive (ADR-011).
 
-A header backup is the cheap backstop for the whole LUKS-unlock model. Take one
-now, and again after **any** keyslot change.
+## Before you start
 
-## Sensitivity
-
-The header is one half of the secret: **header + passphrase = your data**. The
-header *alone* does not expose anything (an attacker still needs the passphrase),
-so physical control of an offline copy is a legitimate protection. But treat it
-as sensitive: stored *off* the volume, never in the repo, never on the Pi
-long-term.
+- **Disarm the USB tamper response before touching any cable.** While
+  `/run/homelab/tamper-armed` exists, any plug or unplug powers the Pi off, and
+  `wg0.conf` lives on this volume: no tunnel without an unlock, no unlock without
+  the tunnel, so someone must be on site. Run `sudo homelab-tamper-disarm` before
+  the copy and `sudo homelab-tamper-arm` after (ADR-008).
+- **The header is sensitive.** Header + passphrase = your data. The header alone
+  exposes nothing, but keep it off the volume, out of the repo, and not on the Pi
+  long-term.
 
 ## Create a header backup
 
-On the Pi, as root (the script is deployed to `/usr/local/bin` by the storage role):
+Take one now, and again after any keyslot change.
 
-```bash
-sudo homelab-luks-header-backup                # defaults to /dev/sda1
-# or point at another device:
-sudo homelab-luks-header-backup /dev/sdX1
-```
+1. On the Pi, run the script (deployed to `/usr/local/bin` by the storage role):
 
-Equivalent one-liner if the script isn't to hand:
+   ```bash
+   sudo homelab-luks-header-backup                # defaults to /dev/sda1
+   sudo homelab-luks-header-backup /dev/sdX1
+   ```
 
-```bash
-sudo cryptsetup luksHeaderBackup /dev/sda1 \
-  --header-backup-file /root/luks-header-$(date +%Y%m%d).img
-```
+   It warns if tamper is armed, and lists leftovers from earlier runs. Without
+   the script:
 
-> **Before you touch a cable.** Unlocking the volume *arms* the USB tamper
-> response (ADR-008): for as long as `/run/homelab/tamper-armed` exists,
-> plugging or unplugging anything powers the Pi off. That is expensive rather
-> than merely annoying, because the WireGuard config is a symlink onto this very
-> volume — after the poweroff there is no tunnel without an unlock and no unlock
-> without the tunnel, so someone has to be physically present. Run
-> `sudo homelab-tamper-disarm` before the copy and `sudo homelab-tamper-arm`
-> after it. The script prints the same warning when it finds the flag set.
->
-> This was missing from both documents until the audit of 2026-08-30: the
-> procedure whose job is to prepare for a disaster was the most likely way to
-> cause one.
+   ```bash
+   sudo cryptsetup luksHeaderBackup /dev/sda1 \
+     --header-backup-file /root/luks-header-$(date +%Y%m%d).img
+   ```
 
-Then move it off the machine and destroy the working copy:
+2. Copy it to offline media kept away from the Pi. This is the copy that
+   matters. Plaintext is acceptable; if you encrypt it, use a secret you will
+   still have in the disaster. Keep a second independent copy if you can (3-2-1).
+3. Do not rely on Vaultwarden as the only copy: its data lives on this same
+   volume. An attachment there is a convenience extra only.
+4. Shred the working copy (mandatory, `/root` survives reboots):
 
-1. **Primary — an offline copy, on separate media, kept away from the Pi.** This
-   is the copy that matters: independent hardware, survives the loss of the Pi
-   and the whole `/mnt/data` volume. Plaintext is acceptable (the header alone
-   is not enough without the passphrase); encrypt it if you prefer, but only
-   with a secret you will still have *in the disaster* (a symmetric passphrase
-   in your password manager, or a GPG key whose private half is itself backed up
-   offline — otherwise you lock yourself out). Ideally keep a second independent
-   copy on other media — 3-2-1 applies to the header too.
-2. **Do NOT rely on Vaultwarden as the (only) copy.** Vaultwarden's own data
-   lives on this same LUKS volume, so a damaged header takes Vaultwarden with it —
-   a circular dependency. A Vaultwarden attachment can be a *convenience* extra
-   (it also rides along in the offsite restic backup), never the primary.
-3. Shred the working copy: `shred -u /root/luks-header-*.img`. **This step is
-   now mandatory.** The file used to be written to `/tmp`, which is a tmpfs, so
-   a forgotten copy disappeared at the next boot. It no longer does — and the
-   reason for the move is that step 1 above can itself trigger a poweroff, which
-   used to destroy the header backup at exactly the moment it was needed. The
-   trade is deliberate: durability during the procedure, in exchange for an
-   erasure you must now perform yourself. The script lists any leftovers from
-   earlier runs every time it starts.
+   ```bash
+   shred -u /root/luks-header-*.img
+   ```
 
 ## When to refresh it
 
-Re-take the backup after any operation that changes the keyslots, otherwise an
-old header restore would reinstate a superseded passphrase:
+Re-take the backup after any keyslot change, or an old restore brings back a
+superseded passphrase:
 
 - `cryptsetup luksAddKey` / `luksRemoveKey` / `luksChangeKey`
 - `cryptsetup luksKillSlot`
-- Any re-encryption or LUKS format change
+- any re-encryption or LUKS format change
 
-(No change on ordinary unlock/mount cycles — the header is static then.)
+Unlock and mount cycles do not change the header.
 
-Nothing tells you the copy has gone stale, so check it whenever you have it in
-hand: `sudo cryptsetup luksDump <device>` and `cryptsetup luksDump <copy>` must
-print the same `Epoch` and the same keyslots. A different `Epoch` means the
-header changed after the copy was taken — re-take it.
+To check a copy you hold: `sudo cryptsetup luksDump <device>` and
+`cryptsetup luksDump <copy>` must print the same `Epoch` and keyslots. A
+different `Epoch` means the copy is stale: re-take it.
 
 ## Restore a damaged header (disaster recovery)
 
-> ⚠️ Overwrites the on-disk header. Only do this when the current header is
-> known-bad, and only with a header taken from **this** disk (a mismatched
-> header destroys access). The volume must be closed.
+### Before you start
 
-The mapper is `data_crypt`, not `data` — `luks_mapper_name` in
-`group_vars/all.yml`, and `mnt-data.mount` looks for `/dev/mapper/data_crypt`.
-Opening it under any other name gives a volume that `/mnt/data` will not mount.
+- ⚠️ This overwrites the on-disk header. Only restore when the current header is
+  known-bad, and only a header taken from **this** disk.
+- The volume must be closed. Restoring over an open volume loses the disk.
+- The mapper is `data_crypt` (`luks_mapper_name` in `group_vars/all.yml`);
+  `mnt-data.mount` looks for `/dev/mapper/data_crypt`.
 
-```bash
-# Retrieve luks-header-*.img from one of the offline copies first.
+### Steps
 
-# The volume must be closed before the header is overwritten: a restore over an
-# OPEN volume is how you lose the disk.
-#
-# Ask the DISK, not the name. `cryptsetup status <name>` prints
-# "<name> is inactive." for a mapper that does not exist at all, which is word
-# for word what it prints for one that is genuinely closed — so a typo in the
-# name produces the exact go-ahead for the command below. Measured: `cryptsetup
-# status data_cryptX` answers "/dev/mapper/data_cryptX is inactive." and exits 4,
-# and the exit code is the only thing that differs. Do not read the sentence.
-#
-# lsblk is immune to that, because it answers about the device rather than about
-# a name you typed: if ANY mapping is open on /dev/sda1, it appears as a child.
-lsblk -o NAME,TYPE,MOUNTPOINTS /dev/sda1
+1. Retrieve `luks-header-*.img` from an offline copy.
+2. Check whether the volume is open. Ask the disk, not a name:
+   `cryptsetup status <typo>` also prints "is inactive".
 
-# A crypt child, e.g.
-#     sda1         part
-#     └─data_crypt crypt /mnt/data
-# means the volume is OPEN. Close it, and require the close to succeed — do not
-# swallow its error:
-sudo cryptsetup luksClose data_crypt
+   ```bash
+   lsblk -o NAME,TYPE,MOUNTPOINTS /dev/sda1
+   ```
 
-# Then run lsblk AGAIN and require sda1 to have no child at all. That, and not
-# the word "inactive", is the go-ahead. If you cannot get lsblk to show a bare
-# sda1, stop here rather than continuing.
-lsblk -o NAME,TYPE,MOUNTPOINTS /dev/sda1
+   A crypt child (`└─data_crypt crypt /mnt/data`) means it is open.
+3. If open, close it, and stop if the close fails:
 
-sudo cryptsetup luksHeaderRestore /dev/sda1 \
-  --header-backup-file /path/to/luks-header-YYYYMMDD.img
+   ```bash
+   sudo cryptsetup luksClose data_crypt
+   ```
 
-# Then unlock as usual — and use homelab-unlock, not a raw luksOpen:
-sudo homelab-unlock
-```
+4. Run `lsblk -o NAME,TYPE,MOUNTPOINTS /dev/sda1` again. Go on only if `sda1`
+   has no child at all; otherwise stop.
+5. Restore:
 
-`homelab-unlock` is not a convenience wrapper here, it is the gate. A hand
-`cryptsetup luksOpen` has no `ConditionPathExists` check in front of it, and
-units carrying `RequiresMountsFor=/mnt/data` mount the volume ~513 ms after the
-mapper appears (measured 2026-08-26: mapper at 09:55:03.303, mount at
-09:55:03.816). A later `homelab-unlock` then takes its already-mounted branch
-and logs `integrity check SKIPPED: /mnt/data was already mounted when the check
-was due` — which is how a 4.6 TB volume went unchecked after a shutdown that had
-left PostgreSQL replaying its WAL.
+   ```bash
+   sudo cryptsetup luksHeaderRestore /dev/sda1 \
+     --header-backup-file /path/to/luks-header-YYYYMMDD.img
+   ```
 
-The context makes it worse than it sounds: this is a *header restore*, so the
-disk has just been through corruption or a botched `cryptsetup` operation. It is
-the single most likely moment for the filesystem to need `e2fsck`, and the raw
-form is the one that guarantees the check is skipped, silently.
+6. Unlock with `homelab-unlock`, never a raw `luksOpen`. A raw open lets units
+   with `RequiresMountsFor=/mnt/data` mount the volume within ~0.5 s, so the
+   integrity check is skipped (`integrity check SKIPPED: /mnt/data was already
+   mounted when the check was due`) right when the filesystem most likely needs
+   `e2fsck`.
 
-After restore, unlock through the normal boot procedure and let the staged
-startup bring services up. See also: `restore-from-backup.md`, ADR-011 (secrets
-off the SD card), `docs/06-backup/README.md`.
+   ```bash
+   sudo homelab-unlock
+   ```
+
+7. Let the staged startup bring services up, as on any boot.
+
+See also: `restore-from-backup.md`, ADR-011, `docs/06-backup/README.md`.

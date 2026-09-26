@@ -1,101 +1,79 @@
 # Services
 
-## Overview
-
-All services run as Docker containers, orchestrated by Docker Compose. Persistent data is stored on the 5TB HDD.
+Every service runs as a Docker container from one Docker Compose file. Persistent data lives on the 5 TB HDD.
 
 ## Deployed Services
 
-| Service                         | Description                       | Priority       | Phase   |
-|---------------------------------|-----------------------------------|----------------|---------|
-| [Traefik](traefik.md)           | Reverse proxy, automatic TLS      | Infrastructure | Phase 2 |
-| [Pi-hole](pihole.md)            | Local DNS, ad/tracker blocking    | Infrastructure | Phase 2 |
-| [WireGuard](wireguard.md)       | VPN remote access                 | Infrastructure | Phase 2 |
-| [Nextcloud](nextcloud.md)       | Cloud files, sync, mobile         | Essential      | Phase 3 |
-| [Collabora](collabora.md)       | Collaborative document editing    | Productivity   | Phase 5 |
-| [LibreSign](libresign.md)       | PDF signing (Nextcloud app)       | Productivity   | Phase 5 |
-| [Vaultwarden](vaultwarden.md)   | Password manager                  | Essential      | Phase 3 |
-| [Jellyfin](jellyfin.md)         | Video streaming                   | Secondary      | Phase 4 |
-| [Navidrome](navidrome.md)       | Music streaming                   | Secondary      | Phase 4 |
-| [Immich](immich.md)             | Photo management                  | Secondary      | Phase 4 |
-| [Transmission](transmission.md) | BitTorrent client                 | Secondary      | Phase 4 |
-| [Netdata](netdata.md)           | System monitoring                 | Observability  | Phase 5 |
-| [Uptime Kuma](uptime-kuma.md)   | Availability monitoring           | Observability  | Phase 5 |
-| [Dozzle](dozzle.md)             | Container logs in the browser     | Observability  | Phase 5 |
-| [Claude Code](claude-code.md)   | AI agent for the notes vault      | Productivity   | Phase 5 |
-| [SearXNG](searxng.md)           | Private metasearch engine         | Productivity   | Phase 5 |
-| [IT-Tools](it-tools.md)         | Offline developer toolbox         | Productivity   | Phase 5 |
-| [Calibre-Web](calibre-web.md)   | Ebook library, OPDS               | Secondary      | Phase 5 |
-| [Miniflux](miniflux.md)         | RSS reader, release tracking      | Productivity   | Phase 5 |
-| [Forgejo](forgejo.md)           | Self-hosted git, GitHub mirror    | Secondary      | Phase 5 |
-| [Prowlarr](arr-stack.md)        | Indexer manager for the two below | Secondary      | Phase 6 |
-| [Sonarr](arr-stack.md)          | Series: search and import         | Secondary      | Phase 6 |
-| [Radarr](arr-stack.md)          | Films: search and import          | Secondary      | Phase 6 |
+| Service                         | Description                       | Category       |
+|---------------------------------|-----------------------------------|----------------|
+| [Traefik](traefik.md)           | Reverse proxy, automatic TLS      | Infrastructure |
+| [Pi-hole](pihole.md)            | Local DNS, ad/tracker blocking    | Infrastructure |
+| [WireGuard](wireguard.md)       | VPN remote access                 | Infrastructure |
+| [Nextcloud](nextcloud.md)       | Cloud files, sync, mobile         | Essential      |
+| [Collabora](collabora.md)       | Collaborative document editing    | Productivity   |
+| [LibreSign](libresign.md)       | PDF signing (Nextcloud app)       | Productivity   |
+| [Vaultwarden](vaultwarden.md)   | Password manager                  | Essential      |
+| [Jellyfin](jellyfin.md)         | Video streaming                   | Secondary      |
+| [Navidrome](navidrome.md)       | Music streaming                   | Secondary      |
+| [Immich](immich.md)             | Photo management                  | Secondary      |
+| [Transmission](transmission.md) | BitTorrent client                 | Secondary      |
+| [Netdata](netdata.md)           | System monitoring                 | Observability  |
+| [Uptime Kuma](uptime-kuma.md)   | Availability monitoring           | Observability  |
+| [Dozzle](dozzle.md)             | Container logs in the browser     | Observability  |
+| [Claude Code](claude-code.md)   | AI agent for the notes vault      | Productivity   |
+| [SearXNG](searxng.md)           | Private metasearch engine         | Productivity   |
+| [IT-Tools](it-tools.md)         | Offline developer toolbox         | Productivity   |
+| [Calibre-Web](calibre-web.md)   | Ebook library, OPDS               | Secondary      |
+| [Miniflux](miniflux.md)         | RSS reader, release tracking      | Productivity   |
+| [Forgejo](forgejo.md)           | Self-hosted git, GitHub mirror    | Secondary      |
+| [Prowlarr](arr-stack.md)        | Indexer manager for the two below | Secondary      |
+| [Sonarr](arr-stack.md)          | Series: search and import         | Secondary      |
+| [Radarr](arr-stack.md)          | Films: search and import          | Secondary      |
 
-> This table lists the services with a page of their own. Three infrastructure
-> sidecars run beside them and have none: `dnsproxy` (DoH upstream, shares
-> Pi-hole's network namespace), `socket-proxy` (filtered Docker API for
-> Traefik, Netdata and Dozzle) and `traefik-log-redactor`. They are documented in
-> `docs/04-network/` and `docs/03-security/`, not here.
+- Three infrastructure sidecars have no page here: `dnsproxy` (DoH upstream, shares Pi-hole's
+  network namespace), `socket-proxy` (filtered Docker API for Traefik, Netdata and Dozzle) and
+  `traefik-log-redactor`. See `docs/04-network/` and `docs/03-security/`.
+- Notes live in Obsidian (client app, synced via Nextcloud), managed by Claude Code on the Pi —
+  see [ADR-005](../../knowledge/decisions/ADR-005-obsidian-notes-system.md).
 
-> Notes live in **Obsidian** (a client app on PC/mobile, synced via Nextcloud), managed by
-> Claude Code on the Pi — see [ADR-005](../../knowledge/decisions/ADR-005-obsidian-notes-system.md).
+## RAM Budget
 
-## Estimated RAM Budget
+The host has 8 GB. Figures with `~` are estimates; the others were measured at idle. Re-measure
+on the host rather than trust the sum.
 
-| Service               | Estimated RAM |
-|-----------------------|---------------|
-| OS + system           | ~500 MB       |
-| Traefik               | ~50 MB        |
-| Pi-hole               | ~100 MB       |
-| WireGuard             | ~30 MB        |
-| Nextcloud + MariaDB   | ~450 MB       |
-| Vaultwarden           | ~30 MB        |
-| Jellyfin              | ~300 MB       |
-| Navidrome             | ~50 MB        |
-| Immich + PostgreSQL   | ~1000 MB      |
-| Transmission          | ~80 MB        |
-| Netdata               | ~150 MB       |
-| Uptime Kuma           | ~80 MB        |
-| Claude Code           | ~300 MB       |
-| SearXNG               | ~200 MB       |
-| Collabora Online      | 573 MB        |
-| Dozzle                | 30 MB         |
-| IT-Tools              | 4 MB          |
-| Calibre-Web           | 353 MB        |
-| Miniflux + PostgreSQL | 77 MB         |
-| Forgejo               | 101 MB        |
-| Prowlarr              | 85 MB         |
-| Sonarr                | 143 MB        |
-| Radarr                | 87 MB         |
-| **Total**             | **~4.8 GB**   |
+| Service                 | RAM         |
+|-------------------------|-------------|
+| OS + system             | ~500 MB     |
+| Traefik                 | ~50 MB      |
+| Pi-hole                 | ~100 MB     |
+| WireGuard               | ~30 MB      |
+| Nextcloud + MariaDB     | ~450 MB     |
+| Vaultwarden             | ~30 MB      |
+| Jellyfin                | ~300 MB     |
+| Navidrome               | ~50 MB      |
+| Immich + PostgreSQL     | ~1000 MB    |
+| Transmission            | ~80 MB      |
+| Netdata                 | ~150 MB     |
+| Uptime Kuma             | ~80 MB      |
+| Claude Code             | ~300 MB     |
+| SearXNG                 | ~200 MB     |
+| Collabora Online        | 573 MB      |
+| Dozzle                  | 30 MB       |
+| IT-Tools                | 4 MB        |
+| Calibre-Web             | 353 MB      |
+| Miniflux + PostgreSQL   | 77 MB       |
+| Forgejo                 | 101 MB      |
+| Prowlarr                | 85 MB       |
+| Sonarr                  | 143 MB      |
+| Radarr                  | 87 MB       |
+| **Total**               | **~4.8 GB** |
 
-Every figure above is an estimate except nine, all measured at idle: Collabora's
-573 MB (ADR-021), which grows with the number of documents open at once; Dozzle's
-30 MB (measured 2026-08-04), which does not — it holds no logs, it streams them; IT-Tools'
-4 MB (ADR-024), which is nginx serving static files and nothing else;
-Calibre-Web's 353 MB (ADR-025); and Miniflux's 77 MB (measured 2026-08-13), of which the Go
-binary is only **14 MB** — the Postgres beside it costs four times the reader;
-and Forgejo's **101 MB** (measured 2026-08-15), below the 120-160 MB the shortlist budgeted,
-for a forge holding a full mirror in 6.9 MB of disk. And the three `arr`
-figures, measured 2026-09-19 as cgroup `anon` plus `memory.swap.current` — the
-page cache each one also holds (82-96 MB apiece) is reclaimable and is
-deliberately not counted, and `docker stats` would have understated all three
-because it reports resident pages only.
-IT-Tools and Calibre-Web are where estimates went furthest wrong in opposite
-directions — the shortlist budgeted 50 MB for IT-Tools and 150-250 MB for
-Calibre-Web.
-
-Calibre-Web is also one of the two largest images in the stack at **1.74 GB**
-unpacked, since it bundles a full Calibre for format conversion — level with
-Uptime Kuma 2.5.5 at 1.75 GB (measured 2026-09-26). That lands on `/mnt/data`, not
-the SD card: Docker's data root is `/mnt/data/docker`.
-
-LibreSign has no line of its own: it is a Nextcloud app, and the JVM it spawns
-to sign a PDF exits with the signature. It does cost **185 MB of disk** on
-`/mnt/data` for the JRE and jars it downloads (ADR-022).
-
-The host has **8 GB** since the hardware swap, and sat around 3.9 GB used with
-the full stack running before Calibre-Web joined it, so this is comfortable
-rather than tight — re-measure on the host rather than trusting the sum. The old
-"disable Immich first" plan belonged to the 4 GB board and no longer applies.
+- Collabora grows with the number of open documents (ADR-021). Dozzle holds no logs, it streams
+  them. IT-Tools is static nginx (ADR-024). Miniflux's Go binary is 14 MB of its 77.
+- The three `arr` figures are cgroup `anon` plus `memory.swap.current`. Their reclaimable page
+  cache (82-96 MB each) is not counted, and `docker stats` would understate them (resident
+  pages only).
+- LibreSign has no line: its JVM exits after each signature. It costs 185 MB of disk on
+  `/mnt/data` for its JRE and jars (ADR-022).
+- Calibre-Web (1.74 GB unpacked) and Uptime Kuma (1.75 GB) are the two largest images. Images
+  live on `/mnt/data/docker`, not the SD card.

@@ -1,231 +1,144 @@
 # Pi-hole
 
-DNS server with ad/tracker blocking and split DNS for the home lab.
+DNS server for the LAN and the VPN: ad and tracker blocking, and split DNS that resolves home lab
+subdomains to the Pi's LAN address. Upstream goes through dnsproxy to Quad9 over DoH
+([Network](../04-network/README.md#resolver), ADR-015).
 
-## Access
+## At a glance
 
-- Admin panel: `https://dns.example.com/admin`
-- Accessible from LAN (via split DNS) and VPN
-- Password: set by Ansible via `pihole setpassword` (from `local.yml`)
+| Item            | Value |
+|-----------------|-------|
+| Admin panel     | `https://dns.example.com/admin` (LAN and VPN) |
+| Password        | set by Ansible via `pihole setpassword`, from `local.yml` |
+| Split DNS       | `ansible/roles/deploy/templates/pihole-05-homelab.conf.j2` |
+| Upstream        | `dnsproxy` sidecar, `network_mode: service:pihole` |
+| Config and DB   | `/mnt/data/services/pihole/etc/` (`pihole.toml`, `pihole-FTL.db`, `gravity.db`) |
+| Custom dnsmasq  | `/mnt/data/services/pihole/dnsmasq/` |
+| Logs            | `/var/log/pihole`, container writable layer, not persisted |
+| Backup          | restic, with the rest of `/mnt/data/services` |
 
-## What It Does
+## Router setup
 
-- Blocks ads and trackers at the DNS level for all devices using it as DNS
-- Split DNS: resolves homelab subdomains to LAN IP so traffic stays local
-- Custom dnsmasq config: `ansible/roles/deploy/templates/pihole-05-homelab.conf.j2`
+Make Pi-hole the DNS server handed out by DHCP:
 
-## Network-wide Setup
+1. Router admin (192.168.1.1) > LAN > Characteristics.
+2. DNS primaire: `<pi-lan-ip>`.
+3. DNS secondaire: leave empty, so devices cannot bypass Pi-hole.
 
-### ISP Router Configuration
+## Exempting a client from filtering
 
-Set Pi-hole as the DNS server distributed by DHCP:
+Some devices (typically an ISP TV decoder) break when filtered.
 
-1. Router admin (192.168.1.1) > LAN > Characteristics
-2. DNS primaire: `<pi-lan-ip>`
-3. DNS secondaire: leave empty (prevents devices from bypassing Pi-hole)
+1. Pi-hole admin > **Groups** > create group `bypass` (description: "Unfiltered devices — e.g. TV decoder").
+2. Pi-hole admin > **Clients** > add the device **by MAC**, not by IP.
+3. Assign it to `bypass` only (remove it from **Default**).
+4. Make sure no adlist is assigned to `bypass`.
 
-### Exempting a client from filtering
+Use the MAC: a rule on an IP keeps matching the old lease after the router moves it, and the
+device is silently filtered again. Pi-hole v6 resolves a MAC per query.
 
-Some devices break when their DNS is filtered — an ISP-supplied TV decoder is
-the usual one. Exclude it:
-
-1. Pi-hole admin > **Groups** > create group `bypass` (description: "Unfiltered devices — e.g. TV decoder")
-2. Pi-hole admin > **Clients** > add the device **by MAC**, not by IP
-3. Assign it to group **bypass** only (remove from **Default**)
-4. Ensure adlists are NOT assigned to the bypass group
-
-The devices exempted on a given installation are listed in
-`ansible/inventory/host_vars/<host>/private.yml` (gitignored), not here: a MAC
-address identifies a piece of hardware in someone's home and this repository is
-public. The key is `pihole_bypass_clients`, a list of `{ mac, label }` entries;
-`private.example.yml` carries a placeholder. Nothing reads that key — it is the
-record, and the rule itself lives in Pi-hole.
-
-**Why the MAC and not the IP.** This is the only per-client rule Pi-hole holds,
-and it is stored as an address the router hands out on a lease. Read from the
-live database on 2026-08-31:
+This is a UI change, not a deploy: the client table lives in `gravity.db`, which Ansible does not
+manage. Check what the rule holds:
 
 ```bash
 sudo sqlite3 "file:/mnt/data/services/pihole/etc/gravity.db?mode=ro" \
   "select c.ip, g.name from client_by_group cg
      join client c on c.id = cg.client_id
      join 'group' g on g.id = cg.group_id;"
-# <leased-address>|Bypass
 ```
 
-The day that lease moves, the rule keeps matching an address the decoder no
-longer has: nothing errors, nothing turns red, and the decoder is silently
-filtered again — which is the failure this section exists to prevent. Pi-hole v6
-accepts a MAC in the same field and resolves it per query, so the rule follows
-the device instead of the lease.
+**Still open:** the `Bypass` group is still keyed on an IP. Replace it with the MAC in the UI,
+then re-run the query.
 
-**Changing it is a UI action, not a deploy.** The client table lives in
-`gravity.db`, which is runtime state and not managed by Ansible: edit the client
-in Pi-hole admin, replacing the IP with the MAC, then re-run the query above to
-confirm it now reads the MAC. As of 2026-09-26 it has not been done: the query
-still returns an IP for the `Bypass` group.
+Exempted devices are recorded in `pihole_bypass_clients` (list of `{ mac, label }`) in
+`ansible/inventory/host_vars/<host>/private.yml`, gitignored because the repo is public;
+`private.example.yml` has a placeholder. Nothing reads that key.
 
-## Pi-hole v6 Gotchas
+## Pi-hole v6 gotchas
 
-- **Environment variables**: `WEBPASSWORD` and `DNSMASQ_LISTENING` no longer work. Use `FTLCONF_webserver_api_password` and `FTLCONF_dns_listeningMode` instead.
-- **Config persistence**: `FTLCONF_*` values are re-applied at every start and lock the key in the UI; `pihole.toml` keeps every other setting, so there is no need to delete it to make an env var take effect.
-- **Listening mode**: must be set to `all` (not `LOCAL`) for Pi-hole to accept DNS queries from the LAN through Docker's NAT.
-- **Password**: set via `pihole setpassword` command (Ansible handles this automatically).
-- **`pihole setpassword` takes no flags**: it treats its argument as the new password, whatever
-  it looks like. Running `pihole setpassword --help` to see the options **sets the password to
-  the literal string `--help`** and answers `[✓] New password set`. Done accidentally on
-  2026-08-18; recovered by re-running the Ansible task, which restores the vaulted value.
-  The password is also not editable from the normal settings pages — it lives at
-  `webserver.api.pwhash`, visible only under **Settings → All settings** with *Expert* on.
-- **Custom dnsmasq**: requires `FTLCONF_misc_etc_dnsmasq_d: "true"` to read files in `/etc/dnsmasq.d/`.
+- `WEBPASSWORD` and `DNSMASQ_LISTENING` no longer work. Use `FTLCONF_webserver_api_password` and
+  `FTLCONF_dns_listeningMode`.
+- `FTLCONF_*` values are re-applied at every start and lock the key in the UI. `pihole.toml` keeps
+  every other setting; no need to delete it.
+- Listening mode must be `all` (not `LOCAL`) to accept LAN queries through Docker's NAT.
+- Custom dnsmasq files in `/etc/dnsmasq.d/` need `FTLCONF_misc_etc_dnsmasq_d: "true"`.
+- **`pihole setpassword` takes no flags.** `pihole setpassword --help` sets the password to
+  `--help`. To recover, re-run the Ansible deploy, which restores the vaulted value.
+- The password hash is at `webserver.api.pwhash`, visible only under **Settings → All settings**
+  with *Expert* on.
 
-## Data
+## How the data is protected
 
-| Path                                 | Content                               |
-|--------------------------------------|---------------------------------------|
-| `/mnt/data/services/pihole/etc/`     | Pi-hole configuration (`pihole.toml`) |
-| `/mnt/data/services/pihole/dnsmasq/` | Custom dnsmasq configs                |
+`pihole/etc` holds the only login factor (`webserver.api.pwhash`) and every DNS query
+(`pihole-FTL.db`).
 
-### The directory mode is the image's, the file modes are what protect the data
-
-`pihole/etc` is a credential store — `pihole.toml` carries `webserver.api.pwhash`
-with TOTP and app-password empty, so that hash is the only factor, and
-`pihole-FTL.db` is every DNS query the household has made.
-
-It is **not** held at `0700`, and that is measured rather than conceded. The
-image's prestart script runs, on every container start:
-
-```
-find /etc/pihole/ /var/log/pihole/ -type d -exec chmod 0755 {} +
-find /etc/pihole/ /var/log/pihole/ -type f ! \( -name '*.pem' -o -name '*.crt' \) -exec chmod 0640 {} +
-```
-
-So a directory mode set from Ansible survives until the next restart, and #189's
-gate had been reverted every time Pi-hole started since it was applied — visible
-only when a restart happened to fall between two posture runs, which it finally
-did on 2026-08-25.
-
-The second line is what matters: the files are `0640` and re-asserted on every
-start. From a genuinely different unprivileged account, with controls:
-
-```
-READABLE   /etc/passwd                    <- control
-refused    /etc/shadow                    <- control
-refused    .../pihole/etc/pihole.toml
-refused    .../pihole/etc/pihole-FTL.db
-refused    .../pihole/etc/cli_pw
-```
-
-Only the listing of file *names* is permitted — for the files that script owns.
-It does not own the ones gravity rewrites: the weekly rebuild puts `gravity.db`
-and the `listsCache/` files back at `0664` hours after a container start set them
-`0640`, which turned a blanket file-mode assertion red on 2026-08-30, its first
-gravity run. A mode set by one mechanism and undone by another on a different
-schedule — the same defect as #189's directory gate, one level down.
-
-So the gate sits one level UP, where neither reaches:
+- On every start the image resets modes: directories `0755`, files `0640`. Gravity's weekly
+  rebuild puts `gravity.db` and `listsCache/` back to `0664`. So modes inside the directory
+  cannot be enforced.
+- The gate is one level up, on a directory nothing inside the container can touch:
 
 | Assertion | What it holds |
 |---|---|
-| `pihole-store-not-traversable-by-others` | `/mnt/data/services/pihole` is `0750`. The image's `find` is scoped to `/etc/pihole/` inside the container and the bind mounts are this directory's *children*, so the parent is mounted by nothing and neither the image nor gravity can revert it. This is what makes the file modes inside stop mattering to any other account on the host. |
-| `pihole-credential-files-not-world-readable` | `pihole.toml`, `pihole-FTL.db`, `*.key` and `cli_pw` are not world-readable, and at least two of them are still *found* — a check that matches nothing is not a check that passed. Enumerates what must be protected rather than what may be ignored, so the next writer that behaves like gravity does not need a new exception. |
+| `pihole-store-not-traversable-by-others` | `/mnt/data/services/pihole` is `0750` |
+| `pihole-credential-files-not-world-readable` | `pihole.toml`, `pihole-FTL.db`, `*.key` and `cli_pw` are not world-readable, and at least two of them are found |
 
-### Logs are deliberately NOT persisted
+## Logs
 
-`/var/log/pihole` lives in the container's writable layer and is discarded on a
-recreate. That is a decision, not an oversight: `pihole-FTL.db` (332 MB, under
-`pihole/etc/`) already holds every query, is already persisted and is already in
-the restic set. Persisting the text log would put the household's DNS history
-into the offsite backup a second time, in cleartext, for no capability that
-Pi-hole's own database does not provide. The writable layer is on
-`/mnt/data/docker` — the HDD — so the growth never touches the SD card either.
+- `/var/log/pihole` is not persisted, on purpose: `pihole-FTL.db` already holds every query and is
+  backed up. The writable layer is on the HDD (`/mnt/data/docker`).
+- `pihole.log` rotates with `copytruncate`, from a file this repo owns. The image's own rotation
+  signals FTL to reopen and can fail silently, leaving FTL writing to the rotated file.
+- `FTL.log` and `webserver.log` keep the image's `create` rotation.
+- The only rotator is `pihole flush once quiet` (cron, midnight), which runs
+  `logrotate --force`. So every stanza rotates daily; `rotate 21` keeps three weeks.
+  Empty logs are not rotated (`notifempty`).
 
-**Rotation uses `copytruncate`, and this repository owns that file.** The image's
-own rotation asks FTL to reopen with a `SIGUSR2` and hides the failure behind
-upstream's `|| true`. On 2026-08-17 the signal did not land: the file had already
-been renamed, FTL kept writing to the renamed inode, `pihole.log` stayed at 0
-bytes, and `notifempty` then skipped it every night after — self-sustaining, and
-by 2026-08-25 the rotated file was 38 MB into a second stretch (#202).
-
-The symptom is invisible to every check that looks at outcomes — the container is
-healthy, DNS answers, the files are present with sane modes and `pihole.log`
-exists. What is wrong is *which file the writer has open*, so that is what
-`pihole-ftl-writes-the-current-log` asserts, at the descriptor, from the host:
+`pihole-ftl-writes-the-current-log` checks which file FTL actually has open. Run it on the host
+(the container lacks `CAP_SYS_PTRACE` and must not get it):
 
 ```bash
 for p in $(pgrep -x pihole-FTL); do sudo readlink /proc/$p/fd/*; done | grep /var/log/pihole/
 ```
 
-It has to run on the host — reading another uid's `/proc/PID/fd` needs
-`CAP_SYS_PTRACE`, which this container does not have and must not be given.
-
-`FTL.log` and `webserver.log` keep the image's `create` rotation: they are opened
-and closed per line, which is why they rotated correctly throughout. The offsite
-Pi runs no Pi-hole and has no `/var/log/pihole` — both checked when this was
-fixed.
-
-The only rotator in the container is `pihole flush once quiet`, which cron runs
-at midnight and which calls `logrotate --force` with its own state file. `--force`
-ignores the period, so every stanza rotates daily whatever it says — a `weekly`
-there is never read. Retention is therefore set in generations: `rotate 21` keeps
-three weeks of `FTL.log` and `webserver.log`. Until 2026-09-26 they carried the
-image's `weekly` + `rotate 3`, which kept three days. `--force` still honours
-`notifempty`: an empty log is not rotated.
-
 ## Restore
 
-**Stop both containers first. This costs the house its DNS for the length of
-the restore, and that is the cheaper of the two costs** — restoring
-`/mnt/data/services/pihole` underneath a running Pi-hole writes over files FTL
-holds open, and FTL then flushes its own copy on the way out. A `restart` is not
-a `down`: the process that is about to overwrite your restored bytes is still
-alive while you restore them.
+Stopping both containers costs the house its DNS for the restore. Do it anyway: restoring under a
+running FTL gets overwritten when FTL flushes.
 
-```bash
-cd /opt/homelab
-# dnsproxy first: it lives in Pi-hole's network namespace, so it has to leave
-# before Pi-hole does.
-docker compose down dnsproxy pihole
+1. Stop dnsproxy first (it lives in Pi-hole's namespace), then Pi-hole:
 
-restic restore latest --target / --include /mnt/data/services/pihole
+   ```bash
+   cd /opt/homelab
+   docker compose down dnsproxy pihole
+   ```
 
-# Bring them back with the RECREATE branch, not `docker restart` — `down`
-# removed both containers, so Pi-hole comes back with a new ID and dnsproxy has
-# to re-resolve `service:pihole` against it. See the note below.
-docker compose up -d pihole
-docker compose up -d --force-recreate dnsproxy
-```
+2. Restore:
 
-If you are not restoring — if Pi-hole was merely restarted in place and dnsproxy
-came back detached — then the pair below is the repair, and it is the only case
-where `docker restart` is right:
+   ```bash
+   restic restore latest --target / --include /mnt/data/services/pihole
+   ```
 
-```bash
-# Both, in this order, and never Pi-hole alone: dnsproxy runs with
-# `network_mode: service:pihole`, so bringing Pi-hole back destroys the
-# namespace dnsproxy is attached to. dnsproxy keeps running and stays healthy
-# while being permanently unreachable, which leaves Pi-hole with no upstream at
-# all — a LAN-wide DNS outage with both containers green.
-docker restart pihole && docker restart dnsproxy
-```
+3. Recreate both. `down` removed the containers, so dnsproxy must be recreated to attach to the new
+   Pi-hole:
 
-> **The remedy differs by trigger, and the wrong one leaves DNS dead.** The pair
-> above is correct after `docker restart pihole`, which keeps the container's
-> ID. It is **wrong** after anything that RECREATES Pi-hole — including the
-> `compose up` that the Ansible deploy runs, i.e. the very next step below:
->
-> ```bash
-> # after `compose up -d pihole`, or any other recreate:
-> docker compose up -d --force-recreate dnsproxy
-> ```
->
-> `HostConfig.NetworkMode` holds a container ID resolved once at creation. A
-> recreated Pi-hole gets a new ID, so restarting dnsproxy re-runs it against the
-> dead one: it exits 1 and leaves dnsproxy **stopped**, which is worse than the
-> detached state the restart was meant to repair. Only recreating re-resolves
-> `service:pihole`. Measured on a throwaway pair —
-> `knowledge/runbooks/container-config-changes.md` carries the full reasoning.
+   ```bash
+   docker compose up -d pihole
+   docker compose up -d --force-recreate dnsproxy
+   ```
 
-Then re-run the Ansible deploy to set the password. It does not recreate Pi-hole
-when `compose.yaml` is unchanged, and when it does recreate it, the deploy
-re-attaches dnsproxy itself (`roles/deploy/tasks/compose.yml`).
+4. Re-run the Ansible deploy to set the password. If it recreates Pi-hole, it re-attaches dnsproxy
+   itself (`roles/deploy/tasks/compose.yml`).
+
+## Troubleshooting
+
+**LAN-wide DNS outage, both containers green.** dnsproxy runs with `network_mode: service:pihole`.
+When Pi-hole comes back, dnsproxy stays attached to the old namespace and is unreachable. The fix
+depends on how Pi-hole came back:
+
+| Pi-hole was…                                   | Fix |
+|------------------------------------------------|-----|
+| restarted in place (`docker restart pihole`)   | `docker restart pihole && docker restart dnsproxy` |
+| recreated (`compose up`, Ansible deploy, …)    | `docker compose up -d --force-recreate dnsproxy` |
+
+Never restart dnsproxy after a recreate: it points at the dead container ID, exits 1 and stays
+stopped. Details: [container-config-changes.md](../../knowledge/runbooks/container-config-changes.md).

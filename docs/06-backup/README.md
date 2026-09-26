@@ -1,133 +1,94 @@
 # Backup
 
-## Tool: Restic
+Restic backs up all service data every night, encrypted (AES-256) and deduplicated,
+into a local repository and an offsite one (3-2-1). The OS is not backed up: Ansible
+rebuilds it.
 
-Chosen for its deduplication, native encryption (AES-256), incremental support, and low memory footprint. Perfect for a Raspberry Pi.
+## At a glance
 
-## Strategy
+| Item          | Value                                                                                           |
+|---------------|-------------------------------------------------------------------------------------------------|
+| Tool          | Restic, driven by `resticprofile` (ADR-031)                                                     |
+| Profile       | `ansible/roles/deploy/templates/resticprofile.yaml.j2`                                          |
+| Local repo    | `/mnt/data/backups/restic-repo` (same HDD: covers deletion and corruption, not loss of the disk) |
+| Offsite repo  | offsite Pi (Pi 4 4GB + 2TB SSD), rest-server **append-only**, over WireGuard (ADR-010)          |
+| Passwords     | local and offsite differ; the offsite one is never stored on the offsite host                  |
+| Retention     | 7 daily, 4 weekly, 6 monthly                                                                    |
+| Monitoring    | Uptime Kuma push monitors ([`backup-monitoring.md`](../../knowledge/runbooks/backup-monitoring.md)) |
+| Restore       | [`restore-from-backup.md`](../../knowledge/runbooks/restore-from-backup.md)                    |
+| Offsite ops   | [`offsite-backup.md`](../../knowledge/runbooks/offsite-backup.md)                              |
+| LUKS header   | [`luks-header-backup.md`](../../knowledge/runbooks/luks-header-backup.md) — needed to reach any of `/mnt/data` |
 
-### What to Back Up
+## What is backed up
 
-Mirrors the `source` list in `ansible/roles/deploy/templates/resticprofile.yaml.j2` (keep this table and that profile in sync).
+Mirrors the profile's `source` list: keep both in sync. All daily.
 
-| Data                   | Source (host path)                                                                                                                        | Method            | Frequency |
-|------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|-------------------|-----------|
-| Service data & configs | `/mnt/data/services` (Nextcloud files, Vaultwarden, Immich uploads, Jellyfin/Navidrome config…)                                           | Restic            | Daily     |
-| **Media originals**    | `/mnt/data/media` (photos, music, home videos, music videos, books)                                                                       | Restic            | Daily     |
-| **Library**            | `/mnt/data/library` — **not backed up** since 2026-09-13, deliberately: torrent video, re-obtainable, kept until watched (ADR-035)        | —                 | Never     |
-| Nextcloud DB           | MariaDB dump (`--single-transaction`) → `/mnt/data/backups/dumps`                                                                         | dump → Restic     | Daily     |
-| Vaultwarden DB         | SQLite `sqlite3 .backup` (WAL-safe) → `/mnt/data/backups/dumps`                                                                           | dump → Restic     | Daily     |
-| Forgejo DB             | SQLite `sqlite3 .backup` (WAL-safe) → `/mnt/data/backups/dumps`                                                                           | dump → Restic     | Daily     |
-| Uptime Kuma DB         | SQLite `sqlite3 .backup` (WAL-safe) → `/mnt/data/backups/dumps`                                                                           | dump → Restic     | Daily     |
-| wg-easy DB             | SQLite `sqlite3 .backup` (WAL-safe) → `/mnt/data/backups/dumps`                                                                           | dump → Restic     | Daily     |
-| Sonarr DB              | SQLite `sqlite3 .backup` (WAL-safe) → `/mnt/data/backups/dumps`                                                                           | dump → Restic     | Daily     |
-| Radarr DB              | SQLite `sqlite3 .backup` (WAL-safe) → `/mnt/data/backups/dumps`                                                                           | dump → Restic     | Daily     |
-| Prowlarr DB            | SQLite `sqlite3 .backup` (WAL-safe) → `/mnt/data/backups/dumps`                                                                           | dump → Restic     | Daily     |
-| Miniflux DB            | `pg_dump` via `docker exec` (plain SQL) → `/mnt/data/backups/dumps`                                                                       | dump → Restic     | Daily     |
-| Immich DB              | Immich's own scheduled backup → `services/immich/upload/backups/*.sql.gz`                                                                 | built-in → Restic | Daily     |
-| Stack config           | `/opt/homelab` (compose, scripts)                                                                                                         | Restic            | Daily     |
-| Secrets (ADR-011)      | `/mnt/data/secrets` (`.env`, `backup.env`, `wg0.conf`… — `/opt/homelab` entries are symlinks)                                             | Restic            | Daily     |
+| Data                   | Source (host path)                                                                        | Method            |
+|------------------------|-------------------------------------------------------------------------------------------|-------------------|
+| Service data & configs | `/mnt/data/services` (Nextcloud files, Vaultwarden, Immich uploads, Jellyfin/Navidrome config…) | Restic            |
+| Media originals        | `/mnt/data/media` (photos, music, home videos, music videos, books)                       | Restic            |
+| Stack config           | `/opt/homelab` (compose, scripts)                                                         | Restic            |
+| Secrets (ADR-011)      | `/mnt/data/secrets` (`.env`, `backup.env`, `wg0.conf`…; `/opt/homelab` holds symlinks)    | Restic            |
+| Nextcloud DB           | MariaDB dump (`--single-transaction`) → `/mnt/data/backups/dumps`                         | dump → Restic     |
+| Miniflux DB            | `pg_dump` via `docker exec` (plain SQL) → `/mnt/data/backups/dumps`                       | dump → Restic     |
+| SQLite DBs             | Vaultwarden, Forgejo, Uptime Kuma, wg-easy, Sonarr, Radarr, Prowlarr: `sqlite3 .backup` (WAL-safe) → `/mnt/data/backups/dumps` | dump → Restic     |
+| Immich DB              | Immich's own scheduled backup → `services/immich/upload/backups/*.sql.gz`                 | built-in → Restic |
 
-> The OS itself is **not** backed up — it is reproducible from scratch via Ansible (IaC).
+**Not backed up:** `/mnt/data/library` (torrent video, re-obtainable, kept until
+watched — ADR-035), and the OS.
 
-### Retention
-
-- **7** daily snapshots
-- **4** weekly snapshots
-- **6** monthly snapshots
-
-`restic forget` runs nightly (cheap); the expensive `prune` (repack/reclaim) runs
-weekly in the local maintenance job, not in the backup window.
-
-> **Retention is per path-set, and changing the source strands a group.**
-> `forget` groups snapshots by `host,paths` (restic's default — nothing here
-> overrides it). A snapshot whose source list differs from today's therefore
-> forms its own group, receives no new members, and its keep-daily slots never
-> age out. Changing the backup source leaves the last snapshot of the old shape
-> behind **permanently**.
->
-> There are three such groups today (measured 2026-09-26): 9 snapshots from
-> before `media/` joined the source (2026-05-14 to 05-25), 12 from before
-> `secrets/` did (2026-05-25 to 07-13), and one taken 2026-09-13 03:00, the last
-> before `library/` left the source. That last one is the only snapshot in the
-> repository that still holds films and series, and it will stay. The
-> consequence worth knowing is not the disk it occupies but that **both ways of
-> asking for a film exit 0 and neither tells you what happened**:
->
-> - `restic restore latest --include /mnt/data/library/...` resolves `latest` to
->   the newest snapshot overall, which no longer carries that path — so it
->   restores **nothing**, silently.
-> - `restic restore latest --path /mnt/data/library/movies` resolves `latest`
->   within the snapshots holding that path — so it restores the **2026-09-13
->   copy**, however long ago that becomes, and says nothing about its age.
->
-> Leaving the snapshot is a deliberate choice (2026-09-13): the data is
-> re-obtainable and reclaiming the space was declined.
-
-### Destination (3-2-1)
-
-- **Local**: `/mnt/data/backups/restic-repo` (same HDD, separate directory) — automated
-  daily; guards against accidental deletion, corruption and bad edits. Weekly `prune`
-  + metadata `restic check`, plus a **monthly** deep read (rotating
-  `--read-data-subset=<month>/12`, whole repo re-read over ~12 months) to catch local
-  bit-rot without pegging the Pi every week.
-- **Offsite** (ADR-010): second Restic repo on the offsite Pi (Pi 4 4GB + 2TB SSD,
-  WireGuard client, rest-server **append-only**), fed nightly with every snapshot it
-  does not already hold, with no time bound — so a failed night is recovered by the
-  next run whenever that happens (#158, and the 7-day window removed by ADR-031:
-  the bound defined what the offsite repo held — the first unbounded copy back-filled 18 snapshots). Distinct repo password, never stored on the offsite host. Weekly
-  `restic check` from the homelab + a daily disk/SMART/power self-report and a
-  monthly SMART long self-test. For the schedules as deployed rather than as
-  written here, run `systemctl list-timers 'homelab-*'` and, on the offsite
-  host, `systemctl list-timers 'offsite-*'`. Runbook: `knowledge/runbooks/offsite-backup.md`.
-
-> A backup that shares the originals' physical disk only covers deletion/corruption, not
-> physical loss — hence the offsite repository (3-2-1 rule).
-
-## Restoration
-
-Procedures are in `knowledge/runbooks/restore-from-backup.md` (single files, services,
-the dumped databases, full disaster recovery). **Ten databases are dumped today** —
-Nextcloud, Vaultwarden, Immich, Miniflux, Forgejo, Uptime Kuma, Prowlarr, Sonarr,
-Radarr and wg-easy — and this sentence named six of them until 2026-09-13, having
-been written before the last four were added. Do not trust the list here; the one
-that cannot drift is the deployed spec:
+The deployed spec is the list of dumped databases that cannot drift (one line per
+database, ten today):
 
 ```bash
 sudo grep -oE '^  dump-[a-z0-9-]+-present:' /etc/goss/backup-dumps.yaml \
   | sed 's/^  dump-//; s/-present:$//' | grep -v -- '-container$' | sort -u
 ```
 
-It prints **one line per database**, which is the point — the earlier form of
-this command matched `dump-<svc>-container-present` as well and returned 18 rows
-for the ten databases, so anyone checking the sentence above against it counted
-eighteen and had no way to know which number was wrong.
+## How it works
 
-The
-LUKS header — the prerequisite for reaching *any* of `/mnt/data` — has its own backstop:
-`knowledge/runbooks/luks-header-backup.md`.
+### Schedule
 
-## Automation
+| Timer                             | When           | What                                                                                  |
+|-----------------------------------|----------------|---------------------------------------------------------------------------------------|
+| `homelab-backup.timer`            | daily 03:00    | dumps → backup → `forget` → offsite copy of every snapshot it lacks (a failed night catches up) |
+| `homelab-local-maintenance.timer` | Tuesday 01:00  | `resticprofile -n homelab prune` then metadata `check`; deep read in the first 7 days of the month |
+| `homelab-offsite-check.timer`     | Tuesday 02:00  | offsite repo metadata check                                                           |
 
-- Orchestration: `resticprofile`, configured by
-  `ansible/roles/deploy/templates/resticprofile.yaml.j2` (ADR-031). The database
-  dump COMMANDS are `run-before` hooks in that profile and the assertions that
-  check them are `/etc/goss/backup-dumps.yaml`. For SQLite, both are generated
-  from `backup_sqlite_dumps` in group_vars, so a database added there gets
-  dumped AND checked. For SQL, only the assertions come from `backup_sql_dumps`:
-  the Nextcloud and Miniflux dump commands are written out in the profile, so a
-  SQL database added to that list is checked but NOT dumped until its hook is
-  added too — and the check then fails, which is how you find out.
-  This replaced a 373-line script (ADR-031 kept it saying "resticprofile has no
-  equivalent"; ADR-032 installed goss, which has). `backup-notify.sh` remains
-  and builds the Kuma message, because resticprofile's hooks receive no restic
-  output at all — it now reads goss's TAP file and names the failing
-  assertions.
-- Weekly: `resticprofile -n homelab prune` then `check`
-- Scheduling (systemd timers):
-  - `homelab-backup.timer` — daily 03:00 (dumps → backup → forget → offsite copy)
-  - `homelab-local-maintenance.timer` — Tuesday 01:00 (weekly prune + metadata check; deep read-data on the run that falls in the first 7 days of the month)
-  - `homelab-offsite-check.timer` — Tuesday 02:00 (offsite repo check)
-- Monitoring: Uptime Kuma **Push** monitors (dead-man's switches) — the scripts ping on
-  success/failure, and missed pings turn a monitor red (catches "didn't run at all"). Setup:
-  `knowledge/runbooks/backup-monitoring.md`
+The monthly deep read uses `--read-data-subset=<month>/12`, so the whole local repo is
+re-read over about 12 months. The offsite side also runs a daily health report and a
+monthly SMART long test ([`offsite-backup.md`](../../knowledge/runbooks/offsite-backup.md)).
+
+Schedules as actually deployed: `systemctl list-timers 'homelab-*'` on the homelab,
+`systemctl list-timers 'offsite-*'` on the offsite host.
+
+### Database dumps
+
+- The dump commands are `run-before` hooks in the profile. The checks are goss
+  assertions in `/etc/goss/backup-dumps.yaml`.
+- **SQLite:** hooks and assertions are both generated from `backup_sqlite_dumps` in
+  group_vars. Add a database there and it is dumped and checked.
+- **SQL:** only the assertions come from `backup_sql_dumps`. The Nextcloud and
+  Miniflux hooks are written out in the profile, so a new SQL database also needs its
+  own `run-before` hook — until then the check fails.
+- `backup-notify.sh` builds the Kuma message from goss's TAP file and names the
+  failing assertions (resticprofile hooks receive no restic output).
+
+### Retention
+
+`restic forget` runs nightly; the expensive `prune` runs weekly in the maintenance
+job, outside the backup window.
+
+**Retention is per path set.** `forget` groups snapshots by `host,paths` (restic's
+default). Changing the backup source starts a new group, and the last snapshots of
+the old shape stay **forever**. Three such groups exist: before `media/` joined the
+source, before `secrets/` joined, and one snapshot of 2026-09-13 03:00, the last
+before `library/` left. That one is the only snapshot still holding films and
+series; keeping it is deliberate.
+
+Asking for a film exits 0 either way, and neither tells you what happened:
+
+- `restic restore latest --include /mnt/data/library/...` restores **nothing**:
+  `latest` is the newest snapshot, which lacks that path.
+- `restic restore latest --path /mnt/data/library/movies` restores the
+  **2026-09-13 copy**, without mentioning its age.

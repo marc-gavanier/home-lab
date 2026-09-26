@@ -1,46 +1,14 @@
 # Jellyfin
 
-Video streaming server — personal Netflix.
+Video streaming server — a personal Netflix for films, series and home videos.
 
-## Access
+## At a glance
 
-- URL: `https://videos.example.com`
-
-## What It Does
-
-- Stream movies and TV shows from your library
-- Transcoding for devices that don't support the source format (limited on Pi 4 — prefer direct play)
-- Metadata fetching (posters, descriptions, subtitles)
-- Multi-user support
-
-## Client Setup
-
-### Browser
-Access directly at `https://videos.example.com`.
-
-### Mobile (Android/iOS)
-Install the [Jellyfin app](https://jellyfin.org/downloads/) and connect to `https://videos.example.com`.
-
-### TV
-Jellyfin apps are available for Android TV, Fire TV, Roku, etc.
-
-## First Steps
-
-1. Open `https://videos.example.com` — setup wizard appears on first access
-2. Create an admin account
-3. Add media libraries pointing to `/media/videos`
-4. Install mobile/TV apps
-
-## Adding Media
-
-Place video files on the Pi:
-```bash
-scp movie.mkv homelab:/mnt/data/library/movies/
-```
-
-Jellyfin scans libraries periodically or you can trigger a manual scan from the dashboard.
-
-## Data
+| | |
+|---|---|
+| URL | `https://videos.example.com` |
+| Clients | browser, [Jellyfin apps](https://jellyfin.org/downloads/) (mobile, Android TV, Fire TV, Roku…) |
+| Backup | config and home/music videos backed up; films and series not (ADR-035) |
 
 | Path                                   | Content                              |
 |----------------------------------------|--------------------------------------|
@@ -51,40 +19,32 @@ Jellyfin scans libraries periodically or you can trigger a manual scan from the 
 | `/mnt/data/media/videos/home-videos/`  | Personal footage — operator only     |
 | `/mnt/data/media/videos/music-videos/` | Music videos — operator only         |
 
-## Performance Note
+## How it works
 
-Jellyfin transcodes in software here, and that is a configuration choice rather
-than a hardware limit — the sentence that used to stand here said the Pi 4 has
-no hardware transcoding support, and that is not what the board reports.
-Measured on 2026-09-12: the host exposes `/dev/video19`, `bcm2835_codec` and
-`rpivid_hevc` are loaded in the running kernel, and Jellyfin's own ffmpeg
-carries the `h264_v4l2m2m` and `hevc_v4l2m2m` encoder and decoder wrappers. What
-is missing is the device: the container is passed none, so ffmpeg has nothing to
-open.
+- The four host sources above mount into one `/media/videos/...` tree in the container.
+- Films and series are torrent-sourced and kept until watched: losing them costs a re-download.
+- Transcoding is software only: the container gets no video device, though the host has one
+  (`/dev/video19`, `h264_v4l2m2m` / `hevc_v4l2m2m` in Jellyfin's ffmpeg). Prefer direct play; cap
+  transcodes at 720p. Passing the device through would be an experiment, not a fix: the H.264
+  encoder is quality-limited and HEVC decodes only.
 
-The practical advice is unchanged. Use direct play whenever possible (clients
-that support your video formats natively), and limit to 720p when transcoding is
-needed — the Pi 4's hardware H.264 encoder is quality-limited and its HEVC block
-decodes only, so passing the device through would not make 1080p transcoding a
-solved problem. It would be an experiment worth measuring, not a fix worth
-assuming.
+## Common tasks
 
-## Restore
+First setup: open `https://videos.example.com`, follow the wizard, create the admin account, add
+libraries pointing to `/media/videos`.
+
+Add a film, then scan from the dashboard (or wait for the periodic scan):
 
 ```bash
-cd /opt/homelab   # `compose down`, never `docker stop`: the heal timer restarts a
-                  # container that exited non-zero within 2 min (ADR-007); only exit 0 is left down
+scp movie.mkv homelab:/mnt/data/library/movies/
+```
+
+Restore the config. Use `compose down`, never `docker stop`: the heal timer restarts a non-zero
+exit within 2 min (ADR-007).
+
+```bash
+cd /opt/homelab
 docker compose down jellyfin
 restic restore latest --target / --include /mnt/data/services/jellyfin
 docker compose up -d jellyfin
 ```
-
-Films and series live under `/mnt/data/library/` and are **not backed up** — the
-whole tree left the restic source on 2026-09-13, deliberately: it is
-torrent-sourced video, re-obtainable, kept only until watched (ADR-035). Losing
-it costs a re-download. Home videos and music videos are a different tree and
-*are* backed up daily, with the rest of `/mnt/data/media`.
-
-The four libraries Jellyfin was configured with are unchanged: it mounts four
-host sources into the same `/media/videos/...` container tree, so nothing inside
-Jellyfin had to be re-pointed.

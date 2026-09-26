@@ -1,18 +1,22 @@
 # Runbook — revoking a WireGuard peer
 
-A peer key is the whole perimeter. Everything behind `vpn-only` — Nextcloud,
-Vaultwarden, Immich, the Pi-hole admin, the Traefik dashboard — trusts anyone
-holding one, and `wg-easy` makes adding peers easy enough that they accumulate
-silently (issue #38).
+Use this when a device should lose VPN access: lost or stolen phone, laptop replaced or sold, guest
+access that has served its purpose, or any peer you cannot name. A peer key opens everything behind
+`vpn-only`.
 
-**Revoke on**: a lost or stolen phone, a laptop being replaced or sold, a guest
-whose access has served its purpose, or any device you can no longer name.
+## Before you start
 
-## Listing the peers
+- **Never remove the two infrastructure peers**: the offsite Pi's client (carries the nightly
+  backup copy) and the homelab host tunnel (only management path to the offsite Pi). See
+  [offsite-backup.md](offsite-backup.md) and ADR-010.
+- **Do not read `wg0.json`.** It is the pre-v15 store (ADR-020): it still parses but is frozen, so
+  peers added since are missing.
+- Open the database with `-readonly`: it belongs to a running container, and a read-write open
+  takes a lock wg-easy needs.
 
-The inventory is deliberately **not** written down here — this repository is
-public, and a list of peer names and addresses maps the personal devices that
-can reach everything behind `vpn-only`. Read it from the host instead:
+## List the peers
+
+The list is not written in this public repo. Read it from the host:
 
 ```bash
 ssh homelab "sudo sqlite3 -readonly /mnt/data/services/wireguard/wg-easy.db \
@@ -20,133 +24,74 @@ ssh homelab "sudo sqlite3 -readonly /mnt/data/services/wireguard/wg-easy.db \
     FROM clients_table ORDER BY id;\""
 ```
 
-`-readonly` matters: the file is the live database of a running container, and
-opening it read-write would take a lock wg-easy needs.
+This query is the verdict for every step below, not the UI.
 
-**Two of them are infrastructure, not people**, and both are documented
-elsewhere in this repo because operating the offsite backup requires knowing
-them: the offsite Pi's client, and the homelab's own host tunnel
-(`knowledge/runbooks/offsite-backup.md`, ADR-010). **Do not remove either** —
-one carries the nightly backup copy, the other is the only management path to
-the offsite Pi. Everything else in the list should be a personal device you can
-name.
+## Cut the peer off now
 
-**Do not read `wg0.json`.** It was the peer store before the v15 migration
-(ADR-020) and is no longer written — the file is still on disk, still parses,
-and still returns a peer list, so a command reading it looks like it works. It
-answers with the inventory as it stood on the migration day, which means any
-peer added since is invisible. `wg0.conf` next to it *is* still regenerated,
-which makes the whole directory look alive.
+Use this first when the device is already out of your hands. It holds until wg-easy restarts or the
+Pi reboots, so always follow it with the deletion below.
 
-## Revoking
+1. Find the peer's public key:
 
-> **#138 is closed since 2026-08-26 (`ca6d72e`): the UI is the primary path
-> again.** For eight days this runbook said the opposite, because wg-easy ran as
-> root over a data directory owned by uid 1000 with `cap_drop: ALL`, so its SQLite
-> rollback journal could not be created and every write returned `SQLITE_READONLY`
-> behind an HTTP 500. The directory is now `root:root 0700`, and the container
-> writes: a `userconfig` POST returned HTTP 200 with `updated_at` moving, and
-> wg-easy regenerated `wg0.conf` on its own at 02:52:20 on 2026-08-29.
->
-> **What is proven and what is not.** The write path is proven. A *client
-> deletion* specifically has not been exercised — it takes the same path, but
-> nobody has removed a real peer to watch it happen, and this runbook has just
-> spent eight days being confidently wrong about this exact mechanism. So: delete
-> through the UI, then **verify against `clients_table` and against the running
-> interface** as steps 1 and 2 below require. Treat the listing query as the
-> verdict, not the UI.
+   ```bash
+   ssh homelab "sudo sqlite3 -readonly /mnt/data/services/wireguard/wg-easy.db \
+     \"SELECT name, public_key FROM clients_table ORDER BY id;\""
+   ```
 
-**Immediate measure, when the device is already out of your hands.** The kernel
-side accepts changes directly, because `CAP_NET_ADMIN` is granted, and this shuts
-the peer out in one command without waiting for anything else. It is no longer a
-workaround for a broken UI — it is what you do first when minutes matter, before
-doing the durable deletion below:
+2. Drop it from the running interface:
 
-```bash
-# 1. find the public key of the peer to revoke
-ssh homelab "sudo sqlite3 -readonly /mnt/data/services/wireguard/wg-easy.db \
-  \"SELECT name, public_key FROM clients_table ORDER BY id;\""
+   ```bash
+   ssh homelab "docker exec wg-easy wg set wg0 peer '<public-key>' remove"
+   ```
 
-# 2. drop it from the running interface
-ssh homelab "docker exec wg-easy wg set wg0 peer '<public-key>' remove"
-```
+## Delete the peer
 
-**How long it holds: until wg-easy restarts or the Pi reboots.** Not until the
-next timer tick — that distinction is the whole question when you are deciding
-whether you can go to bed. wg-easy runs a job every 60 s that *can* undo a
-manual removal: it regenerates `wg0.conf` and runs `wg syncconf`, rebuilding
-the interface from the database, where the client still is. But it only does
-that after toggling a client that passed its expiry date, and nothing here has
-an expiry set — so the rebuild is never reached, and the peer stays out.
-
-**It is not the revocation.** A restart brings the client back from the database.
-Always follow it with the deletion below: a revocation that has to survive is not
-done until the client is gone from `clients_table`.
-
-**Peers with an expiry date.** The job that disables an expired client does it
-with a database write, which failed for as long as #138 was open. Writes work
-again, but **nothing has an expiry set today and the expiry path has never been
-observed running here** — so a time-limited peer is reasonable to hand out now,
-and worth verifying the first time you do rather than assuming.
-
-1. **Delete the client** in the wg-easy UI (`https://vpn.<domain>`, or the
-   loopback tunnel) — *delete*, not the toggle next to it. Disabling drops the
-   peer from the interface but keeps its key in the database, so a disabled
-   client is one click away from working again. Re-run the listing query: a
-   deleted client is gone from the output, a disabled one is still there marked
+1. In the wg-easy UI (`https://vpn.<domain>`, or the SSH tunnel), **delete** the client. Do not use
+   the toggle: a disabled client keeps its key and is one click from working again.
+2. Re-run the listing query. Expected: the client is gone. A disabled one would still show
    `DISABLED`.
-
-   **The listing query is the verdict, not the UI.** If the client is still in
-   `clients_table` after a delete, the write did not land — capture the wg-easy
-   logs before doing anything else, because that is #138 returning and the
-   posture check's exemption for it was removed in `ca6d72e` precisely so it
-   would be caught.
-
-2. **Verify the kernel actually dropped it** — the UI showing it gone is not
-   proof, the running interface is:
+3. Check the kernel dropped it:
 
    ```bash
    ssh homelab 'docker exec wg-easy wg show wg0 | grep -A2 "peer:"'
    ```
 
-   The revoked public key must be absent. If it is still listed, the interface
-   has not been reloaded: `docker restart wg-easy`, then check again — but only
-   with someone able to reach the Pi physically: wg-easy is the only path to the
-   host, and a restart that does not come back cuts you off
-   ([rotate-a-secret.md](rotate-a-secret.md)).
+   Expected: the revoked public key is absent.
 
-3. **Confirm the remaining peers still work** before walking away — recreation
-   drops handshakes and they return at each client's own pace, so poll for a
-   minute rather than concluding immediately:
+4. Check the remaining peers reconnect. Poll for a few minutes; handshakes return at each client's
+   pace:
 
    ```bash
    ssh homelab 'docker exec wg-easy wg show wg0 latest-handshakes'
    ```
 
-   `offsite-backup` (10.8.0.4) is the one to watch: it dials out on its own
-   schedule, so give it a few minutes — it keeps alive every 25 s and re-resolves every
-   minute. Do not restart its `wg-quick@wg0`: that goes through the very tunnel it
-   tears down (ADR-029).
+   Watch `offsite-backup` (10.8.0.4): it keeps alive every 25 s and re-resolves every minute.
+   Do not restart its `wg-quick@wg0`: that goes through the tunnel it tears down (ADR-029).
 
-## What the lost device still holds
+## If it fails
 
-Revoking the tunnel closes the door; it does not empty the pockets of whoever
-took the device. Work through this before deciding the incident is over:
+| Symptom | Action |
+|---|---|
+| Client still in `clients_table` after a UI delete | The write did not land. Capture the wg-easy logs before anything else. |
+| Key still listed by `wg show` | Interface not reloaded: `docker restart wg-easy`, then check again. **Only with someone able to reach the Pi physically** — see [rotate-a-secret.md](rotate-a-secret.md). |
 
-- **Vaultwarden**: the mobile client keeps an **encrypted offline cache**. It is
-  useless without the master password, but a device unlocked at the moment of
-  loss is a different situation — change the master password, then use
-  `/admin` → *Users* to invalidate sessions.
-- **Nextcloud**: `occ user:delete-app-password` or the *Devices & sessions* list
-  in the web UI. App passwords survive a password change; sessions do not.
-- **Immich, Jellyfin**: sign out of all sessions from their respective settings.
-- **SSH**: if the device carried a key, remove it from `authorized_keys` on both
-  Pis — the tunnel is not the only path in, and the key outlives the VPN peer.
+The UI delete path has not yet been exercised on a real peer: always verify with the query.
 
-## Cadence
+## Peers with an expiry date
 
-Review the peer list whenever a device is replaced, and at any restore drill
-that happens (there is no scheduled one — `restore-from-backup.md` keeps a drill
-record, not a calendar). The question to answer is not "are these peers
-valid?" but "**can I name the device behind each one?**" — a peer that cannot be
-named is a peer to remove.
+No peer has an expiry today, and the expiry job has never been seen running here. You can hand out
+a time-limited peer, but check the first time that it is actually disabled at expiry.
+
+## Clean up what the lost device still holds
+
+- **Vaultwarden**: the mobile client keeps an encrypted offline cache. If the device may have been
+  unlocked, change the master password, then invalidate sessions in `/admin` → *Users*.
+- **Nextcloud**: `occ user:delete-app-password`, or *Devices & sessions* in the web UI. App
+  passwords survive a password change; sessions do not.
+- **Immich, Jellyfin**: sign out of all sessions in their settings.
+- **SSH**: if the device carried a key, remove it from `authorized_keys` on both Pis.
+
+## When to review
+
+Review the peer list whenever a device is replaced, and at any restore drill. The question: can you
+name the device behind each peer? If not, remove it.

@@ -1,50 +1,70 @@
 # Runbook — Backup monitoring (Uptime Kuma push)
 
-The daily Restic backup (resticprofile, run by `homelab-backup.timer` — ADR-031) reports its
-outcome to an Uptime Kuma **Push** monitor — a dead-man's switch that goes red both on
-failure *and* when no backup ran at all (Pi down, timer broken, repo unreachable).
+Use this to create, wire or test the push monitors of the backup chain. Each is a dead-man's switch:
+it goes red on a failed run and when no run happened at all.
 
 ## How it works
 
-- On exit, `backup-notify.sh` pings the monitor from resticprofile's hooks: `status=up` on success,
-  `status=down` (with the error) on failure.
-- If Uptime Kuma receives no ping within the monitor's interval, it marks the monitor
-  down and fires the attached notification.
-- The push URL is injected by Ansible: `backup_kuma_push_url` (vault `local.yml`) →
-  `backup.env` → `KUMA_PUSH_URL`. Empty value = monitoring disabled (the ping is a no-op),
-  so the backup keeps working even if monitoring isn't set up.
+- `backup-notify.sh` pings the monitor from resticprofile's hooks (`homelab-backup.timer`,
+  ADR-031): `status=up` on success, `status=down` with the error on failure.
+- No ping within the monitor's interval → Kuma marks it down and notifies.
+- Ansible injects the URL: `backup_kuma_push_url` (vault `local.yml`) → `backup.env` →
+  `KUMA_PUSH_URL`. Empty = monitoring off; the backup still runs.
+- The ping is best-effort (`curl ... || true`): a monitoring outage never fails the backup.
 
-## One-time setup (Uptime Kuma UI)
+## Monitors
+
+| Monitor               | Pinged by                                               | Interval       | Vault variable                                     |
+|-----------------------|---------------------------------------------------------|----------------|----------------------------------------------------|
+| Backup                | resticprofile `backup` (homelab, nightly)               | 93600 s (26 h) | `backup_kuma_push_url` (homelab local.yml)         |
+| Pi restic prune+check | `resticprofile -n homelab prune`+`check` (Tue 01:00)    | 691200 s (8 d) | `local_maintenance_kuma_push_url` (homelab local)  |
+| Offsite backup        | resticprofile `copy` (homelab, nightly)                 | 93600 s (26 h) | `offsite_copy_kuma_push_url` (homelab local.yml)   |
+| Offsite check         | `resticprofile -n offsite check` (Tue 02:00)            | 700000 s (8 d) | `offsite_check_kuma_push_url` (homelab local.yml)  |
+| Offsite health        | `offsite-health.sh` (offsite Pi, daily 08:00)           | 90000 s (25 h) | `offsite_health_kuma_push_url` (offsite local.yml) |
+
+- 26 h on the nightly monitors: a missed run turns red ~2 h after the expected time.
+- Prune+check (`homelab-local-maintenance.timer`) runs a metadata check weekly and a deep
+  read-data check on the run in the first 7 days of the month. Its variable is optional.
+- Offsite health alarms on SMART early-warning counters (not the overall `smartctl -H` verdict),
+  the monthly long self-test (`offsite-smart-test.timer`, 1st at 04:00), SSD temperature ≥ 70 °C,
+  CPU temperature ≥ 70 °C, undervoltage, and security updates unapplied after 48 h. Exact DOWN
+  conditions: the offsite runbook.
+
+## Create a monitor (Uptime Kuma UI)
 
 1. **Add New Monitor** → Monitor Type: **Push**.
 2. Friendly Name: e.g. `Homelab backup`.
-3. **Heartbeat Interval**: `93600` s (26 h) — one daily run plus grace. Retries: `0`.
-4. Under **Notifications**, tick your existing notification channel.
-5. **Save**, then copy the monitor's **Push URL**. Use the *base* form
-   `https://<uptime-kuma>/api/push/<token>` — drop any trailing `?status=up&msg=OK&ping=`
-   query string (the script appends its own).
-6. Put it in `ansible/inventory/host_vars/homelab/local.yml`:
+3. **Heartbeat Interval**: from the table above (`93600` s for the nightly backup). Retries: `0`.
+4. Under **Notifications**, tick the existing notification channel.
+5. **Save**, then copy the **Push URL** in its base form `https://<uptime-kuma>/api/push/<token>` —
+   drop any trailing `?status=up&msg=OK&ping=` (the script appends its own).
+6. Put it in the vault named in the table, e.g. `ansible/inventory/host_vars/homelab/local.yml`:
    ```yaml
    backup_kuma_push_url: "https://<uptime-kuma>/api/push/<token>"
    ```
-7. Deploy (from the `ansible/` directory):
+7. Deploy from `ansible/`. For the homelab variables:
    ```
    ansible-playbook playbooks/site.yml --tags deploy \
      --start-at-task "backup | Template backup environment file (encrypted volume)" \
      --ask-vault-pass
    ```
-   This redeploys the profile and its scripts, and regenerates `backup.env` with `KUMA_PUSH_URL`.
+   For the offsite Pi: `ansible-playbook playbooks/offsite.yml --tags offsite-backup --ask-vault-pass`.
 
-## Test
+Expected: the play runs tasks and regenerates `backup.env`. If it runs no task at all, the
+`--start-at-task` name matched nothing — nothing was deployed.
 
-Trigger a run and watch the monitor turn green:
+The offsite Pi reaches Kuma through the tunnel: `services.<domain>` is pinned to the homelab's VPN
+address (10.8.0.5) in its cloud-init hosts template. Use the same
+`https://services.<domain>/api/push/<token>` form. Do not route the homelab LAN IP through the
+tunnel instead — it breaks direct-LAN traffic while the Pi is prepared at home.
+
+## Check it worked
 
 ```
 ssh homelab 'sudo systemctl start homelab-backup.service'
 ```
 
-**Two monitors go up, not one**, and each has its own line in the journal — the
-run does the backup and the offsite copy as two commands from the same unit:
+Expected: two monitors go green (backup and offsite copy), with two journal lines:
 
 ```
 […] notify: pushed up (backup): dumps ok (N checks), snapshot <id>
@@ -52,84 +72,12 @@ run does the backup and the offsite copy as two commands from the same unit:
 […] notify: pushed up (copy): offsite copy completed
 ```
 
-Earlier revisions of this runbook told you to watch for `=== Backup completed ===`.
-That line was written by `backup.sh`, which ADR-031 deleted; it was last emitted on
-2026-08-23 and will never appear again. Watch the `notify: pushed up` lines instead,
-or the monitors themselves.
+To test the down path, point `RESTIC_REPOSITORY` at a bad path temporarily and run: the monitor
+goes red and notifies.
 
-To exercise the down path, point `RESTIC_REPOSITORY` at a bad path temporarily and
-run — the monitor goes red and the notification fires. The DOWN message ends
-with `journalctl -u <unit> -n 50`, and that is where to look: **the cause is in
-the journal**. `/var/log/homelab-backup.log` holds only the notify lines and the
-dump commands' stderr, never restic's output.
+## If it fails
 
-## Local maintenance monitor
-
-The local maintenance job (`homelab-local-maintenance.timer`,
-Tuesday 01:00: weekly prune + metadata check, deep read-data on the run that falls
-in the first 7 days of the month)
-reports to its own push monitor, same pattern as the offsite check:
-
-| Monitor               | Pinged by                                            | Interval       | Vault variable                                    |
-|-----------------------|------------------------------------------------------|----------------|---------------------------------------------------|
-| Pi restic prune+check | `resticprofile -n homelab prune`+`check` (Tue 01:00) | 691200 s (8 d) | `local_maintenance_kuma_push_url` (homelab local) |
-
-Create the Push monitor first (8 d interval covers a weekly run plus grace), then set
-`local_maintenance_kuma_push_url` in `local.yml` and redeploy with the same
-`--start-at-task "backup | Template backup environment file (encrypted volume)"` command. This variable is **optional**: empty just
-disables the monitor ping — the prune+check timer still runs.
-
-## Offsite monitors (ADR-010)
-
-Three more push monitors follow the same pattern:
-
-| Monitor        | Pinged by                                      | Interval       | Vault variable                                     |
-|----------------|------------------------------------------------|----------------|----------------------------------------------------|
-| Offsite backup | resticprofile `copy` (homelab, nightly)        | 93600 s (26 h) | `offsite_copy_kuma_push_url` (homelab local.yml)   |
-| Offsite check  | `resticprofile -n offsite check` (Tue 02:00)   | 700000 s (8 d) | `offsite_check_kuma_push_url` (homelab local.yml)  |
-| Offsite health | `offsite-health.sh` (offsite Pi, daily 08:00)  | 90000 s (25 h) | `offsite_health_kuma_push_url` (offsite local.yml) |
-
-Deploy after filling the vault variables: same `--start-at-task "backup | Template
-backup environment file (encrypted volume)"` command for the homelab ones; for the
-offsite Pi: `ansible-playbook playbooks/offsite.yml --tags offsite-backup --ask-vault-pass`.
-
-> **Corrected 2026-08-29.** This line named `backup | Template backup script`
-> until today — a task that went with `backup.sh` under ADR-031 and no longer
-> exists. `--start-at-task` on a name matching nothing runs **no tasks at all**
-> and exits successfully, so an operator following this line believed the push
-> URL was deployed when nothing had been. The two earlier occurrences on this
-> page (steps 7 and the local prune+check paragraph) always named the task that
-> does exist; only this third one was stale, and a line-oriented `grep` could
-> not catch it because markdown wrapped the name across a newline.
-
-"Offsite health" watches the SMART early-warning counters individually (the
-overall `smartctl -H` verdict stays PASSED until a drive is nearly dead) and
-the result of the monthly long self-test (`offsite-smart-test.timer`, 1st at
-04:00), plus SSD temperature (≥ 70 °C), CPU temperature (≥ 70 °C), Pi
-undervoltage, and security updates still unapplied after 48 h. See the offsite
-runbook for the exact DOWN conditions.
-
-> Until #201 this sentence listed CPU temperature alongside the other two while
-> the script only ever *reported* it — eleven conditions in that file pushed a
-> problem and CPU temperature was not one of them. The threshold is 70 rather
-> than the homelab's 80 because that board idles near 50 °C and its fan engages
-> at 60, so 70 means the fan is running and it is still climbing. Worth
-> remembering as a shape: an enumeration that puts a watched thing and an
-> unwatched one on the same footing reads as coverage.
-
-Note: the offsite Pi reaches Kuma through the WireGuard tunnel:
-`services.<domain>` is pinned to the homelab host's VPN address (10.8.0.5,
-where Traefik also listens) in its cloud-init hosts template (deployed by
-the `offsite-backup` role). Do NOT route the homelab LAN IP through the
-tunnel instead — that breaks direct-LAN traffic while the Pi is prepared at
-home. Use the exact same `https://services.<domain>/api/push/<token>` URL
-form as the homelab monitors.
-
-## Notes
-
-- Interval 26 h (`93600` s on both nightly monitors): a missed daily run turns the
-  monitor red ~2 h after the expected time. Tighten or loosen to taste.
-- The ping is best-effort (`curl ... || true`): a monitoring/network outage never fails
-  the backup itself.
-- Logs: `journalctl -u homelab-backup` (restic and resticprofile output);
-  `/var/log/homelab-backup.log` on the Pi holds the notify lines and dump stderr.
+| Symptom                        | Action                                                                                                   |
+|--------------------------------|----------------------------------------------------------------------------------------------------------|
+| DOWN message                   | It ends with `journalctl -u <unit> -n 50` — the cause is in the journal (`journalctl -u homelab-backup`) |
+| Looking in the log file        | `/var/log/homelab-backup.log` holds only the notify lines and dump stderr, never restic's output         |

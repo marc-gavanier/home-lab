@@ -1,56 +1,38 @@
 # Miniflux
 
-A feed reader that stays out of the way: no recommendations, no tracking, no mobile app
-to install. It fetches feeds, stores them in Postgres, and serves a page.
+A minimal feed reader backed by Postgres. Here it mainly follows the GitHub release feeds of
+the self-hosted services, so each Renovate bump comes with readable release notes.
 
-The reason it is here is less about reading blogs than about **watching this stack**.
-Subscribing to the GitHub release feed of each self-hosted service turns Renovate's
-version bump into something readable — Renovate says `netdata 2.10.4 → 2.11.0`, the feed
-says what changed in it.
+## At a glance
 
-## Access
+| Item        | Value                                                                  |
+|-------------|------------------------------------------------------------------------|
+| URL         | `https://rss.example.com` (VPN/LAN only, via Pi-hole split DNS)        |
+| Containers  | `miniflux`, `miniflux-db` (Postgres 18)                                |
+| Data        | `${SERVICES_DATA_DIR}/miniflux/db` (datadir, excluded from restic)     |
+| Backup      | nightly plain-SQL `pg_dump`; OPML export for the subscription list    |
+| Monitoring  | Kuma HTTP monitor on `/healthcheck`                                    |
+| Secrets     | three files under `/mnt/data/secrets/docker/` (ADR-016)                |
+| ADR         | [ADR-026](../../knowledge/decisions/ADR-026-miniflux-rss.md)           |
+| Digest      | [claude-code.md, Daily Feed Digest](claude-code.md#daily-feed-digest) ([ADR-027](../../knowledge/decisions/ADR-027-feed-digest.md)) |
 
-- URL: `https://rss.example.com` (VPN-only, like the other internal services — the
-  subdomain only resolves on the LAN/VPN via Pi-hole split DNS).
-- Login with the admin account created at first start (see *The admin account* below).
-- Feeds can be added by URL, or in bulk by importing an OPML file.
+## How it works
 
-## How It Runs
+- `miniflux`: `read_only: true` (empty write set) with `/tmp:size=8m`, uid 65534, zero
+  capabilities. The uid is the image default, restated in `compose.yaml` so a base-image
+  change cannot move it.
+- `LISTEN_ADDR` is set to `0.0.0.0:8080`: the default `127.0.0.1:8080` makes Traefik get
+  connection refused.
+- The healthcheck is the binary's own HTTP self-test, which also pings the database:
 
-Two containers: `miniflux` and its own `miniflux-db`.
+  ```yaml
+  test: ["CMD", "/usr/bin/miniflux", "-healthcheck", "auto"]
+  ```
 
-Miniflux is the lightest well-behaved service in the stack. `docker diff` on a container
-that had run all 132 migrations, created the admin account and served traffic came back
-with an **empty write set** — so `read_only: true` costs nothing. It still carries
-`/tmp:size=8m`, as every read-only service in the stack does since #265: `docker
-diff` only sees paths a container *has* written, and an unexercised code path
-leaves no trace — which is how Navidrome imported nothing for a month while every
-dashboard stayed green. An unwritten tmpfs allocates no page, so the insurance is
-free. It runs as uid 65534 with **zero
-capabilities**; 65534 is already the image's own default, restated in `compose.yaml` so a
-base-image change cannot move it silently.
+### The database
 
-The image is Alpine-based (busybox `sh` and `wget` are present), but the healthcheck does not
-go through a shell anyway — the binary checks itself:
-
-```yaml
-test: ["CMD", "/usr/bin/miniflux", "-healthcheck", "auto"]
-```
-
-The binary's own subcommand issues a real HTTP request against the listener, so a Miniflux
-that is up but no longer serving fails it, with no dependency on what the base image happens
-to ship.
-
-One setting is easy to miss: `LISTEN_ADDR` defaults to `127.0.0.1:8080`, which inside a
-container means the process answers only itself and Traefik gets connection refused. It is
-set to `0.0.0.0:8080` explicitly.
-
-## The Database, and the Trap in It
-
-`miniflux-db` is **Postgres 18**, not the 16 `immich-db` pins — this database is
-Miniflux's alone, so there is no schema to match.
-
-**Do not copy `immich-db`'s volume line.** Postgres 18 moved its datadir:
+Postgres 18 (not Immich's 16: this database is Miniflux's alone). **Do not copy `immich-db`'s
+volume line** — Postgres 18 moved its datadir:
 
 ```
 PGDATA=/var/lib/postgresql/18/docker     # Postgres 18
@@ -63,118 +45,62 @@ So the bind mount is the parent directory:
 - ${SERVICES_DATA_DIR}/miniflux/db:/var/lib/postgresql
 ```
 
-Mounting `/var/lib/postgresql/data` instead — the path that is correct for Immich's
-Postgres 16 — would leave the real datadir in the anonymous volume the image declares. Compose carries
-that volume over on restarts and on `--force-recreate`, but orphans it on the first
-`docker compose down` or `rm` — the maintenance route this repository recommends — with
-nothing looking wrong until the feeds came back empty.
+Mounting `/var/lib/postgresql/data` would leave the real datadir in an anonymous volume, lost
+on the first `docker compose down` or `rm`.
 
-Both of its tmpfs mounts carry `uid=999,gid=999`, which `immich-db` does not need:
+Both tmpfs mounts need `uid=999,gid=999` (with zero capabilities the entrypoint cannot chmod
+its socket directory, and initdb needs a writable scratch dir):
 
 ```yaml
 - /run/postgresql:uid=999,gid=999
 - /tmp:size=64m,uid=999,gid=999
 ```
 
-A tmpfs mounts root-owned `0755`, and the alpine entrypoint chmods its socket directory
-before dropping privilege — with zero capabilities there is no root phase left to do it.
-Without the uid the container exits on `chmod: /var/run/postgresql: Operation not
-permitted`; fix that alone and it exits on `mktemp: : Read-only file system`, because
-initdb wants a scratch directory. Both were observed, not anticipated.
+### The admin account
 
-## The Admin Account
+Created at first start from `CREATE_ADMIN=1`, `ADMIN_USERNAME` and `ADMIN_PASSWORD_FILE`. The
+flag stays on: Miniflux skips creation when the account exists.
 
-Created at first start from `CREATE_ADMIN=1`, `ADMIN_USERNAME` and
-`ADMIN_PASSWORD_FILE`. The flag stays on across deploys — Miniflux skips creation when the
-account already exists, so it is idempotent rather than a first-boot flag someone has to
-remember to remove.
+- **Password: 72 bytes maximum** (bcrypt). Bytes, not characters: accented characters cost
+  2-4 bytes.
+- Changing `miniflux_admin_password` in the vault does not change the account.
 
-**The password must be 72 bytes or fewer.** bcrypt reads no further, and Miniflux refuses
-rather than truncating:
+### Secrets
 
-```
-bcrypt: password length exceeds 72 bytes
-```
+Miniflux takes a whole connection string, so the DSN is itself a secret:
 
-The container then exits 1, and because the schema migrations have already succeeded by
-that point, `miniflux-db` sits there **healthy** while the reader is down — the failure
-looks like a database problem and is not one. The heal timer retries the same failure
-every two minutes, so the log fills with identical lines rather than one clear error.
+| File under `/mnt/data/secrets/docker/` | Read by       | Contents                |
+|----------------------------------------|---------------|-------------------------|
+| `miniflux_db_password`                 | `miniflux-db` | bare password           |
+| `miniflux_database_url`                | `miniflux`    | full DSN, same password |
+| `miniflux_admin_password`              | `miniflux`    | admin account password  |
 
-This bit on the first deploy (2026-08-13) with a 128-byte password-manager passphrase.
-Nothing was corrupted: the `users` table stays empty, so shortening the password and
-redeploying creates the account cleanly. Note **bytes**, not characters — accented or
-non-Latin characters cost 2-4 bytes each in UTF-8. Same ceiling Dozzle documents.
+The deploy role composes all three from `miniflux_db_password` and `miniflux_admin_password`,
+mode `0444`.
 
-**Changing `miniflux_admin_password` in the vault does not rotate the account.** Miniflux
-only reads that value when the user is absent. To change the password, use *Settings →
-Password* in the web UI, then update the vault so a rebuild-from-scratch matches.
+## Common tasks
 
-## Secrets
+- **Add feeds**: by URL, or in bulk by importing an OPML file.
+- **Change the admin password**: *Settings → Password* in the web UI, then update the vault
+  so a rebuild matches.
+- **Export subscriptions**: *Settings → Export* (OPML; no read/starred state).
+- **Restore**: load the `pg_dump`, never the datadir (a snapshot restores `services/miniflux`
+  as an empty directory). Procedure: `knowledge/runbooks/restore-from-backup.md` → "Restore
+  Miniflux (PostgreSQL)".
+- **Monitoring**: one Kuma monitor, added by hand in the UI (Kuma v2 has no supported
+  automation; `ops/kuma-dump.sh` is a read-only export). `/healthcheck` fails when the
+  database is down, so it covers the process, storage, Traefik and TLS expiry.
 
-Three files rather than the usual one, because Miniflux takes a whole connection string
-rather than a password to slot into one — so the string is what has to stay off
-`environment:` (ADR-016):
-
-| File under `/mnt/data/secrets/docker/` | Read by | Contents |
-|----------------------------------------|---------------|--------------------------|
-| `miniflux_db_password` | `miniflux-db` | bare password |
-| `miniflux_database_url` | `miniflux` | full DSN, same password |
-| `miniflux_admin_password` | `miniflux` | admin account password |
-
-All three are composed by the deploy role from two vault variables
-(`miniflux_db_password`, `miniflux_admin_password`) and written `0444`.
-
-## Data and Restore
-
-Everything lives in Postgres under `${SERVICES_DATA_DIR}/miniflux/db`, which is **excluded**
-from the restic set (`resticprofile.yaml.j2`). There is no separate application volume.
-
-The portable escape hatch is **OPML export** (*Settings → Export*): it carries the
-subscription list, not the read/unread state or starred entries.
-
-**Do not restore the datadir.** The nightly backup writes a plain-SQL `pg_dump` to
-the dump directory, and that is what a restore loads — the only restorable form. The
-datadir is excluded because restic would walk it file by file while Postgres writes to
-it, and the copy in a snapshot could be a torn cluster; a snapshot restores
-`services/miniflux` as an empty directory.
-
-Full procedure: `knowledge/runbooks/restore-from-backup.md` → "Restore Miniflux
-(PostgreSQL)". It is not repeated here, for the reason the other service pages give:
-a procedure duplicated in two places drifts in one of them.
-
-## Health
-
-- Healthcheck: the binary's own `-healthcheck auto` (see above).
-- Uptime Kuma — **one** monitor, following the rule Dozzle established of probing a
-  function endpoint rather than `/`:
-
-  | Monitor | Type | Target | Expect |
+  | Monitor  | Type | Target                                | Expect |
   |----------|------|---------------------------------------|--------|
-  | Miniflux | HTTP | `https://rss.example.com/healthcheck` | 200 |
+  | Miniflux | HTTP | `https://rss.example.com/healthcheck` | 200    |
 
-  A second monitor on `/` was specified and then dropped, because the assumption behind it
-  was wrong. The theory was that `/healthcheck` answers from the process alone and would
-  stay green with Postgres down. Measured by stopping `miniflux-db`:
+## Troubleshooting
 
-  | Endpoint | Database up | Database down |
-  |----------------|------------:|--------------:|
-  | `/healthcheck` | 200 | **503** |
-  | `/` | 200 | 500 |
-
-  Miniflux's healthcheck pings the database, so both endpoints fail together and one
-  monitor already covers the process, its storage, Traefik and TLS expiry. The same test
-  showed `docker ps` still reporting `healthy` while the service returned 503 — the 30 s
-  interval had not re-run — which is the argument for having a Kuma monitor at all.
-
-  It is added by hand in the Kuma UI: Kuma v2 has no supported automation, and the export
-  in `ops/kuma-dump.sh` is a read-only snapshot.
-
-## Related
-
-- [ADR-026](../../knowledge/decisions/ADR-026-miniflux-rss.md) — why Postgres 18, the
-  moved datadir, and the DSN-as-secret split.
-- Issue #15 — services shortlist. The `claude -p` morning digest is part of that entry and
-  is built in the `claude-code` role, with no OAuth token — see
-  [claude-code.md, Daily Feed Digest](claude-code.md#daily-feed-digest) and
-  [ADR-027](../../knowledge/decisions/ADR-027-feed-digest.md).
+| Symptom | Cause | Action |
+|---|---|---|
+| `miniflux` exits 1 in a loop, `miniflux-db` healthy, log shows `bcrypt: password length exceeds 72 bytes` | admin password over 72 bytes | shorten it in the vault and redeploy; the `users` table is still empty, nothing to clean |
+| `miniflux-db` exits on `chmod: /var/run/postgresql: Operation not permitted` or `mktemp: : Read-only file system` | tmpfs without `uid=999,gid=999` | restore the uid on both tmpfs mounts |
+| Feeds empty after `compose down` | datadir mounted at `/var/lib/postgresql/data` | mount the parent `/var/lib/postgresql`; restore from the dump |
+| Traefik gets connection refused | `LISTEN_ADDR` left at default | set `0.0.0.0:8080` |
+| Kuma red, `docker ps` still `healthy` | the container healthcheck has not re-run yet | trust Kuma; check `miniflux-db` |
