@@ -108,13 +108,15 @@ hold. This page lists the controls per layer and where each one is decided.
   - root-owned trees where the container is root throughout (Jellyfin,
     Navidrome);
   - starting as the service uid, `user: "999:999"`, on both databases and both
-    redis caches. This drops `CHOWN`, `SETUID`, `SETGID`, `FOWNER` too.
+    redis caches. This drops `CHOWN`, `SETUID`, `SETGID`, `FOWNER` too. Their
+    data directories must arrive owned by 999, so the storage role owns them and
+    the restore runbook re-applies it ("Ownership after a restore").
 
   **Not `nextcloud-cron`**: with `user: "33:33"`, busybox `crond` cannot
   `setgroups()` and never runs `cron.php` while showing `Up`. It runs as uid 0
   with `SETUID`/`SETGID` on purpose (ADR-017).
-- **Services that keep `DAC_OVERRIDE`**, all structural (the storage role owns
-  their data directories, as the restore runbook says):
+- **Services that keep `DAC_OVERRIDE`**, all structural: each image needs a root
+  phase and a second identity (ADR-017, ADR-025):
   - pihole: its root phase runs `setcap` on FTL;
   - Nextcloud: apache binds `:80` as root;
   - transmission: its s6 init is the root phase (`PUID`/`PGID`);

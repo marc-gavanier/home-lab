@@ -33,7 +33,7 @@ A Push monitor, as for [backup monitoring](backup-monitoring.md): Kuma goes red 
 stops calling.
 
 1. **Add New Monitor** → Monitor Type: **Push**.
-2. Friendly Name: `Feed digest`.
+2. Friendly Name: `Veille quotidienne` (the live monitor).
 3. **Heartbeat Interval**: `100800` s (28 h: one daily run plus grace for
    `RandomizedDelaySec=300`). Retries: `0`.
 4. Tick your existing notification channel.
@@ -164,8 +164,8 @@ mf "https://rss.<domain>/v1/feeds" \
   | jq -r '.[] | select(.parsing_error_count > 0) | "\(.title): \(.parsing_error_message)"'
 ```
 
-- **r/selfhosted** returns `Access to this website is forbidden. Perhaps, this website has a
-  bot protection`: Reddit blocks Miniflux. Nothing to fix.
+- Reddit feeds are refused (`Access to this website is forbidden. Perhaps, this website has a
+  bot protection`, r/selfhosted, 2026-08-13): do not add them.
 - A 403 or DNS error for a week: delete the feed in the UI and in your OPML file. A timeout:
   keep it.
 

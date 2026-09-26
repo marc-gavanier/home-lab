@@ -86,7 +86,8 @@ a time-limited peer, but check the first time that it is actually disabled at ex
 
 - **Vaultwarden**: the mobile client keeps an encrypted offline cache. If the device may have been
   unlocked, change the master password, then invalidate sessions in `/admin` → *Users*.
-- **Nextcloud**: `occ user:delete-app-password`, or *Devices & sessions* in the web UI. App
+- **Nextcloud**: `occ user:auth-tokens:list <user>` then
+  `occ user:auth-tokens:delete <user> <id>`, or *Devices & sessions* in the web UI. App
   passwords survive a password change; sessions do not.
 - **Immich, Jellyfin**: sign out of all sessions in their settings.
 - **SSH**: if the device carried a key, remove it from `authorized_keys` on both Pis.

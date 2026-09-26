@@ -5,15 +5,15 @@ SD-card protection, the missing hardware clock and filesystem checks.
 
 ## At a glance
 
-| Setting    | Value                                                     |
-|------------|-----------------------------------------------------------|
-| Locale     | `fr_FR.UTF-8` generated; system default stays `C.UTF-8`   |
-| Timezone   | `Europe/Paris`                                            |
-| NTP        | `systemd-timesyncd`                                       |
-| Hostname   | set during provisioning                                   |
-| Swap       | 4 GiB at `/mnt/data/swapfile` (HDD), `vm.swappiness=10`   |
-| Boot args  | `cgroup_memory=1 cgroup_enable=memory` (required for Docker) |
-| config.txt | `gpu_mem=16` (no display)                                 |
+| Setting    | Value                                                                                                                   |
+|------------|-------------------------------------------------------------------------------------------------------------------------|
+| Locale     | `fr_FR.UTF-8` generated; system default stays `C.UTF-8`                                                                 |
+| Timezone   | `Europe/Paris`                                                                                                          |
+| NTP        | `systemd-timesyncd`                                                                                                     |
+| Hostname   | set during provisioning                                                                                                 |
+| Swap       | homelab: 4 GiB at `/mnt/data/swapfile` (HDD), `vm.swappiness=10`; offsite: zram, ~1.9 GiB (`zram_enabled`, `base` role) |
+| Boot args  | `cgroup_memory=1 cgroup_enable=memory` (required for Docker)                                                            |
+| config.txt | `gpu_mem=16` (no display)                                                                                               |
 
 The swap occupancy alarm (85 %) and the resize procedure live in
 `docs/07-observability/`.
@@ -22,13 +22,13 @@ The swap occupancy alarm (85 %) and the resize procedure live in
 
 Every recurring write is moved off the SD card or bounded:
 
-| Write source          | Where it goes                                                          | Role     |
-|-----------------------|------------------------------------------------------------------------|----------|
-| Docker logs & data-root | HDD; `json-file` logs capped 10 MB × 3                               | `docker` |
-| Swap                  | HDD, systemd `.swap` unit                                              | `storage` |
-| systemd journal       | persistent, capped (`SystemMaxUse`, drop-in `99-homelab.conf`); stored on the encrypted volume, bind-mounted at unlock | `base`, `storage` |
-| `/tmp`                | tmpfs, size-capped                                                     | —        |
-| atime updates         | `noatime` on the SD root, `/mnt/data` and the offsite disk             | —        |
+| Write source            | Where it goes                                                                                                                                | Role              |
+|-------------------------|----------------------------------------------------------------------------------------------------------------------------------------------|-------------------|
+| Docker logs & data-root | HDD; `json-file` logs capped 10 MB × 3                                                                                                       | `docker`          |
+| Swap                    | homelab: HDD, systemd `.swap` unit; offsite: zram, in RAM                                                                                    | `storage`, `base` |
+| systemd journal         | persistent, capped (`SystemMaxUse`, drop-in `99-homelab.conf`); homelab: on the encrypted volume, bind-mounted at unlock; offsite: on the SD | `base`, `storage` |
+| `/tmp`                  | tmpfs, size-capped                                                                                                                           | —                 |
+| atime updates           | `noatime` on the SD root, `/mnt/data` and the offsite disk                                                                                   | —                 |
 
 `log2ram` is not used: residual `/var/log` traffic is negligible and it loses
 the newest logs on a power cut.
@@ -93,17 +93,17 @@ those.
 
 ## Filesystem integrity
 
-| Volume                  | Checked by                                                               | When                                                                                         |
-|-------------------------|--------------------------------------------------------------------------|----------------------------------------------------------------------------------------------|
-| `/mnt/data` (HDD)       | `e2fsck -p` inside `homelab-unlock`, on the still-unmounted mapper       | every unlock — about a second on a clean filesystem, a real scan after an unclean shutdown   |
-| `/` (SD)                | `e2fsck -p` in the **initramfs**, before systemd starts                  | **every boot**, in full — not when a trigger is due. See below                               |
-| `/mnt/backup` (offsite) | `e2fsck -p` at boot, which fstab's `passno=2` pulls in                   | clean-flag skip in 0.16 s on normal boots; full check (10.5 s) only on the monthly interval  |
-| both                    | the daily disk report reads the superblock error counters (`ext4 clean`) | daily — this catches errors the kernel **already noticed**, which is not a consistency check |
+| Volume                  | Checked by                                                               | When                                                                                                                   |
+|-------------------------|--------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------|
+| `/mnt/data` (HDD)       | `e2fsck -p` inside `homelab-unlock`, on the still-unmounted mapper       | every unlock — about a second on a clean filesystem, a real scan after an unclean shutdown                             |
+| `/` (SD)                | `e2fsck -p` in the **initramfs**, before systemd starts                  | **every boot**, in full when the previous boot lasted more than ~24 h; otherwise the clean flag is honoured. See below |
+| `/mnt/backup` (offsite) | `e2fsck -p` at boot, which fstab's `passno=2` pulls in                   | clean-flag skip in 0.16 s on normal boots; full check (10.5 s) only on the monthly interval                            |
+| both                    | the daily disk report reads the superblock error counters (`ext4 clean`) | daily — this catches errors the kernel **already noticed**, which is not a consistency check                           |
 
 To check the data volume by hand, use `homelab-fsck` (see the
 [boot & unlock runbook](../../knowledge/runbooks/boot-and-unlock.md)).
 
-### Why the root filesystem is checked at every boot
+### Why the root filesystem is checked at (almost) every boot
 
 `systemd-fsck-root.service` is always skipped, because the initramfs already
 checked `/`:
@@ -113,8 +113,11 @@ systemd-fsck-root.service - File System Check on Root Device was skipped
 because of an unmet condition check (ConditionPathExists=!/run/initramfs/fsck-root)
 ```
 
-The initramfs clock (roughly the previous boot's start) is behind, so every
-superblock looks future-dated and gets a full check. `/run/initramfs/fsck.log`
+The initramfs clock (roughly the previous boot's start) is behind, so the
+superblock looks future-dated and gets a full check. e2fsck tolerates up to a day
+of skew, so after a boot shorter than ~24 h the clean flag is honoured instead
+(`is in the future (by less than a day ...)` then `clean`), as on the offsite
+after its 04:00 update reboot and a second reboot the same day. `/run/initramfs/fsck.log`
 shows:
 
 ```
@@ -122,13 +125,14 @@ writable: Superblock last write time (Wed Aug 26 20:55:35 2026,
         now = Tue Jul 28 15:04:46 2026) is in the future. FIXED.
 ```
 
-- **`/` is checked in full at every boot.**
+- **`/` is checked in full at every boot that follows a boot of more than ~24 h.**
 - The `-c`/`-i` triggers never fire (each check resets the mount count and
   `Last checked`); they stay set for when the clock is right. Lowering
   `root_fsck_max_mounts` changes nothing.
 - **`Last checked` is not a freshness indicator.**
 - `root-was-checked-this-boot` reads `/run/initramfs/fsck.log`; no file means
-  `/` was not checked this boot.
+  `/` was not checked this boot. It passes on a clean-flag run too: it proves
+  e2fsck ran, not that it did a full check.
 - A failed preen drops to an emergency shell, reachable only on site.
 
 ### Other controls

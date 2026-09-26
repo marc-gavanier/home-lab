@@ -50,8 +50,15 @@ The deploy (`roles/deploy`) re-applies on every run:
 
 ## Common tasks
 
+Admin password lost (`-it`: the command prompts for the new password):
+
 ```bash
-docker exec -u www-data nextcloud php occ user:resetpassword admin
+docker exec -it -u www-data nextcloud php occ user:resetpassword admin
+```
+
+Media added to a folder nobody opens:
+
+```bash
 docker exec -u www-data nextcloud php occ files:scan --path='admin/files/Photos'
 ```
 

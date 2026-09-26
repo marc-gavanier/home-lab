@@ -28,10 +28,15 @@ which the workstation mounts as `~/Music`.
 
 ## Common tasks
 
-Add music (writes straight to the Pi):
+Add music (writes straight to the Pi). With the sshfs mount:
 
 ```bash
 cp -r "Album/" ~/Music/Artist/
+```
+
+From a machine without the mount:
+
+```bash
 scp -r "Artist - Album/" homelab:/mnt/data/media/music/
 ```
 
@@ -41,6 +46,11 @@ counts, irreversibly. Count them first:
 ```bash
 docker exec navidrome sqlite3 'file:/data/navidrome.db?mode=ro' \
   "select count(*) from media_file where missing = 1;"
+```
+
+Stop here if the count is not what you expect. Then:
+
+```bash
 docker exec navidrome navidrome scan --full
 ```
 

@@ -80,6 +80,13 @@ TRUSTED_PROXIES: 172.16.0.0/12
 docker restart nextcloud-notify-push
 ```
 
+**"push server is running the same version as the app" fails after an app update**:
+the process still holds the old binary's inode. Restart it as above.
+
+**"nextcloud cron.php has not completed …" or "lastcron unreadable"**: not a notify_push
+fault; the monitor also watches Nextcloud's cron. Check `docker ps -a --filter
+name=nextcloud-cron` and its logs.
+
 **Log stuck on "waiting for notify_push binary"**: the container started before the
 app installed its binary. Restart it as above, then check the command line shows
 `.../notify_push ...`:

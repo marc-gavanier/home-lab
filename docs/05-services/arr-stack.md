@@ -46,6 +46,9 @@ Jellyfin        reads the library it was already configured with
   put them in the vault. They count as secrets for the C89 audit.
 - `config.xml` holds the API key: the file is `0600` and the directory `0700` (set by the deploy
   role, `data_dirs.yml`); the databases beside it stay `0644`.
+- Prowlarr replaces its indexer definitions daily from Prowlarr's own server, unpinned and
+  unwatched; a definition decides where the tracker API key is sent. Accepted: Prowlarr cannot
+  pin them, and a diff monitor would fire on every weekly churn.
 - The media is not restorable and needs no restore: torrent-sourced, re-obtainable, kept until
   watched. Losing it costs a re-download.
 

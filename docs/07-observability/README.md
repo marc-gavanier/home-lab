@@ -153,11 +153,11 @@ N > 0, and only then counts failures. Any new consumer must do the same.
 
 **Never edit `/etc/goss/*.yaml` on the host** — the next deploy overwrites them:
 
-| Spec                  | Template                                                     | Deployed by                                  |
-|-----------------------|--------------------------------------------------------------|----------------------------------------------|
-| `posture.yaml`        | `roles/observability/templates/goss-posture.yaml.j2`         | `--tags observability`                       |
-| `units.yaml`          | `roles/observability/templates/goss-units.yaml.j2`           | `--tags observability`                       |
-| `backup-dumps.yaml`   | `roles/deploy/templates/goss-backup-dumps.yaml.j2`           | `--tags deploy`                              |
+| Spec                  | Template                                                     | Deployed by                                   |
+|-----------------------|--------------------------------------------------------------|-----------------------------------------------|
+| `posture.yaml`        | `roles/observability/templates/goss-posture.yaml.j2`         | any tagged run (`tags: always`)               |
+| `units.yaml`          | `roles/observability/templates/goss-units.yaml.j2`           | `--tags observability`                        |
+| `backup-dumps.yaml`   | `roles/deploy/templates/goss-backup-dumps.yaml.j2`           | `--tags deploy`                               |
 | `offsite-health.yaml` | `roles/offsite-backup/templates/goss-offsite-health.yaml.j2` | `playbooks/offsite.yml --tags offsite-backup` |
 
 ## The daily posture check
@@ -176,9 +176,8 @@ N > 0, and only then counts failures. Any new consumer must do the same.
 How it behaves:
 
 - Expectations are generated from `docker/compose.yaml` when the `observability` role templates
-  the spec — a snapshot, not a live read. **A hardening change needs `--tags deploy,observability`**;
-  `--tags deploy` alone leaves yesterday's expectations and flags a correct container
-  (see `container-config-changes.md`).
+  the spec — a snapshot, not a live read. The render is `tags: always`, so any tagged run
+  (`--tags deploy` included) refreshes it (see `container-config-changes.md`).
 - Separate from `Pi health`: a drift is not an outage.
 - Skips entirely while `/mnt/data` is locked.
 

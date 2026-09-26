@@ -6,16 +6,16 @@ subdomains to the Pi's LAN address. Upstream goes through dnsproxy to Quad9 over
 
 ## At a glance
 
-| Item            | Value |
-|-----------------|-------|
-| Admin panel     | `https://dns.example.com/admin` (LAN and VPN) |
-| Password        | set by Ansible via `pihole setpassword`, from `local.yml` |
-| Split DNS       | `ansible/roles/deploy/templates/pihole-05-homelab.conf.j2` |
-| Upstream        | `dnsproxy` sidecar, `network_mode: service:pihole` |
-| Config and DB   | `/mnt/data/services/pihole/etc/` (`pihole.toml`, `pihole-FTL.db`, `gravity.db`) |
-| Custom dnsmasq  | `/mnt/data/services/pihole/dnsmasq/` |
-| Logs            | `/var/log/pihole`, container writable layer, not persisted |
-| Backup          | restic, with the rest of `/mnt/data/services` |
+| Item           | Value                                                                                   |
+|----------------|-----------------------------------------------------------------------------------------|
+| Admin panel    | `https://dns.example.com/admin` (LAN and VPN)                                           |
+| Password       | set by Ansible via `pihole setpassword`, from `local.yml`                               |
+| Split DNS      | `ansible/roles/deploy/templates/pihole-05-homelab.conf.j2`                              |
+| Upstream       | `dnsproxy` sidecar, `network_mode: service:pihole`                                      |
+| Config and DB  | `/mnt/data/services/pihole/etc/` (`pihole.toml`, `pihole-FTL.db`, `gravity.db`)         |
+| Custom dnsmasq | `/mnt/data/services/pihole/dnsmasq/`                                                    |
+| Logs           | `/var/log/pihole`, container writable layer, not persisted                              |
+| Backup         | restic, `/mnt/data/services` minus `pihole-FTL.db` (query history, excluded on purpose) |
 
 ## Router setup
 
@@ -84,13 +84,14 @@ Exempted devices are recorded in `pihole_bypass_clients` (list of `{ mac, label 
 
 ## Logs
 
-- `/var/log/pihole` is not persisted, on purpose: `pihole-FTL.db` already holds every query and is
-  backed up. The writable layer is on the HDD (`/mnt/data/docker`).
+- `/var/log/pihole` is not persisted, on purpose: `pihole-FTL.db` already holds every query. It is
+  excluded from the backup too, so the query history does not survive a restore. The writable layer is on the HDD (`/mnt/data/docker`).
 - `pihole.log` rotates with `copytruncate`, from a file this repo owns. The image's own rotation
   signals FTL to reopen and can fail silently, leaving FTL writing to the rotated file.
 - `FTL.log` and `webserver.log` keep the image's `create` rotation.
 - The only rotator is `pihole flush once quiet` (cron, midnight), which runs
-  `logrotate --force`. So every stanza rotates daily; `rotate 21` keeps three weeks.
+  `logrotate --force`. So every stanza rotates daily; `rotate 21` keeps three weeks of
+  `FTL.log` and `webserver.log`, `pihole.log` keeps 5 days.
   Empty logs are not rotated (`notifempty`).
 
 `pihole-ftl-writes-the-current-log` checks which file FTL actually has open. Run it on the host

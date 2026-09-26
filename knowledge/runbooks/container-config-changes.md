@@ -8,8 +8,9 @@ security options, mounts, users, image pins.
 Two failure modes matter:
 
 - **Crash loop.** The container never becomes usable and nothing on the Pi fixes it. The
-  heal timer only restarts containers that have *exited*, and `restart: unless-stopped`
-  keeps the loop alive.
+  heal timer restarts containers that exited non-zero, are `created`/`dead`, or have been
+  unhealthy for 15 minutes — never one caught in a restart loop, which
+  `restart: unless-stopped` keeps alive.
 - **Silent degradation.** The container is `healthy` and answers HTTP, but one function is
   dead (for example Kuma's ping monitors failing with `spawn EPERM` after a capability drop).
   For every service, ask what it *does* beyond answering.
@@ -123,7 +124,8 @@ link).
    ```
 
    Then check `docker inspect <svc> --format '{{range .Mounts}}...'`, restart once to prove
-   the mount survives, and clean up `docker volume ls -f dangling=true`.
+   the mount survives, and remove the anonymous volume this recreation left
+   (`docker volume rm <id>`), not every dangling volume: older ones can hold data.
 
 6. **Making a container read-only** ([ADR-019](../decisions/ADR-019-read-only-rootfs.md)):
    list the write set with `docker diff <container>`, then:
@@ -140,16 +142,9 @@ link).
 7. **Leave `/opt/homelab/compose.yaml` matching the running state.** A rolled-back container
    with a broken file comes back broken on the next `up` (heal timer, reboot, deploy).
 
-8. **Changing capabilities, `read_only` or `security_opt`: deploy with
-   `--tags deploy,observability`**, not `--tags deploy`. The posture check's expectations are
-   generated from `compose.yaml` into a goss spec by the observability role; without it, a
-   correct container is reported as drifted:
-
-   ```
-   wg-easy: caps [NET_ADMIN NET_RAW] want [NET_ADMIN NET_RAW SYS_MODULE]
-   ```
-
-   After a deploy, compare `sudo grep <service> /etc/goss/posture.yaml` with the compose
+8. **Changing capabilities, `read_only` or `security_opt`.** The posture check's expectations
+   are generated from `compose.yaml` into a goss spec. The render is `tags: always`, so any
+   tagged run, `--tags deploy` included, refreshes it. After a deploy, compare `sudo grep <service> /etc/goss/posture.yaml` with the compose
    block before chasing a posture finding.
 
 ## Restarting a container that others share a namespace with
@@ -182,7 +177,8 @@ pair in order. By hand, the fix depends on the trigger:
   docker compose up -d --force-recreate dnsproxy
   ```
 
-The handler logic is in `ansible/roles/deploy/tasks/compose.yml`.
+The handler is in `ansible/roles/deploy/handlers/main.yml`; the recreate case is handled by a
+task in `ansible/roles/deploy/tasks/compose.yml`.
 
 Before restarting anything, check what rides on its namespace:
 
