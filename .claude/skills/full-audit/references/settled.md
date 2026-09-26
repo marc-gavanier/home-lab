@@ -24,6 +24,49 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-09-26 (SIXTEENTH run) — key `propagation`, one PR, deployed from the branch before merge
+
+- **The homelab's `pending` monitor now asks `needrestart -b`** once dpkg has
+  changed since boot: a service needrestart excludes or suspends keeps a replaced
+  library until a reboot, and only apparmor, dbus, libc6 and libpam0g write
+  `reboot-required`. In batch mode needrestart lists excluded services too and
+  never restarts anything (read in its source).
+- **The four `/etc/hosts` / cloud-init pins carry a `regexp:`**, so a changed
+  `homelab_ip` replaces the line instead of appending one behind the old.
+- **`rotate-a-secret.md`: replace any offline copy of a restic password before
+  removing the old key.**
+- **Documentation**: the posture message and network page on re-importing VPN
+  client configs and the unwatched LAN subnet; how to tell a stale LUKS header
+  copy; the heal timer skips exit code 0; Miniflux's datadir is lost on `down`,
+  not on `--force-recreate`; `run-before` destroys restored dumps on ANY run;
+  12 pointers to comments #390 removed; ADR-007/013/015/017/012, pihole,
+  wireguard-peer-revocation, container-config-changes.
+
+## Decisions taken on 2026-09-26 (sixteenth run) — do not re-propose
+
+- **The operator's rule for this run, and for fixes in general: if the fix costs
+  more than it pays, even for an important gap, don't build it.**
+- **No guard on the `deploy` handlers against a lost handler queue (C84).** An
+  interrupted deploy (Ctrl-C, lost SSH, a failing earlier handler) can leave a
+  service on its old config with a `changed=0` next run; `force_handlers` covers
+  none of it. Accepted and documented in `.claude/agents/ansible-deploy.md`.
+- **No needrestart check on the offsite.** Its excluded services wait for the
+  next kernel auto-reboot.
+- **The LAN subnet stays hard-coded and unwatched**, documented as accepted in
+  `docs/04-network/README.md`.
+
+## Instrument traps paid on 2026-09-26 (sixteenth run)
+
+- **`tr -d "\x27"` deletes the characters x, 2 and 7**, not a quote.
+- **A trailing newline changes a hash**, and `jq -r`, `cat` and command
+  substitution disagree on it — normalise both sides before comparing.
+- **`ExecMainStartTimestamp` of early-boot units can be ~40 h off the wall
+  clock** (pre-NTP), far more than the ~73-100 s recorded earlier. Compare
+  monotonic timestamps.
+- **`needrestart -b` costs 4-6 s of CPU on a Pi**: gate it.
+- **Every agent that needed a scratch file wrote one to `/dev/shm` on the host.**
+  Pipe scripts through `ssh host 'sudo bash -s' <<'EOF'` instead.
+
 ## Shipped on 2026-09-26 (FIFTEENTH run) — key `truncation`, one PR, deployed from the branch before merge
 
 - **`-e deploy_services="a b"` deployed `a` only, with a clean recap.** Ansible
