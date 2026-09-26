@@ -67,6 +67,15 @@
             'diffie-hellman-group-exchange-sha256'] | join(',') }}
   notify: Restart SSH
 
+- name: ssh | Create the privilege separation directory at boot
+  ansible.builtin.copy:
+    dest: /etc/tmpfiles.d/sshd.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      d /run/sshd 0755 root root -
+
 # SSH is key-only and sudo is NOPASSWD, so the account password's only reachable
 # use was a local console login — and its hash sat on the unencrypted SD card,
 # crackable offline by anyone who reads the card. Lock it: `!` prefix on the

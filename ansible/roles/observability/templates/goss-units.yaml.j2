@@ -59,9 +59,12 @@ command:
   # until the moment somebody needs to get in — on the offsite host, potentially
   # for a week.
   #
-  # `sshd -t` is the exact gate `ssh.service` already runs as its ExecStartPre, so
+  # `sshd -t` is the gate `ssh.service` already runs as its ExecStartPre, so
   # this asserts what the activation itself would hit, without needing a
-  # connection to trigger it. Measured on both hosts 2026-09-06: rc=0.
+  # connection to trigger it. Measured on both hosts 2026-09-06: rc=0. It is not
+  # the exact same run: the unit's RuntimeDirectory creates /run/sshd first, and
+  # outside it `sshd -t` fails on a missing /run/sshd until the first connection
+  # after a boot. The security role's tmpfiles.d entry creates it at boot.
   sshd-config-is-loadable:
     exec: /usr/sbin/sshd -t
     exit-status: 0
