@@ -188,12 +188,18 @@ here is GATED except the nine GATED classes: C01 and every ENUMERATED class can
 reopen on the next change that nobody re-reads. "Finished" means the known
 perimeter is swept and two fresh keys found no new one — not that it will stay so.
 
+**It did not stay so for an hour.** `fbcf389` rewrote 47 documentation files the
+same evening, which reopened C01 by construction; the seventeenth run re-enumerated
+the 373 rewritten sections. Its key, `provenance`, then minted **two** classes
+(C125, C126). **Consecutive zero-mint runs: 0.** The OPEN table is empty again, so
+the first half of the criterion holds and the second starts over.
+
 ---
 
 # The register
 
 Runs of 2026-08-15 through 2026-09-21 (TWELFTH run, key `durability`).
-**Current state: see the OPEN table after the FOURTEENTH run of 2026-09-26 (key `precedence`) — 124 classes, 2 OPEN (C124, C01). The counts below this line are the twelfth run's.**
+**Current state: see the OPEN table after the SEVENTEENTH run of 2026-09-26 (key `provenance`) — 126 classes, 0 OPEN. The counts below this line are the twelfth run's.**
 **121 recorded classes: 3 OPEN — and the membership is C121, C34 and C01,
 written as a list because every time this line carried a rule for reconstructing
 the count instead, the count was wrong. 9 GATED, 7 closed by decision, plus the
@@ -550,10 +556,11 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
-## OPEN — 0 (after the C01 census of 2026-09-26)
+## OPEN — 0 (after the SEVENTEENTH run of 2026-09-26, key `provenance`)
 
-**Empty.** C01 left this table on 2026-09-26 evening, ENUMERATED by a census
-instead of another lexical slice — see "The C01 census of 2026-09-26" below.
+**Empty.** C01 reopened when `fbcf389` rewrote 47 files and left again the same
+night, 373/373 rewritten sections re-enumerated. C125 and C126 were minted and
+enumerated in the same run — see "The run of 2026-09-26 (SEVENTEENTH)" below.
 
 ---
 
@@ -596,6 +603,8 @@ sketched by `ansible-deploy` was judged a list-gate and not built.
 | ID | Property | What bounds the space, and what stopped the sweep |
 |---|---|---|
 | C124 | **A drop-in that REPLACES a compound value (hash, list, set) it meant to EXTEND** — the repository's source wins, as intended, but at the grain of the whole value, so every entry the vendor or a lower layer carried is silently dropped | **MINTED 2026-09-26 (fourteenth run), key `precedence`.** Named independently by `system` and `security`. It contradicts C123's property — here the repository WINS — so it cannot be a form of it; it is the mirror of C86 (C86 loses what a default gains later, C124 loses what the default already held). One instance: `/etc/needrestart/conf.d/99-homelab.conf` reassigned `$nrconf{override_rc} = {...}` and cut the vendor's 43 exclusions to 2, on both hosts — the whole cause of the dbus restarts behind `df858ee` and `81217b5`. **Fixed 2026-09-26** (key-by-key assignment, 44 effective). **What stops closure: the space was not counted.** It is every repository-written fragment, in a system that merges fragments, that assigns a compound value — needrestart hashes, sshd algorithm lists (the `-` / `+` forms are subtractive/additive, a bare list replaces), apt list options, fail2ban `ignoreip`, `daemon.json` arrays, Traefik list options, compose lists merged across files. Neither agent stated N for it. No gate |
+| C125 | **A channel that delivers secrets or authority to a peer whose identity it does not verify** | **MINTED and ENUMERATED 2026-09-26 (seventeenth run)**: `security` 24/24 trust anchors (TLS verification, SSH host-key checking in `ansible.cfg`, `~/.ssh/config`, `ops/`, deployed scripts, CI, Kuma), `backup` 16/16 transport pairs. 1 instance, `ansible.cfg` `host_key_checking = False`: a LAN host impersonating the Pi during a play received the vault. Fixed. Not GATED |
+| C126 | **Bytes that run or hold authority, fetched with no integrity reference independent of the channel that serves them** — no checksum, a checksum from the same release, or content refreshed at run time from an unpinned source | **MINTED and ENUMERATED 2026-09-26 (seventeenth run)**: `ansible-deploy` 46/46 fetch tasks, `system` 38/38, `services` 64/64, `observability` 20/20. 6 instances: Docker apt key (fixed, pinned); LibreSign JRE, Claude Code installer, Prowlarr definitions, SearXNG ClearURLs rules, Immich models (accepted, documented). TLS to the publisher plus a pinned version is the accepted base, not an instance |
 | C01 | **A documentary statement whose content contradicts the deployed artefact** | **ONE MORE STRATUM CLOSED, the class is not.** Added 2026-09-26: **the `precedence` slice of `docs/`+`knowledge/` 134/134** — every statement saying where a value is set, who controls it or which source wins, cut by a written lexical rule: 118 clean, 8 partial, 1 contradicted, 7 not checkable. Residual, declared: a precedence instruction with no trigger word escapes the rule, and the costliest one of the run (`notify-push-troubleshooting.md` telling the operator to edit `NEXTCLOUD_TRUSTED_DOMAINS`) was found that way. Previously: `ansible/` 176/176, `docker/` 10/10, `ops/` 156/156, `usb-tamper`/`killswitch` 121/121, instruction files 123/123, the RENDERED stratum 53/53, the `durability` slice 24/24, the `initiality` slice 75/75. What remains is the rest of the documentary prose |
 
 **C122 LEFT this table, ENUMERATED at 530/530 + 55/55.** `ansible-deploy` swept
@@ -1108,6 +1117,72 @@ separate correction — **the marker is not a provenance instrument.**
 C92 and C03-R were closed as review rules once their spaces proved non-derivable.
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
+
+## The run of 2026-09-26 (SEVENTEENTH) — the key was `provenance`, and it minted two
+
+The key, **invented**: **for every byte that runs or holds authority and comes from
+outside, is its issuer authenticated, and would anything notice a substituted
+source?** Four forms: (V1) no integrity check, (V2) a check whose reference comes
+through the same channel, (V3) a trust anchor disabled or too broad, (V4) authority
+content fetched at run time from an unpinned source. The operator first chose it in
+the "orphan on the host" sense; that is `residue` R1 and C87, already closed, so it
+was reframed before launch. TLS to the publisher plus a pinned version was declared
+the accepted base.
+
+### The counter: 1 OPEN in (C01, reopened by `fbcf389`), 0 OPEN out, 2 minted, class total 124 -> 126
+
+### C01 — the 373 sections `fbcf389` rewrote, 373/373
+
+Same census rule as below, partitioned by file over eight agents, each judging from
+`git diff dd4cf9a fbcf389` against the running hosts: 317 clean, 15 empty, 14 not
+checkable, 2 history, **18 contradicted, 7 partial**, all corrected. **About half
+predate the rewrite**: the 862/862 census had passed them. Plus one outside the 373:
+ADR-030 cited a paragraph the rewrite deleted, and a sweep of every relative link and
+anchor into the rewritten files (168/168 outgoing, 5/5 incoming, 12/12 textual)
+found no other. The costliest: `shred` on a `/root` glob that no user shell can
+expand, a bare `restic unlock` that reaches the local repo from the offsite section,
+a manual offsite prune that leaves root-owned files `rest-server` cannot read, a
+count and an irreversible `scan --full` merged in one paste, "clean up every
+dangling volume" beside a 48 MB PostgreSQL cluster, and `--tags deploy` said to leave
+stale posture expectations when the render has been `tags: always` since 8763306.
+
+### The `provenance` sweep
+
+| Domain | Pairs | Instances |
+|---|---|---|
+| `system` | 38/38 (both hosts) | C126 (Docker apt key) |
+| `security` | 24/24 trust anchors | **C125** |
+| `network` | 22/22 | C120 (blocklist floor of 1) |
+| `services` | 64/64 (32 images, 32 run-time slots) | C126 ×4 (Prowlarr, SearXNG, Immich models, LibreSign JRE) |
+| `backup` | 16/16 | C125 (same line) |
+| `observability` | 20/20 | C126 (Claude Code installer), C87 (4.8 G under `/home/claude`) |
+| `ansible-deploy` | 46/46 fetch tasks | C125, C126 ×2 |
+
+32/32 images come from their publisher's own namespace; TLS verification is on
+everywhere, 37/37 monitors included; the global apt keyring holds no third-party key.
+
+### Shipped
+
+1. **C125: `host_key_checking = False` removed from `ansible.cfg`** (there since the
+   first commit). Three agents found it independently; reproduced with a wrong key:
+   exit 0 with it, 255 without.
+2. **C126: the Docker apt key is pinned by sha256** (`docker_gpg_sha256`), the
+   value taken from the host key whose fingerprint is Docker's and matched upstream.
+3. The auto-updating sources documented as accepted on their pages.
+4. All 25 C01 corrections, the ADR-030 pointer, and the host-key step in
+   `installation.md`.
+
+### Rejected or requalified
+
+- `network`'s blocklist floor: C120, not a mint. Its fix was declined.
+- `observability`'s Claude Code self-update: C126, not C108 (not an image).
+- `backup`'s `resticprofile -n offsite unlock` fix: not verified —
+  `--dry-run` shows `--repo=<no value>`. The runbook exports the offsite variables
+  instead, the same ones its `restic check` step already uses.
+- `system`'s claim that the root fsck claim was false on both hosts: homelab did a
+  full check this boot; only the offsite (previous boot under 24 h) did not.
+
+---
 
 ## The C01 census of 2026-09-26 — the class closed by enumeration, not by another slice
 
@@ -7848,7 +7923,7 @@ Seven in the morning, C09 in the evening. C02's row records its downgrade.
 
 | ID | Property | Outcome |
 |-----|----------------------------------------------|--------------------------------------------|
-| C01 | A documentary statement whose content contradicts the deployed artefact | **ENUMERATED 2026-09-26 evening by a CENSUS, 862/862 sections of the 93 documentation files** — 554 clean, 86 history, 49 not checkable, 37 empty, 99 contradicted and 37 partial, all corrected; see "The C01 census of 2026-09-26". Not GATED: any prose change can reopen it. Earlier history: **REOPENED 2026-09-20 (tenth run) — read the OPEN table, not this row. It had been CLOSED 2026-09-19 (second run), 123/123 referents, 12 contradicted — it is in NO summary table, so read this row, not a pointer. The words "see the OPEN table" stood here after C01 had left it; corrected 2026-09-20.** Previously ENUMERATED, not GATED, and the distinction is the honest part. Bounded at last: **472 machine-checkable claim occurrences across 81 files, 218 distinct referents** (121 absolute paths, 29 containers, 26 quoted thresholds, 23 units, 19 goss/alarm names). Twelve instances corrected in #284. Free prose cannot be gated; what replaces a gate is **duplication removal** — where a document lists something the machine owns, print the command that regenerates it instead. Applied three times in #284. Its **temporal slice** was swept to completion on 2026-08-29 evening — N=88 from 389 candidate lines across 63 files, 88/88, 68 exact and **20 contradicted** — and is tracked as **#293** | **What reopened it**: all 218 referents are of five machine-checkable kinds (paths, containers, thresholds, units, goss/alarm names). A claim about a THIRD PARTY'S CAPABILITY is a sixth kind and was never in the space; three instances were found on 2026-09-11 by three domains using three different instruments. **What reopened it the SECOND time**: all 81 files of its space are DOCUMENTATION files — `docs/`, `knowledge/`, then `.claude/agents/*.md` and `CLAUDE.md`. A comment in `ansible/**/*.yml`, `ops/*.sh` or `compose.yaml` is a documentary statement and was never in the space; four instances were found there on 2026-09-20 by four agents with no contact. Bounded by a FILE TYPE while the property is not — eleventh payment of that shape | **UPDATED 2026-09-20 (eleventh run): BOUNDED AT LAST — the file set is the repo's tracked files that CARRY COMMENTS: 198 files, 13 757 comment lines, 11 666 prose statements. Swept `ansible/` 176/176, `docker/` 10/10, `ops/` 156/156, `usb-tamper`+`killswitch` 121/121 CLEAN. REOPENED a THIRD time: a comment in a RENDERED file (`/etc/goss/posture.yaml`, the systemd units) has never been in any space, and 2 instances live only there. Twelfth payment of the wrong-axis shape. Read the OPEN table.**
+| C01 | A documentary statement whose content contradicts the deployed artefact | **RE-ENUMERATED 2026-09-26 night (seventeenth run), 373/373 sections rewritten by `fbcf389`** — 18 contradicted, 7 partial, all corrected. **ENUMERATED 2026-09-26 evening by a CENSUS, 862/862 sections of the 93 documentation files** — 554 clean, 86 history, 49 not checkable, 37 empty, 99 contradicted and 37 partial, all corrected; see "The C01 census of 2026-09-26". Not GATED: any prose change can reopen it. Earlier history: **REOPENED 2026-09-20 (tenth run) — read the OPEN table, not this row. It had been CLOSED 2026-09-19 (second run), 123/123 referents, 12 contradicted — it is in NO summary table, so read this row, not a pointer. The words "see the OPEN table" stood here after C01 had left it; corrected 2026-09-20.** Previously ENUMERATED, not GATED, and the distinction is the honest part. Bounded at last: **472 machine-checkable claim occurrences across 81 files, 218 distinct referents** (121 absolute paths, 29 containers, 26 quoted thresholds, 23 units, 19 goss/alarm names). Twelve instances corrected in #284. Free prose cannot be gated; what replaces a gate is **duplication removal** — where a document lists something the machine owns, print the command that regenerates it instead. Applied three times in #284. Its **temporal slice** was swept to completion on 2026-08-29 evening — N=88 from 389 candidate lines across 63 files, 88/88, 68 exact and **20 contradicted** — and is tracked as **#293** | **What reopened it**: all 218 referents are of five machine-checkable kinds (paths, containers, thresholds, units, goss/alarm names). A claim about a THIRD PARTY'S CAPABILITY is a sixth kind and was never in the space; three instances were found on 2026-09-11 by three domains using three different instruments. **What reopened it the SECOND time**: all 81 files of its space are DOCUMENTATION files — `docs/`, `knowledge/`, then `.claude/agents/*.md` and `CLAUDE.md`. A comment in `ansible/**/*.yml`, `ops/*.sh` or `compose.yaml` is a documentary statement and was never in the space; four instances were found there on 2026-09-20 by four agents with no contact. Bounded by a FILE TYPE while the property is not — eleventh payment of that shape | **UPDATED 2026-09-20 (eleventh run): BOUNDED AT LAST — the file set is the repo's tracked files that CARRY COMMENTS: 198 files, 13 757 comment lines, 11 666 prose statements. Swept `ansible/` 176/176, `docker/` 10/10, `ops/` 156/156, `usb-tamper`+`killswitch` 121/121 CLEAN. REOPENED a THIRD time: a comment in a RENDERED file (`/etc/goss/posture.yaml`, the systemd units) has never been in any space, and 2 instances live only there. Twelfth payment of the wrong-axis shape. Read the OPEN table.**
 | C02 | A control on the homelab with no counterpart on the offsite host | **ENUMERATED, not GATED** — recorded GATED by #285 on 2026-08-29 morning and downgraded the same evening. #285 gave the offsite `rest-server`, `wg-quick@wg0`, `ssh`, `fail2ban`, a `--failed` catch-all, ufw by its rules, and `offsite-wg-reresolve.timer`, and corrected its two SMART assertions. But a list of seven assertions is not a gate on the property, and the eighth instance was found the same day |
 | C09 | Work a container schedules for itself, on a period no sweep window catches | **ENUMERATED 28/28**, closed 2026-08-29 evening after being named un-enumerated on 08-22 and sampled by three runs. Four axes: processes by cgroup from the host, cron files including `/etc/crontabs`, application schedulers queried in their own state, clocks. 4 containers carry an internal crond (1 inert), 11 an application scheduler, 4 databases an internal maintenance, 11 schedule nothing. **1 instance**: two Miniflux feeds of 119 reached `parsing_error_count = 3`, which excludes them from the scheduling query while leaving `disabled` false — feed 89 unpolled since 2026-08-20 and unable to recover on its own (tracked as **#294**). Also established: 25 of 28 containers run at UTC, with no job landing in the backup window |
 | C03 | A validation whose instrument answers a different question from the one its comment claims | **ENUMERATED, and its space restated on 2026-08-30 (#289).** It had been scoped to *the four goss specs on both hosts* — the directory the first sweep happened to be reading — rather than to the property, which is the scope trap this register already records from 2026-08-22. Restated: **every guard in the repo that decides whether a downstream step may trust a value**, swept as 20 shell artefacts × their guard sites. First sweep (goss specs): `zcat \| tail` swallowing the CRC verdict, and `redis-cli ping` exiting 0 on an error reply. Re-sweep under the restated space, **3 more**: the netdata adapter's retry, guarded on "the body is not empty" while the caller needed "the alarms parsed" — the only one **observed**, one run logging `answered on attempt 3` and `unreachable or unparseable` together; and two latent siblings, `feed-digest.sh` reading a 200 that is not an entries page as "nothing unread" and pushing UP, and `cloudflare-ddns.sh` guarding a raw body for emptiness while consuming a derivation of it, which answers a malformed 200 by creating a duplicate record. All five fixed, all five proven to fail on purpose first |
