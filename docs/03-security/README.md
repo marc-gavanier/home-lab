@@ -150,7 +150,7 @@ Defense in depth — each layer is secured independently. If one layer falls, th
   the socket. (Netdata uses it solely to resolve container names.)
 - No `privileged` mode, and **`cap_drop: ALL` on every service**, each re-adding
   only what its image was *observed* to need (issue #24). Docker hands 14
-  capabilities to every container by default; fifteen of the twenty-eight keep none.
+  capabilities to every container by default; sixteen of the thirty-two keep none.
   What the exercise showed is that the requirement is rarely guessable from the
   outside: Pi-hole needs `SETFCAP` because its image `setcap`s the FTL binary in
   order to run the resolver as non-root, wg-easy needs `NET_RAW` because
@@ -225,7 +225,8 @@ Defense in depth — each layer is secured independently. If one layer falls, th
   nosniff and a per-IP rate cap applied at the Traefik entrypoint
 - Isolated Docker networks (`proxy` / `internal` / `socketproxy`); the DB tier
   lives on `internal` only — never proxied, never published
-- No directly exposed service ports — everything routes through Traefik (vpn-only)
+- No web UI published directly — every one routes through Traefik (vpn-only); the only
+  published ports are DNS, WireGuard and Transmission's peer port
 - **Read-only rootfs on 23 of the 32 services** (ADR-019, issue #32) — a
   compromised process cannot rewrite the code it runs, drop a binary, or persist
   anything outside the paths we declared. Every writable path is explicit: a

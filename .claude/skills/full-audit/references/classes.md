@@ -163,6 +163,11 @@ the parts of scale that leave a trace already (retention windows, growth rates
 in netdata, a store whose oldest record is younger than its own period) over the
 parts that need a thought experiment.
 
+**On 2026-09-26 `truncation` minted zero, and the count stands at one again.**
+It carries the same warning `substitution` did: its one live defect went to a
+class that already owned the property (C77). The second consecutive zero has to
+come from a key that turns on a different dimension.
+
 ---
 
 # The register
@@ -525,7 +530,26 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
-## OPEN — 2 (after the FOURTEENTH run of 2026-09-26, key `precedence`)
+## OPEN — 1 (after the FIFTEENTH run of 2026-09-26, key `truncation`)
+
+| ID | Property | What bounds the space, and what stopped the sweep |
+|---|---|---|
+| C01 | **A documentary statement whose content contradicts the deployed artefact** | **ONE MORE STRATUM CLOSED, the class is not.** Added 2026-09-26 (fifteenth run): **the `truncation` slice of `docs/`+`knowledge/`+README 81/81** — every statement quantifying a collection or a mechanism's coverage (`all/every/each`, `the last/first N`, a count, `complete/entire/whole`), cut by a written lexical rule over 86 files: 71 clean, 3 partial, 2 contradicted, 5 not checkable, all corrected; plus the runbooks' bounded reads 24/24, 0 hiding the deciding line. Residual, declared: numbers written as words, negative universals (`no/none/never/only`), `both/either`, bare plurals. Earlier the same day: **the `precedence` slice of `docs/`+`knowledge/` 134/134** — every statement saying where a value is set, who controls it or which source wins, cut by a written lexical rule: 118 clean, 8 partial, 1 contradicted, 7 not checkable. Residual, declared: a precedence instruction with no trigger word escapes the rule, and the costliest one of the run (`notify-push-troubleshooting.md` telling the operator to edit `NEXTCLOUD_TRUSTED_DOMAINS`) was found that way. Previously: `ansible/` 176/176, `docker/` 10/10, `ops/` 156/156, `usb-tamper`/`killswitch` 121/121, instruction files 123/123, the RENDERED stratum 53/53, the `durability` slice 24/24, the `initiality` slice 75/75. What remains is the rest of the documentary prose |
+
+**C124 LEFT this table, ENUMERATED by two complementary bounds** — the host side
+122/122 (key, host) pairs (`system` 26, `security` 47, `network` 20, `services`
+17, `observability` 12) and the repository side 149/149 (site, compound key)
+pairs from `ansible-deploy` (78 host fragments: 48 EXTEND, 30 intended REPLACE;
+71 `compose.yaml` keys laid over image or daemon config, all intended). One
+instance in all, the needrestart `override_rc` fixed on 2026-09-26 morning,
+re-measured at 44 effective keys on both hosts. Not GATED: the pre-commit gate
+sketched by `ansible-deploy` was judged a list-gate and not built.
+
+---
+
+## SUPERSEDED — OPEN table of the FOURTEENTH run of 2026-09-26, key `precedence`
+
+### It read: OPEN — 2 (after the FOURTEENTH run of 2026-09-26, key `precedence`)
 
 | ID | Property | What bounds the space, and what stopped the sweep |
 |---|---|---|
@@ -627,7 +651,7 @@ threshold, 2026-08-31 to 09-02 — leaves no retained transition, with a positiv
 control. The main session re-measured the practical bound at 1 000 entries
 spanning 0.37 day through `api/v1/alarm_log`. **Any verdict of the form "this
 guard has never tripped" drawn from that store is a false negative beyond a few
-days.** Raised to `60d` / 5 000 entries on 2026-09-21.
+days.** Raised to `60d` / 5 000 entries on 2026-09-21. **Corrected 2026-09-26 (fifteenth run): the 1 000 was never a retention.** `api/v1/alarm_log` returns the newest N transitions, N being the in-memory entry count — 5 000 now, 2 h 36 min tonight — while `netdata-meta.db` holds the 60 days (53 907 rows). Read the database `mode=ro`, or the metric range.
 
 ---
 
@@ -1043,6 +1067,94 @@ C92 and C03-R were closed as review rules once their spaces proved non-derivable
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
 
+## The run of 2026-09-26 (FIFTEENTH) — the key was `truncation`, and it minted nothing
+
+The key, **invented**, and chosen by the operator from three candidates put with
+their weakness first (`truncation`, `inheritance`, `exhaustion`): **when a
+mechanism reads a collection, does it read ALL of it — and if not, can anyone
+tell?** Four forms: (T1) a paginated API read on its first page, (T2) a
+line-bounded window (`head`, `tail -n`, `--tail`, `LIMIT`, jq `first`), (T3) one
+element cut to a length, (T4) "the first found" where several exist. The
+discriminator, both halves mandatory: the bound is REACHABLE (measured size, or
+measured growth, against it) AND the reader's output does not distinguish "saw
+all" from "hit the bound". Eight overlaps declared instance-only: C08, C09, C44,
+C68, C73, C107, C114, C124.
+
+### The counter: 2 OPEN in, 1 OPEN out, 0 minted, class total 124 -> 124
+
+C124 left (ENUMERATED, two bounds). C01 stays. **The consecutive zero-mint count
+goes from 0 to 1** — the first zero since `substitution`. The warning that
+belongs beside it, the same one written then: this zero was earned partly by
+filing the run's one live defect under C77, whose property fits exactly but whose
+non-secret slice had been declined — a zero obtained by assignment reads the same
+here as one obtained by an empty search. The next run must use a different key.
+
+### The sweep
+
+| Domain | Readers swept | Instances | Latent (size / bound) |
+|---|---|---|---|
+| `system` | 18/18 | 0 | 4 (16-bit SMART hour counter wraps LOUDLY; first `SystemMaxUse=` 1/1; first WG peer 1/1 ×2) |
+| `security` | 16/16 | 0 | 4 (fail2ban across rotation; `allowusers` first line 1/1; lynis msg 145) |
+| `network` | 23/23 | 0 | 7, all 1/≥1 (Cloudflare zone listing filtered by exact name; `dig | head -1` 21/21 single A; `IPAM.Config[0]`) |
+| `services` | 60/60 | **1** (C77, below) | Miniflux batch 100 < 119 feeds and *arr RSS page 100, both reached and harmless |
+| `backup` | 37/37 | 0 | 7 (`pgrep | head -1` 1/1; dump marker in `tail -c 4096`, re-measured by the main session on a live schema dump) |
+| `observability` | 24/24 | 0 | 2, one of them the Discord field below |
+| `ansible-deploy` | 45/45 + 62 script lines handed over, 3 classified | 0 | feed-digest `limit=400` REACHED (4 419 unread max) but SIGNALLED — WARNING + "N carried over" |
+| `project-manager` | 24/24 runbook reads | 0 | `tail -500 nextcloud.log` 57 lines tonight |
+
+Residual, declared: the 62 script lines `ansible-deploy` listed were classified
+only where a domain agent covered the same script.
+
+### Live defects shipped, ranked by what was happening without anyone knowing
+
+1. **`-e deploy_services="a b"` deployed `a` only** (C77, CLI slice). Reproduced
+   by the main session: `deploy_services` = `netdata`, `_raw_params` = the rest.
+   15 runs in the operator's history, the last 2026-09-25. The operator's memory
+   had recorded the trap on 2026-09-19; the repository's agent file still taught
+   the broken form. GATED by an `always` assert on both playbooks, red on the
+   broken form and green on both working forms.
+2. **The UFW→fail2ban handler did nothing.** `after.rules` declares
+   `:DOCKER-USER - [0:0]`, so every `ufw reload` flushes the jail jumps; a plain
+   `reload` runs the empty `actionreload`. Reproduced by the main session in a
+   namespace with the hosts' fail2ban 1.0.2: jump gone after `reload`, back after
+   `reload --restart`. Impact nil today (80/443 not forwarded, 2 bans ever).
+   Filed as an instance of C115's shape — a remedy whose success was never
+   checked — in the handler layer C115's runbook sweep never covered; not a mint.
+3. **A DOWN over 1 024 characters lost the WHOLE Discord alert** (T3, LATENT
+   0.70: 718 max ever). Capped at 1 000 in the three pushers that aggregate.
+
+### Documentary corrections shipped
+
+Eight, listed in `settled.md`. The one that would have cost most:
+`rotate-a-secret.md` quoted a success line that does not exist, in the journal
+the step reads.
+
+### Rejected, requalified or corrected — 4
+
+- `services` offered `deploy_services` as a mint — **requalified** as C77.
+- `security` filed the handler as a precedence P3 — **requalified** under C115's
+  shape.
+- `security` SUSPECTED the ufw checks ignore a rule's source address (C107) —
+  **not verified**, recorded as a lead.
+- `observability` corrected this register twice: the netdata alarm log bound is a
+  COUNT (see the twelfth run's text, amended), and C03-T's lookback is hard-coded.
+
+### Instrument traps paid — 4, and TWO were the main session's
+
+See `settled.md`. The main session read an empty `iptables-save` as meaningful
+(chains are created on the first ban), and its own nested `{% raw %}` broke a
+template before the render test caught it.
+
+### Rule-5 deviations, declared
+
+`services` created and removed `/tmp/.i` on homelab; `security` and the main
+session wrote 4 ERROR lines into `fail2ban.log` through `fail2ban-client get`;
+`network` ran a 2-minute `grep` inside wg-easy; `project-manager` ran two manual
+`goss validate` (no push); the main session ran a schema-only `pg_dump` of
+Miniflux to stdout. 0 failed units afterwards.
+
+---
+
 ## The run of 2026-09-26 (FOURTEENTH) — the key was `precedence`, and the worst finding was the cause of the previous day's fix
 
 The key, **invented**, and the one this register had set aside twice for the
@@ -1321,6 +1433,8 @@ caught by re-reading and by writing the derivation down rather than by testing.
    entries over 0.37 day. **This bounds the audit's own method**, and C120's
    closure was written to rest on metric ranges rather than on this store.
    Raised to `health log retention = 60d` and 5 000 in-memory entries.
+   **Corrected 2026-09-26: `api/v1/alarm_log` is bounded by that COUNT, not
+   by the retention** — the database keeps 60 days, the API shows 2 h 36 min.
 2. **`STARTUP_GRACE=300` against 787 s of measured startup** in the
    netdata->Kuma adapter. Six DOWN beats on 2026-09-20 saying "netdata up 310s
    and its health engine has evaluated no alarm"; monitors 35 and 37 red for
@@ -7612,7 +7726,7 @@ check, and it is stated as one.
 | C21 | A snapshot that missed its offsite copy and is never retried | **LEAVES THE GATED TABLE 2026-09-19 (fifth run) — DOWNGRADED TO ENUMERATED.** It is an ARGUMENT, not a gate, and that is now measured rather than suspected: over the 3 463 lines of deployed posture, **exactly one assertion opens `resticprofile.yaml` and it reads only the `library/` categories**; `grep snapshot` returns a single comment. Nothing reads `copy:`, and nothing compares the two snapshot sets — so a bound added to the deployed `copy:` would pass unnoticed and the copy would stay green. A structural guarantee plus a push monitor is not an assertion on the property. Historic text follows. **ROW STALE FOR THE THIRD TIME, and the stale word is "monitor" — there IS no retention monitor.** The guarantee is STRUCTURAL (`copy:` carries no bound, verified in the deployed file AND in `resticprofile show`) plus the copy push monitor. 91 offsite / 34 local snapshots, 0 locks on either, 2026-09-13. The class holds; the description has now been wrong three times. Formerly cited as the retention monitor (#158, #168). **The "time-window filter" this row used to name no longer exists** — re-verified 2026-09-03: `copy:` carries no bound, every snapshot is re-offered nightly, 31 local / 81 offsite with no gaps. The class holds; the description was stale for the second time |
 | C81 | A byte written into a file whose consumer reads it back through a narrower encoding than the producer's | `ops/check-ascii-system-files.py` in pre-commit, proven to fail in both directions (2026-09-04); re-exercised 2026-09-05 evening in a sandbox, 3 flags with both negative controls passing. **Its `marker:` half is derived; its path filter is a LIST OF ONE** — `ASCII_STRICT_PREFIXES = ("/etc/ufw/",)`. Kept GATED rather than downgraded because, unlike C17, no live instance has ever existed outside that prefix; its two blind spots (`*.yaml`, `.j2` into `/etc/ufw/`) are empty today |
 | C41 | A dead-man's fuse re-armed from zero by the restart of its own watchdog | `kuma-no-push-monitor-silent-past-its-own-window`, derived from Kuma's own monitor table and each monitor's `interval`, with a starvation guard; discriminates on 54 historical silences against 16 (2026-08-30) |
-| C03-T | A validation whose instrument answers a different question from the one its comment claims — **the decidable half, where the instrument can name its own "unknown"** | **REPAIRED AND RE-PROVEN 2026-09-13 (late evening): `h.status = 1` on both clauses, deployed and verified evaluating on the host (posture exit 0, no timeout). Re-proven off-host against a database that CONTAINS fabricated rows — five scenarios, old and new side by side: the mute reporter goes exit 0 -> exit 1, the discriminating twin stays exit 0 on both. The gate is GATED again.** It had been **RED SINCE THE DAY IT SHIPPED — see the run of 2026-09-13 (late evening). Kuma fabricates a DOWN beat every interval for any push monitor that is not UP; both clauses count `heartbeat` rows with NO `status` filter, so a mute reporter can never satisfy either. Verified live: 39 fabricated rows on 09-13, 36 for monitor 20, all `status=0`, against 164 real `status=1` rows the same day. The six-run fail-on-purpose proof used a SYNTHETIC database that by construction held only the rows the test wrote. Fix is `h.status = 1` — what C41 has used since 08-30 — NOT a match on the upstream English literal.** **RE-VERIFIED LIVE 2026-09-13 (night-second) and GREEN**: `h.status = 1` present on both clauses (`:3121`, `:3133`), the assertion evaluates, and the repaired branch has ACTUALLY EXECUTED (2 markers in-window, `lost=2`), posture exit 0 in 44 s. **Residual, stated rather than glossed: it has never yet completed a SCHEDULED run** — next 2026-09-14 11:04; its 09:05 run timed out at 45 s alongside three other assertions. And the fixture lesson re-applied to the REAL store: 75 GENUINE `status=0` pushes plus 61 PENDING rows that day mean a live reporter correctly reporting a failure is, to both clauses, indistinguishable from a mute one — **the direction is fail-safe, so the gate is not blind, but the sentence it prints can name the wrong cause.** `no-kuma-report-was-lost-in-silence`, `/etc/goss/posture.yaml:2995`, deployed 2026-09-13 14:15:44. Derived: the floor comes from Kuma's own `StartedAt`, the lookback cap from the timer's own period, and the silence test from each monitor's own `interval` — the same source C41 uses. **Made to fail on purpose 2026-09-13, off-host, against the deployed script verbatim with `docker`/`journalctl`/`sqlite3` stubbed and a synthetic Kuma database — six runs**: no marker -> exit 0; loss fully recovered -> exit 0; loss with nothing since -> exit 1, naming it; loss with a reporter past its own cadence -> exit 1, naming the reporter; **the discriminating twin — same clock, that reporter recovered -> exit 0**; floor unreadable -> exit 1, "refusing to judge" rather than passing. Nothing was written on either host and no heartbeat was sent |
+| C03-T | A validation whose instrument answers a different question from the one its comment claims — **the decidable half, where the instrument can name its own "unknown"** | **REPAIRED AND RE-PROVEN 2026-09-13 (late evening): `h.status = 1` on both clauses, deployed and verified evaluating on the host (posture exit 0, no timeout). Re-proven off-host against a database that CONTAINS fabricated rows — five scenarios, old and new side by side: the mute reporter goes exit 0 -> exit 1, the discriminating twin stays exit 0 on both. The gate is GATED again.** It had been **RED SINCE THE DAY IT SHIPPED — see the run of 2026-09-13 (late evening). Kuma fabricates a DOWN beat every interval for any push monitor that is not UP; both clauses count `heartbeat` rows with NO `status` filter, so a mute reporter can never satisfy either. Verified live: 39 fabricated rows on 09-13, 36 for monitor 20, all `status=0`, against 164 real `status=1` rows the same day. The six-run fail-on-purpose proof used a SYNTHETIC database that by construction held only the rows the test wrote. Fix is `h.status = 1` — what C41 has used since 08-30 — NOT a match on the upstream English literal.** **RE-VERIFIED LIVE 2026-09-13 (night-second) and GREEN**: `h.status = 1` present on both clauses (`:3121`, `:3133`), the assertion evaluates, and the repaired branch has ACTUALLY EXECUTED (2 markers in-window, `lost=2`), posture exit 0 in 44 s. **Residual, stated rather than glossed: it has never yet completed a SCHEDULED run** — next 2026-09-14 11:04; its 09:05 run timed out at 45 s alongside three other assertions. And the fixture lesson re-applied to the REAL store: 75 GENUINE `status=0` pushes plus 61 PENDING rows that day mean a live reporter correctly reporting a failure is, to both clauses, indistinguishable from a mute one — **the direction is fail-safe, so the gate is not blind, but the sentence it prints can name the wrong cause.** `no-kuma-report-was-lost-in-silence`, `/etc/goss/posture.yaml:2995`, deployed 2026-09-13 14:15:44. Derived: the floor comes from Kuma's own `StartedAt`, the lookback cap from the timer's own period (**corrected 2026-09-26: it is a hard-coded `26 * 3600`, `goss-posture.yaml.j2:1175`, not read from the timer**), and the silence test from each monitor's own `interval` — the same source C41 uses. **Made to fail on purpose 2026-09-13, off-host, against the deployed script verbatim with `docker`/`journalctl`/`sqlite3` stubbed and a synthetic Kuma database — six runs**: no marker -> exit 0; loss fully recovered -> exit 0; loss with nothing since -> exit 1, naming it; loss with a reporter past its own cadence -> exit 1, naming the reporter; **the discriminating twin — same clock, that reporter recovered -> exit 0**; floor unreadable -> exit 1, "refusing to judge" rather than passing. Nothing was written on either host and no heartbeat was sent |
 
 ### Broken gates found on 2026-08-30 — these are red tests, not audit results
 
@@ -7724,6 +7838,7 @@ them; do not re-derive without a new symptom.
 | C121 | **A token whose validity ends with an event, kept on a medium that outlives the event, with nothing to expire it** — the mirror of C39 | **ENUMERATED 2026-09-25 (thirteenth run) by EVENT**: boot 18/18, container recreation 43/43, deploy 23/23, interrupted run 13/13, security 6/6, network 6/6. Two inert instances recorded, not fixed. Not GATED |
 | C122 | A play whose task N consumes an artefact that only a later task M > N of the same play produces | **ENUMERATED 2026-09-26 (fourteenth run)**: 55/55 unit targets + 530/530 path/user/package/binary/handler pairs (site 401, offsite 129). Postfix instance left open by decision. Not GATED |
 | C123 | **A value declared in two or more places where the source the repository writes is not the one that resolves at run time** — (P1) the repository's source loses, (P2) an undeclared source overrides it, (P3) two consumers resolve it by different rules | **MINTED and ENUMERATED 2026-09-26 (fourteenth run)**, key `precedence`: `system` 188, `security` 255, `network` 33, `services` 100 env + fields, `backup` 23, `observability` 104, `ansible-deploy` 312. Instances: `NEXTCLOUD_MAINTENANCE_WINDOW_START` read by nobody (removed); glibc vs resolved on the homelab for 19 of 21 split-DNS names (documented); wg-easy per-client values vs its enforcer (documented); `base_url` in two SearXNG sources, equal; `TZ` hard-coded beside `timezone`, equal. Overlaps C13 (env shadowed by a persisted file), C78, C86. Residual: vault key names. Not GATED |
+| C124 | **A drop-in that REPLACES a compound value (hash, list, set) it meant to EXTEND** | **MINTED 2026-09-26 (fourteenth run), ENUMERATED 2026-09-26 (fifteenth run)** by two complementary bounds: host side 122/122 (key, host) pairs over five domains, repository side 149/149 (site, compound key) pairs. One instance ever, the needrestart `override_rc` (43 vendor exclusions cut to 2), fixed and re-measured at 44 on both hosts. No gate: a pre-commit list-gate was judged of low value | ENUMERATED |
 
 ## DECLINED
 
@@ -7786,6 +7901,12 @@ both with the instruction that they never be proposed again:**
   is enumerated 37/37 and its live defect is fixed; the rest is an unbounded read
   of the whole template tree for a class whose only demonstrated cost has been in
   secrets. Closed the way C66's tail was. Do not re-open it without an instance.
+  **Not re-opened on 2026-09-26 (fifteenth run)**: its one new instance — a
+  space-separated `-e deploy_services="a b"` value, which Ansible's `k=v` grammar
+  cuts at the space — lives in the operator's command line, not in a Jinja
+  interpolation, so it is outside the declined space. It is recorded as C77's
+  CLI slice, N=1 grammar, GATED by the `always` assert both playbooks open with,
+  made to fail on purpose the same day.
 
 **Added by the operator's arbitration of 2026-09-13 (night):**
 

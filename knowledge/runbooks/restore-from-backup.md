@@ -216,8 +216,8 @@ value it had before that morning's change to 700.
 ## Restore a database
 
 DB dumps are taken before each backup and captured in the snapshot at
-`/mnt/data/backups/dumps/`. They are deleted from disk after each run, so restore them from a
-snapshot first:
+`/mnt/data/backups/dumps/`. They are deleted from disk after each successful run (a failed run leaves them in place, and
+then they are the newest copy), so otherwise restore them from a snapshot first:
 
 ```bash
 sudo rm -rf /mnt/data/tmp/restore   # ALWAYS, first — see "The staging directory" above

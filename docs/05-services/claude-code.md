@@ -147,7 +147,7 @@ sudo -u claude sh -c 'cd ~/vault && ls'          # probe the function, not the u
 
 The same `claude` user runs one scheduled job: a daily digest that reads everything unread
 in [Miniflux](miniflux.md), has Claude summarise it, and writes a note into the vault
-(ADR-027). It exists because the 121 feeds in Miniflux were never meant to be read by a
+(ADR-027). It exists because the hundred-odd feeds in Miniflux were never meant to be read by a
 human — the reader is a corpus, this job is the interface.
 
 | Unit / file | Role |

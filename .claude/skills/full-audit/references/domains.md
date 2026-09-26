@@ -15,15 +15,26 @@ earlier — which would have sent eight agents to re-derive settled work. Rebuil
 it from `classes.md`'s OPEN table at the start of every run; if the two
 disagree, `classes.md` wins.
 
-As of the FOURTEENTH run of 2026-09-26, key `precedence`. **Rebuilt from
+As of the FIFTEENTH run of 2026-09-26, key `truncation`. **Rebuilt from
 `classes.md`'s OPEN table — do not trust this copy if the two disagree.**
 
-**TWO OPEN CLASSES, and here is the whole membership with its owner:**
+**ONE OPEN CLASS, and here is the whole membership with its owner:**
 
 | Class | Property | Owner | What is left |
 |---|---|---|---|
-| C124 | A drop-in that REPLACES a compound value it meant to EXTEND | `system` and `security`, with `observability`, `network` and `services` for their own fragments | MINTED 2026-09-26, one instance (needrestart `override_rc`), fixed. **State N first**: every repository-written fragment, in a system that merges fragments, that assigns a hash, list or set — then sweep it. `sshd` algorithm lists, apt list options, fail2ban `ignoreip`, `daemon.json` arrays, Traefik and compose lists are the obvious members |
-| C01 | A documentary statement whose content contradicts the deployed artefact | `project-manager`, with every domain feeding it | Swept: `ansible/` 176/176, `docker/` 10/10, `ops/` 156/156, `usb-tamper`+`killswitch` 121/121, instruction files 123/123, the RENDERED stratum 53/53, the `durability` slice 24/24, the `initiality` slice 75/75, **the `precedence` slice 134/134 (2026-09-26)**. What remains is the rest of the documentary prose |
+| C01 | A documentary statement whose content contradicts the deployed artefact | `project-manager`, with every domain feeding it | Swept: `ansible/` 176/176, `docker/` 10/10, `ops/` 156/156, `usb-tamper`+`killswitch` 121/121, instruction files 123/123, the RENDERED stratum 53/53, the `durability` slice 24/24, the `initiality` slice 75/75, the `precedence` slice 134/134, **the `truncation` slice 81/81 + runbook reads 24/24 (2026-09-26)**. What remains is the rest of the documentary prose |
+
+**C124 LEFT the OPEN column on 2026-09-26 (fifteenth run)**, ENUMERATED by two
+complementary bounds — host side 122/122 over five domains, repository side
+149/149 from `ansible-deploy`. Do not re-derive either.
+
+**Thirty-FOUR keys are now spent.** `truncation` was added 2026-09-26 (fifteenth
+run) — invented, chosen by the operator over `inheritance` and `exhaustion`,
+both still unspent; ZERO mints. `inheritance` (what does a process receive that
+nobody declared — umask, rlimits, fds, env from the Docker daemon, systemd or
+sudo) risks landing in `precedence`'s P2 and `substitution`'s (a); `exhaustion`
+(what does a mechanism do when a finite pool it draws from runs dry) overlaps
+`tolerance` and `scale`.
 
 **C119 and C120 both LEFT the OPEN column on 2026-09-21 — do not re-derive
 either.** C119: seven planes of seven, the last being `ansible-deploy`'s 31/31

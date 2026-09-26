@@ -159,7 +159,7 @@ authority that assigns it, or watched.**
 |---------|-------------|-------|-----------|
 | Public IPv4 | the ISP | — | **derived** — the DDNS job re-reads it every 15 min and pushes the record |
 | The offsite's endpoint | DHCP at the remote site | — | **derived** — `offsite-wg-reresolve` re-resolves the peer name, which is the recovery path a home address change needs |
-| homelab LAN address | the router, **one-day lease** | `<pi-lan-ip>`, hardcoded in 19 places including the resolver handed to every VPN client | **watched** — `lan-address-is-the-one-the-configuration-hardcodes` |
+| homelab LAN address | the router, **one-day lease** | `<pi-lan-ip>`, hardcoded through `homelab_ip` into every split-DNS record, the compose env and the resolver handed to every VPN client | **watched** — `lan-address-is-the-one-the-configuration-hardcodes` |
 | `proxy` network | Docker's default pool | `172.18.0.0/16` | **watched against both authorities** — `traefik-allowlist-covers-the-live-proxy-subnet` |
 | `homelab_internal` | Docker's default pool | `172.19.0.0/16` | **watched** — `docker-networks-are-where-the-configuration-expects-them` |
 | `homelab_socketproxy` | Docker's default pool | `172.20.0.0/16` | same assertion |
