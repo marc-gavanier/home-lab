@@ -170,7 +170,7 @@ services:
 
   pihole:
     stop_grace_period: 90s
-    image: pihole/pihole:2026.07.2
+    image: pihole/pihole:2026.09.0
     container_name: pihole
     restart: unless-stopped
     security_opt: *no-new-privs
@@ -218,7 +218,7 @@ services:
       start_period: 120s
 
   dnsproxy:
-    image: adguard/dnsproxy:v0.84.2
+    image: adguard/dnsproxy:v0.85.0
     container_name: dnsproxy
     restart: unless-stopped
     security_opt: *no-new-privs
@@ -363,7 +363,7 @@ services:
       start_period: 180s
 
   nextcloud-redis:
-    image: redis:8.10.1-alpine
+    image: redis:8.10.2-alpine
     container_name: nextcloud-redis
     restart: "no"
     security_opt: *no-new-privs
@@ -452,7 +452,7 @@ services:
       - "traefik.http.services.notify-push.loadbalancer.server.port=7867"
 
   collabora:
-    image: collabora/code:26.04.4.1.1
+    image: collabora/code:26.04.4.2.1
     healthcheck:
       start_period: 1320s
       start_interval: 15s
@@ -555,7 +555,7 @@ services:
       start_interval: 15s
 
   navidrome:
-    image: deluan/navidrome:0.64.0
+    image: deluan/navidrome:0.64.2
     container_name: navidrome
     restart: "no"
     security_opt: *no-new-privs
@@ -644,7 +644,7 @@ services:
       - internal
 
   immich-redis:
-    image: redis:8.10.1-alpine
+    image: redis:8.10.2-alpine
     container_name: immich-redis
     restart: "no"
     security_opt: *no-new-privs
@@ -951,7 +951,7 @@ services:
       - "traefik.http.services.netdata.loadbalancer.server.port=19999"
 
   dozzle:
-    image: amir20/dozzle:v11.1.0
+    image: amir20/dozzle:v11.1.1
     container_name: dozzle
     restart: "no"
     security_opt: *no-new-privs
