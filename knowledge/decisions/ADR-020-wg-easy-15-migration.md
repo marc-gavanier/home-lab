@@ -245,9 +245,12 @@ Two fields, chosen rather than swept up:
 | `mtu` | no | nothing has ever moved it, and it harms nothing if it does |
 | `persistentKeepalive` | no | a roaming phone behind a bad NAT has a real reason to want its own |
 
-The cost of asserting `allowedIps` is worth naming: a split-tunnel client now
-has to be expressed in the repository rather than clicked in the web UI. That is
-this ADR's model applied, not a side effect.
+The cost of asserting `allowedIps` is worth naming: a split-tunnel client can
+no longer be clicked in the web UI, because the next deploy puts it back to
+`WG_ALLOWED_IPS`. Nor can it yet be expressed in the repository: there is one
+value for every client and no per-client override. The two infrastructure peers
+that need a split tunnel keep it only in their own `wg0.conf`
+(`docs/05-services/wireguard.md`).
 
 **What it does not do.** These fields produce the configuration FILE at download
 time; they do not steer a running peer. Correcting a client here fixes what the

@@ -75,6 +75,13 @@ All services are **VPN-only**. The `vpn-only` middleware is applied globally on 
   `cat`, so reading that file from inside them answers "no embedded resolver"
   for two containers that have one. See
   the consequences section of ADR-015, which used to claim the wider perimeter.
+- **`resolvectl` is not the host's resolver — do not diagnose the host with it.**
+  The host resolves through glibc, which reads `/etc/resolv.conf`. `resolvectl`
+  asks systemd-resolved, which uses the DNS server `eth0` got from DHCP — Pi-hole —
+  so it answers like a LAN client: `192.168.1.100` for split-DNS names that the
+  host itself resolves to the public address, or not at all. Its answer also
+  changes with its cache. To see what the host resolves, use
+  `getent ahostsv4 <name>`.
 - The upstream is pinned in `compose.yaml` (`FTLCONF_dns_upstreams`), not the
   manual `pihole.toml` — version-controlled, no drift. See ADR-015.
 

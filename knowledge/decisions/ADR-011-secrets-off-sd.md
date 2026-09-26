@@ -30,8 +30,12 @@ docs are unchanged:
 | `/opt/homelab/backup.env`                   | `/mnt/data/secrets/backup.env`           |
 | ~~`/opt/homelab/configs/searxng/settings.yml`~~ (see note) | `/mnt/data/secrets/docker/searxng_settings` |
 | `/etc/wireguard/wg0.conf`                   | `/mnt/data/secrets/wg0.conf`             |
-| claude rclone config                        | `/mnt/data/secrets/claude/rclone.conf`   |
+| claude rclone config (`RCLONE_CONFIG`)      | `/mnt/data/secrets/claude/rclone.conf`   |
 | operator rclone config (`RCLONE_CONFIG`)    | `/mnt/data/secrets/<user>/rclone.conf`   |
+
+The two rclone rows have no historical path and no symlink: each reader is
+pointed at the file by `RCLONE_CONFIG`, set in the claude vault mount unit and
+in the operator's shell profile.
 
 > **Note (2026-07-27, issue #27)** — the SearXNG row is the one case where a
 > symlink could not work, and it is worth stating as a limit of this decision.

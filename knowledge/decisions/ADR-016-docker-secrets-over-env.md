@@ -44,6 +44,11 @@ Support was **verified per image** rather than assumed, since the images differ:
 `config.php`, so those variables were dead weight that leaked the DB password.
 Deleting them beats converting them.
 
+> **Amended 2026-09-26.** No longer true since 2026-09-01: the `nextcloud`
+> container mounts the `nextcloud_redis_password` secret and reads it through
+> `REDIS_HOST_PASSWORD_FILE`. The paragraph above still holds for `MYSQL_*` and
+> `NEXTCLOUD_ADMIN_*`.
+
 ### What stays in `environment:`
 
 One value only: wg-easy's `PASSWORD_HASH`. v14 reads
@@ -51,6 +56,11 @@ One value only: wg-easy's `PASSWORD_HASH`. v14 reads
 at tag `v14.0.0`), so no file convention exists to use. It is a bcrypt hash —
 offline-crackable at best, not replayable — which is why the residual risk is
 accepted rather than worked around with a wrapper entrypoint.
+
+> **Amended 2026-09-26.** wg-easy is on v15, which has no `PASSWORD_HASH`: the
+> admin credential lives in its own database and the deploy sets it through the
+> host-side `wg-easy-setup.env`, which no container reads. Nothing credential-
+> bearing is left in `environment:`.
 
 Vaultwarden's Argon2 token and Traefik's Cloudflare token were both in this
 category earlier; both now mount as secrets. The Cloudflare one mattered most:
@@ -67,8 +77,9 @@ into `traefik.yml`, not passed through Compose).
 
 The directory and the files carry deliberately opposite intents:
 
-- `/mnt/data/secrets/docker/` is `0710 root:docker` — **the host-side
-  protection**. Other local users cannot traverse into it.
+- `/mnt/data/secrets/docker/` is `0700 root:root` (it was `0710 root:docker`
+  until 2026-09-11) — **the host-side protection**. Other local users cannot
+  traverse into it.
 - the secret files are `0444` — **the container-side access**. Container UIDs
   are arbitrary and unmappable (`mysql` 999, `abc` 911, `www-data` 33), and the
   bind mount lands at `/run/secrets/<name>` whose parent directories are inside

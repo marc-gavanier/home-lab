@@ -136,6 +136,32 @@ deliberate reboot posture.
    > `apt upgrade` over SSH terminates the operator's own session as soon as
    > dbus is in scope. It is neither a reboot nor a tunnel failure — check
    > `uptime` before concluding, and `systemctl --failed` afterwards.
+   >
+   > **Amended 2026-09-26 — the dbus path was ours, and `override_rc` was the
+   > cure.** The paragraph above says `override_rc` cannot help. It could: the
+   > dbus path was reachable only because our drop-in reassigned the whole
+   > `$nrconf{override_rc}` hash instead of adding two keys to it. The package's
+   > `needrestart.conf` ships 43 exclusions — `^dbus`, `^systemd-logind`,
+   > `^user@\d+\.service`, `^getty@`, `^ModemManager`, `^wpa_supplicant` among
+   > them — and reads `conf.d/` last, so our assignment left exactly 2, both of
+   > which the vendor list already held. needrestart checks `override_rc` before
+   > it looks up `restart.d/`, so with `^dbus` restored, `restart-dbus.service`
+   > is never reached. Measured by evaluating the configuration the way
+   > needrestart does: 43 entries from the vendor file alone, 2 effective, 44
+   > after the fix, with `ssh.service` still restartable as the control.
+   >
+   > The journals hold nine `restart-dbus.service` runs: six on the offsite
+   > (2026-07-28, 08-11, 09-01, 09-12, 09-23, 09-25) and three on the homelab
+   > (09-11, 09-22, 09-26). The 09-26 one ran inside an unattended upgrade at
+   > 06:24: `unattended-upgrades.service` failed at 06:24:57 and the run still
+   > logged "All upgrades installed" at 06:25:54. After a restart of dbus,
+   > `systemd-timesyncd` and `systemd-resolved` keep working but stop answering on
+   > the bus (`timedatectl show-timesync` and `resolvectl` time out) until the
+   > next boot, and `systemctl --failed` cannot see it.
+   >
+   > The fix assigns key by key. Its cost: services the vendor excludes are no
+   > longer restarted after a library update, and wait for the next reboot like
+   > the kernel does.
 3. **Bounded-latency reboot policy** for the irreducible kernel/core-lib residue,
    tiered by *reachability*, not raw CVSS:
    - **Routine** kernel/core-lib bump (no active exploitation, or an LPE with no

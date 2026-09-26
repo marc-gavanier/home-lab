@@ -39,10 +39,8 @@
     content: |
       # Ansible managed — rendered from the home-lab repo, edits on the host will be overwritten
       $nrconf{restart} = 'a';
-      $nrconf{override_rc} = {
-          qr(^docker\.service$) => 0,
-          qr(^unattended-upgrades\.service$) => 0,
-      };
+      $nrconf{override_rc}{qr(^docker\.service$)} = 0;
+      $nrconf{override_rc}{qr(^unattended-upgrades\.service$)} = 0;
     mode: "0644"
 
 - name: updates | Enable unattended-upgrades

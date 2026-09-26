@@ -46,7 +46,7 @@ Nextcloud runs as **five containers** sharing one data volume:
 Configured via Ansible (`roles/deploy`) — re-applied on every deploy:
 
 - `TRUSTED_PROXIES=172.16.0.0/12` — trust Traefik **and** the notify_push container (both on Docker subnets) so forwarded headers (HTTPS, real client IP) are honored
-- `NEXTCLOUD_TRUSTED_DOMAINS` includes `nextcloud` so notify_push can reach `http://nextcloud` internally
+- `trusted_domains` set with `occ` to `localhost`, `drive.<domain>` and `nextcloud`, so notify_push can reach `http://nextcloud` internally (the `NEXTCLOUD_TRUSTED_DOMAINS` env is read only on the first install)
 - HSTS set by Traefik middleware `nextcloud-headers` (`stsSeconds: 31536000`)
 - Redis for `memcache.locking` + APCu for `memcache.local`
 - `backgroundjobs_mode=cron`, `maintenance_window_start=4` (UTC), `default_phone_region=FR`

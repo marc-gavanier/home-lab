@@ -43,9 +43,9 @@
 # Unchanged from the image, deliberately: these two are opened and closed per
 # line, so `create` is correct for them and no postrotate was ever needed.
 /var/log/pihole/FTL.log {
-    weekly
+    daily
     create 640 pihole pihole
-    rotate 3
+    rotate 21
     compress
     delaycompress
     notifempty
@@ -53,9 +53,9 @@
 }
 
 /var/log/pihole/webserver.log {
-    weekly
+    daily
     create 640 pihole pihole
-    rotate 3
+    rotate 21
     compress
     delaycompress
     notifempty

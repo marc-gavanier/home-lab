@@ -111,13 +111,13 @@ the web UI is reverted on the next deploy, on purpose.
 > so **every client is born full-tunnel** and both infrastructure peers simply
 > kept it. That is the right default for a phone and the wrong one for these two.
 >
-> The stored value **could** now be corrected — #138 closed on 2026-08-26
-> (`ca6d72e`) and wg-easy writes its database again. It has deliberately not
-> been: correcting it means a write that regenerates `wg0.conf` and runs
-> `wg syncconf` on the only interface that reaches either host, which is work to
-> schedule with a rollback armed, not a tidy-up. Until then, treat the deployed
-> `wg0.conf` as the source of truth for these two clients, not the UI — and note
-> that this is now a deliberate deferral rather than a blocked one.
+> The stored value **cannot** be corrected in the UI and stay corrected. The
+> deploy's `homelab-wg-easy-config.sh` asserts `allowedIps` on every client
+> against the single `WG_ALLOWED_IPS` and rewrites any that differ, so a split
+> set for these two peers would be put back to full tunnel by the next deploy.
+> The repository has no per-client value today; a split tunnel for them would
+> first need one. Until then, treat the deployed `wg0.conf` on each client as the
+> source of truth for these two, not the UI, and never re-download their profile.
 
 ## Data
 

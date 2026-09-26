@@ -857,7 +857,6 @@ services:
       # the one file both readers share; Ansible writes the value there. See
       # secrets.yml.
       REDIS_HOST_PASSWORD_FILE: /run/secrets/nextcloud_redis_password
-      NEXTCLOUD_MAINTENANCE_WINDOW_START: "4"
       # For the JVM LibreSign spawns to sign PDFs, not for PHP (ADR-022).
       # The image sets no locale, so Java 21 derives its *native* encoding from
       # the environment and lands on ANSI_X3.4-1968 — plain ASCII. Measured in
