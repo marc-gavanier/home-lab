@@ -12,8 +12,11 @@ Do these in order.
 1. **Kill switch.** The card holds `/etc/killswitch.env` (topic + keyword), so
    the holder can power the Pi off. Rotate `killswitch_ntfy_topic` and
    `killswitch_keyword` in the homelab vault and redeploy (`--tags killswitch`).
-2. **Claude OAuth tokens** in `~/.claude/.credentials.json` (both users). Revoke
-   the sessions at claude.ai → Settings → Devices, then re-auth on the Pi.
+2. **Claude OAuth tokens** in the operator's `~/.claude/.credentials.json`. The
+   `claude` user's state (login, sessions, memory) and the vault's write cache are
+   on LUKS, bind-mounted at `/home/claude/.claude`; a card imaged before
+   2026-09-27 still holds them. Revoke the sessions at claude.ai → Settings →
+   Devices, then re-auth on the Pi.
 3. **SSH host keys.** An image lets an attacker impersonate the server (MITM).
    Regenerate with `sudo rm /etc/ssh/ssh_host_*` then
    `sudo ssh-keygen -A && sudo systemctl restart ssh.socket`, and update
@@ -24,7 +27,8 @@ Do these in order.
 ## What the card does not give
 
 Service passwords, restic repo passwords (local and offsite), the WireGuard key,
-rclone credentials, the SearXNG secret: all on LUKS.
+rclone credentials, the SearXNG secret, the `claude` user's sessions and the notes
+it writes through the vault: all on LUKS.
 
 ## Whole-Pi theft
 

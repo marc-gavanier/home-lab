@@ -107,15 +107,15 @@ cannot fix their own data directory:
 | `immich-db`       | `/mnt/data/services/immich/db`      |
 | `miniflux-db`     | `/mnt/data/services/miniflux/db`    |
 | `nextcloud-redis` | none (no bind mount)                |
-| `immich-redis`    | none (no bind mount)                |
+| `immich-redis`    | `/mnt/data/services/immich/redis`   |
 
 A directory recreated by hand (`mkdir`, `cp -r`, `rsync` without `-a`) ends up owned
 by root: Postgres then refuses to start ("data directory has wrong ownership") and
 MariaDB fails on its first write. Fix it by hand:
 
 ```bash
-chown -R 999:999 /mnt/data/services/nextcloud/db /mnt/data/services/immich/db /mnt/data/services/miniflux/db
-chmod 700        /mnt/data/services/nextcloud/db /mnt/data/services/immich/db /mnt/data/services/miniflux/db
+chown -R 999:999 /mnt/data/services/nextcloud/db /mnt/data/services/immich/db /mnt/data/services/miniflux/db /mnt/data/services/immich/redis
+chmod 700        /mnt/data/services/nextcloud/db /mnt/data/services/immich/db /mnt/data/services/miniflux/db /mnt/data/services/immich/redis
 ```
 
 Or let Ansible do it, from `ansible/`:
@@ -123,6 +123,9 @@ Or let Ansible do it, from `ansible/`:
 ```bash
 ansible-playbook playbooks/site.yml --tags storage --ask-vault-pass
 ```
+
+`--tags storage` owns the three database directories; `immich/redis` belongs to the
+`deploy` role (`--tags deploy`).
 
 `nextcloud-cron` runs as root; it needs nothing.
 

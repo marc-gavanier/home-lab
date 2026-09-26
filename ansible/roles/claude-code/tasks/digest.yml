@@ -48,7 +48,7 @@
       Description=Daily feed digest (Miniflux -> Claude -> vault)
       After=network-online.target vault-mount.service
       Wants=network-online.target vault-mount.service
-      RequiresMountsFor=/mnt/data
+      RequiresMountsFor=/mnt/data /home/claude/.claude
 
       [Service]
       Type=oneshot

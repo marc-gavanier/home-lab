@@ -38,7 +38,7 @@ failed).
 | Replication         | `restic copy` (nightly)          | Independent snapshot chains; local corruption does not propagate                                                                          |
 | Offsite repo init   | `--copy-chunker-params`          | Preserves dedup across repos                                                                                                              |
 | Disk encryption     | None (ext4)                      | Restic already encrypts; the Pi reboots unattended after power cuts                                                                       |
-| Repo password       | NOT stored on the offsite Pi     | A stolen Pi/SSD yields ciphertext only — this replaces LUKS                                                                               |
+| Repo password       | NOT stored on the offsite Pi     | The backups on a stolen Pi/SSD stay ciphertext; the SD card still holds the VPN client key (offsite-backup runbook)                       |
 | Repo passwords      | Distinct per repo                | Two distinct values, so neither is derivable from the other. NOT a blast-radius guarantee — see below                                     |
 | rest-server deploy  | systemd binary, not Docker       | Minimal surface: no Docker daemon at all on the offsite Pi                                                                                |
 | Homelab → peer path | Host is its own wg-easy client   | wg0 lives in the wg-easy container; the host peers via loopback ("homelab-host", 10.8.0.5) so the path is identical before/after the move |

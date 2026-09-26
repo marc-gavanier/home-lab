@@ -100,6 +100,73 @@
     mode: "0700"
   when: vault_mounted.rc != 0
 
+- name: vault | Create the claude state directories on the encrypted volume
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: claude
+    group: claude
+    mode: "0700"
+  loop:
+    - /mnt/data/claude
+    - /mnt/data/claude/dot-claude
+    - /mnt/data/claude/rclone-cache
+
+- name: vault | Refuse to hide Claude state left on the SD card under the mount
+  ansible.builtin.shell:
+    cmd: >-
+      mountpoint -q /home/claude/.claude
+      || [ ! -d /home/claude/.claude ]
+      || [ -z "$(ls -A /home/claude/.claude)" ]
+    executable: /bin/bash
+  register: claude_state_on_sd
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: vault | Stop when /home/claude/.claude still holds data on the SD card
+  ansible.builtin.assert:
+    that:
+      - claude_state_on_sd.rc == 0
+    fail_msg: >-
+      /home/claude/.claude holds files on the SD card. Mounting the encrypted store
+      over it would hide the claude.ai login and every session. Stop
+      claude-remote-control, copy the directory into /mnt/data/claude/dot-claude
+      with cp -a, empty it, then deploy again.
+    quiet: true
+
+- name: vault | Claude state store on the encrypted volume (mount unit)
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/home-claude-.claude.mount
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Claude Code state on the encrypted volume
+      Requires=mnt-data.mount
+      After=mnt-data.mount
+
+      [Mount]
+      What=/mnt/data/claude/dot-claude
+      Where=/home/claude/.claude
+      Type=none
+      Options=bind
+
+- name: vault | Mount the claude state store whenever the encrypted volume mounts  # noqa: command-instead-of-module
+  ansible.builtin.command: systemctl add-wants mnt-data.mount home-claude-.claude.mount
+  args:
+    creates: /etc/systemd/system/mnt-data.mount.wants/home-claude-.claude.mount
+
+- name: vault | Mount the claude state store now
+  ansible.builtin.systemd:
+    name: home-claude-.claude.mount
+    state: started
+    daemon_reload: true
+
+- name: vault | Remove the legacy rclone write cache from the SD card
+  ansible.builtin.file:
+    path: /home/claude/.cache/rclone
+    state: absent
+
 - name: vault | Deploy Claude Code sandbox settings
   ansible.builtin.copy:
     dest: /home/claude/.claude/settings.json
@@ -133,7 +200,7 @@
       Description=rclone mount of the Nextcloud Notes vault
       After=network-online.target mnt-data.mount homelab-stack-startup.service
       Wants=network-online.target
-      RequiresMountsFor=/mnt/data
+      RequiresMountsFor=/mnt/data /home/claude/.claude
       StartLimitIntervalSec=600
       StartLimitBurst=5
 
@@ -144,7 +211,8 @@
       Environment=RCLONE_CONFIG=/mnt/data/secrets/claude/rclone.conf
       ExecStartPre=-/bin/fusermount -uz /home/claude/vault
       ExecStart=/usr/bin/rclone mount nextcloud:Notes /home/claude/vault \
-        --vfs-cache-mode writes --vfs-write-back 2s --dir-cache-time 30s
+        --vfs-cache-mode writes --vfs-write-back 2s --dir-cache-time 30s \
+        --cache-dir /mnt/data/claude/rclone-cache
       ExecStop=/bin/sh -c '/bin/fusermount -u /home/claude/vault || /bin/fusermount -uz /home/claude/vault'
       Restart=on-failure
       RestartSec=10
