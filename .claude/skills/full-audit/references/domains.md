@@ -15,7 +15,7 @@ earlier — which would have sent eight agents to re-derive settled work. Rebuil
 it from `classes.md`'s OPEN table at the start of every run; if the two
 disagree, `classes.md` wins.
 
-As of the SEVENTEENTH run of 2026-09-26, key `provenance`: **0 OPEN** — the table below is the fifteenth run's, kept for its C01 history.
+As of the EIGHTEENTH run of 2026-09-26, key `amplification`: **0 OPEN** — the table below is the fifteenth run's, kept for its C01 history.
 
 As of the FIFTEENTH run of 2026-09-26, key `truncation`. **Rebuilt from
 `classes.md`'s OPEN table — do not trust this copy if the two disagree.**
@@ -29,6 +29,8 @@ As of the FIFTEENTH run of 2026-09-26, key `truncation`. **Rebuilt from
 **C124 LEFT the OPEN column on 2026-09-26 (fifteenth run)**, ENUMERATED by two
 complementary bounds — host side 122/122 over five domains, repository side
 149/149 from `ansible-deploy`. Do not re-derive either.
+
+**Thirty-SEVEN keys are now spent.** `amplification` (eighteenth run, 4 mints: C127 to C130). `fidelity` (does a copy keep every attribute of its original), `inheritance` and `exhaustion` are unspent.
 
 **Thirty-SIX keys are now spent.** `propagation` (sixteenth run, 0 mints) and `provenance` (seventeenth, 2 mints: C125, C126) followed. `provenance` in the "object on the host that no repo line declares" sense is `residue` R1 — do not offer it that way again. `inheritance` and `exhaustion` are still unspent.
 

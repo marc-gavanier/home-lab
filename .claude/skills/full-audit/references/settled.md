@@ -24,6 +24,46 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-09-26 late night (EIGHTEENTH run) — key `amplification`, one PR
+
+- **Push scripts wait 30 s for Kuma** (`-m 30 --connect-timeout 5`, retries kept): a
+  slow state-changing beat is no longer re-sent and notified twice.
+- **The netdata→Kuma adapter's grace covers alarms not loaded yet or without a
+  verdict**; a WARNING or CRITICAL still goes DOWN at once, and after 1200 s so does
+  an alarm still unsettled.
+- **Docs state the reach of `homelab-lock` (VPN down) and `restart vault-mount`
+  (Remote Control too)**, and what a reboot sends to Discord.
+
+## Decisions taken on 2026-09-26 late night (eighteenth run) — do not re-propose
+
+- **Notification fan-out behind Traefik (C128) stays accepted** (issue #13). No
+  monitor chaining, no grouping.
+- **Repeated restarts from overlapping handlers (C130) are accepted**, and so is the
+  handlers-vs-staged-startup race of 09-06 (C90): no handler waiting on
+  `homelab-stack-startup`.
+- **Nightly dumps defeating restic dedup are accepted**: ~105 MiB a night, ~11 GiB a
+  year offsite against 1.3 TB free.
+- **`containerd.service` can never reach `failed`, on purpose**: no drop-in.
+- **Unexplained keyword-mismatch messages on the kill-switch topic: risk accepted**,
+  no rotation. The keyword is the remaining barrier.
+- **No logrotate stanza for `homelab-ddns.log`**: 1.7 MB a year, all in the journal.
+
+## Instrument traps paid on 2026-09-26 late night (eighteenth run)
+
+- **Never write a restored dump to disk to measure it**: `restic dump` into
+  `/dev/shm` left three database dumps world-readable for five minutes. Pipe it
+  straight into the comparison, or `umask 077` first.
+- **`docker events --since` holds about 87 s here**: healthcheck execs fill the
+  buffer. Use `RestartCount`, container start times and the heal-timer journal.
+- **The audit's own SSH sessions are ~89 % of a day's journal lines**: filter
+  `session`/`sshd` lines before counting per unit.
+- **`docker compose --dry-run` (v5.5.1) prints no dry-run marker**: its output reads
+  like a real run. Check container ids and `StartedAt` afterwards.
+- **Running lynis by hand overwrites `/var/log/lynis-report.dat`**: use
+  `--report-file` to a scratch path.
+- **A multi-week `journalctl -g` costs ~15 min of a core on the Pi**: bound it with
+  `-u` and `--since`.
+
 ## Shipped on 2026-09-26 night (SEVENTEENTH run) — key `provenance`, one PR
 
 - **Ansible verifies host keys**: `host_key_checking = False` is gone from

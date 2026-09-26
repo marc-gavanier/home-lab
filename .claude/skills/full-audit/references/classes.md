@@ -194,12 +194,17 @@ the 373 rewritten sections. Its key, `provenance`, then minted **two** classes
 (C125, C126). **Consecutive zero-mint runs: 0.** The OPEN table is empty again, so
 the first half of the criterion holds and the second starts over.
 
+**The eighteenth run the same night used `amplification` and minted four** (C127 to
+C130). **Consecutive zero-mint runs: still 0.** The key was a dimension, not a topic:
+all 126 classes asked whether a reaction was configured, ordered, timed or guarded;
+none asked about the GAIN between one cause and the number of effects it produces.
+
 ---
 
 # The register
 
 Runs of 2026-08-15 through 2026-09-21 (TWELFTH run, key `durability`).
-**Current state: see the OPEN table after the SEVENTEENTH run of 2026-09-26 (key `provenance`) — 126 classes, 0 OPEN. The counts below this line are the twelfth run's.**
+**Current state: see the OPEN table after the EIGHTEENTH run of 2026-09-26 (key `amplification`) — 130 classes, 0 OPEN. The counts below this line are the twelfth run's.**
 **121 recorded classes: 3 OPEN — and the membership is C121, C34 and C01,
 written as a list because every time this line carried a rule for reconstructing
 the count instead, the count was wrong. 9 GATED, 7 closed by decision, plus the
@@ -556,9 +561,19 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
-## OPEN — 0 (after the SEVENTEENTH run of 2026-09-26, key `provenance`)
+## OPEN — 0 (after the EIGHTEENTH run of 2026-09-26, key `amplification`)
 
-**Empty.** C01 reopened when `fbcf389` rewrote 47 files and left again the same
+**Empty.** C127 to C130 were minted and enumerated in the same run — see "The run
+of 2026-09-26 (EIGHTEENTH)" below.
+
+| ID | Property | State |
+|---|---|---|
+| C127 | **A request with a side effect, retried by its client after a timeout shorter than the time the server takes to commit the effect** — so the effect runs once per attempt | **MINTED and ENUMERATED 2026-09-26 (eighteenth run)**: `observability` 20/20. 1 instance over 8 push scripts (`curl -m 10 --retry 2` against Kuma, whose push handler waits for Discord before storing the beat): 12 duplicate notifying beats on record, the last on 09-24. Fixed: `-m 30 --connect-timeout 5`. Not GATED |
+| C128 | **One cause crossing N detectors, each notifying on its own, with nothing relating them to the cause** | **MINTED and ENUMERATED 2026-09-26 (eighteenth run)**: `network` 24/24, `observability` 20/20. 34 of 37 monitors sit behind Traefik; 09-05, 7 min of Traefik error: 17 DOWN then 16 UP. Accepted since issue #13 ("Notification storm"); the documented limitation was wrong about reboots and is corrected. Not GATED |
+| C129 | **A documented step whose effect travels through a dependency the machine declares and reaches units the text does not name** | **MINTED and ENUMERATED 2026-09-26 (eighteenth run)**: `project-manager` 185/185 procedure steps. 2 instances, both fixed in words: `homelab-lock` also stops WireGuard, wg-easy and the persistent journal (`Requires=mnt-data.mount`); `restart vault-mount` also restarts Remote Control (`PartOf`). Distinct from C114 (an enumeration) and C01 (a contradiction): the text was true and incomplete. Not GATED |
+| C130 | **Two reactions fired by one cause, where the effect of one contains the effect of the other, and nothing suppresses the contained one** | **MINTED and ENUMERATED 2026-09-26 (eighteenth run)**: `ansible-deploy` 41 handlers, 3 containment relations, 18 pairs, all 3 observed firing together (`Restart Docker` ⊇ 16 handlers; `Restart nextcloud-redis` ⊇ `Restart nextcloud`; `Restart netdata` ⊇ `Reload netdata health`). Accepted: the cost is a repeated restart. Not GATED |
+
+The seventeenth run's table was already empty: C01 reopened when `fbcf389` rewrote 47 files and left again the same
 night, 373/373 rewritten sections re-enumerated. C125 and C126 were minted and
 enumerated in the same run — see "The run of 2026-09-26 (SEVENTEENTH)" below.
 
@@ -1117,6 +1132,63 @@ separate correction — **the marker is not a provenance instrument.**
 C92 and C03-R were closed as review rules once their spaces proved non-derivable.
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
+
+## The run of 2026-09-26 (EIGHTEENTH) — the key was `amplification`, and it minted four
+
+The key, **invented**: **for every mechanism that reacts to an event, what is the ratio
+between the event and the work, output or side effects it produces, and what bounds
+it?** Four forms: (A1) fan-out, (A2) repetition in time without a bound, (A3) volume
+proportional to input, (A4) feedback. Chosen by the operator over `fidelity`,
+`inheritance` and `exhaustion`.
+
+### The counter: 0 OPEN in, 0 OPEN out, 4 minted, class total 126 -> 130
+
+### The sweep
+
+| Domain | Mechanisms | Result |
+|---|---|---|
+| `system` | 102/102 (both hosts) | 0 mints; C120 correction (containerd) |
+| `security` | 17/17 | 1 candidate, filed under C124 |
+| `network` | 24/24 | C128 |
+| `services` | 132/132 | 0 |
+| `backup` | 28/28 | 0 |
+| `observability` | 20/20 | C127, C128, C120 ×2 |
+| `ansible-deploy` | 56/56 | C130, C90 +1 |
+| `project-manager` | 185/185 procedure steps | C129, C105 |
+
+### Shipped
+
+1. **C127**: the 8 push scripts use `-m 30 --connect-timeout 5`.
+2. **C120-A**: the netdata→Kuma adapter reports UP inside its 1200 s grace when every
+   problem of a group is a curated alarm not loaded yet or without a verdict. Monitors
+   35 and 37 went red at 11:52Z and 12:47Z the same day on exactly that state.
+3. **C129, C105, C128**: `homelab-lock` and `restart vault-mount` state their reach;
+   the "Notification storm" limitation says what a reboot actually sends.
+
+### Filed under existing classes
+
+- **C120-B**, not fixed: Kuma trips after 3 × 60 s on Immich, Calibre-Web and
+  Collabora, whose `start_period` is 15 to 22 min; 6 notifications per reboot. The
+  operator's call, in Kuma's UI; documented as expected.
+- **C120, register correction**: `containerd.service` meets `(Burst-1) x RestartSec
+  >= Interval` ((5-1) × 5 = 20 >= 10): it can never reach `failed`. Kept on purpose.
+- **C90 +1**: deploy handlers against `homelab-stack-startup` (09-06 01:57: 14
+  handler restarts raced the staged startup, 2 failed attempts, ~2 min longer
+  outage). Accepted: it needs `daemon.json` and a secret to change in one run.
+- **C38, space note**: `/var/log/homelab-ddns.log` has no rotation (1.7 MB a year,
+  duplicated in the journal). No action.
+
+### Rejected or requalified
+
+- `security`'s "a reaction that kills its own invoker" (needrestart restarting
+  `unattended-upgrades` from inside its run, three times per host): the vendor
+  `needrestart.conf` already excludes `unattended-upgrades.service`; the drop-in that
+  replaced `override_rc` dropped it. That is C124, fixed the same day.
+- `services`'s 42 `Dependency failed for docker.service` before the unlock: each
+  restart of fail2ban or Remote Control re-requests the locked mount, and systemd
+  fails every dependent at once. By design.
+
+---
 
 ## The run of 2026-09-26 (SEVENTEENTH) — the key was `provenance`, and it minted two
 
