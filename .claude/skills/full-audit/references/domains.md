@@ -15,15 +15,15 @@ earlier — which would have sent eight agents to re-derive settled work. Rebuil
 it from `classes.md`'s OPEN table at the start of every run; if the two
 disagree, `classes.md` wins.
 
-As of the THIRTEENTH run of 2026-09-25, key `initiality`. **Rebuilt from
+As of the FOURTEENTH run of 2026-09-26, key `precedence`. **Rebuilt from
 `classes.md`'s OPEN table — do not trust this copy if the two disagree.**
 
 **TWO OPEN CLASSES, and here is the whole membership with its owner:**
 
 | Class | Property | Owner | What is left |
 |---|---|---|---|
-| C122 | A play whose task N consumes an artefact only a later task M > N of the same play produces | `ansible-deploy` | MINTED 2026-09-25. The systemd-unit subset is swept (55 targets, 2 defective, fixed). **The path/template subset is not**: every file or template one role reads and a later role writes, in play order, for BOTH playbooks — `offsite.yml` plays roles that were written for the homelab |
-| C01 | A documentary statement whose content contradicts the deployed artefact | `project-manager`, with every domain feeding it | Swept: `ansible/` 176/176, `docker/` 10/10, `ops/` 156/156, `usb-tamper`+`killswitch` 121/121, instruction files 123/123, the RENDERED stratum 53/53, the `durability` slice 24/24, **the `initiality` slice 75/75 (2026-09-25)**. What remains is the rest of the documentary prose |
+| C124 | A drop-in that REPLACES a compound value it meant to EXTEND | `system` and `security`, with `observability`, `network` and `services` for their own fragments | MINTED 2026-09-26, one instance (needrestart `override_rc`), fixed. **State N first**: every repository-written fragment, in a system that merges fragments, that assigns a hash, list or set — then sweep it. `sshd` algorithm lists, apt list options, fail2ban `ignoreip`, `daemon.json` arrays, Traefik and compose lists are the obvious members |
+| C01 | A documentary statement whose content contradicts the deployed artefact | `project-manager`, with every domain feeding it | Swept: `ansible/` 176/176, `docker/` 10/10, `ops/` 156/156, `usb-tamper`+`killswitch` 121/121, instruction files 123/123, the RENDERED stratum 53/53, the `durability` slice 24/24, the `initiality` slice 75/75, **the `precedence` slice 134/134 (2026-09-26)**. What remains is the rest of the documentary prose |
 
 **C119 and C120 both LEFT the OPEN column on 2026-09-21 — do not re-derive
 either.** C119: seven planes of seven, the last being `ansible-deploy`'s 31/31
