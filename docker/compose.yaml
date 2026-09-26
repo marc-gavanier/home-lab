@@ -330,7 +330,7 @@ services:
       start_period: 120s
 
   nextcloud-db:
-    image: mariadb:12.3.3
+    image: mariadb:13.0.2
     container_name: nextcloud-db
     restart: "no"
     stop_grace_period: 90s
