@@ -24,6 +24,47 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-09-27 (NINETEENTH run) — key `fidelity`, one PR
+
+- **The `claude` user's state is on LUKS**: `/home/claude/.claude` is a bind mount of
+  `/mnt/data/claude/dot-claude`, pulled in by `mnt-data.mount`; the vault's rclone
+  write cache is `/mnt/data/claude/rclone-cache`. The role refuses to mount over a
+  non-empty SD directory. Posture: `claude-state-is-on-the-encrypted-volume`.
+- **The Kuma migration runbook's copies expand their glob as root** and stop on an
+  empty copy (`test -s`) before anything writes to production.
+- **`restore-from-backup.md` owns `immich/redis`**, which `--tags deploy`, not
+  `--tags storage`, recreates.
+- **ADR-010 no longer says a stolen offsite Pi yields ciphertext only**: its card
+  holds the VPN client key.
+
+## Decisions taken on 2026-09-27 (nineteenth run) — do not re-propose
+
+- **No reset of the Kuma push tokens printed into an audit transcript**: LAN/VPN
+  only, they can only forge "up" beats. Operator's call, 2026-09-27.
+- **The offsite VPN client key reaches every VPN-only web service** (wg-easy has no
+  per-client rule); risk accepted, each service still asks for its own login. No
+  per-router allowlist.
+- **The Immich dump omits the database-level `search_path` and
+  `vchordrq.probes=1`**: harmless while Immich sets `probes` per query and the
+  restore runbook's search check would show it. No fix.
+- **The operator's own `~/.claude` on the Pi stays on the SD card**; only the
+  `claude` service user was moved.
+
+## Instrument traps paid on 2026-09-27 (nineteenth run)
+
+- **Kuma's `stat_minutely`/`stat_hourly`/`stat_daily` are not totals of
+  `heartbeat`**: a PENDING beat counts as down, and a Kuma restart resets the open
+  bucket (Transmission, 2026-09-26 12:00Z: 15 in `stat_hourly` against 42 beats).
+  Take amplitudes from `heartbeat`, with a known-full hour as control.
+- **`docker run <image>` pulls it when absent**: the main session left a 467 MB
+  image on the Pi while "reading" a video's tags. Check `docker image ls` first.
+- **`stat` on a symlink reads the link**: a container/host inode comparison needs
+  `stat -L`.
+- **`grep -r` as root walks the rclone vault mount** and every file becomes a WebDAV
+  read. Exclude `/home/claude/vault`.
+- **`date -d "<day> 12:00 +N minutes"` reads `+N` as a UTC offset**: compute from
+  epoch seconds.
+
 ## Shipped on 2026-09-26 late night (EIGHTEENTH run) — key `amplification`, one PR
 
 - **Push scripts wait 30 s for Kuma** (`-m 30 --connect-timeout 5`, retries kept): a
