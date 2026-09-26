@@ -90,6 +90,7 @@ join() { local sep="$1"; shift; local out; out="$(printf "%s${sep}" "$@")"; prin
 group() {
     local url="$1"; shift
     local problems=() reports=() name rows settled bad odd status value chart count n
+    local unsettled=0
 
     if [ -n "$UNAVAILABLE_STATUS" ]; then
         push "$url" "$UNAVAILABLE_STATUS" "$UNAVAILABLE_MSG — state of $# alarm(s) unknown"
@@ -101,6 +102,7 @@ group() {
 
         if [ -z "$rows" ]; then
             problems+=("${name} is not loaded in netdata")
+            unsettled=$((unsettled + 1))
             continue
         fi
 
@@ -122,6 +124,7 @@ EOF
                    grep -Pv "^\Q$name\E\t(REMOVED|UNINITIALIZED|UNDEFINED)\t" || true)"
         if [ -z "$settled" ]; then
             problems+=("${name}: no instance has a verdict ($(printf '%s\n' "$rows" | head -1 | cut -f2))")
+            unsettled=$((unsettled + 1))
             continue
         fi
 
@@ -143,7 +146,11 @@ EOF
     local readings=""
     [ ${#reports[@]} -gt 0 ] && readings="$(join ', ' "${reports[@]}")"
 
-    if [ ${#problems[@]} -gt 0 ]; then
+    if [ ${#problems[@]} -gt 0 ] && [ "$unsettled" -eq ${#problems[@]} ] &&
+       [ "$netdata_uptime" -ge 0 ] && [ "$netdata_uptime" -lt "$STARTUP_GRACE" ]; then
+        log "netdata started ${netdata_uptime}s ago, $unsettled alarm(s) not settled yet — reporting up"
+        push "$url" up "netdata started ${netdata_uptime}s ago, not settled yet: $(join '; ' "${problems[@]}")${readings:+ | ${readings}}"
+    elif [ ${#problems[@]} -gt 0 ]; then
         push "$url" down "$(join '; ' "${problems[@]}")${readings:+ | ${readings}}"
     else
         push "$url" up "${readings:-no readings}"

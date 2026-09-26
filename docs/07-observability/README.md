@@ -36,11 +36,12 @@ HTTP 200 with an empty `alarms` object: 25 s to ~4 min on a warm restart; on a c
 first answered ~301 s after start and the first verdict came at 779 s. The adapter therefore uses a
 **1200 s** grace based on netdata's own start time:
 
-| netdata answer                    | netdata up < 1200 s                                    | netdata up ≥ 1200 s |
-|-----------------------------------|--------------------------------------------------------|---------------------|
-| empty `alarms`                    | UP, message names the window                           | DOWN, with an actionable message |
-| unreachable                       | UP only if docker reports the container running and younger than the grace | DOWN |
-| container stopped or absent       | DOWN                                                   | DOWN                |
+| netdata answer                                                                      | netdata up < 1200 s                                                        | netdata up ≥ 1200 s              |
+|-------------------------------------------------------------------------------------|----------------------------------------------------------------------------|----------------------------------|
+| empty `alarms`                                                                      | UP, message names the window                                               | DOWN, with an actionable message |
+| a curated alarm not loaded yet, or with no verdict, and nothing WARNING or CRITICAL | UP, message names the alarms still settling                                | DOWN                             |
+| unreachable                                                                         | UP only if docker reports the container running and younger than the grace | DOWN                             |
+| container stopped or absent                                                         | DOWN                                                                       | DOWN                             |
 
 The grace defers the switch, never disarms it. A netdata restarting faster than the grace is caught
 by `netdata-health-engine-has-verdicts` in the posture spec.
@@ -433,9 +434,12 @@ Discord webhook on every monitor. Known limitations, accepted (issue #13):
 
 - **Nothing watches the watcher.** Kuma runs on the Pi; a total outage produces silence.
 - **Single channel.** A broken or muted webhook means no alerts.
-- **Notification storm.** Monitors are not chained (`parent` is null), so a Pi or Traefik outage
-  trips nearly every monitor, and each re-notifies about every 6 h (`resend_interval`) for the
-  length of the incident.
+- **Notification storm.** Monitors are not chained (`parent` is null), so a Traefik or network
+  outage trips nearly every monitor (34 of 37 sit behind Traefik), and each re-notifies about every
+  6 h (`resend_interval`) for the length of the incident. A Pi reboot is different: Kuma goes down
+  with the Pi and sees none of it. After the unlock, expect Immich, Calibre-Web and Collabora to go
+  red then green once, because Kuma gives up after 3 × 60 s and their own `start_period` is 15 to
+  22 min.
 
 ## Log retention
 

@@ -199,7 +199,8 @@ ssh homelab "sudo homelab-unlock"
 # Enter LUKS passphrase when prompted → /mnt/data mounted → Docker starts
 ```
 
-Lock the volume and stop services:
+Lock the volume and stop services. This also stops WireGuard and wg-easy, which depend on
+`/mnt/data`: run it from the LAN, or you lose remote access until someone unlocks on site.
 
 ```bash
 ssh homelab "sudo homelab-lock"
