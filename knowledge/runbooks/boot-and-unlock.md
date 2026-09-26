@@ -192,4 +192,5 @@ startup), [ADR-013](../decisions/ADR-013-update-patching-strategy.md) (patching)
 - [kill-switch runbook](kill-switch.md) — the remote poweroff lands on this boot path.
 - [usb-tamper runbook](usb-tamper.md) — the local poweroff (USB events) lands here too.
 - `homelab-lock` — stops the target (containers, heal timer, swap), unmounts and
-  relocks the volume.
+  relocks the volume. WireGuard, wg-easy and the persistent journal go down with it:
+  run it from the LAN only.

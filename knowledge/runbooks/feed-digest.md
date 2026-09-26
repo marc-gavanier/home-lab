@@ -107,7 +107,7 @@ the cause.
 | Symptom in the journal | Cause | Fix |
 |---|---|---|
 | `the vault is not mounted at …` | vault not mounted | `systemctl status vault-mount`; see the stale-endpoint section of the service doc |
-| `the vault … is mounted but unreadable` | credential rejected; `vault-mount.service` still `active (running)`, rclone logs `PasswordLoginForbidden` | `journalctl -u vault-mount -n 30`, renew the Nextcloud app password, `systemctl restart vault-mount` |
+| `the vault … is mounted but unreadable` | credential rejected; `vault-mount.service` still `active (running)`, rclone logs `PasswordLoginForbidden` | `journalctl -u vault-mount -n 30`, renew the Nextcloud app password, `systemctl restart vault-mount` (restarts Claude Remote Control too, `PartOf` the mount) |
 | `ExecStartPre` failed, nothing else | the unit on the host is older than the repo (the gate now lives in `digest.sh`) | redeploy `--tags claude-code` |
 | `missing API key at …` | key file absent or unreadable | redeploy `--tags claude-code`; check `miniflux_api_key` is set in `local.yml` |
 | `curl … (22)` on `/v1/entries` | Miniflux or Traefik down | `curl $R https://rss.<domain>/healthcheck` → expect 200 |
