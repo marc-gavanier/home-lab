@@ -168,6 +168,7 @@ parts that need a thought experiment.
 # The register
 
 Runs of 2026-08-15 through 2026-09-21 (TWELFTH run, key `durability`).
+**Current state: see the OPEN table after the FOURTEENTH run of 2026-09-26 (key `precedence`) — 124 classes, 2 OPEN (C124, C01). The counts below this line are the twelfth run's.**
 **121 recorded classes: 3 OPEN — and the membership is C121, C34 and C01,
 written as a list because every time this line carried a rule for reconstructing
 the count instead, the count was wrong. 9 GATED, 7 closed by decision, plus the
@@ -524,7 +525,35 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
-## OPEN — 2 (after the THIRTEENTH run of 2026-09-25, key `initiality`)
+## OPEN — 2 (after the FOURTEENTH run of 2026-09-26, key `precedence`)
+
+| ID | Property | What bounds the space, and what stopped the sweep |
+|---|---|---|
+| C124 | **A drop-in that REPLACES a compound value (hash, list, set) it meant to EXTEND** — the repository's source wins, as intended, but at the grain of the whole value, so every entry the vendor or a lower layer carried is silently dropped | **MINTED 2026-09-26 (fourteenth run), key `precedence`.** Named independently by `system` and `security`. It contradicts C123's property — here the repository WINS — so it cannot be a form of it; it is the mirror of C86 (C86 loses what a default gains later, C124 loses what the default already held). One instance: `/etc/needrestart/conf.d/99-homelab.conf` reassigned `$nrconf{override_rc} = {...}` and cut the vendor's 43 exclusions to 2, on both hosts — the whole cause of the dbus restarts behind `df858ee` and `81217b5`. **Fixed 2026-09-26** (key-by-key assignment, 44 effective). **What stops closure: the space was not counted.** It is every repository-written fragment, in a system that merges fragments, that assigns a compound value — needrestart hashes, sshd algorithm lists (the `-` / `+` forms are subtractive/additive, a bare list replaces), apt list options, fail2ban `ignoreip`, `daemon.json` arrays, Traefik list options, compose lists merged across files. Neither agent stated N for it. No gate |
+| C01 | **A documentary statement whose content contradicts the deployed artefact** | **ONE MORE STRATUM CLOSED, the class is not.** Added 2026-09-26: **the `precedence` slice of `docs/`+`knowledge/` 134/134** — every statement saying where a value is set, who controls it or which source wins, cut by a written lexical rule: 118 clean, 8 partial, 1 contradicted, 7 not checkable. Residual, declared: a precedence instruction with no trigger word escapes the rule, and the costliest one of the run (`notify-push-troubleshooting.md` telling the operator to edit `NEXTCLOUD_TRUSTED_DOMAINS`) was found that way. Previously: `ansible/` 176/176, `docker/` 10/10, `ops/` 156/156, `usb-tamper`/`killswitch` 121/121, instruction files 123/123, the RENDERED stratum 53/53, the `durability` slice 24/24, the `initiality` slice 75/75. What remains is the rest of the documentary prose |
+
+**C122 LEFT this table, ENUMERATED at 530/530 + 55/55.** `ansible-deploy` swept
+the path/template/user/package/binary/handler subset in real play order — 401
+pairs for `site.yml`, 129 for `offsite.yml` — on top of the 55 unit targets of
+the thirteenth run. Four defects: `security/hardening.yml` edits
+`/etc/postfix/main.cf` (no `create`) on both hosts although nothing installs
+postfix since rkhunter left on 2026-08-16 (`99d045c`) — **deliberately NOT fixed,
+the operator will settle it with the mail work**; `deploy/secrets.yml` wrote the
+restic password files before creating `/mnt/data/secrets` (fixed: the directory
+task moved first); `deploy/secrets.yml` edited `config.php` 45 tasks before the
+compose up that creates it (fixed: guarded on its existence, converges in two
+runs on a blank volume); the netdata handlers failed under `--tags phase1`, where
+no container exists (fixed: they no-op when the container is absent). Not GATED:
+nothing runs a play against a fresh host.
+
+**C123 was MINTED and ENUMERATED in the same run** — see its row in the
+ENUMERATED table.
+
+---
+
+## SUPERSEDED — OPEN table of the THIRTEENTH run of 2026-09-25, key `initiality`
+
+### It read: OPEN — 2 (after the THIRTEENTH run of 2026-09-25, key `initiality`)
 
 | ID | Property | What bounds the space, and what stopped the sweep |
 |---|---|---|
@@ -1013,6 +1042,120 @@ separate correction — **the marker is not a provenance instrument.**
 C92 and C03-R were closed as review rules once their spaces proved non-derivable.
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
+
+## The run of 2026-09-26 (FOURTEENTH) — the key was `precedence`, and the worst finding was the cause of the previous day's fix
+
+The key, **invented**, and the one this register had set aside twice for the
+risk of being `order` in new clothes: **when a value is declared in two or more
+places, is the source the repository writes the one that wins at run time?** The
+brief made it a STATIC question — a rule decides — and sent anything decided by
+"who wrote last" to the `order` classes. Three admissible forms: (P1) a dead
+setting, the repository's source loses; (P2) a silent override by a source the
+repository does not declare; (P3) two consumers resolving one value by different
+rules. Mint rule: both sources with their values, the EFFECTIVE value read on
+the host, and the rule that decides between them.
+
+### The counter: 2 OPEN in, 2 OPEN out, 2 minted, class total 122 -> 124
+
+C122 left (ENUMERATED); C123 was minted and enumerated at once; C124 was minted
+and stays OPEN; C01 stays. The consecutive zero-mint count stays at zero. **Five
+agents of eight proposed the `precedence` class independently** — `security`,
+`network`, `services`, `system`, `ansible-deploy` — and two of them (`system`,
+`security`) independently named the form that became C124.
+
+### C123 — the sweep, per domain
+
+| Domain | Swept | Result |
+|---|---|---|
+| `system` | 188/188 (key, host) pairs, 18 subsystems, both hosts | 1 defect (C124), 22 inert overlaps |
+| `security` | 255/255 | the same C124 defect, 24 inert |
+| `network` | 33/33 | 2 P3, 1 latent P2 (`proxied: false` set only at DDNS record creation) |
+| `services` | 100/100 env values over 24 containers, plus healthcheck/user/restart/grace/interpolation | 0 effective divergence; 1 dead env line |
+| `backup` | 23/23 | clean; restic's own precedence proven on a throwaway repository (`--password-file` beats `RESTIC_PASSWORD`, `--repo` beats `RESTIC_REPOSITORY`) |
+| `observability` | 104/104 | 1 instance, which belongs to C68 |
+| `ansible-deploy` | 312/312 over 7 strata of variable precedence | nothing active; 1 latent (`TZ` hard-coded in `env.j2:9` beside `timezone`) |
+
+Residual, declared: the key names of the Ansible vault cannot be read without
+its password; they were inferred from the example files and the winning values
+compared with the rendered artefacts.
+
+### Live defects shipped, ranked by what was happening without anyone knowing
+
+1. **needrestart had lost 41 of the vendor's 43 exclusions on both hosts**
+   (C124). Nine `restart-dbus.service` runs in the journals — offsite 07-28,
+   08-11, 09-01, 09-12, 09-23, 09-25; homelab 09-11, 09-22 and **09-26 06:24,
+   inside an unattended upgrade, during this run**. After each, timesyncd and
+   resolved keep working but stop answering on the bus until the next boot —
+   true on both hosts when this was written — and `systemctl --failed` cannot
+   see it. ADR-013's "`override_rc` cannot help" was the opposite of the truth;
+   amended.
+2. **Pi-hole kept ~3 days of `FTL.log` and `webserver.log`, not ~3 weeks** (C68,
+   outside its recorded space of 7 stores + 31 log rings: rotations INSIDE a
+   container were never in it). `pihole flush once quiet` runs `logrotate
+   --force`, which ignores the period; `weekly` + `rotate 3` became `daily` +
+   `rotate 21`.
+3. **C122's three fixed defects** — above.
+4. **C15's gate accepted `--append-only` anywhere on the command line**, while
+   rest-server keeps the LAST occurrence: `--append-only --append-only=false`
+   would have passed. Not a broken gate — it still fails when the flag is absent
+   — but a mode it could not see. It now reads the last occurrence; tested on
+   seven command lines and on the live process.
+
+### Documentary corrections shipped
+
+`notify-push-troubleshooting.md` and `nextcloud.md` (trusted domains come from
+`occ`, not the env); `wireguard.md` and ADR-020 (the per-client `allowedIps` is
+rewritten by every deploy, so it is neither correctable in the UI nor
+expressible in the repository today); ADR-016 (the Redis secret since 09-01,
+wg-easy v15 has no `PASSWORD_HASH`, the docker secrets directory is `0700
+root:root`); ADR-011 (the two rclone rows have no symlink, they are found by
+`RCLONE_CONFIG`); ADR-013; `pihole.md` (why the period is never read);
+`docs/04-network/README.md` (`resolvectl` is not the host's resolver). The
+unread `NEXTCLOUD_MAINTENANCE_WINDOW_START` line was removed from `compose.yaml`.
+
+### Rejected, requalified or corrected — 4
+
+- `project-manager`: "a tmpfs mounts `0755`, measured `1777`" — **rejected**. A
+  tmpfs takes the mode of the directory the image already has at that path:
+  measured `755 root` on `/var/cache/nginx` in `nginx:alpine` (and `mkdir` as
+  uid 101 fails), `1777` on `/tmp`. The five passages are right.
+- `network`: the glibc/resolved divergence stands, but `resolvectl`'s answer
+  also depends on its cache — a cached query for `vpn` returned the public
+  address, an uncached one the LAN address.
+- `observability` filed the Pi-hole rotation under C68 — kept there, since C68's
+  property fits exactly; the new fact is that C68's space missed a stratum.
+- `ansible-deploy`: postfix is not about to be autoremoved from the current
+  hosts (`apt-get -s autoremove` lists nothing); the defect is fresh-host only.
+
+### Instrument traps paid — 3, and ONE was the main session's
+
+- **`needrestart.conf` includes `conf.d/` itself, at its end.** Evaluating "the
+  vendor file alone" therefore evaluates everything; the main session's first
+  count read 2 for the vendor. Cut the file before its include loop.
+- **A tmpfs does not have a default mode** in the sense the docs debate: it
+  inherits the image directory's. Measure on the running container, per path.
+- **The scratchpad does not survive a workstation reboot.** All eight reports
+  were lost between the run and its corrections; only the agents' ten-line
+  summaries remained. Two doc claims (a capability count, one C01 line) could
+  not be relocated. The summary must carry file:line for every instance.
+
+### Rule-5 deviations, declared
+
+Temporary files created and removed in `/tmp` on the hosts (`security`,
+`network`, main session); throwaway processes with a dummy env (`services`);
+`network` printed wg-easy's `session_password` in its own tool output (not in
+the report). 0 failed units afterwards.
+
+### Leads not verified, recorded rather than dropped
+
+`observability`: netdata's API shows ~26 h of alarm transitions while
+`netdata-meta.db` read `mode=ro` holds 60 days (46 545 rows) — which would make
+the twelfth run's "5 d retention" bound wrong; and `homelab_used_swap` has no
+WARNING row although swap sat at 86.8-93.1 % on 08-31 22:52-22:54Z. Belongs to
+C120 or C03-T. `ansible-deploy`: `private.example.yml` loads after `local.yml`
+(C93, 0 active case).
+
+---
 
 ## The run of 2026-09-25 (THIRTEENTH) — the key was `initiality`, and the trace was one day old
 
@@ -7460,7 +7603,7 @@ check, and it is stated as one.
 | C12 | A rotated secret a consumer never receives | **ENUMERATED 2026-09-20 (tenth run) by TWO COMPLEMENTARY BOUNDS, neither containing the other — the shape that closed C107 and C113.** `security` derived the VALUES from the live host and swept **76/76** (value, consumer) pairs over 39 values: 31 values × 64 carriers = 1 984 tests, planted positive control found, negative control not; 39 pairs are single-consumer, 28 are self-detecting Kuma push URLs, and 8 of the 9 remaining redundant copies are already gated. `ansible-deploy` parsed the DECLARATIONS and swept **52/52** render sites over the 39 `no_log: true` options; 66 notify targets, 0 orphans, 7 `creates:` and none on a secret. The two cardinals disagree on purpose and reconcile: 39 declared, some with no persisted carrier. **Zero live divergence on the day** — 6 multi-carrier values hash-compared on the host, all matching. **The live defect it leaves behind is STRUCTURAL and was fixed on 2026-09-20**: `deploy/tasks/main.yml` advertised `--tags secrets` as a rotation route while that tag reaches 19 of the role's 31 secret renders, missing `configs.yml`, `backup.yml` (7 values), `wireguard.yml` (`wg0.conf`) and `ddns.yml`. That is what let the 2026-09-12 Cloudflare rotation reach Traefik and not the DDNS for eight days. The old gate remains what it was — `posture.yaml secret-mounts-carry-the-current-value`, 14 pairs derived from `compose.services[*].secrets` against 17 file binds under the secrets directory, a coverage asymmetry measured at 0/28 mismatch and deliberately NOT widened (the three uncovered files are `volumes:` binds that never land at `/run/secrets/<name>`, so the comparison path would have to change, and the risk of turning a working gate into a silent green outweighed the gain) | **ENUMERATED** |
 | C13 | A declared environment value shadowed by a persisted config file | **Left this table on 2026-08-30 — see the downgrade above.** The assertion is hardcoded to vaultwarden (#124, #159); a list of one is not a gate |
 | C14 | A certificate with no expiry watch, or a silent ACME failure | `homelab-health.sh` parses `acme.json` directly, 21-day threshold. **21/21 live, not the 18/18 this row carried — and the growth from 18 with ZERO edits to the script is positive proof of derivation, which is worth more than the number.** Three-way set equality holds at 21 (acme.json = Traefik `/api/overview` = distinct `Host()` names = split-DNS records) and it is delivered (Kuma monitor 20 read `certs 30d/21` at 21:31:43). **The "silent ACME failure" half is a PROXY only**: expiry < 21 d plus a one-directional count ratchet. A name that never OBTAINS a certificate is invisible by construction, and the script says so in its own comment (#157). **That blind spot was MEASURED EMPTY 2026-09-13 night-second, with a control**: all 21 names serve a real Let's Encrypt leaf over SNI (correct subject, issuer CN YR1/YR2), while two uncovered names returned `SSL alert 112 unrecognized name, no peer certificate` — the probe discriminates, and no name is invisible. One real ACME failure did occur (2026-09-11T21:44:28Z, missing `_acme-challenge` TXT, 403) and self-healed; it is verbatim the case `homelab-health.sh.j2:384` says it deliberately does not report, so it CONFIRMS the design rather than breaching it |
-| C15 | The offsite repository losing the one property that makes it a backup | goss assertion on the live rest-server process, proven to fail in both modes (#278) |
+| C15 | The offsite repository losing the one property that makes it a backup | goss assertion on the live rest-server process, proven to fail in both modes (#278). **Strengthened 2026-09-26:** it matched `--append-only` anywhere while rest-server keeps the LAST occurrence, so `--append-only --append-only=false` passed; it now reads the last occurrence (7 command lines + the live process) |
 | C16 | A read-write bind mount its container cannot create files in | **Left this table on 2026-09-11 — downgraded to ENUMERATED.** The enumeration is derived; the PREDICATE is a proxy (`owner == OPERATOR_UID`). 15 of 27 mounts reach the test and 0 of the 15 can ever fail it |
 | C17 | A filesystem never checked, and boot triggers reset every boot | **Left this table on 2026-09-05 evening — downgraded to ENUMERATED.** The three assertions are hardwired to `/`: one filesystem of four, and `Last checked` is asserted nowhere, six days after this file first recorded that omission. Nothing is proposed — the only live instance is the offsite root, and the operator DECLINED it on 2026-09-02 |
 | C18 | A database dump absent, stale, or empty | **BROKEN on 2026-09-13 and repaired the same evening — see the run section.** Its derivation keys on the dump VARIABLES rather than on the databases present, so three services deployed that night were backed up live, in WAL mode, with no dump and no assertion. PR #352 adds them (15 assertions, 31 → 46). **The wrong-axis defect itself is untouched, and 2026-09-13 night DEMONSTRATED it rather than arguing it**: `sonarr/logs.db`, `radarr/logs.db` and `prowlarr/logs.db` sit under a backed-up path with no dump and no assertion, and the deployed spec mentions `logs` zero times (46 assertions live, verified). They hold app logs, so the impact is low — their value is as proof that a database outside `backup_sqlite_dumps` is invisible to this gate by construction, which is the same shape that reopened C10. goss `backup-dumps`, now **26** checks (2x3 + 3x5 + 5, counted on the deployed spec 2026-09-05 evening), generated from the dump variables so a database cannot get a dump without a check (#177, ADR-032). **The `empty` word is no longer an overstatement** — the derived `-content` floor shipped 2026-09-05 10:39 and 2x3+3x4+4 = 22 matches the host. The derivation half recorded as defective that morning is **FIXED**: `-container-present` is now generated in the same loop, and the residue is a list of one (Immich) |
@@ -7533,7 +7676,7 @@ them; do not re-derive without a new symptom.
 | C49 | A hardening applied to an artefact its producer regenerates | 28/28, 1 new instance | 08-30 |
 | C53 | A handler whose effect is expected earlier in the play than it occurs | **41 handlers, 3 flush points** — not the 34/1 this row carried; two runs counted 41/3 independently, and the correction had been written in the run narration without reaching this table (corrected 2026-09-19, fifth run) | 08-30 |
 | C67 | A verification whose deadline was sized against an input that has since grown | 13/13 both hosts, 2-4 instances | 08-31 |
-| C68 | A store whose declared retention is overridden by a limit that is not the one written down | 7 stores + 31 log rings | 08-31 |
+| C68 | A store whose declared retention is overridden by a limit that is not the one written down | 7 stores + 31 log rings | 08-31 — **space incomplete, found 2026-09-26**: rotations configured INSIDE a container were never in it; Pi-hole's `--force` rotation kept 3 days against 3 weeks written. Only Pi-hole was read |
 | C69 | A periodic control whose own runtime nothing measures | 16/16, 1 material instance | 08-31 |
 | C70 | A rule inert today that would be a fault if enforced | 19/19 UFW rules, 2 instances | 08-31 |
 | C71 | A recurring cost driven by rewrite rate rather than information carried | 22/22 backup subtrees, 6 instances | 08-31 |
@@ -7579,6 +7722,8 @@ them; do not re-derive without a new symptom.
 | C119 | **A detector whose own act is a member of the set it examines** — so it can read its own trace as data, and its verdict is in part a measurement of itself | **LEFT THIS TABLE — ENUMERATED 2026-09-21 (twelfth run) on its seventh and last plane, `ansible-deploy` 31/31 by (spec, artefact) pairs. Read the twelfth run's section, not this row.** Until 2026-09-21 this row carried the NINTH run's state ("swept 5, the space is NOT bounded") while the OPEN table carried the eleventh's, so an agent reading the row re-derived work already done. |
 | C120 | **A guard whose trip point sits at the wrong distance from the rupture it guards** — either OUTSIDE the range the guarded quantity can occupy, so the guard is decorative while appearing armed, or SHORTER than the work the mechanism explicitly permits itself | **LEFT THIS TABLE — ENUMERATED 2026-09-21 (twelfth run)** on the route this register named, six domains, with the provoked-measurement residual declared rather than swept. Read the twelfth run's section, not this row. |
 | C121 | **A token whose validity ends with an event, kept on a medium that outlives the event, with nothing to expire it** — the mirror of C39 | **ENUMERATED 2026-09-25 (thirteenth run) by EVENT**: boot 18/18, container recreation 43/43, deploy 23/23, interrupted run 13/13, security 6/6, network 6/6. Two inert instances recorded, not fixed. Not GATED |
+| C122 | A play whose task N consumes an artefact that only a later task M > N of the same play produces | **ENUMERATED 2026-09-26 (fourteenth run)**: 55/55 unit targets + 530/530 path/user/package/binary/handler pairs (site 401, offsite 129). Postfix instance left open by decision. Not GATED |
+| C123 | **A value declared in two or more places where the source the repository writes is not the one that resolves at run time** — (P1) the repository's source loses, (P2) an undeclared source overrides it, (P3) two consumers resolve it by different rules | **MINTED and ENUMERATED 2026-09-26 (fourteenth run)**, key `precedence`: `system` 188, `security` 255, `network` 33, `services` 100 env + fields, `backup` 23, `observability` 104, `ansible-deploy` 312. Instances: `NEXTCLOUD_MAINTENANCE_WINDOW_START` read by nobody (removed); glibc vs resolved on the homelab for 19 of 21 split-DNS names (documented); wg-easy per-client values vs its enforcer (documented); `base_url` in two SearXNG sources, equal; `TZ` hard-coded beside `timezone`, equal. Overlaps C13 (env shadowed by a persisted file), C78, C86. Residual: vault key names. Not GATED |
 
 ## DECLINED
 

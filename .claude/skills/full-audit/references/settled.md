@@ -3862,7 +3862,11 @@ Recorded rather than edited away, because each was a confident wrong reading.
 
 - **`notifempty` does NOT make Pi-hole's rotation skip forever.** #202 says it
   does; the nightly job runs `logrotate --force`, and `--force` overrides
-  `notifempty`. The mechanism is also not system logrotate at all — there is no
+  `notifempty`.
+  **Corrected 2026-09-26 (fourteenth run): the last clause is wrong.** `--force`
+  overrides the PERIOD, not `notifempty` — an empty `webserver.log` was not
+  rotated on 09-26 while the non-empty files rotated in the same second. What
+  `--force` does override is `weekly`: every stanza of that file rotates daily. The mechanism is also not system logrotate at all — there is no
   `cron.d` entry and no state file — but `pihole flush once quiet` at 00:00,
   which runs logrotate with its **own** state file and **no FTL restart**, so
   reopening depends entirely on the `postrotate` `kill -USR2`. That signal has a
@@ -5255,3 +5259,50 @@ the two readings, and every residual match after a purge is likely to be the
 purge's own verification. Always inspect the residue before believing it, and
 require a value (`BECOME-SUCCESS` is the discriminator for this leak) rather
 than a name.
+
+## The run of 2026-09-26 — the key was `precedence`
+
+### Settled, so a later run does not re-derive them
+
+- **needrestart: our drop-in assigns `override_rc` key by key.** A whole-hash
+  assignment in `conf.d/` replaces the vendor's 43 exclusions (dbus, logind,
+  `user@`, getty…). The cost, accepted: those services wait for a reboot after a
+  library update instead of being restarted hot. C124.
+- **Pi-hole's `FTL.log` and `webserver.log`: `daily` + `rotate 21`.** The only
+  rotator is `pihole flush` with `--force`, so a period is never read;
+  retention is written in generations.
+- **The postfix `main.cf` edits on a fresh host (C122) are left as they are.**
+  The operator will decide between installing postfix explicitly and skipping
+  the edits when it is absent as part of the mail work. Do not re-propose before
+  then, and do not re-propose rkhunter.
+- **`NEXTCLOUD_TRUSTED_DOMAINS` stays in `compose.yaml`** for a from-scratch
+  install; `trusted_domains` on the live instance comes from the `occ` task.
+- **The two infrastructure WireGuard peers keep their split tunnel only in their
+  own `wg0.conf`.** The deploy's enforcer rewrites `allowedIps` for every client;
+  there is no per-client value in the repository. Documented, not changed.
+- **The glibc / resolved divergence on the homelab is structural** — resolved
+  follows `eth0`'s DHCP DNS (Pi-hole), glibc reads the repository's
+  `resolv.conf`. Nothing on the host uses resolved; documented as a diagnostic
+  trap.
+- **restic precedence, proven on the deployed version:** `--password-file` beats
+  `RESTIC_PASSWORD`, `--repo` beats `RESTIC_REPOSITORY`. The deployed pairs carry
+  equal values.
+
+### New instrument traps — three
+
+- **`needrestart.conf` ends by including `conf.d/`.** "The vendor file alone" is
+  obtained by cutting it before that loop, not by evaluating it.
+- **A Docker tmpfs inherits the mode of the image's directory at that path**
+  (`755 root` on `/var/cache/nginx` in `nginx:alpine`, `1777` on `/tmp`). There
+  is no single default to argue about; measure per path.
+- **The session scratchpad does not survive a reboot of the workstation.** The
+  eight reports of this run were lost before the corrections; only the agents'
+  summaries remained. A summary must carry file:line for every instance it asks
+  to be fixed.
+
+### After a restart of dbus
+
+`systemd-timesyncd` and `systemd-resolved` keep working but stop answering on the
+bus (`timedatectl show-timesync`, `resolvectl` time out) until the next boot, and
+`systemctl --failed` does not show it. Seen on both hosts on 2026-09-26. With
+C124 fixed, needrestart no longer restarts dbus.
