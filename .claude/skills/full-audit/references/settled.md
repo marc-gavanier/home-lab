@@ -53,6 +53,10 @@ Two kinds of entry, and the distinction matters:
   profile is not a drop-in route for ad-hoc restic commands.
 - **e2fsck tolerates a day of clock skew**: after a boot under ~24 h, the
   initramfs honours the clean flag, and `root-was-checked-this-boot` still passes.
+- **Docker resets its data-root to 0710 at every start** (`MkdirAllAndChown(root, 0o710)`
+  after a `Chmod 0711`). A task forcing 0711 reports `changed` on the first run after
+  every reboot and never on a second run, so a back-to-back idempotence check cannot
+  see it. The task now says 0710.
 - **A markdown realign script must touch only the tables you edited**: run over
   whole files, it reformatted 30 untouched tables.
 
