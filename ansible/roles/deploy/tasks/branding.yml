@@ -1,11 +1,4 @@
 ---
-# SearXNG branding (Gerbier theme).
-# Opt-in via `searxng_branding` (default false). The build ALWAYS runs so the
-# (static) bind-mount always has a file: with branding off it emits the stock
-# CSS (mount is a no-op, SearXNG stays vanilla); with branding on it appends the
-# Gerbier overrides (+ optional logo). Runs BEFORE `compose up` so the mounted
-# files exist — otherwise Docker would create empty directories over them.
-
 - name: branding | Install brotli (to regenerate SearXNG precompressed assets)
   ansible.builtin.apt:
     name: brotli
@@ -37,8 +30,6 @@
     chdir: /opt/homelab/branding/searxng
   environment:
     SEARXNG_BRANDING: "{{ searxng_branding | default(false) | ternary('true', 'false') }}"
-    # Must match the searxng image in docker/compose.yaml (the build extracts
-    # the base CSS from it) — Renovate bumps both lines together.
     SEARXNG_IMAGE: searxng/searxng:2026.7.13-9e25585ae
     SEARXNG_LOGO: >-
       {{ ('/opt/homelab/branding/searxng/logo.' + (searxng_logo.split('.') | last))

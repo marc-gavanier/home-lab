@@ -1,21 +1,4 @@
 ---
-# Swap on the HDD, activated by a systemd unit bound to the data mount.
-
-# `creates:` means this runs ONCE. Changing swap_size_mb afterwards resizes
-# nothing and the play still reports ok — the knob looks live and is not.
-# Resizing is a deliberate manual operation, because the file is in use:
-#
-#   free -h                                  # check available RAM first
-#   swapoff /mnt/data/swapfile               # pages come BACK into RAM
-#   rm /mnt/data/swapfile
-#   ansible-playbook playbooks/site.yml --tags storage --ask-vault-pass
-#
-# `swapoff` is the step that deserves care: it reads every swapped page back
-# into memory, over USB. With ~1.9 GiB in swap that is 1.9 GiB that must fit in
-# available RAM, and minutes of disk churn — do it when the stack is idle, and
-# never inside the 03:00 backup window. If available memory is smaller than the
-# used swap, `swapoff` simply fails rather than OOM-ing, so check `free -h`
-# first and stop services if it is tight.
 - name: swap | Check whether the swap file already exists
   ansible.builtin.stat:
     path: "{{ data_mount_point }}/swapfile"
@@ -32,23 +15,12 @@
     path: "{{ data_mount_point }}/swapfile"
     mode: "0600"
 
-# Only on a file that did not exist before this play. It used to run every time
-# with `failed_when: false`, which meant that on an ACTIVE swap file mkswap
-# failed on every single run and the failure was swallowed whole — nothing was
-# formatted, nothing was reported. Gating on the prior absence removes both the
-# pointless call and the suppressed error, so a real mkswap failure now stops
-# the play. Gated on the stat rather than on the create task's own status: the
-# two are equivalent here, and `is changed` would be a handler in disguise.
 - name: swap | Format swap file
   ansible.builtin.command:
     cmd: "mkswap {{ data_mount_point }}/swapfile"
   when: not swapfile_before.stat.exists
   changed_when: true
 
-# Swap is a systemd unit bound to the data mount, NOT an fstab entry: the
-# fstab entry (sw,nofail) was activated at boot, when {{ data_mount_point }} is
-# still the bare SD directory — so the system silently created and swapped on a
-# ghost swapfile on the SD card (wear + slow) instead of the HDD one.
 - name: swap | Install swap unit (activates only once the HDD is mounted)
   ansible.builtin.copy:
     dest: /etc/systemd/system/mnt-data-swapfile.swap

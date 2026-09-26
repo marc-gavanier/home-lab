@@ -3,57 +3,7 @@
 Description=Weekly SMART extended self-test on the homelab data disk
 
 [Timer]
-# Weekly, not the offsite's monthly. A drive that produced three bad regions in
-# three days is not a drive to sample monthly.
-#
-# It is NOT free, and this comment used to say it was — "costs nothing the host
-# can feel" was written before anyone measured it. Read latency on sda,
-# 30-minute averages, 2026-08-26:
-#
-#     no test running        5-6 ms
-#     test running          15-30 ms, peaks at 62
-#
-# A factor of 3 to 5, for the four to eight hours it runs. The drive does yield
-# to host I/O, but yielding is not being invisible — Jellyfin seeks and Immich
-# thumbnails come off this disk.
-#
-# 03:30 Wednesday, chosen against two constraints:
-#
-#   AFTER the nightly backup, which finishes around 03:07. That job is the data
-#   protection path and is the one thing that must not be slowed down — an
-#   earlier start would run the scan straight through it.
-#   BEFORE the working day, using the quiet 03:30-07:00 window. Contention is
-#   also what makes the test slow, so quiet hours make it finish sooner:
-#   around 09:30 rather than mid-afternoon.
-#
-# What is NOT a constraint, though it was written here as one until today: the
-# daily 07:00 disk report parsing an "in progress" entry. Measured on this drive
-# the same day — a running test does not appear in the self-test log at all, so
-# that report reads the last COMPLETED entry whatever the time. Removing that
-# false constraint is what freed the schedule.
-#
-# Wednesday also keeps it clear of the weekly block, which moved to TUESDAY
-# 00:00-02:02 on 2026-09-13 (lynis 00:30, restic prune/check 01:00, offsite
-# check 02:00). It used to read "the Sunday cluster (restic prune 05:00,
-# offsite check 06:00)"; that cluster no longer exists.
-#
-# This timer deliberately did NOT join that move, and the reason is the
-# measurement above: the block was pulled AHEAD of the 03:00 backup because
-# everything in it is bounded and finishes in minutes. This scan is neither —
-# it runs four to eight hours at 3-5x read latency, so putting it before the
-# backup would drag the scan straight through the one job the paragraph above
-# says must not be slowed. After the backup remains the right side of it.
-#
-# The announced 228 minutes is a floor, not a duration. Nothing waits on the
-# test, and a run still going when the next Wednesday comes round is skipped by
-# the service's ExecCondition rather than restarted or failed.
 OnCalendar=Wed *-*-* 03:30
-# Kept, and it has a sharp edge worth naming: on a schedule CHANGE, systemd
-# compares the new calendar against the stored stamp and can decide a run was
-# missed, firing the moment the timer is restarted. That is what happened when
-# this moved 04:30 -> 07:30 -> 03:30 (both on 2026-08-26) and it is why the
-# service carries an ExecCondition. The catch-up itself is wanted — a host that
-# was off on Wednesday should still get its scan.
 Persistent=true
 RandomizedDelaySec=15m
 

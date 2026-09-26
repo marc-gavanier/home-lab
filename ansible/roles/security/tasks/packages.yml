@@ -1,19 +1,10 @@
 ---
-# CIS batch 4 (audit 2026-07): remove unused network services and clients.
-# rsync is deliberately KEPT, and the reason given here until 2026-09-20 was
-# wrong: it cited docs/05-services/nextcloud.md as "the operator's
-# media-transfer tool", and that page has no occurrence of rsync — it describes
-# read-only external storage and an sshfs mount (ADR-033). What actually needs
-# the binary is knowledge/runbooks/restore-from-backup.md, which runs
-# `rsync -a --delete` at three steps of the restore. Removing rsync breaks the
-# restore path.
-
 - name: packages | Remove unused network services and legacy clients (CIS 2.1.x, 2.2.x)
   ansible.builtin.apt:
     name:
-      - avahi-daemon  # mDNS broadcaster — nothing discovers services this way here
-      - telnet        # legacy cleartext client
-      - ftp           # legacy cleartext client
+      - avahi-daemon
+      - telnet
+      - ftp
     state: absent
     purge: true
     autoremove: true

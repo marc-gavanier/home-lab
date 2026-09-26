@@ -1,7 +1,4 @@
 ---
-# Collections and external roles — install with:
-#   ansible-galaxy install -r requirements.yml
-# Versions pinned for reproducible control nodes (bump deliberately).
 collections:
   - name: ansible.posix
     version: 2.2.2
@@ -13,7 +10,6 @@ collections:
     version: 5.3.0
 
 roles:
-  # CIS Ubuntu 24.04 benchmark (audit use only here — see playbooks/cis-audit.yml)
   - name: UBUNTU24-CIS
     src: https://github.com/ansible-lockdown/UBUNTU24-CIS
     version: "1.7.0"

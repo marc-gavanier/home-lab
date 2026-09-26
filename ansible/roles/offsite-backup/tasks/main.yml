@@ -1,15 +1,4 @@
 ---
-# =============================================================================
-# Role: offsite-backup — Restic rest-server target on the offsite Pi
-# =============================================================================
-# Design (ADR-010):
-#   - rest-server runs append-only: the homelab can write but never delete.
-#   - No LUKS and NO repo password on this host — restic encryption protects
-#     the data at rest; a stolen Pi/SSD yields only ciphertext.
-#   - Retention/prune is a documented manual procedure; the weekly deep
-#     `restic check` runs FROM the homelab (which holds the repo password).
-# Thin orchestrator: one file per concern, task names prefixed with the file.
-
 - name: Prepare the backup disk (UAS quirk, ext4, mount)
   ansible.builtin.import_tasks: disk.yml
 

@@ -1,6 +1,4 @@
 ---
-# Nextcloud post-config (cron mode, system settings, apps, external storage).
-
 - name: nextcloud | Inspect the Nextcloud container
   community.docker.docker_container_info:
     name: nextcloud
@@ -9,18 +7,6 @@
 - name: nextcloud | Determine whether Nextcloud is running
   ansible.builtin.set_fact:
     nextcloud_up: "{{ nextcloud_info.exists and (nextcloud_info.container.State.Running | default(false)) }}"
-
-# A skipped block that says nothing is the defect ADR-030 names, and it is the
-# same one `observability/tasks/main.yml` guards against with its "no silent
-# caps" report: the run is CORRECT — there is genuinely nothing to do against a
-# container that is not running — but its silence is not. `ok=0 changed=0` for
-# this whole section is what a healthy no-op and a missed configuration pass
-# look like from the outside, and `changed=0` is exactly what an idempotence
-# check is looking for, so a re-run confirms the wrong thing too.
-#
-# No count in the message on purpose: a hardcoded number is what went stale in
-# boot-and-unlock.md and in ADR-007. The message names the CONSEQUENCES, which
-# do not drift when a task is added.
 
 - name: nextcloud | Report that the Nextcloud configuration was NOT applied
   ansible.builtin.debug:
@@ -53,7 +39,6 @@
   changed_when: "'set to cron' in nc_cron.stdout"
   when: nextcloud_up
 
-# Idempotence: read the live system config once, then only set what differs.
 - name: nextcloud | Read Nextcloud system configuration
   ansible.builtin.command:
     cmd: docker exec -u www-data nextcloud php occ config:list system --output=json
@@ -68,17 +53,7 @@
   loop:
     - { key: default_phone_region, type: string, value: FR }
     - { key: maintenance_window_start, type: integer, value: "4" }
-    # The app store fetch fails every night around 04:45 with cURL error 23 and
-    # writes the whole failed request into the log as a Guzzle trace: measured
-    # 2026-09-18, three entries and 30.5 MB in a file holding THREE LINES, the
-    # longest of them 10.17 MB, plus a 105 MB rotation. That file is what the
-    # fail2ban [nextcloud] jail re-reads. Nothing here installs apps from the
-    # store — they are pinned in the image and the runbook updates them with
-    # occ — so the fetch buys nothing and costs a 10 MB line a day.
     - { key: appstoreenabled, type: boolean, value: "false" }
-    # And a bound under it, because disabling one writer does not bound a log:
-    # 10 MiB rather than the 100 MB default, so no single entry can leave a
-    # hundred megabytes for fail2ban to walk.
     - { key: log_rotate_size, type: integer, value: "10485760" }
   register: nc_sys_set
   changed_when: true
@@ -86,25 +61,6 @@
     - nextcloud_up
     - (nc_sysconf.stdout | from_json).system[item.key] | default('') | string | lower != item.value | string | lower
 
-# files_lock ships a cron job that releases stale locks and a setting that
-# disables it. The default `lock_timeout` is -1 — ETA_INFINITE — and
-# getDeprecatedLocks() returns an empty list on that value, so Cron\Unlock runs
-# every time and finds nothing, forever. A lock therefore outlives whatever made
-# it, and the DB stores it as ttl -60 (the -1 default times the 60 in
-# ConfigService: the value is MINUTES).
-#
-# That is not theoretical. The Nextcloud mobile app takes a Text lock when it
-# opens a .md note; killed from the app switcher, it never sends the release.
-# Six such locks were found on 2026-08-15 and reproduced on demand. One of them
-# blocked the rclone mount's write-back for 42 hours: rclone retried every few
-# seconds, Nextcloud answered 423 Locked every time, and the log rotated a full
-# 100 MB. Nothing went red — the file simply stopped syncing, silently.
-#
-# 60 minutes rather than something tighter because there is NO refresh: a lock
-# ages from its creation whether or not the editor is still open, so the timeout
-# has to outlast a real editing session. Losing one mid-edit costs nothing here
-# anyway — this is a single-user instance, the lock only ever protects against a
-# second person, and Text autosaves continuously.
 - name: nextcloud | Read the files_lock timeout
   ansible.builtin.command:
     cmd: docker exec -u www-data nextcloud php occ config:app:get files_lock lock_timeout
@@ -122,9 +78,6 @@
     - nextcloud_up
     - nc_lock_timeout.stdout | default('') | trim != nextcloud_lock_timeout_minutes | string
 
-# Manage trusted_domains via occ: NEXTCLOUD_TRUSTED_DOMAINS only applies on first
-# install, not on an existing instance. localhost = internal healthcheck,
-# nextcloud = notify_push reaching http://nextcloud, drive.<domain> = real access.
 - name: nextcloud | Ensure Nextcloud trusted domains
   ansible.builtin.command:
     cmd: "docker exec -u www-data nextcloud php occ config:system:set trusted_domains {{ item.idx }} --value={{ item.val }}"
@@ -163,11 +116,6 @@
     - nc_app_install.rc != 0
     - "'not compatible' not in nc_app_install.stdout"
 
-# notify_push reads config.php (trusted_proxies, binary path) at startup, so it
-# must be restarted after the app is installed and after any Nextcloud config
-# change for the self-test to pass. Idempotence: only when something DID change.
-# Not a handler on purpose: handlers fire at end of play, but the self-test and
-# setup tasks right below need the restarted daemon within this same file.
 - name: nextcloud | Restart notify_push to reload Nextcloud config  # noqa: no-handler
   ansible.builtin.command:
     cmd: docker restart nextcloud-notify-push
@@ -176,8 +124,6 @@
     - nextcloud_up
     - nc_app_install is changed or nc_sys_set is changed or nc_trusted is changed
 
-# The self-test verifies the whole chain (config, proxy route, binary); a pass
-# means there is nothing to set up — that is the idempotence probe.
 - name: nextcloud | Probe notify_push with its self-test
   ansible.builtin.command:
     cmd: docker exec -u www-data nextcloud php occ notify_push:self-test
@@ -199,9 +145,6 @@
   when:
     - nextcloud_up
     - nc_push_test.rc | default(0) != 0
-
-# Mount media libraries (photos/music/videos) as read-only External Storage
-# so Nextcloud can browse them without duplicating players or syncing files.
 
 - name: nextcloud | Ensure files_external app is enabled
   ansible.builtin.command:
@@ -240,13 +183,6 @@
   check_mode: false
   when: nextcloud_up
 
-# The two loops below iterate `nc_ext_list2`, which is the SECOND listing —
-# taken after `files_external:create` has run. An empty stdout makes both loops
-# `[]`, so the read-only flags and the out-of-band-change option are skipped in
-# silence and the play reports ok. Measured 2026-09-05: three storages, all
-# `readonly=1`. If the listing is empty here, either the create above did
-# nothing or `occ` answered with nothing, and neither is a state in which the
-# enforcement below should be reported as done.
 - name: nextcloud | Refuse an empty external-storage listing
   ansible.builtin.assert:
     that:
@@ -270,16 +206,6 @@
   loop: "{{ (nc_ext_list2.stdout | from_json) if (nc_ext_list2.stdout | default('')) else [] }}"
   loop_control:
     label: "{{ item.mount_point | default('?') }}"
-  # The listing above already carries the option's CURRENT value, so the write
-  # is skipped unless it would actually change something. Before this guard the
-  # command ran unconditionally on every deploy — three mounts here and three
-  # below, six writes costing ~32 s — under `changed_when: false`, so the report
-  # was byte-identical whether it had just silently undone a change made in the
-  # web UI or done nothing at all. Both directions of that are wrong: a real
-  # write must be able to say so, and a no-op must not have to.
-  # Both renderings are accepted because the value arrives as a STRING: a future
-  # version emitting `true` instead of `"1"` would otherwise re-run this task on
-  # every deploy and report a change each time, which is the defect inverted.
   when:
     - nextcloud_up
     - item.configuration.datadir is defined
@@ -287,18 +213,6 @@
     - ((item.options | default({})).readonly | default('0') | string) not in ['1', 'true', 'True']
   changed_when: true
 
-# Nextcloud browses its own index, not the disk, so a file that arrives any way
-# other than through Nextcloud stays invisible until something rescans. ADR-003
-# accepted that as a con and left it "could be automated later if it becomes a
-# chore"; ADR-033 made it one, by turning the workstation's ~/Music into the
-# library itself. `filesystem_check_changes: 1` is Nextcloud's own answer — it
-# revalidates a directory on direct access, so a new album shows up when you
-# open the folder. The cost is one stat per directory browsed, not a walk of the
-# tree, and the desktop client syncs neither of these mounts.
-#
-# Verified 2026-08-27 on /Music with /Photos and /Videos left untouched as the
-# control: a folder created on the Pi outside Nextcloud appeared on the next
-# browse, with no occ files:scan run.
 - name: nextcloud | Let media external storages notice out-of-band changes
   ansible.builtin.command:
     cmd: >
@@ -307,7 +221,6 @@
   loop: "{{ (nc_ext_list2.stdout | from_json) if (nc_ext_list2.stdout | default('')) else [] }}"
   loop_control:
     label: "{{ item.mount_point | default('?') }}"
-  # Same guard as the read-only enforcement above, for the same reason.
   when:
     - nextcloud_up
     - item.configuration.datadir is defined

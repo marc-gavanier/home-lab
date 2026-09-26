@@ -1,148 +1,13 @@
-# =============================================================================
-# Home Lab — Docker Compose
-# =============================================================================
-# All services for the home lab. Deploy with:
-#   docker compose up -d
-# =============================================================================
-
-# Applied to every service (aliased in each block): block privilege escalation
-# via setuid binaries after container start (no-new-privileges). Does NOT remove
-# explicitly-granted capabilities — wg-easy/netdata keep theirs.
-# Two services deliberately omit it, netdata and collabora, because each runs a
-# binary that must gain privilege at exec (setuid plugins, file capabilities).
-# Both failures are silent, so each block says so where the omission lives.
 x-security-opt: &no-new-privs
   - no-new-privileges:true
 
-# Dropped from every service (aliased in each block): Docker's default set is 14
-# capabilities handed to every container regardless of need — CHOWN, SETUID,
-# SETGID, DAC_OVERRIDE, FOWNER, MKNOD, NET_RAW, KILL, AUDIT_WRITE and more. Most
-# images here touch none of them. Each block re-adds only what its own image was
-# observed to need, with a comment saying which behaviour requires it; anything
-# not listed there was verified absent, not assumed (issue #24).
-# Read-only root filesystem (per service, issue #32): the container cannot write
-# to its own image layer, so a compromised process cannot drop a binary or alter
-# the code it will run next. What each service needs was measured with
-# `docker diff` on the live containers — the real write set after weeks of
-# running — not guessed. Writable paths are declared explicitly: a sized tmpfs
-# for state meant to be lost, a bind mount for state that is not. Services
-# without `read_only` carry the reason why in their own block.
-# That measurement has one blind spot, and navidrome paid for it: `docker diff`
-# only sees paths a container HAS written, so a code path never exercised leaves
-# no trace behind. Every read_only service therefore carries a small /tmp tmpfs.
-# Where that is insurance rather than a measurement, the block says so — an
-# unwritten tmpfs allocates no page, so the standing cost is nothing while the
-# failure it prevents is silent by nature.
-#
-# `start_period` is sized per container from a measured cold boot, and it does
-# more than silence an alarm: while a container is `starting`, Traefik withholds
-# its router. An undersized start_period therefore does not merely mislabel a
-# healthy container — the service answers 404 through the proxy for as long as
-# the probe keeps failing. That is exactly what "five services down" looked like
-# from outside on 2026-08-29, with RestartCount 0 across all 28 containers and
-# the heal timer idle through 217 passes. Neither #258 nor #262 records this;
-# both cost it only in alarm noise.
-#
-# Size on the WORST run, which is a boot colliding with the 03:00 backup, not a
-# quiet one — the two are a factor of two apart, measured.
-#
-# ENUMERATED on 2026-08-29 from netdata's own health_status charts over the
-# 02:50-03:25 window. Of the FIFTEEN containers declaring a start_period,
-# exactly two ever left `starting` for `unhealthy` in that window:
-#
-#   collabora       overshot   993 s against 600 s   -> 1320 s
-#   immich-server   overshot   773 s against 480 s   -> 1020 s
-#   calibre-web     held       511 s against 600 s   (89 s, the thinnest margin
-#                              left; measured, not changed — it is the next one
-#                              to go if a boot is ever slower than this one)
-#
-# --- That enumeration was INCOMPLETE, and its own caveat said why ------------
-# It read netdata, and netdata is a container: it only began collecting at
-# 02:55:13. The first wave was therefore unobservable, and the caveat drew the
-# wrong conclusion from that — it said those containers "were already healthy
-# before anything could watch them", which is not something an instrument that
-# was not running can establish. uptime-kuma was still `starting` 95 seconds
-# AFTER the netdata container existed.
-#
-# Re-measured the same afternoon with an instrument that does not depend on
-# netdata — `State.StartedAt` to the first listen line in each container's own
-# log — and two of the four unobserved containers had overshot:
-#
-#   uptime-kuma     355 s against 180 s   -> 960 s
-#   forgejo         145 s against 120 s   -> 420 s
-#   miniflux-db     held
-#   pihole          held
-#
-# Both new figures were measured on a boot that did NOT collide with the 03:00
-# backup, so they are doubled for the worst case before the usual margin:
-# 355 -> 710 -> 960, and 145 -> 290 -> 420.
-#
-# The lesson is the one worth keeping: an enumeration is bounded by its
-# instrument, and "no sample" is not "no problem".
 x-cap-drop: &cap-drop-all
   - ALL
 
-# Split-DNS pins for every container running the Nextcloud codebase. These names
-# exist only in Pi-hole, and these containers resolve through Docker's embedded
-# DNS (127.0.0.11), which forwards to the host — which is not a Pi-hole client.
-# So the names do not resolve *at all* here, and the pin is what makes them
-# resolvable. (A `dns:` entry pointing at Pi-hole does not work from these
-# containers: the UDP/53 hairpin to the host fails, while TCP/443 to the LAN IP
-# works. `uptime-kuma` can use `dns:` because it is not on the same path.)
-#
-# `drive` — the notify_push self-test reaches Traefik over TCP/443 rather than
-#   hairpinning to the public IP, which the router does not do.
-# `office` — richdocuments fetches the WOPI discovery from `wopi_url` and hands
-#   the browser the `urlsrc` it finds there *verbatim*. Collabora builds that
-#   value from the Host header, so `wopi_url` must be the public name, and every
-#   container that runs this code must be able to reach it (ADR-021).
-#
-# Aliased rather than repeated because the two containers drifted apart once
-# already: `nextcloud-cron` was created without the pins and spent its whole
-# existence failing the richdocuments discovery every 65 minutes, behind two
-# green monitors that both traverse a different path (issue #114).
 x-nextcloud-hosts: &nextcloud-hosts
   - "drive.${DOMAIN}:${PI_LAN_IP}"
   - "office.${DOMAIN}:${PI_LAN_IP}"
 
-# Uptime Kuma's monitored names, pinned for a reason that has nothing to do with
-# performance: Kuma had exactly ONE resolver, Pi-hole, and its only notification
-# channel is a Discord webhook — which has to resolve `discord.com` before it can
-# be sent. Pi-hole is also one of the 37 monitors. So the alert that Pi-hole is
-# down was the one alert that could not be delivered: Kuma still DETECTS the
-# outage (a dns-type check bypasses the OS resolver) but cannot report it.
-# Measured 2026-09-13: 1 notification channel, 37 active monitors, 37 bindings,
-# 0 monitors without one.
-#
-# The fix is two halves and both are needed. The fallback resolver below is what
-# lets the Discord webhook resolve while Pi-hole is down. These pins are what
-# stop that fallback from turning one true alert into eighteen false ones: a
-# public resolver answers the internal names with the PUBLIC address (or
-# NXDOMAIN), and 80/443 are not forwarded, so every HTTP monitor would go red
-# during a DNS outage and say nothing true.
-#
-# Derived, not snapshotted: this is every name this file routes with a
-# `Host()` rule. A service added without a pin here simply resolves through
-# Pi-hole as before — the staleness degrades to the old behaviour rather than
-# to a wrong answer.
-#
-# WHAT THESE PINS COST, and it was not noticed when they were added on
-# 2026-09-13: before them, the twenty HTTP monitors resolved the internal names
-# through Pi-hole on every check, so they exercised split-DNS continuously
-# without anyone designing that. Pinning them removed the only live detector of
-# it. The claim that stood here — that the `Pi-hole DNS` monitor probes the
-# function directly — was false: that monitor queries the APEX (`${DOMAIN}`),
-# which carries no `address=` line, and holds no condition on the answer, so it
-# stays green on the public address whether or not `pihole-05-homelab.conf` is
-# loaded. Failure mode it could not see: the twenty-one names go NXDOMAIN,
-# every service becomes unreachable, and every monitor stays green.
-#
-# The replacement re-points that same monitor at a name only split-DNS can
-# answer, and gives it an explicit condition on the address returned — so it
-# fails both when Pi-hole stops answering and when it answers the wrong thing.
-# One monitor, both failures. Recorded in `docs/05-services/uptime-kuma.md`.
-# Kuma v2 has no supported config-as-code path, so the change is made in the UI;
-# `ops/kuma-dump.sh` is what proves the deployed monitor matches that table.
 x-kuma-hosts: &kuma-hosts
   - "books.${DOMAIN}:${PI_LAN_IP}"
   - "dns.${DOMAIN}:${PI_LAN_IP}"
@@ -166,12 +31,6 @@ x-kuma-hosts: &kuma-hosts
   - "videos.${DOMAIN}:${PI_LAN_IP}"
   - "vpn.${DOMAIN}:${PI_LAN_IP}"
 
-# Secrets injected as files rather than through `environment:` (ADR-016).
-# The socket-proxy permits GET /containers/{id}/json, and that response includes
-# every container's Env array — so an env-injected password is readable by
-# Traefik or Netdata if either is compromised. Mounted at /run/secrets/<name>,
-# only the path shows up there. Sources live on the LUKS volume (ADR-011) and
-# are rendered by the deploy role, never committed.
 secrets:
   cf_dns_api_token:
     file: /mnt/data/secrets/docker/cf_dns_api_token
@@ -185,28 +44,19 @@ secrets:
     file: /mnt/data/secrets/docker/immich_db_password
   transmission_password:
     file: /mnt/data/secrets/docker/transmission_password
-  # Read by `pihole setpassword` inside the container, not by FTL itself: the
-  # env var that would set it is only honoured on first start (#198).
   pihole_password:
     file: /mnt/data/secrets/docker/pihole_password
   vaultwarden_admin_token_hash:
     file: /mnt/data/secrets/docker/vaultwarden_admin_token_hash
   miniflux_db_password:
     file: /mnt/data/secrets/docker/miniflux_db_password
-  # The whole DSN, not a password inside it: Miniflux takes its connection
-  # string as one value, so the string is what has to stay off `environment:`.
   miniflux_database_url:
     file: /mnt/data/secrets/docker/miniflux_database_url
   miniflux_admin_password:
     file: /mnt/data/secrets/docker/miniflux_admin_password
-  # Forgejo has no CREATE_ADMIN equivalent — the account is made by a one-shot
-  # CLI call on first deploy, which reads the password from this file rather
-  # than taking it as an argument on the host.
   forgejo_admin_password:
     file: /mnt/data/secrets/docker/forgejo_admin_password
 
-  # Unlike the one above, this one IS read by the running container, on every
-  # start, through SECRET_KEY_URI.
   forgejo_secret_key:
     file: /mnt/data/secrets/docker/forgejo_secret_key
 
@@ -215,135 +65,46 @@ networks:
     external: true
   internal:
     driver: bridge
-  # Traefik <-> docker-socket-proxy only; internal:true = no outside route.
   socketproxy:
     driver: bridge
     internal: true
 
-# =============================================================================
-# Phase 2 — Network infrastructure
-# =============================================================================
-
 services:
 
-  # --- Docker socket proxy ---
-  # Traefik must NOT mount the raw docker.sock: `:ro` only makes the socket file
-  # read-only, not the API — a container holding it has full Docker control =
-  # host root (a real proxy-RCE -> host-root chain given Traefik's 2025 CVE
-  # history). This read-only proxy stands in front of it, on an internal-only
-  # network, with every write verb off (POST, EXEC, ALLOW_START/STOP/RESTARTS,
-  # SECRETS, VOLUMES, NETWORKS ... all 0).
-  #
-  # It does NOT expose "only the container-list endpoint Traefik needs", which
-  # is what this comment claimed until 2026-08-31. There are six grants and two
-  # consumers, and the set is the UNION of what they ask for. Mapped from the
-  # proxy's own access log rather than from intention:
-  #
-  #   CONTAINERS  /containers/json   both        (Traefik routers, netdata state)
-  #   VERSION     /version           Traefik     (provider handshake)
-  #   EVENTS      /events            Traefik     (long-lived stream)
-  #   INFO        /info              netdata
-  #   IMAGES      /images/json       netdata     (403 without it — ADR note in
-  #                                               netdata-go.d-docker.conf.j2)
-  #   PING        /_ping             healthcheck
-  #
-  # Nothing here is unused — that was measured, not assumed, before deciding not
-  # to trim it. What is worth knowing is the shape rather than the size: **the
-  # authorization is attached to the channel, not to the caller.** There is one
-  # grant set and both clients get all of it, so Traefik holds INFO and IMAGES
-  # it never calls, and netdata holds EVENTS and VERSION it never calls. Nothing
-  # in the decision path knows who is asking.
-  #
-  # Fixing that properly means two proxy instances with one grant set each. It
-  # was considered and not done here: `proxy` is on Traefik's critical path for
-  # all HTTPS, and the cost of a mis-wire is the whole reverse proxy. Recorded
-  # so the next reader does not have to re-derive that the set is minimal but
-  # the mechanism is not selective.
   socket-proxy:
     image: tecnativa/docker-socket-proxy:v0.5.0
     container_name: socket-proxy
-    restart: unless-stopped   # Tier 0: Traefik depends on it at boot
-    # NO read_only (#32): the entrypoint generates haproxy.cfg from the template
-    # sitting next to it. Measured: exit code 1, "can't create
-    # /usr/local/etc/haproxy/haproxy.cfg". Same reason as nextcloud — the write
-    # target shares a directory with content the image provides.
+    restart: unless-stopped
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     environment:
-      CONTAINERS: 1   # Traefik reads the container list; EVENTS/PING default on
-      # Dozzle calls GET /info at startup and treats a 403 as "no engine": it
-      # logs "Could not connect to any Docker Engine" and **exits 1**. Measured
-      # on a throwaway pair — same image, same flags, INFO=0 exits 1 and INFO=1
-      # reaches "Connected to Docker". Worth naming because the failure looks
-      # like a broken socket path rather than a missing permission, and because
-      # the cost is shared: Traefik and Netdata gain /info too. What that
-      # endpoint returns is daemon metadata — kernel, OS, storage driver,
-      # container counts, registry config — with no Env array and no secret in
-      # it, and Netdata already reports all of it by design.
-      INFO: 1         # Dozzle: fatal at startup without it
-      # Netdata's docker collector, and nothing else asks for it. Measured on a
-      # throwaway proxy rather than inferred, because the first attempt at this
-      # collector failed on a 403 and the endpoint list looked wider than it is:
-      #
-      #   with IMAGES=1   /images/json 200   /system/df 403   /containers/json 200
-      #
-      # `/system/df` stays denied and the collector does not care: it is only
-      # called when `collect_container_size: yes`, which the job config sets to
-      # `no` (walking the layer store lives on the HDD here). A full throwaway
-      # agent against this configuration logged `check success` and produced the
-      # per-container `docker.container_state` and `docker.container_health_status`
-      # charts the alarms need.
-      #
-      # What it grants, exactly: a read-only listing of image names, tags and
-      # sizes. POST stays 0, so nothing here can pull, build or delete. Traefik
-      # and Dozzle inherit the same read — the cost of one shared proxy, taken
-      # deliberately rather than duplicating the proxy to scope it.
-      IMAGES: 1       # netdata docker collector: /images/json, read-only
-      POST: 0         # deny all writes (default, made explicit)
+      CONTAINERS: 1
+      INFO: 1
+      IMAGES: 1
+      POST: 0
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       - socketproxy
-    # Without this the container is invisible to the health report, which only
-    # looks at `docker ps --filter health=unhealthy` — and this failure is the
-    # silent kind: with HAProxy frozen, Traefik kept answering 200 from its
-    # in-memory routes (measured), so nothing looks wrong while it has actually
-    # gone blind to container changes and would come up with an empty routing
-    # table on its next restart. Probes /_ping *through the proxy* rather than
-    # the port, since a HAProxy that listens but no longer reaches the socket
-    # still passes a `nc -z` (PING is allowed by default).
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2375/_ping"]
       interval: 30s
       timeout: 5s
       retries: 3
 
-  # --- Traefik (Reverse Proxy) ---
   traefik:
     image: traefik:v3.7.13
     container_name: traefik
-    restart: unless-stopped   # Tier 0: auto-start at boot (see stack-startup role)
+    restart: unless-stopped
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     cap_add:
-      # Binds :80 and :443 inside the container.
       - NET_BIND_SERVICE
-      # Reads traefik.yml and the dynamic dir, which Ansible renders 0640
-      # <user>:docker inside 0750 directories, while the process runs as root:
-      # without this it dies in a restart loop on "permission denied" (measured).
-      # The read-only override is enough — acme.json is root-owned, so the ACME
-      # store rewrites it in place with no directory write involved.
       - DAC_READ_SEARCH
     read_only: true
     tmpfs:
-      # Nothing was observed being written here, but lego writes temporary files
-      # during a challenge — a failure would only surface at the next renewal.
       - /tmp:size=16m
     environment:
-      # Scoped Cloudflare token for the ACME DNS-01 challenge (ADR-014), as a
-      # file so it stays out of `docker inspect` (ADR-016). lego — which drives
-      # the challenge inside Traefik — accepts a _FILE suffix on any of its
-      # provider variables.
       CF_DNS_API_TOKEN_FILE: /run/secrets/cf_dns_api_token
     secrets:
       - cf_dns_api_token
@@ -351,17 +112,9 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      # docker.sock is now reached via socket-proxy (tcp), never mounted here
       - ${SERVICES_DATA_DIR}/traefik/acme:/acme
       - ./configs/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
       - ./configs/traefik/dynamic:/etc/traefik/dynamic:ro
-      # The access log is written here rather than to stdout, so the raw line —
-      # which carries credentials that some clients can only pass in the query
-      # string — never reaches a durable store (#287, ADR-034). /run is a tmpfs:
-      # RAM, emptied at boot, on no backup source and not on the SD card. The
-      # directory is 0750 root:root, so the raw log is unreadable to every other
-      # account on the host. traefik-log-redactor tails this file, and it is ITS
-      # masked stdout that becomes the container log Dozzle serves.
       - /run/traefik:/var/log/traefik
     depends_on:
       - socket-proxy
@@ -379,103 +132,23 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
-      # Traefik declared none, and it is the slowest thing in the stack to
-      # become useful: measured 98 s from StartedAt to a loaded configuration.
-      # It is also the upstream cause of the redactor's start_period below —
-      # /run/traefik/access.log does not exist until Traefik writes it.
-      #
-      # Sized per this file's header rule: on the WORST run, a boot colliding
-      # with the 03:00 backup, which is a factor of two — 98 s x 2, rounded up
-      # to 240 s. Under-sizing this one is not cosmetic: while a container is
-      # `starting`, Traefik withholds its router, and for Traefik itself the
-      # 30 s x 3 default meant it could be declared unhealthy at 90 s while
-      # still perfectly on track.
       start_period: 240s
 
-  # --- Traefik access-log redactor (#287, ADR-034) --------------------------
-  # Traefik has no way to mask a NAMED part of a logged field. Measured on
-  # 3.7.11, in both `common` and `json`: `fields.names.RequestPath: redact` is a
-  # NO-OP, the value passes through verbatim, and `drop` blanks the whole path
-  # for every line. It does carry
-  # `accesslog.fields.queryparameters.defaultmode`, which governs the query
-  # string where these credentials arrive — but as a block, with no
-  # `queryparameters.names.<name>` to match the parameter class this redacts.
-  # Corrected 2026-09-12; the old wording said Traefik could not do it at all. Dropping was the cheap fix and it was rejected on a measurement —
-  # vaultwarden logs no request line of its own and jellyfin logged four in a
-  # day, so Traefik is the only HTTP visibility either service has.
-  #
-  # So the masking happens between Traefik and the durable store: Traefik writes
-  # the raw line to /run/traefik (tmpfs), this tails it, and its stdout is what
-  # json-file keeps and Dozzle serves.
-  #
-  # Root with no capabilities rather than an unprivileged uid, deliberately: the
-  # raw log has to stay root-only on the host, and a non-root reader would force
-  # /run/traefik world-traversable — trading the readership this issue exists to
-  # narrow. Everything else is shut: no network at all, read-only rootfs, both
-  # mounts ro, every capability dropped.
-  #
-  # alpine because it is already on this host and its busybox awk has fflush().
-  # busybox sed has no -u, so a sed pipeline shows nothing until 4 KB have
-  # accumulated — minutes at noon, hours at 04:00, and the tail lost outright if
-  # the container is killed. Measured, which is why this is awk.
   traefik-log-redactor:
     image: alpine:3.24
     container_name: traefik-log-redactor
-    # This container's stdout IS the durable access log (ADR-034), so its
-    # retention is a property of the log and not of the host's default (#290,
-    # class C39: evidence whose retention is shorter than the period it must
-    # span). The daemon default is 3 x 10 MB; measured on 2026-08-30 this log
-    # grows 6.17 MB/day, so the default spans 4.86 days — while the only trace
-    # that the second host is alive is a request it makes ONCE A WEEK. A census
-    # taken mid-week concludes it is absent, which is a wrong answer this lab has
-    # already reached once, by a different mechanism, in the very log that was
-    # widened to prevent it.
-    #
-    # 10 x 20 MB = 200 MB, about 32 days at the measured rate. The cost is 200 MB
-    # on a 5 TB disk, because the docker store lives on /mnt/data and not on the
-    # card.
-    #
-    # Those 32 days are the SIZE bound and they are not the span. A json-file
-    # ring belongs to the container, so `compose up` recreating this service
-    # starts it empty, and a deploy is far more frequent than 32 days. Measured
-    # 2026-09-20: 1 file of 10, 3.7 MB, 11 h 06 of span — 1.9 % of the capacity
-    # this block reasons about, and short of the 48 h its only consumer asks for.
-    # So the weekly-writer argument above does NOT hold as written: on that day
-    # the offsite host's weekly request appeared ZERO times in the whole retained
-    # log. Making the span real needs the log off the container's lifecycle, and
-    # journald is not the answer — it is the one store the masking in the
-    # security role cannot filter.
     logging:
       driver: json-file
       options:
         max-size: "20m"
         max-file: "10"
-    # Tier 0, and not because anything depends on it: `tail -F` opens the file
-    # where it is, so every line written while the redactor is down is lost from
-    # the durable log. Left to the staged startup it would come up in wave 1,
-    # after the 300 s DNS gate — blinding the access log for the whole of the
-    # part of boot that has already produced #252, #253, #260 and #292. It costs
-    # the boot storm nothing: one alpine reading one file, no image layers off
-    # the USB disk, no healthcheck to gate on. `-F` retries a file that does not
-    # exist yet, so starting before Traefik has created it is not a race.
-    # Listed in homelab-stack-startup.sh's tier-0 set, which the deploy asserts
-    # against this very line.
     restart: unless-stopped
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     read_only: true
-    # Nothing here talks to anything. `none` rather than an unused network
-    # attachment, so a compromise has no socket to reach for.
     network_mode: none
     tmpfs:
-      # Insurance, per the read_only convention at the top of this file: awk was
-      # not observed writing anywhere, but an unwritten tmpfs allocates no page.
       - /tmp:size=1m
-    # PID 1 is the shell, which does not forward SIGTERM into the pipeline — so
-    # `docker stop` waits out the grace period and then kills. That is the
-    # failure #288 spent a night removing from the databases, and it is harmless
-    # HERE: there is no state to flush, and the durable copy of every line
-    # already left through stdout. Shortened so a stack stop is not held up.
     stop_grace_period: 5s
     command:
       - sh
@@ -486,10 +159,6 @@ services:
       - ./configs/traefik/redact-access-log.awk:/etc/redact-access-log.awk:ro
     depends_on:
       - traefik
-    # If tail dies — the file replaced by something other than a truncation, awk
-    # exiting on a malformed script — the redactor keeps running and silently
-    # ships nothing, and the access log simply stops existing with no alarm
-    # anywhere. That is the shape this repo keeps paying for, so it is probed.
     healthcheck:
       test:
         - CMD-SHELL
@@ -497,123 +166,25 @@ services:
       interval: 60s
       timeout: 5s
       retries: 3
-      # 30 s was never measured. The file this check requires appears 99 s
-      # after the container starts, because it is Traefik that creates it and
-      # Traefik takes 98 s. The container survived only by accident: 30 s plus
-      # retries 3 x interval 60 s gives 210 s of tolerance, so the failure was
-      # absorbed rather than avoided. 180 s is the measured cost plus the same
-      # worst-run margin as its producer above.
       start_period: 180s
 
-  # --- Pi-hole (DNS + Ad blocking) ---
   pihole:
-    # FTL keeps its query database in SQLite with a write-ahead log, and it came
-    # back with "recovered N frames from WAL" - at ERROR level - after every
-    # unclean stop this repo has looked at.
-    #
-    # This grace period is NOT what fixes it, and the first version of this
-    # comment said it was. pihole was given 30 s and still came back recovering
-    # on the very next restart, while the three databases went clean. The cause
-    # is the missing CAP_KILL below: FTL is never asked to stop at all, so no
-    # amount of waiting helps.
-    #
-    # With the capability in place the shutdown path finally runs - and the
-    # reboot of 2026-09-05 22:56 showed what it costs. FTL was asked to stop,
-    # terminated its four threads, logged "Finished final database update" and
-    # "Stored 1 API session in the database" by 22:56:18.8, then went silent and
-    # was killed at 22:56:34, exactly 30 s after the signal. It came back with
-    # "recovered 802 frames from WAL". Arbitrated the way this repo requires:
-    # containerd's task-delete landed 0.89 s AFTER dockerd's "using the force",
-    # so this was a real kill - not the message dockerd also writes for
-    # containers that had already exited.
-    #
-    # 90 s, not 30. Closing that SQLite store behind a checkpoint is a tail
-    # nobody has measured to its end, because every observation of it so far
-    # terminates in a kill.
     stop_grace_period: 90s
     image: pihole/pihole:2026.07.2
     container_name: pihole
-    restart: unless-stopped   # Tier 0: auto-start at boot (see stack-startup role)
-    # NO read_only (#32), and this is the sharpest case for measuring instead of
-    # reasoning: with a read-only rootfs the container still reports **Up**, but
-    # `setcap` on /usr/bin/pihole-FTL fails silently, getcap comes back empty,
-    # FTL never starts and :53 refuses connections. A read-only rootfs would turn
-    # a loud failure into the invisible kind — the opposite of the goal.
+    restart: unless-stopped
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     cap_add:
-      # DO NOT REMOVE THESE THREE, and the reason is not the one written here
-      # until 2026-09-11. That comment said FTL binds :53 and sets its own
-      # scheduling priority, which reads as "the grants are functional". Measured
-      # on the running container, both halves are false:
-      #
-      #   - FTL asks for priority -10 and runs at 0. It logs the refusal once per
-      #     boot at WARNING ("Insufficient permissions to set process priority to
-      #     -10 (CAP_SYS_NICE required)"), `ps` shows NI=0, and /proc/<ftl>/status
-      #     shows CapPrm and CapEff both EMPTY. The image setcaps the binary, FTL
-      #     is exec'd as root, receives the three, then drops to uid 1000 — which
-      #     clears permitted and effective, because Docker cannot express an
-      #     ambient set. setpriority() happens after the drop, so it can never
-      #     succeed.
-      #   - :53 is bound as uid 1000 with that empty set, because Docker sets
-      #     ip_unprivileged_port_start=0 inside the container. NET_BIND_SERVICE
-      #     is not what allows it.
-      #
-      # They must stay all the same, for a different reason: the binary carries
-      # them as FILE capabilities with the effective bit set, and the kernel
-      # refuses to exec such a binary when any of them is outside the bounding
-      # set. Remove one and the container dies at exec, not at runtime. That is
-      # the same interlock this file already documents for dnsproxy (ADR-017),
-      # two services down — an exec-legality requirement, not a functional grant.
-      #
-      # The practical consequence of the SYS_NICE half is worth knowing: FTL asks
-      # for -10 precisely so DNS stays responsive under load, and it is running
-      # at 0. Docker exposes no lever that fixes it (no ambient capabilities, no
-      # `nice:`); cpu_shares is the only compose-expressible substitute.
-      #
-      # NET_ADMIN/SYS_TIME are deliberately absent: the docs tie both to DHCP and
-      # embedded NTP, and pihole.toml has dhcp.active = false.
+      # [critical]: never remove these three: the binary carries them as file capabilities and the kernel refuses to exec it without them
       - NET_BIND_SERVICE
       - CHOWN
       - SETUID
       - SETGID
       - SYS_NICE
-      # The image runs `setcap` on the pihole-FTL binary so FTL can serve :53 as
-      # uid 1000 instead of root. Without SETFCAP that step fails hard — "Unable
-      # to set capabilities for pihole-FTL. Cannot run as non-root" — and the
-      # container exits in 6 s. The documented alternative (DNSMASQ_USER=root)
-      # would trade this capability for running the resolver as root; refused.
       - SETFCAP
-      # start.sh runs as root over an /etc/pihole owned by uid 1000: it writes
-      # `versions` and chmods the tree. Without these two the container still
-      # resolves, but starts degraded with a run of "Permission denied" and
-      # "Operation not permitted" — a half-configured state, not a clean one.
-      # This one cannot be retired the way the databases were (#28): the root
-      # phase is not an accident of ownership, it is where `setcap` happens, and
-      # FTL must then run as uid 1000. Two identities share one tree, so no
-      # ownership settles it and `user:` would break the setcap step.
       - DAC_OVERRIDE
       - FOWNER
-      # And the consequence of those same two identities, found on 2026-08-30
-      # (#288): root's stop script cannot signal FTL, which runs as uid 1000.
-      # The container's own shutdown path says so out loud and nobody had read
-      # it, because it is only ever printed while the container is going away:
-      #
-      #     [i] Container stop requested...
-      #     [i] pihole-FTL is running - Attempting to shut it down cleanly
-      #     pihole-FTL(62): Operation not permitted
-      #     pihole-FTL: no process found
-      #
-      # Confirmed directly: `kill -0 <ftl-pid>` as root inside the container
-      # returns "Operation not permitted". For uid 0, signalling a process owned
-      # by another uid needs CAP_KILL, and cap_drop: ALL took it.
-      #
-      # So FTL was never asked to stop - it was killed by Docker at the end of
-      # the grace period, every time, and came back recovering its WAL. No
-      # stop_grace_period can fix that: the time was never the problem.
-      #
-      # The blast radius is one PID namespace - CAP_KILL lets this container's
-      # root signal this container's own processes and nothing else.
       - KILL
     ports:
       - "53:53/tcp"
@@ -622,35 +193,13 @@ services:
       TZ: ${TZ}
       FTLCONF_dns_listeningMode: all
       FTLCONF_misc_etc_dnsmasq_d: "true"
-      # Upstream = the dnsproxy sidecar (DoH to Quad9), reached at 127.0.0.1
-      # because dnsproxy shares this container's netns (network_mode below).
-      # Codified here (was manual pihole.toml drift); FTLCONF locks it (ADR-015).
       FTLCONF_dns_upstreams: 127.0.0.1#5053
-    # The admin password is NOT set from here. `FTLCONF_webserver_api_password`
-    # is read only on first start, and once pihole.toml exists it is ignored —
-    # so the deploy sets it with `pihole setpassword`, which takes its argument
-    # from the command line and nowhere else. Mounting the secret is what lets
-    # that command read it INSIDE the container: before #198 the deploy expanded
-    # the password on the host, putting it in the argv of `docker exec` for the
-    # duration of every run, six lines below a probe written to avoid exactly
-    # that. /proc has no hidepid here, so that argv was readable by any local
-    # account.
     secrets:
       - pihole_password
     volumes:
       - ${SERVICES_DATA_DIR}/pihole/etc:/etc/pihole
       - ${SERVICES_DATA_DIR}/pihole/dnsmasq:/etc/dnsmasq.d
       - ./configs/pihole/05-homelab.conf:/etc/dnsmasq.d/05-homelab.conf:ro
-      # The image's rotation for pihole.log depends on FTL answering a SIGUSR2,
-      # and upstream's own `|| true` swallows the failure when it does not. On
-      # 2026-08-17 it did not: FTL kept writing to the renamed inode, pihole.log
-      # stayed 0 bytes, and `notifempty` then skipped it every night after —
-      # a self-sustaining state (#202). This file is the same rotation with
-      # `copytruncate` for that one log, which does not need the process to
-      # cooperate. The log directory itself is deliberately NOT bind-mounted:
-      # the queryable history is pihole-FTL.db, which is already persisted and
-      # already in the restic set, so persisting the text log would duplicate
-      # the household's DNS history into the offsite backup for nothing.
       - ./configs/pihole/logrotate:/etc/logrotate.d/pihole:ro
     networks:
       - proxy
@@ -666,67 +215,25 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
-      # FTL reloads gravity at a cold start and can miss checks for a while
-      # under boot load; don't flag unhealthy (Traefik drops unhealthy
-      # containers from routing) while it warms up.
       start_period: 120s
 
-  # --- dnsproxy (encrypted DNS-over-HTTPS upstream for Pi-hole) ---
-  # Pi-hole forwards to 127.0.0.1#5053; this container shares Pi-hole's network
-  # namespace (network_mode below), so 127.0.0.1 IS Pi-hole. dnsproxy then
-  # proxies over DoH (HTTP/2, RFC 8484) to Quad9 — no cleartext DNS to the ISP,
-  # upstream choice under version control (ADR-015). No bootstrap loop: the host
-  # resolves via 1.1.1.1/8.8.8.8 (Docker's embedded DNS), never Pi-hole.
-  # Pi-hole's ONLY upstream: every name the LAN and the VPN resolve leaves
-  # through here, encrypted. Replaced cloudflared on 2026-07-27 (ADR-015, issue
-  # #50) — Cloudflare removed the `proxy-dns` feature in 2026.2.0, and the new
-  # image exits at once with "dns-proxy feature is no longer supported", so the
-  # container this stack depended on stopped existing rather than breaking.
   dnsproxy:
     image: adguard/dnsproxy:v0.84.2
     container_name: dnsproxy
-    restart: unless-stopped   # Tier 0: Pi-hole's only upstream — must stay up
+    restart: unless-stopped
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     cap_add:
-      # Not for the port — :5053 is unprivileged. The binary carries
-      # cap_net_bind_service as a FILE capability, and a file-capability binary
-      # cannot even be exec'd when that capability is outside the bounding set:
-      # `exec /opt/dnsproxy/dnsproxy: operation not permitted` (measured). Same
-      # mechanism as ping in uptime-kuma and pihole-FTL (ADR-017).
       - NET_BIND_SERVICE
-    read_only: true          # measured: writes nothing, configured by flags alone
+    read_only: true
     tmpfs:
-      - /tmp:size=8m           # insurance, not a measurement — see the header
-    # Sharing Pi-hole's netns has a consequence worth stating where it is
-    # created: **restarting Pi-hole silently kills this container's networking**.
-    # Docker tears the namespace down and builds a new one; dnsproxy stays up,
-    # stays healthy, and is attached to the dead one. Pi-hole then has no
-    # upstream and the whole LAN loses DNS while both containers read green.
-    # Always bring the pair back together, in this order — but THE REMEDY IS NOT
-    # THE SAME FOR THE TWO TRIGGERS, and using the wrong one leaves DNS dead:
-    #   after `docker restart pihole`     -> docker restart dnsproxy
-    #   after `compose up -d pihole`, or  -> docker compose up -d --force-recreate dnsproxy
-    #   anything else that RECREATES it
-    # `HostConfig.NetworkMode` holds a container ID resolved once at creation, so
-    # a recreated pihole gets a new ID and restarting dnsproxy re-runs it against
-    # the DEAD one: it exits 1 and leaves dnsproxy stopped, which is worse than
-    # the detached state the restart was meant to repair. Only recreating
-    # re-resolves `service:pihole`. Measured on a throwaway pair; the full
-    # reasoning is in knowledge/runbooks/container-config-changes.md.
-    # The deploy handler does the restart form, which is correct for it.
-    network_mode: "service:pihole"   # share Pi-hole's netns → reachable at 127.0.0.1#5053
+      - /tmp:size=8m
+    network_mode: "service:pihole"
     command:
       - "-l"
       - "127.0.0.1"
       - "-p"
       - "5053"
-      # Upstreams addressed by IP on purpose. A service that *is* the DNS path
-      # must not need DNS to start: the hostname form works today (measured
-      # inside Pi-hole's namespace), but it would depend on Docker's embedded
-      # resolver and on the host's own DNS being up at boot. Quad9's certificate
-      # carries IP SANs, so TLS validation is unchanged — this is not a
-      # downgrade to an unverified connection.
       - "-u"
       - "https://9.9.9.9/dns-query"
       - "-u"
@@ -734,53 +241,27 @@ services:
     depends_on:
       - pihole
 
-  # --- WireGuard VPN ---
   wg-easy:
     image: ghcr.io/wg-easy/wg-easy:15.4.0
     container_name: wg-easy
-    restart: unless-stopped   # Tier 0: auto-start at boot (see stack-startup role)
+    restart: unless-stopped
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     cap_add:
       - NET_ADMIN
-      # wg-quick shells out to iptables for the NAT/forward rules, and iptables
-      # opens a raw socket to talk to netfilter. Without NET_RAW it fails with
-      # "can't initialize iptables table `nat': Permission denied", wg-quick
-      # exits 3 and the container crash-loops — the VPN and the offsite link
-      # with it. Verified in a sandbox: with NET_RAW, wg0 comes up in 5 s and
-      # the MASQUERADE rule is installed.
-      #
-      # v14 also needed SYS_MODULE; v15 does not. Measured in the #48 sandbox:
-      # the interface comes up with all peers on NET_ADMIN + NET_RAW alone.
-      #
-      # No DAC_OVERRIDE on purpose, with a caveat: /mnt/data/services/wireguard
-      # is owned by the host user while the files inside it are root's, so the
-      # in-place rewrites wg-easy performs when clients change do work
-      # (measured), but creating a *new* file there would be denied. Chowning
-      # that directory to root would remove the caveat without a capability.
       - NET_RAW
     read_only: true
     tmpfs:
-      - /run:size=8m           # xtables.lock; the SQLite DB is on the bind mount
-      - /tmp:size=8m           # node scratch; both were mounted when measured
+      - /run:size=8m
+      - /tmp:size=8m
     sysctls:
       - net.ipv4.conf.all.src_valid_mark=1
       - net.ipv4.ip_forward=1
     ports:
       - "51820:51820/udp"
-      - "127.0.0.1:51821:51821"  # Web UI; host port is localhost-only, but Traefik also serves it at vpn.${DOMAIN} behind vpn-only
-    # v15 keeps its configuration in SQLite, not in the environment: WG_HOST,
-    # PASSWORD_HASH, WG_DEFAULT_DNS and WG_ALLOWED_IPS no longer exist. Ansible
-    # keeps ownership by re-asserting them through the admin API on every deploy
-    # (roles/deploy/tasks/wg_easy_config.yml) — see ADR-020.
+      - "127.0.0.1:51821:51821"
     environment:
-      # Traefik terminates TLS; without this v15 refuses to serve over HTTP.
       INSECURE: "true"
-      # This host has no global IPv6 (no address, no default route). Left on,
-      # v15 emits ip6tables rules through its bundled LEGACY iptables binaries,
-      # the ip6_tables module is absent from a host running the nf_tables
-      # backend, wg-quick exits 3 and NO tunnel comes up — while the container
-      # stays green. Measured in the #48 sandbox. See ADR-020.
       DISABLE_IPV6: "true"
     volumes:
       - ${SERVICES_DATA_DIR}/wireguard:/etc/wireguard
@@ -793,30 +274,13 @@ services:
       - "traefik.http.routers.wireguard.tls.certresolver=letsencrypt"
       - "traefik.http.services.wireguard.loadbalancer.server.port=51821"
 
-  # =============================================================================
-  # Phase 3 — Essential services
-  # =============================================================================
-
-  # --- Nextcloud ---
   nextcloud:
     image: nextcloud:34.0.4-apache
     container_name: nextcloud
-    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
-    # NO read_only (#32): the entrypoint writes redis-session.ini into
-    # /usr/local/etc/php/conf.d, which also holds the 21 .ini files the image
-    # ships. Measured: exit code 2, "cannot create .../redis-session.ini". A
-    # tmpfs there would hide every PHP extension config, and pre-rendering the
-    # directory on the host would silently swallow whatever the next image
-    # version adds to it.
+    restart: "no"
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     cap_add:
-      # Apache binds :80 then drops to www-data (uid 33), and the entrypoint
-      # fixes ownership of config/ and data/ on every start.
-      # Kept deliberately (#28): running the container as uid 33, as the
-      # databases now do, would take the port away rather than the capability —
-      # a non-root process has an empty permitted set, so NET_BIND_SERVICE
-      # becomes inert and apache can no longer bind :80.
       - NET_BIND_SERVICE
       - CHOWN
       - SETUID
@@ -829,72 +293,26 @@ services:
       nextcloud-redis:
         condition: service_started
     environment:
-      # No MYSQL_*/NEXTCLOUD_ADMIN_* here on purpose. The entrypoint reads them
-      # only inside `if [ "$installed_version" = "0.0.0.0" ]` — i.e. on a first
-      # install. This instance is installed, and its DB credentials live in
-      # config.php, so those variables were dead weight leaking the DB password
-      # into `docker inspect`. Consequence, accepted: a from-scratch deployment
-      # now goes through the Nextcloud web installer instead of self-installing.
-      # That is not the recovery path anyway — the runbook restores config.php
-      # and the data volume (knowledge/runbooks/restore-from-backup.md).
-      # "nextcloud" is needed so the notify_push service can reach NEXTCLOUD_URL=http://nextcloud
       NEXTCLOUD_TRUSTED_DOMAINS: drive.${DOMAIN} nextcloud
       OVERWRITEPROTOCOL: https
-      # /12 covers all Docker subnets (Traefik on proxy + notify_push on internal)
       TRUSTED_PROXIES: 172.16.0.0/12
       OVERWRITECLIURL: https://drive.${DOMAIN}
       REDIS_HOST: nextcloud-redis
-      # For the PHP SESSION HANDLER, which the config files cannot reach. The
-      # entrypoint runs `file_env REDIS_HOST_PASSWORD` on every start and writes
-      # the credential into `conf.d/redis-session.ini`'s save_path — that is the
-      # path carrying the 217 live sessions this password exists to protect.
-      # `_FILE` and not the plain variable: the plain one would sit in
-      # `docker inspect` output for anyone in the docker group.
-      #
-      # The CACHE side is handled separately, in `config.php`, because
-      # notify_push cannot read this variable — it has no REDIS_HOST at all, so
-      # the image's `redis.config.php` short-circuits for it. `config.php` is
-      # the one file both readers share; Ansible writes the value there. See
-      # secrets.yml.
       REDIS_HOST_PASSWORD_FILE: /run/secrets/nextcloud_redis_password
-      # For the JVM LibreSign spawns to sign PDFs, not for PHP (ADR-022).
-      # The image sets no locale, so Java 21 derives its *native* encoding from
-      # the environment and lands on ANSI_X3.4-1968 — plain ASCII. Measured in
-      # the running container:
-      #   native.encoding = ANSI_X3.4-1968   sun.jnu.encoding = ANSI_X3.4-1968
-      # file.encoding is UTF-8 regardless since JEP 400, which is why this is
-      # easy to miss: strings inside the JVM are fine, while the *boundary* is
-      # not — sun.jnu.encoding is what decodes the arguments and file paths
-      # handed to JSignPdf. Every accented character in a document name or a
-      # signature reason crosses that boundary. With these two set, the same
-      # command reports UTF-8 for all four encodings.
       LANG: C.UTF-8
       LC_ALL: C.UTF-8
     secrets:
-      # Read by the entrypoint through `file_env REDIS_HOST_PASSWORD`, for the
-      # session handler. The cache side gets the same value from the config file
-      # Ansible renders, because notify_push cannot read a docker secret.
       - nextcloud_redis_password
     volumes:
       - ${SERVICES_DATA_DIR}/nextcloud/data:/var/www/html
-      # The image's opcache-recommended.ini turns the tracing JIT on, which
-      # segfaults every PHP request on this board about two hours after the
-      # container starts. conf.d is read alphabetically, so zz- wins. See the
-      # file for the measurement.
       - ./configs/nextcloud/zz-disable-jit.ini:/usr/local/etc/php/conf.d/zz-disable-jit.ini:ro
-      # Media libraries mounted read-only for browsing via External Storage
-      # (no copy, no sync — Immich/Jellyfin/Navidrome stay the players)
       - ${MEDIA_DIR}/photos:/external/photos:ro
       - ${MEDIA_DIR}/music:/external/music:ro
-      # Same nesting as Jellyfin, and for the same reason: the External Storage
-      # entries keep pointing at /external/videos and nothing is reconfigured.
-      # This deliberately preserves the CURRENT view — movies and shows included.
-      # Dropping the 255 GB from Nextcloud is a separate decision (ADR-035).
       - ${LIBRARY_DIR}/movies:/external/videos/movies:ro
       - ${LIBRARY_DIR}/shows:/external/videos/shows:ro
       - ${MEDIA_DIR}/videos/home-videos:/external/videos/home-videos:ro
       - ${MEDIA_DIR}/videos/music-videos:/external/videos/music-videos:ro
-    extra_hosts: *nextcloud-hosts    # see x-nextcloud-hosts
+    extra_hosts: *nextcloud-hosts
     networks:
       - proxy
       - internal
@@ -914,49 +332,17 @@ services:
   nextcloud-db:
     image: mariadb:12.3.3
     container_name: nextcloud-db
-    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
-    # Measured 2026-08-29: a clean shutdown of this database takes 9.96 s, against
-    # Docker's default per-container stop timeout of 10 s. Forty milliseconds of
-    # margin is a coin flip, and under any load at all it loses — which is why
-    # this container came back running InnoDB crash recovery (853 pages, 47 s)
-    # after a DELIBERATE reboot (#288).
-    #
-    # 30 s was 3x that measured drain, and it was still not enough. On the reboot
-    # of 2026-09-05 22:56 this container was killed at the 30 s mark while InnoDB
-    # was still dumping its LSN and pending-IO state, and came back running crash
-    # recovery from checkpoint LSN 4645640494 - task-delete 1.47 s after dockerd's
-    # "using the force", so a real kill.
-    #
-    # The lesson is the one this repo keeps re-learning: a drain measured on a
-    # healthy host does not bound a drain during a REBOOT, where twenty-eight
-    # containers hit the same USB disk while the kernel tears down their networks.
-    # That night dockerd sat in nf_conntrack_lock long enough for the kernel to
-    # report RCU stalls and take NMI backtraces. 90 s is not a measurement, it is
-    # headroom over a condition that has never been measured to completion.
+    restart: "no"
     stop_grace_period: 90s
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     read_only: true
     tmpfs:
-      # The leaf, not /run: a tmpfs on /run would erase the image's own
-      # /run/mysqld and mariadbd does not recreate it ("Bind on unix socket: No
-      # such file or directory", measured).
       - /run/mysqld:size=8m
-      # InnoDB creates temporary files at startup and aborts without them.
       - /tmp:size=256m
-    # No capability at all: running as mysql from PID 1 removes the root phase
-    # the entrypoint would otherwise go through (chown the datadir, then exec as
-    # uid 999), and with it CHOWN/SETUID/SETGID/DAC_OVERRIDE/FOWNER — five
-    # capabilities that existed only to serve a hand-off we can skip (#28). The
-    # datadir is owned by 999 by the storage role, which is what makes this safe
-    # on a fresh provision too. The image supports it: it declares no USER and
-    # its entrypoint skips the gosu hand-off when already non-root.
     user: "999:999"
     environment:
-      # Without this the entrypoint logs "MariaDB upgrade required, but skipped"
-      # and starts anyway on system tables from the previous major — measured on
-      # the 11.8 → 12.3 bump. The upgrade it runs is one-way, so an image
-      # rollback past a major needs a datadir restore, not just a tag change.
+      # [critical]: the MariaDB upgrade is one-way: rolling the image back past a major needs a datadir restore
       MARIADB_AUTO_UPGRADE: "1"
       MYSQL_ROOT_PASSWORD_FILE: /run/secrets/nextcloud_db_root_password
       MYSQL_DATABASE: ${NEXTCLOUD_DB_NAME}
@@ -974,91 +360,42 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
-      # Same reasoning as miniflux-db (#241), longer because this is the bigger
-      # database of the two and MariaDB's crash recovery has more to replay.
-      # interval 30s x retries 3 gave it 90 s of tolerance by accident; this
-      # makes it deliberate and adds a real bootstrap window on top.
       start_period: 180s
 
   nextcloud-redis:
     image: redis:8.10.1-alpine
     container_name: nextcloud-redis
-    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    restart: "no"
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
-    read_only: true          # measured: no volume and no write outside its socket
+    read_only: true
     tmpfs:
-      - /tmp:size=8m           # insurance, not a measurement — see the header
-    # redis 8 no longer declares VOLUME /data, so on a read-only rootfs the RDB
-    # snapshot fails and redis then DISABLES ALL WRITES (stop-writes-on-bgsave-
-    # error). Measured the hard way: both caches accepted reads and writes for
-    # minutes, then the first background save failed and took the Nextcloud
-    # upgrade down with it. These caches hold nothing worth keeping across a
-    # restart — they never had a volume — so the honest fix is to stop saving
-    # rather than hand a cache a disk.
-    # The configuration moved into a FILE because the alternative publishes the
-    # password. `redis-server --requirepass <value>` puts it in this process's
-    # argv, and the host's /proc carries no hidepid — so `ps aux` from any local
-    # account would hand out the very credential this exists to enforce. The file
-    # is rendered by Ansible into the secrets directory and bind-mounted below;
-    # it carries the `save ""` this line used to.
+      - /tmp:size=8m
     command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
     volumes:
-      # A single FILE, never the directory: a container reading a secret through
-      # a DIRECTORY bind mount resolves it in its own namespace, which is how
-      # SearXNG's settings dangled for weeks (#27).
       - /mnt/data/secrets/docker/nextcloud_redis.conf:/usr/local/etc/redis/redis.conf:ro
-    # Same treatment as the databases, and even simpler here: no volume at all,
-    # so there is nothing for the entrypoint's root phase to chown (#28).
     user: "999:999"
     networks:
       - internal
     healthcheck:
-      # Grep the REPLY and never the exit status: redis-cli returns 0 on an error
-      # reply, so `redis-cli ping` alone reports healthy for any server that
-      # answers at all. Proven in this container on 2026-08-29 —
-      # `redis-cli ping a b c` prints "ERR wrong number of arguments" and exits
-      # 0. That reasoning is unchanged; only the string it greps for has moved.
-      #
-      # It used to grep PONG, and the comment here already named what would
-      # happen the day a password appeared: "latent today because neither Redis
-      # sets requirepass; a NOAUTH reply is exactly the shape that would slip
-      # through". The password has now appeared, so the expected reply to an
-      # UNAUTHENTICATED ping is `NOAUTH Authentication required`.
-      #
-      # Grepping NOAUTH is stronger than grepping PONG was, not a concession to
-      # it: it proves the server is answering AND that `requirepass` is in
-      # force, so a Redis that silently lost its password goes red instead of
-      # green. Authenticating here was rejected for the same reason the command
-      # line was — `redis-cli -a <value>` puts the password in argv, every 10 s
-      # forever. The working auth PATH is exercised continuously by Nextcloud
-      # itself and watched by its own Kuma monitor.
       test: ["CMD-SHELL", "redis-cli ping 2>&1 | grep -q NOAUTH"]
       interval: 10s
       timeout: 5s
       retries: 3
 
-  # Companion container running Nextcloud background jobs every 5 min
-  # (system cron, more reliable than AJAX). Shares the data volume.
   nextcloud-cron:
     image: nextcloud:34.0.4-apache
     container_name: nextcloud-cron
-    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    restart: "no"
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     cap_add:
-      # busybox crond runs the cron job as www-data. Tried and reverted under
-      # #28: starting the container as uid 33 leaves crond unable to
-      # setgroups() before the job, so it logs "can't set groups: Operation not
-      # permitted" and **silently never runs cron.php** — the container stays
-      # Up, and only `occ config:app:get core lastcron` shows it. The drop is
-      # unconditional in busybox, so the capability is the price of using it.
       - SETUID
       - SETGID
     read_only: true
     tmpfs:
-      - /run:size=8m           # crond.pid, crond.reboot
-      - /tmp:size=32m          # PHP temporary files during the cron run
+      - /run:size=8m
+      - /tmp:size=32m
     entrypoint: /cron.sh
     depends_on:
       nextcloud-db:
@@ -1067,37 +404,21 @@ services:
         condition: service_started
     volumes:
       - ${SERVICES_DATA_DIR}/nextcloud/data:/var/www/html
-      # The image's opcache-recommended.ini turns the tracing JIT on, which
-      # segfaults every PHP request on this board about two hours after the
-      # container starts. conf.d is read alphabetically, so zz- wins. See the
-      # file for the measurement.
       - ./configs/nextcloud/zz-disable-jit.ini:/usr/local/etc/php/conf.d/zz-disable-jit.ini:ro
-    # Same codebase as `nextcloud`, therefore the same pins: cron.php runs the
-    # richdocuments background jobs, which fetch the WOPI discovery over the
-    # public name. Without these the container comes up, stays up, and fails
-    # that fetch every 65 minutes (issue #114).
-    extra_hosts: *nextcloud-hosts    # see x-nextcloud-hosts
+    extra_hosts: *nextcloud-hosts
     networks:
       - internal
 
-  # Real-time update push to sync clients (websocket). Runs the notify_push
-  # binary shipped by the app; the until-loop waits for it to be installed.
-  # Deliberately carries no `extra_hosts`, unlike the two containers above that
-  # share this image: it talks to Nextcloud over the internal name pinned in
-  # NEXTCLOUD_URL and never resolves a public one. Verified rather than assumed
-  # while fixing #114 — seven days of logs, zero resolution failures.
   nextcloud-notify-push:
     image: nextcloud:34.0.4-apache
     container_name: nextcloud-notify-push
-    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    restart: "no"
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
-    read_only: true          # measured: runs a single binary out of the mounted app directory
+    read_only: true
     tmpfs:
-      - /tmp:size=8m           # insurance, not a measurement — see the header
+      - /tmp:size=8m
     cap_add:
-      # Only *reads* Nextcloud's config.php, owned by www-data — the narrower
-      # read/traverse override is enough, no write bypass needed.
       - DAC_READ_SEARCH
     depends_on:
       nextcloud-db:
@@ -1116,16 +437,6 @@ services:
         exec /var/www/html/custom_apps/notify_push/bin/aarch64/notify_push
         /var/www/html/config/config.php
     volumes:
-      # `:ro`, and it is a correction rather than a hardening step. The mount was
-      # declared read-write and the container could not write to it: it runs as
-      # uid 0 with `cap_drop: ALL` and only DAC_READ_SEARCH, which overrides read
-      # and traverse but NOT write. Measured inside the container with a positive
-      # control at the same uid — `/var/www/html` NOT writable, `/tmp` writable —
-      # so the instrument was answering about capabilities and not about uid.
-      # Declaring rw asserted a permission the process demonstrably did not have,
-      # which is the class the posture check exists to catch and could not see
-      # here: its predicate is `owner == OPERATOR_UID`, a proxy for the property
-      # rather than the property. The process only reads config.php.
       - ${SERVICES_DATA_DIR}/nextcloud/data:/var/www/html:ro
     networks:
       - proxy
@@ -1140,68 +451,21 @@ services:
       - "traefik.http.routers.notify-push.middlewares=notify-push-strip"
       - "traefik.http.services.notify-push.loadbalancer.server.port=7867"
 
-  # --- Collabora Online (collaborative editing inside Nextcloud) ---
   collabora:
     image: collabora/code:26.04.4.1.1
-    # Only start_period and start_interval are declared. `test` is deliberately
-    # absent so the image's own healthcheck is kept — this file has no business
-    # re-implementing it, and #156 is the reminder of what happens when a
-    # healthcheck here and the image's disagree. Verify the test survived with
-    # `docker inspect -f '{{.Config.Healthcheck.Test}}' <container>` after any
-    # change here: a partial override that silently dropped it would disable
-    # the probe with nothing at all to show for it.
-    # Two cold-boot measurements, and the second is why this is 1320 s and not
-    # the 600 s #258 set (all times CEST). The ~80 s quoted in the startup script
-    # is the WARM figure; these are what a saturated disk does to it:
-    #
-    #   2026-08-27, cold boot       started 00:14:01, served 00:21:55    7 min 54 s
-    #   2026-08-29, boot at 02:46   started 02:55:14, served 03:11:47   16 min 33 s
-    #
-    # 2.1x, and for the same reason as immich-server above: the 03:00 backup on
-    # the tail of the staged startup. 600 s fell 393 s short, so this container
-    # went `starting` -> `unhealthy` at 03:07 — the longest of the two, which is
-    # why it is the last to clear. Sized on the larger run with the same ~30 %
-    # margin the first figure was given.
     healthcheck:
       start_period: 1320s
       start_interval: 15s
     container_name: collabora
-    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
-    # NO no-new-privileges here (the second exception after netdata, and for the
-    # same underlying reason: a binary that must gain privilege after exec).
-    # coolwsd spawns documents through `coolforkit-caps`, which carries file
-    # capabilities; no-new-privileges blocks that gain and the failure is silent
-    # — the container stays `running` and loops on "Waiting for a new child"
-    # forever, serving /hosting/discovery the whole time. Measured in the #16
-    # sandbox. The image's own healthcheck does catch it (unhealthy after ~3
-    # checks), which is why it is left enabled below.
+    restart: "no"
     cap_drop: *cap-drop-all
     cap_add:
-      # Exactly the three the sandbox proved necessary: removing any one of them
-      # leaves coolwsd unable to spawn its forkit and it exits 70 at startup.
-      # MKNOD is NOT among them, despite Collabora's own documentation.
-      - SYS_CHROOT             # each document runs in its own chroot jail
-      - CHOWN                  # jail contents are re-owned as they are built
-      - FOWNER                 # …and their modes adjusted, across uids
-    # No read_only. It *works* (leaf tmpfs on child-roots/cache/.cache), but
-    # without CAP_SYS_ADMIN coolmount cannot create its mount namespace, so
-    # Collabora falls back from bind-mounting each jail to copying it: 759 MB of
-    # jail tree. On the writable layer that lands on /mnt/data (3.7 TB free); in
-    # tmpfs it is RAM, and the container measured 1.257 GiB instead of 573 MiB.
-    # Granting SYS_ADMIN to avoid the copy is not a trade worth making on a stack
-    # where 16 of 32 containers hold no capability at all. See ADR-021.
+      - SYS_CHROOT
+      - CHOWN
+      - FOWNER
     environment:
-      # WOPI hosts allowed to embed this server. Without an entry here Collabora
-      # refuses the Nextcloud origin outright.
       aliasgroup1: https://drive.${DOMAIN}:443
-      # TLS is terminated by Traefik; coolwsd itself speaks plain HTTP and must
-      # be told so, or it answers TLS on the plain port and every request fails.
       extra_params: --o:ssl.enable=false --o:ssl.termination=true
-    # Collabora calls Nextcloud back over the public hostname (the WOPI callback
-    # is autodetected from the browsing URL). From a container that name does not
-    # resolve *at all* — the host is not a Pi-hole client, and the name exists
-    # only in split DNS — so without this pin every document fails to open while
-    # the container stays green. Measured, not assumed (issue #16).
     extra_hosts:
       - "drive.${DOMAIN}:${PI_LAN_IP}"
     networks:
@@ -1213,47 +477,29 @@ services:
       - "traefik.http.routers.collabora.tls.certresolver=letsencrypt"
       - "traefik.http.services.collabora.loadbalancer.server.port=9980"
 
-  # --- Vaultwarden ---
   vaultwarden:
     image: vaultwarden/server:1.37.3
     container_name: vaultwarden
-    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    restart: "no"
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
-    read_only: true          # measured: its only image-layer entries are the secret mount points
+    read_only: true
     tmpfs:
-      # Insurance: Rocket buffers multipart uploads through std::env::temp_dir(),
-      # and ROCKET_TEMP_DIR is not set, so attaching a file to an entry lands
-      # here. Never observed, because no attachment has been added since #32.
       - /tmp:size=16m
     cap_add:
-      # Binds :80 inside the container (Traefik terminates TLS).
       - NET_BIND_SERVICE
     environment:
       TZ: ${TZ}
       DOMAIN: https://vault.${DOMAIN}
       SIGNUPS_ALLOWED: ${VAULTWARDEN_SIGNUPS_ALLOWED:-false}
-      # Admin panel kept token-protected (argon2 hash, behind vpn-only, on a
-      # patched version >=1.33.0). "Disable by default" was dropped: never use
-      # DISABLE_ADMIN_TOKEN (it BYPASSES the token = opens /admin), and an empty
-      # ADMIN_TOKEN did not cleanly disable the panel with a vault-rendered token.
-      # Vaultwarden reads any setting from <VAR>_FILE (verified: DOMAIN_FILE
-      # produces the same validation error as DOMAIN).
       ADMIN_TOKEN_FILE: /run/secrets/vaultwarden_admin_token_hash
-      PASSWORD_HINTS_ALLOWED: "false"   # never store/serve master-password hints
-      SHOW_PASSWORD_HINT: "false"       # no hint on failed login (also aids user-enum)
-      DISABLE_ICON_DOWNLOAD: "true"     # no server-side favicon fetches (SSRF/egress)
-      SENDS_ALLOWED: "false"            # Send file/text sharing unused — drop the surface
-      # Non-default (upstream never expires the trash). It had only ever existed
-      # inside config.json, so it was invisible here and would have been lost by
-      # anyone rebuilding from this file alone (#124).
+      PASSWORD_HINTS_ALLOWED: "false"
+      SHOW_PASSWORD_HINT: "false"
+      DISABLE_ICON_DOWNLOAD: "true"
+      SENDS_ALLOWED: "false"
       TRASH_AUTO_DELETE_DAYS: "90"
-      # A log FILE, because fail2ban cannot read a container's stdout (#35).
-      # It lands inside the existing /data bind mount, so the read-only rootfs
-      # is untouched; the host rotates it (copytruncate — vaultwarden holds the
-      # descriptor open).
       LOG_FILE: /data/logs/vaultwarden.log
-      LOG_LEVEL: warn                   # failed logins are logged at ERROR
+      LOG_LEVEL: warn
     secrets:
       - vaultwarden_admin_token_hash
     volumes:
@@ -1271,34 +517,23 @@ services:
       timeout: 5s
       retries: 3
 
-  # =============================================================================
-  # Phase 4 — Secondary services
-  # =============================================================================
-
-  # --- Jellyfin (Video) ---
   jellyfin:
     image: jellyfin/jellyfin:10.11.11
     container_name: jellyfin
-    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    restart: "no"
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     read_only: true
     tmpfs:
-      # Leaf mounts, never the parent: /jellyfin holds the application itself.
-      - /tmp:size=64m                    # .NET debug pipes and diagnostic sockets
-      - /root/.aspnet:size=8m            # DataProtection keys — regenerated at each
-                                         # start today too, nothing is lost
-      - /var/cache/fontconfig:size=16m   # rebuilt on demand
+      - /tmp:size=64m
+      - /root/.aspnet:size=8m
+      - /var/cache/fontconfig:size=16m
       - /jellyfin/Dictionaries:size=8m
     environment:
       JELLYFIN_PublishedServerUrl: https://videos.${DOMAIN}
     volumes:
       - ${SERVICES_DATA_DIR}/jellyfin/config:/config
       - ${SERVICES_DATA_DIR}/jellyfin/cache:/cache
-      # Four sources into ONE container tree, so Jellyfin's four libraries keep
-      # the paths they were configured with and need no change at all. It can
-      # do this because it only ever READS: nested read-only bind mounts are
-      # free here, where an importer would need a single mount to hard-link.
       - ${LIBRARY_DIR}/movies:/media/videos/movies:ro
       - ${LIBRARY_DIR}/shows:/media/videos/shows:ro
       - ${MEDIA_DIR}/videos/home-videos:/media/videos/home-videos:ro
@@ -1315,68 +550,23 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:8096/health"]
       interval: 30s
       timeout: 5s
-      # SIX, not three (#262). `start_period` stops protecting this container
-      # the moment a probe first succeeds — that is what ends the `starting`
-      # state, and jellyfin serves /health as soon as Kestrel listens, well
-      # before it is ready. The remaining start period never applies again, so
-      # the 300 -> 420 s raise below could not have had its intended effect:
-      # measured on the 01:05 container WITH 300 s already in force, first
-      # healthy at +1 min 30 s, then unhealthy from +2 min to +3 min 30 s.
-      # Three retries at a 30 s interval tolerates 90 s and that episode was
-      # ~90 s — the edge, not a margin. Six tolerates 180 s. The cost is
-      # symmetrical and accepted: a REAL jellyfin failure is now noticed after
-      # 180 s rather than 90 s, which is well inside the ten minutes
-      # homelab_container_unhealthy needs before it says anything.
       retries: 6
-      # Two measurements on 2026-08-27, and the second is why this is 420 s and
-      # not the 300 s it was first set to:
-      #
-      #   cold boot, 28 containers   started 00:14:02, served 00:17:00   2 min 58 s
-      #   warm redeploy, 5 containers started 01:05:20, served 01:09:00   3 min 40 s
-      #
-      # The LIGHTER run was the slower one. Whatever dominates jellyfin's
-      # bootstrap here is not the boot-wide disk contention the cold figure was
-      # supposed to capture, so that figure was not the worst case and 300 s
-      # left only 1 min 20 s of margin against the second run. 420 s is sized on
-      # the larger of the two, and the old 10 s was not a margin at all — it was
-      # a rounding error, and it made this container report UNHEALTHY on every
-      # cold boot.
       start_period: 420s
       start_interval: 15s
 
-  # --- Navidrome (Music) ---
   navidrome:
     image: deluan/navidrome:0.64.0
     container_name: navidrome
-    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    restart: "no"
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
-    read_only: true          # measured: writes only into the mounted /data and /music
+    read_only: true
     tmpfs:
-      # ...and into /tmp, which the `docker diff` above could not see. Navidrome
-      # reads tags through a WASM module that unpacks into /tmp the first time it
-      # has a new file to parse, so a library that gains no file never triggers
-      # it: months of running wrote nothing there and the measurement came back
-      # clean. Under read_only the unpacking fails once and for all ("get runtime
-      # once"), every file is skipped, and the scan still reports success with
-      # tracksImported=0. Measured 2026-08-27: the first album added since May
-      # imported nothing, container green, scan green, database unchanged.
       - /tmp:size=64m
     environment:
-      # ND_SCANNER_SCHEDULE, not ND_SCANSCHEDULE: 0.63.2 reads Scanner.Schedule,
-      # and an unknown ND_* warns about nothing — so the container logged
-      # "Periodic scan is DISABLED" on all five recorded starts while the
-      # variable sat here looking correct, and the docs asserted the behaviour
-      # as fact (#178). Verify by the boot log, never by the variable.
       ND_SCANNER_SCHEDULE: 1h
       ND_LOGLEVEL: info
       ND_BASEURL: ""
-      # Missing entries are kept by default, and that default is right: it is how
-      # a file that merely moved keeps its play counts and rating. A rename that
-      # ALSO puts a different file at the old path leaves an orphan behind, and
-      # album.song_count counts it — measured 2026-08-27, an album whose header
-      # said six tracks over a list of five. `full` purges those during full
-      # scans only, so the hourly incremental keeps its move detection.
       ND_SCANNER_PURGEMISSING: full
     volumes:
       - ${SERVICES_DATA_DIR}/navidrome:/data
@@ -1390,60 +580,24 @@ services:
       - "traefik.http.routers.navidrome.tls.certresolver=letsencrypt"
       - "traefik.http.services.navidrome.loadbalancer.server.port=4533"
     healthcheck:
-      # Same defect as the three *arr probes fixed the same day, one layer down:
-      # `--spider` only reports the HTTP status, and navidrome answers 200 with
-      # its single-page app for every route it does not know. Measured
-      # 2026-09-13 — `/ping` returns `.`, `/definitely-not-a-route` returns the
-      # SPA and `--spider` exits 0 on it. Matching the body is what makes the
-      # probe fail when the server answers without serving the API.
       test: ["CMD-SHELL", "wget -qO- http://localhost:4533/ping | grep -qx '[.]'"]
       interval: 30s
       timeout: 5s
       retries: 3
 
-  # --- Immich (Photos) ---
   immich-server:
-    # Pinned version (floating 'release' once turned a restore into a surprise
-    # v3 upgrade); bump deliberately, server and ML together.
     image: ghcr.io/immich-app/immich-server:v3.2.2
-    # Only start_period and start_interval are declared. `test` is deliberately
-    # absent so the image's own healthcheck is kept — this file has no business
-    # re-implementing it, and #156 is the reminder of what happens when a
-    # healthcheck here and the image's disagree. Verify the test survived with
-    # `docker inspect -f '{{.Config.Healthcheck.Test}}' <container>` after any
-    # change here: a partial override that silently dropped it would disable
-    # the probe with nothing at all to show for it.
-    # Two cold-boot measurements, and the second is why this is 1020 s and not
-    # the 480 s #258 set (all times CEST):
-    #
-    #   2026-08-27, disk at 98 %    started 00:17:45, served 00:23:19    5 min 34 s
-    #   2026-08-29, boot at 02:46   started 02:56:29, served 03:09:22   12 min 53 s
-    #
-    # The second is 2.3x the first because the 03:00 backup landed on the tail of
-    # the staged startup: iowait peaked at 80 %, and restic's own scan took 928 s
-    # against 122-251 s on an idle night. A boot that COLLIDES with the nightly
-    # backup is the real worst case, and 480 s fell 293 s short of it — this
-    # container went `starting` -> `unhealthy` at 03:06 and took its monitor with
-    # it. Sized on the larger run with the ~30 % margin the first figure was
-    # given, which is jellyfin's rule: size on the worse run, never the more
-    # convenient one.
-    #
-    # Cost, stated rather than discovered later: a genuinely broken
-    # immich-server is now reported after 17 min instead of 8. Accepted —
-    # until then it is `starting`, Traefik withholds its router, and nothing
-    # anywhere pretends the service works.
     healthcheck:
       start_period: 1020s
       start_interval: 15s
     container_name: immich-server
-    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    restart: "no"
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     read_only: true
     tmpfs:
       - /tmp:size=128m
-      - /data:size=8m          # created empty by the entrypoint; the real upload
-                               # path is the bind mount below
+      - /data:size=8m
     depends_on:
       immich-db:
         condition: service_healthy
@@ -1452,7 +606,6 @@ services:
     environment:
       DB_HOSTNAME: immich-db
       DB_USERNAME: ${IMMICH_DB_USER}
-      # start.sh exports DB_PASSWORD from this file, then unsets DB_PASSWORD_FILE
       DB_PASSWORD_FILE: /run/secrets/immich_db_password
       DB_DATABASE_NAME: ${IMMICH_DB_NAME}
       REDIS_HOSTNAME: immich-redis
@@ -1472,29 +625,16 @@ services:
       - "traefik.http.services.immich.loadbalancer.server.port=2283"
 
   immich-machine-learning:
-    # Pinned: must match immich-server (see above)
     image: ghcr.io/immich-app/immich-machine-learning:v3.2.2
-    # Only start_period and start_interval are declared. `test` is deliberately
-    # absent so the image's own healthcheck is kept — this file has no business
-    # re-implementing it, and #156 is the reminder of what happens when a
-    # healthcheck here and the image's disagree. Verify the test survived with
-    # `docker inspect -f '{{.Config.Healthcheck.Test}}' <container>` after any
-    # change here: a partial override that silently dropped it would disable
-    # the probe with nothing at all to show for it.
-    # The only one of these measured exactly rather than bounded, from its own
-    # log: started 22:16:14Z, "Application startup complete" at 22:20:56Z —
-    # 4 min 42 s. Two minutes of that is probing absent GPUs and building the
-    # Matplotlib font cache, both unavoidable and both on every cold start.
     healthcheck:
       start_period: 420s
       start_interval: 15s
     container_name: immich-ml
-    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    restart: "no"
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     read_only: true
     tmpfs:
-      # matplotlib insists on a writable home; the model cache is a bind mount.
       - /root/.cache:size=32m
       - /root/.config:size=8m
       - /tmp:size=64m
@@ -1506,125 +646,44 @@ services:
   immich-redis:
     image: redis:8.10.1-alpine
     container_name: immich-redis
-    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    restart: "no"
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
-    read_only: true          # measured: no volume and no write outside its socket
+    read_only: true
     tmpfs:
-      - /tmp:size=8m           # insurance, not a measurement — see the header
-    # redis 8 no longer declares VOLUME /data, so on a read-only rootfs the RDB
-    # snapshot fails and redis then DISABLES ALL WRITES (stop-writes-on-bgsave-
-    # error). Measured the hard way: both caches accepted reads and writes for
-    # minutes, then the first background save failed and took the Nextcloud
-    # upgrade down with it. `--save ""` therefore stays, and RDB stays off.
-    #
-    # What was WRONG until 2026-09-05 is the sentence that used to follow it —
-    # "these caches hold nothing worth keeping across a restart". True of the
-    # Nextcloud cache. FALSE of this one: this Redis is Immich's BullMQ store,
-    # so its keys are not a cache of results, they are the LIST OF JOBS STILL TO
-    # RUN. With no persistence, every stop silently discards whatever had not
-    # finished, and nothing re-queues it — thumbnails, smart search, video
-    # conversion, face detection. Measured that day: `immich_bull:*` keys across
-    # thumbnailGeneration, smartSearch, videoConversion, storageTemplateMigration
-    # and workflow; 220 SIGKILL-at-grace-expiry container stops since
-    # 2026-08-15; and 2 of 9 474 active assets with no thumbnail row to show for
-    # it. The same reasoning is written into the posture spec, which exempts
-    # Redis because it "has nothing to recover" — right for the sibling, wrong
-    # here.
-    #
-    # AOF rather than RDB: it is the correct durability model for a queue, and
-    # it is what keeps `--save ""` above intact. `everysec` bounds a loss at one
-    # second of enqueues, which is the cheapest honest answer.
+      - /tmp:size=8m
     command: ["redis-server", "--save", "", "--appendonly", "yes", "--appendfsync", "everysec"]
     volumes:
-      # Needs a real directory now. It is pre-owned 999:999 by the deploy
-      # (data_dirs.yml) and NOT by the entrypoint: `user:` below pins the
-      # container to that uid, so its root phase never runs and cannot chown
-      # what it is given — the #28 hazard, inverted.
       - ${SERVICES_DATA_DIR}/immich/redis:/data
     user: "999:999"
     networks:
       - internal
     healthcheck:
-      # `grep -q PONG` and not the bare exit status: redis-cli returns 0 on an
-      # ERROR REPLY, so `redis-cli ping` alone reports healthy for any server
-      # that answers at all. Proven in this container on 2026-08-29 —
-      # `redis-cli ping a b c` prints "ERR wrong number of arguments" and exits
-      # 0, while the guarded form exits 1 and still exits 0 on a real PONG.
-      # Latent today because neither Redis sets `requirepass`; a NOAUTH reply is
-      # exactly the shape that would slip through.
       test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
       interval: 10s
       timeout: 5s
       retries: 3
 
   immich-db:
-    # Killed mid-checkpoint by the 10 s per-container default, PROVEN on the
-    # supervised restart of 2026-08-30 00:22 (#288):
-    #
-    #     22:22:52.537  received fast shutdown request
-    #     22:22:54.767  shutting down
-    #     22:23:00.051  FATAL. the database system is shutting down
-    #                   ... and no "database system is shut down" ever follows
-    #
-    # The image already sets STOPSIGNAL SIGINT, which is Postgres's *fast*
-    # shutdown and the correct signal - the signal was never the problem. The
-    # budget was that the final checkpoint did not fit in 10 s.
-    #
-    # 90 s since 2026-09-06, raised with nextcloud-db and miniflux-db. Do NOT size
-    # this from a solo `docker stop` on an idle database, which reads 1.6-2.5 s -
-    # that is how this container came to be left on the default in the first
-    # place. The real cost is a full checkpoint with thirty-two containers
-    # draining onto the same USB disk at once.
-    #
-    # AND THIS KNOB DOES NOT COVER THIS CONTAINER'S LAST FAILURE, which is the
-    # only reason the distinction is written down. On the reboot of 2026-09-05
-    # 22:56 immich-db came back recovering WITHOUT being killed: containerd's
-    # task-delete landed at 22:56:21, thirteen seconds BEFORE dockerd wrote
-    # "failed to exit within 30s - using the force", and that ordering is the
-    # signature of a container that exited on its own. Its log names a different
-    # cause:
-    #
-    #     20:56:04.291  received fast shutdown request
-    #     20:56:18.625  aborting any active transactions      (14 s to reach this)
-    #     20:56:18.650  server process (PID 3234) exited with exit code 2
-    #     20:56:18.650  terminating any other active server processes
-    #     20:56:18.862  abnormal database system shutdown
-    #     20:56:20.051  database system is shut down
-    #
-    # A backend died mid-shutdown, the postmaster took the crash path, and the
-    # next start replayed WAL - after an arrest that fitted inside its budget
-    # twice over. No OOM kill on the host that night. Seen once, not explained,
-    # and deliberately not chased: whatever ended PID 3234 is not a time budget,
-    # so no value on the line below can reach it. If this container comes back
-    # recovering again while task-delete PRECEDES the force message, that is the
-    # thread to pull - not this number.
+    # [warning]: do not size this from a solo `docker stop` on an idle database: the real cost is a checkpoint while every container drains to the same disk
     stop_grace_period: 90s
-    # Official Immich postgres (VectorChord + legacy pgvecto.rs): required by
-    # Immich v3, which dropped pgvecto.rs. Same PG major (16) as the previous
-    # tensorchord/pgvecto-rs image, so the data files load as-is; the extension
-    # migration itself is run by immich-server on startup (one-way — do not
-    # downgrade the DB image afterwards).
+    # [critical]: the extension migration is one-way: never downgrade this image afterwards
     image: ghcr.io/immich-app/postgres:16-vectorchord0.4.3-pgvectors0.2.0
     container_name: immich-db
-    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    restart: "no"
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     read_only: true
     tmpfs:
-      - /run/postgresql:size=8m        # same leaf rule as nextcloud-db
+      - /run/postgresql:size=8m
       - /tmp:size=128m
-      - /etc/postgresql:size=8m        # the entrypoint writes postgresql.conf here, and
-                               # the directory holds nothing else
-    # Same reasoning as nextcloud-db: no root phase, therefore no capability.
-    # Postgres additionally *requires* the datadir to belong to the uid it runs
-    # as, so this is the direction the image was pushing us in anyway.
+      - /etc/postgresql:size=8m
     user: "999:999"
     environment:
       POSTGRES_USER: ${IMMICH_DB_USER}
       POSTGRES_PASSWORD_FILE: /run/secrets/immich_db_password
       POSTGRES_DB: ${IMMICH_DB_NAME}
-      DB_STORAGE_TYPE: "HDD"   # tunes VectorChord for spinning disks
+      DB_STORAGE_TYPE: "HDD"
     secrets:
       - immich_db_password
     volumes:
@@ -1632,45 +691,19 @@ services:
     networks:
       - internal
     healthcheck:
-      # Not `pg_isready`, which ignores both arguments it is handed. Measured
-      # 2026-08-31 with controls: `pg_isready -d <absent> -U <absent>` returns
-      # `accepting connections` and exit 0, byte-identical to the real call, so
-      # the -d and -U here were decorative and the probe only ever proved the
-      # postmaster was listening. A round-trip discriminates: exit 0 for the
-      # real pair, exit 2 for an absent database and 2 for an absent role.
-      #
-      # The start_period reasoning below is unaffected: psql cannot connect
-      # while Postgres replays its WAL either, so a replaying database still
-      # reads as `starting` rather than dead, which is the property #241 needs.
       test: ["CMD-SHELL", "psql -U ${IMMICH_DB_USER} -d ${IMMICH_DB_NAME} -tAc 'select 1' >/dev/null"]
       interval: 10s
       timeout: 5s
       retries: 3
-      # Same reasoning as miniflux-db (#241). Longest of the three: this one
-      # carries the photo library's vector index and is the heaviest to bring
-      # back after an unclean shutdown.
       start_period: 180s
 
-  # --- Transmission (BitTorrent) ---
   transmission:
     image: linuxserver/transmission:4.1.3-r0-ls354
     container_name: transmission
-    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
-    # NO read_only (#32) — and here the image says so itself. Under a read-only
-    # rootfs the linuxserver init prints "UMASK, custom services & docker mod
-    # functionality will be disabled and the PUID/PGID environment variables will
-    # have no effect". Both matter: PUID/PGID own the downloads, and UMASK 022 is
-    # there because downloads were landing world-writable (CIS 7.1.11). The
-    # container does start read-only — it just quietly stops honouring two
-    # settings we rely on, which is a worse trade than the writable layer.
+    restart: "no"
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     cap_add:
-      # linuxserver s6 init chowns the config tree and drops to abc
-      # (uid 1000) — PUID/PGID is exactly this mechanism. Kept (#28): the s6
-      # init model *is* the root phase, so setting `user:` here would not
-      # simplify it but disable it — the images document PUID/PGID as the
-      # supported way, and it needs these capabilities to work.
       - CHOWN
       - SETUID
       - SETGID
@@ -1680,12 +713,8 @@ services:
       PUID: ${PUID}
       PGID: ${PGID}
       TZ: ${TZ}
-      # Downloads were landing world-writable (CIS 7.1.11 finding, 2026-07)
       UMASK: "022"
       USER: ${TRANSMISSION_USER}
-      # linuxserver convention: FILE__<VAR> is read into <VAR> at init. It does
-      # NOT strip a trailing newline (init-envfile only warns), which is why the
-      # deploy role writes the secret files without one.
       FILE__PASS: /run/secrets/transmission_password
       PEERPORT: 51413
       HOST_WHITELIST: "127.0.0.1,*.lan,*.local,*.localhost,share.${DOMAIN}"
@@ -1694,12 +723,6 @@ services:
       - transmission_password
     volumes:
       - ${SERVICES_DATA_DIR}/transmission/config:/config
-      # Moved out of the service directory and into library_dir so that the
-      # importer, which mounts library_dir whole, can hard-link from here into
-      # movies/ and shows/. Transmission itself still mounts ONLY this
-      # subdirectory: it never gets write access to the library, which is the
-      # whole reason the downloads moved to the library rather than the library
-      # opening up to Transmission.
       - ${LIBRARY_DIR}/downloads:/downloads
       - ${SERVICES_DATA_DIR}/transmission/watch:/watch
     ports:
@@ -1713,87 +736,17 @@ services:
       - "traefik.http.routers.transmission.entrypoints=websecure"
       - "traefik.http.routers.transmission.tls.certresolver=letsencrypt"
       - "traefik.http.services.transmission.loadbalancer.server.port=9091"
-    # 60 s, and it is a measurement rather than headroom. On 2026-09-13 the heal
-    # timer restarted this container at 01:25:15 while a 13.24 GB torrent was
-    # transferring; dockerd wrote "Container failed to exit within 10s of signal
-    # 15 - using the force" at 01:25:38. A full re-hash of that payload against
-    # the SHA-1 list inside its own .torrent afterwards found 89 of 1579 pieces
-    # wrong — 712 MiB spread over six of the eight files — while
-    # transmission-remote reported "13.24 GB verified". Two independent runs of
-    # the check returned byte-identical piece lists.
-    #
-    # The default of 10 s is what made it a kill: transmission flushes its
-    # resume files and closes every open file handle on SIGTERM, and it had 8
-    # files open on a USB disk that was also serving seven other containers.
-    #
-    # NOT a general extension of the other 27 containers sitting on the default
-    # — that was measured and declined. This one is the only container that
-    # writes multi-gigabyte payloads it cannot re-verify on its own.
     stop_grace_period: 60s
     healthcheck:
-      # `curl -s -o /dev/null` with no `-f` exits 0 on ANY response. Measured:
-      # the probed URL answers 401 and the command exits 0; a nonexistent route
-      # also exits 0; only a closed port fails it (rc=7). It was a TCP probe
-      # wearing an application probe's clothes, and the Kuma layer caught
-      # nothing — its monitor is the only one of twelve that explicitly accepts
-      # 401. transmission-remote speaks the RPC API and authenticates: rc=1 on a
-      # wrong password, rc=1 on an unreachable daemon, and it enumerates the
-      # torrents, which is the function this service exists to perform. 0.03s.
-      #
-      # `-ne` (--authenv), never `-n`: the credential goes through TR_AUTH in the
-      # child's environment, not through its argument list. The first version of
-      # this probe used `-n "$USER:$(cat …)"`, which put the RPC password on the
-      # process table every 30 s — 2 880 times a day, readable by any local
-      # account, since /proc carries no hidepid. Captured from an unprivileged
-      # uid during the audit of 2026-08-22 (#198). /proc/<pid>/environ is 0400
-      # owner-only, so the environment is not the same exposure as argv.
       test: ["CMD-SHELL", 'TR_AUTH="$$USER:$$(cat /run/secrets/transmission_password)" transmission-remote -ne -l >/dev/null 2>&1']
       interval: 30s
       timeout: 5s
       retries: 3
 
-  # =============================================================================
-  # Phase 5 — Observability
-  # =============================================================================
-
-  # --- Uptime Kuma ---
-  # Upgrades are NOT routine here: Kuma runs knex migrations at start and exits 1
-  # before listening if one fails, and since this container is the monitoring,
-  # that failure raises no alarm. 2.5.0 needed a manual intervention to start at
-  # all (fix-stat-daily-overflow aborts the SQLite table rebuild). Renovate holds
-  # it off the weekly batch; back the DB up and read the runbook first:
-  # knowledge/runbooks/uptime-kuma-migration-failure.md
-  # --- The *arr stack: Prowlarr finds, Sonarr and Radarr import (ADR-036) ----
-  # Three containers that fill the gap between Transmission, which downloads,
-  # and Jellyfin, which only reads a library. Prowlarr manages the indexers and
-  # pushes them to the other two; Sonarr and Radarr decide what to fetch, hand
-  # it to Transmission over its RPC API, then import the finished download into
-  # the library by HARD LINK — which is the whole reason ADR-035 moved the
-  # downloads inside library_dir in the first place.
-  #
-  # Capabilities: the same five as calibre-web and transmission, and for the
-  # same reason — these are linuxserver s6 images whose init runs as root,
-  # chowns /config, then drops to PUID/PGID. That set is INHERITED rather than
-  # measured for these three: it is the one that works for the sibling images,
-  # and narrowing it needs a `docker diff` run per container after first start.
-  # Written down as inherited so nobody reads it as a measurement.
-  #
-  # read_only is NOT set here, and that is also not a measurement: it was not
-  # attempted. calibre-web documents an image that genuinely cannot run
-  # read-only; these three have not been tried, and the honest state is
-  # "unknown".
-  #
-  # start_period is 600 s and that IS measured now. First start on an IDLE
-  # machine, 2026-09-12: prowlarr 246 s, radarr 248 s, sonarr 262 s to first
-  # healthy. The 300 s this shipped with would have held — by 15 % — and that
-  # margin is worthless, because the number that decides it is a COLD boot with
-  # eleven containers in wave 3 contending for one disk. calibre-web is the
-  # precedent and it is brutal: 90 s warm, 7 min 49 s cold, unhealthy on two
-  # consecutive boots before its own budget went to 600 s.
   prowlarr:
     image: lscr.io/linuxserver/prowlarr:2.6.5
     container_name: prowlarr
-    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    restart: "no"
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     cap_add: &arr-s6-caps
@@ -1807,19 +760,10 @@ services:
       PGID: ${PGID}
       TZ: ${TZ}
     volumes:
-      # Config only. Prowlarr never touches a media file: it searches indexers
-      # and hands results to the other two. Giving it the library would widen
-      # its reach for nothing.
       - ${SERVICES_DATA_DIR}/prowlarr:/config
     networks:
       - proxy
     healthcheck:
-      # `-fsS` alone accepts any non-4xx/5xx answer, and these apps return 302 to
-      # the UI for anything they do not route — so the old check passed on a
-      # redirect and only ever proved the port was open. Verified 2026-09-13 on
-      # all three: /ping -> rc=0, an unknown route -> rc=0. Matching the body is
-      # what makes it fail when the app answers without serving its API; Kuma
-      # already tests these three that way.
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9696/ping | tr -d ' \\n' | grep -q '\"status\":\"OK\"'"]
       interval: 30s
       timeout: 10s
@@ -1836,7 +780,7 @@ services:
   sonarr:
     image: lscr.io/linuxserver/sonarr:4.0.20
     container_name: sonarr
-    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    restart: "no"
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     cap_add: *arr-s6-caps
@@ -1846,21 +790,10 @@ services:
       TZ: ${TZ}
     volumes:
       - ${SERVICES_DATA_DIR}/sonarr:/config
-      # ONE mount covering both the downloads and the destination, which is what
-      # makes an import a hard link. Two mounts would fail with EXDEV even on the
-      # same filesystem — measured 2026-09-12, see ADR-035. Note what is NOT
-      # here: media_dir. Sonarr can write to films, series and the download
-      # directory, and to nothing the operator produces.
       - ${LIBRARY_DIR}:/data
     networks:
       - proxy
     healthcheck:
-      # `-fsS` alone accepts any non-4xx/5xx answer, and these apps return 302 to
-      # the UI for anything they do not route — so the old check passed on a
-      # redirect and only ever proved the port was open. Verified 2026-09-13 on
-      # all three: /ping -> rc=0, an unknown route -> rc=0. Matching the body is
-      # what makes it fail when the app answers without serving its API; Kuma
-      # already tests these three that way.
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8989/ping | tr -d ' \\n' | grep -q '\"status\":\"OK\"'"]
       interval: 30s
       timeout: 10s
@@ -1877,7 +810,7 @@ services:
   radarr:
     image: lscr.io/linuxserver/radarr:6.4.4
     container_name: radarr
-    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    restart: "no"
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     cap_add: *arr-s6-caps
@@ -1891,12 +824,6 @@ services:
     networks:
       - proxy
     healthcheck:
-      # `-fsS` alone accepts any non-4xx/5xx answer, and these apps return 302 to
-      # the UI for anything they do not route — so the old check passed on a
-      # redirect and only ever proved the port was open. Verified 2026-09-13 on
-      # all three: /ping -> rc=0, an unknown route -> rc=0. Matching the body is
-      # what makes it fail when the app answers without serving its API; Kuma
-      # already tests these three that way.
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:7878/ping | tr -d ' \\n' | grep -q '\"status\":\"OK\"'"]
       interval: 30s
       timeout: 10s
@@ -1913,67 +840,24 @@ services:
   uptime-kuma:
     image: louislam/uptime-kuma:2.5.5
     container_name: uptime-kuma
-    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    restart: "no"
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
-    read_only: true          # measured: everything it keeps is in the mounted /app/data
+    read_only: true
     tmpfs:
-      # Insurance: no monitor needs /tmp today (37 active — push, http, keyword,
-      # port, dns, ping), but the real-browser type runs a Chromium out of it,
-      # and that failure would surface as one monitor stuck down.
       - /tmp:size=16m
     cap_add:
-      # Kuma spawns /usr/bin/ping, which carries cap_net_raw=ep as a file
-      # capability. Under cap_drop ALL that capability is outside the bounding
-      # set, so the exec itself fails and every ping-type monitor reports
-      # "spawn EPERM" — while the container stays healthy and the web UI keeps
-      # answering. Found by the monitoring, not by an HTTP probe.
       - NET_RAW
-    extra_hosts: *kuma-hosts    # see x-kuma-hosts — the pins and the fallback are one fix
+    extra_hosts: *kuma-hosts
     dns:
       - ${PI_LAN_IP}
-      # The fallback, and it exists solely so a Discord webhook can still be
-      # resolved while Pi-hole is down. Without it the alert about Pi-hole is
-      # the one alert this stack cannot deliver. Safe only because the names
-      # above are pinned: a bare fallback would answer the internal names with
-      # the public address and turn one true alert into eighteen false ones.
       - 1.1.1.1
     volumes:
       - ${SERVICES_DATA_DIR}/uptime-kuma:/app/data
-    # The image's own healthcheck PRINTS the status code and never compares it:
-    # `Health Check OK [Res Code: 401]`, exit 0 — measured against Transmission's
-    # authenticated endpoint from inside this container (#200). Only a transport
-    # failure could make it fail, so a Kuma that answers and has stopped serving
-    # correctly stayed `healthy` — on the one container with no external monitor
-    # watching it, because it IS the external monitoring.
-    #
-    # Third instance of the #145 / #156 class and the first that arrived through
-    # an IMAGE rather than through this file, which is why the earlier sweeps
-    # did not reach it. Same shape and same cadence as the netdata fix above.
-    #
-    # Cadence copied from the image's declaration (interval 60s, timeout 30s,
-    # start_period 180s, retries 5, read back with `docker inspect`) so the test
-    # is the only thing that changes.
-    #
-    # Why the grep and not `curl -fsS` alone: Kuma is a single-page app and
-    # serves its index with **200** for any unmatched route, so a bare 2xx check
-    # passes on the fallback page. `/api/entry-page` is a real handler —
-    # `application/json`, `{"type":"entryPage"…}`, read out of SQLite — and the
-    # marker is what distinguishes it from the HTML the router falls through to.
-    #
-    # Four modes measured in the running container before this was written:
-    # the endpoint passes, the SPA fallthrough fails, a 4xx from the same server
-    # fails, and a refused connection fails.
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS --max-time 10 http://127.0.0.1:3001/api/entry-page | grep -q entryPage"]
       interval: 60s
       timeout: 30s
-      # 960s: measured at 355 s on a boot with no backup collision, doubled for
-      # the worst case and rounded up. It was 180 s, copied from the image's own
-      # declaration and never measured against this host — 58% of the retry
-      # budget was already spent on a QUIET boot. This is also the one container
-      # with no external monitor watching it, so a withheld Traefik router here
-      # is invisible from outside.
       start_period: 960s
       retries: 5
     networks:
@@ -1985,34 +869,17 @@ services:
       - "traefik.http.routers.uptime.tls.certresolver=letsencrypt"
       - "traefik.http.services.uptime.loadbalancer.server.port=3001"
 
-  # --- SearXNG (private metasearch) ---
   searxng:
     image: searxng/searxng:2026.7.13-9e25585ae
     container_name: searxng
-    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    restart: "no"
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     read_only: true
     tmpfs:
-      # Engine and data caches (sqlite). update-ca-certificates also fails
-      # read-only, which is harmless: no extra CA is injected, so the image's
-      # own bundle is what is used either way (verified).
       - /tmp:size=64m
     volumes:
-      # The settings file itself, not the directory around it: a symlink inside a
-      # bind-mounted directory is resolved in the container's namespace, so the
-      # previous ./configs/searxng mount left SearXNG with a dangling link, a
-      # stub config and a secret_key regenerated at every start (issue #27).
-      # Read-only, 0444 root, from the LUKS secrets dir — same reasoning as the
-      # Docker secrets in ADR-016, since this file embeds secret_key.
-      # The image declares VOLUME /etc/searxng, so the directory itself is an
-      # anonymous volume and this file is mounted on top of it. Consequence when
-      # changing this line: Compose carries the previous mount over on recreate,
-      # so the container must be *removed*, not recreated — see
-      # knowledge/runbooks/container-config-changes.md.
       - /mnt/data/secrets/docker/searxng_settings:/etc/searxng/settings.yml:ro
-      # Gerbier branding: recoloured stylesheet (+ optional logo) overlaid on the
-      # stock theme, built by the deploy role (docker/branding/searxng). Read-only.
       - ./branding/searxng/out/sxng-ltr.min.css:/usr/local/searxng/searx/static/themes/simple/sxng-ltr.min.css:ro
       - ./branding/searxng/out/sxng-ltr.min.css.br:/usr/local/searxng/searx/static/themes/simple/sxng-ltr.min.css.br:ro
       - ./branding/searxng/out/sxng-ltr.min.css.gz:/usr/local/searxng/searx/static/themes/simple/sxng-ltr.min.css.gz:ro
@@ -2027,194 +894,40 @@ services:
       - "traefik.http.routers.searxng.tls.certresolver=letsencrypt"
       - "traefik.http.services.searxng.loadbalancer.server.port=8080"
 
-  # --- Netdata ---
   netdata:
     image: netdata/netdata:v2.11.1
     container_name: netdata
-    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    restart: "no"
     stop_grace_period: 90s
-    # Netdata's plugins are **setuid root** (4755: apps.plugin, cgroup-network,
-    # go.d.plugin, network-viewer…), which is why no-new-privileges is absent
-    # below. A setuid binary still only gets the container's bounding set, so
-    # cap_drop decides what those plugins can do — and dropping too much backfires
-    # in a way no status check shows: without CHOWN the agent cannot prepare its
-    # own directories, never drops to uid 201, and runs entirely as root
-    # (measured). Every cap here was established by running a throwaway agent and
-    # diffing its plugin processes and chart contexts against this one (#24).
     cap_drop: *cap-drop-all
     cap_add:
-      - SYS_PTRACE             # apps.plugin: read /host/proc for per-process charts
-      - DAC_OVERRIDE           # the setuid-root plugins write into /run/netdata,
-                               # owned by uid 201. Without it network-viewer's
-                               # spawn server fails to bind and go.d service
-                               # discovery (local-listeners) dies — while all 279
-                               # chart contexts stay present, so charts alone
-                               # would have called this a success.
-                               # Out of reach of #28's fix: that directory lives
-                               # inside the container, so no host ownership
-                               # changes it, and the agent already runs as 201
-      - CHOWN                  # prepares /run, /var/cache, /var/lib as 201:201
-      - SETUID                 # …then drops from root to netdata (uid 201)
+      - SYS_PTRACE
+      - DAC_OVERRIDE
+      - CHOWN
+      - SETUID
       - SETGID
-      # SYS_ADMIN stays removed — it only powered ebpf.plugin (advanced eBPF
-      # charts); core/system/apps/container charts are unaffected, and
-      # SYS_ADMIN ~= host root. Consequence already visible before this change:
-      # cgroup-network cannot enter other containers' namespaces ("Cannot switch
-      # to network namespace"), so SYS_CHROOT is left out too — granting it alone
-      # would only move that log line, not restore the path.
-      # NET_RAW is absent as well: only /usr/bin/fping needs it (it carries
-      # cap_net_raw) and no ping collector is configured. Add it back the day one
-      # is, or the collector will fail at exec with nothing else looking wrong.
     security_opt:
-      # NO no-new-privileges here (one of two exceptions, with collabora — whose
-      # coolforkit-caps needs the same gain via file capabilities): the plugins are setuid
-      # root (4755, verified — not file capabilities as this comment previously
-      # claimed) and need that elevation to read other processes' /proc for
-      # per-app charts. no-new-privileges blocks the setuid gain outright and
-      # floods the log with EPERM. The big wins (SYS_ADMIN + raw
-      # docker.sock) are already removed, so this residual is acceptable.
-      # Scoped profile instead of the `unconfined` this carried until #30:
-      # docker-default plus a ptrace **read** grant, which is all apps.plugin
-      # ever needed from unconfined (it reads /host/proc/<pid>/* for processes
-      # confined by other profiles). Attaching to a process — ptrace trace —
-      # stays denied. The profile is installed and loaded by the deploy role;
-      # if it is missing the container does not start at all, which is the
-      # failure mode we want rather than a silent fall back to unconfined.
       - apparmor=homelab-netdata
     read_only: true
     tmpfs:
-      # Leaf mounts only. /run ships adduser/lock/log and /var/log/netdata is a
-      # set of symlinks to /dev/stdout — a tmpfs on either parent would destroy
-      # them and turn the agent's logs into files growing in RAM.
-      - /run/netdata:size=8m          # spawn-server sockets and the plugin pipe
-      - /tmp:size=32m                 # /tmp/netdata
+      - /run/netdata:size=8m
+      - /tmp:size=32m
       - /var/log/netdata/otel:size=16m
-      # The otel signal viewer creates these two *inside* the container (the host
-      # journal is not mounted, and deliberately so). They were empty before this
-      # change too — the tmpfs keeps the behaviour identical instead of adding two
-      # ERROR lines to every start.
       - /host/var/log:size=1m
       - /host/run/log:size=1m
     environment:
-      # Container-name resolution via the read-only socket-proxy (CONTAINERS=1,
-      # same as Traefik), never the raw docker.sock (full Docker API = host root
-      # even mounted :ro). Container CPU/mem/net charts come from /proc + /sys.
       DOCKER_HOST: tcp://socket-proxy:2375
     depends_on:
       - socket-proxy
     volumes:
-      # State on disk rather than in the image layer. This is what makes
-      # read_only possible without paying for it in RAM, and it fixes something
-      # that was quietly true before: the metrics database lived in the
-      # container's writable layer, so **every recreate started the history from
-      # zero**. The image ships only empty cloud.d/ and registry/ directories
-      # plus netdata.tarball.checksum (for the auto-updater we do not use) at
-      # /var/lib/netdata, so mounting over it masks nothing that matters.
       - ${SERVICES_DATA_DIR}/netdata/lib:/var/lib/netdata
       - ${SERVICES_DATA_DIR}/netdata/cache:/var/cache/netdata
-      # Retention, declared rather than inherited (class C68). A single FILE and
-      # not the directory, for the reason stated below: /etc/netdata carries the
-      # container's bootstrap files and mounting over it would mask them. The
-      # image's own netdata.conf is a comment stub with no settings, so this
-      # masks nothing. The cache mount above is what it governs — and that cache
-      # is excluded from the restic backup, being a ring buffer that regenerates.
       - ${SERVICES_DATA_DIR}/netdata/netdata.conf:/etc/netdata/netdata.conf:ro
-      # Curated alarms (ADR-030). /etc/netdata/health.d is EMPTY in the image —
-      # the 57 stock alarms live in /usr/lib/netdata/conf.d/health.d — so this
-      # shadows nothing. /etc/netdata itself is deliberately NOT mounted: it
-      # carries the container's own bootstrap files (.environment, edit-config,
-      # and the `orig` symlink into the stock tree).
-      #
-      # Netdata's NOTIFICATION config is deliberately untouched: it notifies
-      # nobody, stock alarms and curated ones alike. A host-side adapter reads
-      # the alarm API and pushes each curated alarm into its own Uptime Kuma
-      # monitor, so Kuma remains the single place the channel is configured.
       - ${SERVICES_DATA_DIR}/netdata/health.d:/etc/netdata/health.d:ro
-      # Collector configuration. /etc/netdata/go.d is EMPTY in the image too —
-      # the 133 stock collector templates live in /usr/lib/netdata/conf.d/go.d,
-      # and a module only runs once a job config exists here (`default_run: yes`
-      # in go.d.conf). Available is not the same as active: at the time this was
-      # added, none of sensors, docker, x509check, dns_query, smartctl or
-      # wireguard were collecting anything.
       - ${SERVICES_DATA_DIR}/netdata/go.d:/etc/netdata/go.d:ro
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
       - /etc/os-release:/host/etc/os-release:ro
-    # Overrides the image's own healthcheck, which cannot fail on a bad answer.
-    # netdata/netdata ships /usr/sbin/health.sh, and it ends with
-    # `curl -sSL "$NETDATA_HEALTHCHECK_TARGET" || exit 1` — no -f, so curl
-    # returns 0 on 404, 500 or anything else the agent manages to answer, and
-    # only a closed port could ever mark this container unhealthy (#156). Same
-    # defect as Transmission's, fixed on 2026-08-16; this one arrived through
-    # the image rather than through this file, which is why a sweep of the
-    # healthchecks declared here did not see it.
-    #
-    # Cadence copied from the image's declaration (interval 60s, timeout 10s,
-    # retries 3, read back with `docker inspect`) so that the test is the only
-    # thing that changes. `curl` is the image's own binary (/usr/bin/curl) and
-    # /api/v1/info answers 200 on 127.0.0.1:19999 — both verified in the
-    # running container before writing this.
-    #
-    # start_period and start_interval are NOT copied from the image, because the
-    # image declares neither and that is the defect. Measured on the cold boot of
-    # 2026-08-27: with no start_period and a 60 s interval, the first probe lands
-    # 68 s after start, and netdata answered on the third — 3 min 23 s.
-    #
-    #   00:13:59  started
-    #   00:15:07  probe 1 -> fail
-    #   00:16:22  probe 2 -> fail (curl exit 22)
-    #   00:17:22  probe 3 -> healthy
-    #
-    # Two separate costs. Without start_period those early failures count toward
-    # `retries`, so a container that is merely still booting is published as
-    # UNHEALTHY — the same false alarm #250 fixed for the databases. And with a
-    # 60 s interval and nothing finer during startup, readiness is discovered up
-    # to a minute after it happens; that is what made a 120 s gate on netdata
-    # time out even though the agent was up well before the gate expired.
-    #
-    # 300 s covers the measured 3 min 23 s, which was taken under a saturated
-    # disk (%util 98 %), i.e. the worst case this host produces. start_interval
-    # probes every 10 s while inside start_period only — the steady-state
-    # cadence stays the image's 60 s.
-    # The test also asserts go.d is ALIVE, added 2026-09-12 after the reboot of
-    # the night before. netdata answered /api/v1/info perfectly while running
-    # without its go.d plugin, which it had killed with SIGKILL and then
-    # DISABLED — "exited abnormally. Disabling it." Nothing re-spawns a disabled
-    # plugin: `check for new plugins every = 1m` rescans for NEW ones only, and
-    # the agent has no setting that reverses the decision. It stayed dead for
-    # thirty-five minutes and the API stayed 200 the whole time.
-    #
-    # go.d is not one collector among many here: it carries the docker collector,
-    # so without it there are no docker_local charts, and without those the three
-    # homelab_container_* alarms cannot instantiate at all. Which is also why
-    # netdata cannot report this about itself — the alarm that would say a
-    # container is unhealthy is hosted by the plugin that is missing. The
-    # non-circular detector is homelab-netdata-kuma.sh asserting the alarms are
-    # LOADED, it already exists, it fired in five minutes, and it is untouched.
-    #
-    # What this adds is the half that was missing: a signal the heal timer can
-    # act on. The timer now restarts a container that stays unhealthy, and a
-    # restart is the whole remedy — it re-spawns the plugin.
-    #
-    # `pidof`, NOT `pgrep -f`. The first version used `pgrep -f go.d.plugin` and
-    # its negative control caught it: the healthcheck's own `sh -c` carries that
-    # string in its argv, so pgrep matched ITSELF and the test passed with the
-    # plugin absent. That is C29's recorded trap — the redactor's liveness check
-    # failed the same way — reproduced here by writing the same line. `pidof`
-    # matches the program name and cannot see the shell.
-    #
-    # The 900 s grace is not decoration. On the reboot of 2026-09-11 go.d took
-    # 347 s to appear, against a 300 s start_period, because the disk was
-    # saturated by the startup wave. Asserting it any earlier would publish a
-    # container as unhealthy while it is merely starting slowly — the false alarm
-    # #250 fixed for the databases, re-introduced. Inside 900 s the API answering
-    # is the whole test; after it, the plugin must be there. The container's own
-    # age comes from `ps -o etimes= -p 1`, which is the container's PID 1 and not
-    # the host's uptime.
-    #
-    # Four controls, run in the live container before this was written: plugin
-    # alive passes, plugin name absent fails, API unreachable fails, and a
-    # container inside its grace passes with the plugin name absent.
     healthcheck:
       test:
         - CMD-SHELL
@@ -2237,56 +950,23 @@ services:
       - "traefik.http.routers.netdata.tls.certresolver=letsencrypt"
       - "traefik.http.services.netdata.loadbalancer.server.port=19999"
 
-  # --- Dozzle (container logs in the browser) ---
-  # Fills the gap Netdata and Kuma leave: metrics and uptime were reachable
-  # without SSH, logs were not. Reads the daemon through the same read-only
-  # socket-proxy as Traefik and Netdata — never the raw docker.sock.
   dozzle:
     image: amir20/dozzle:v11.1.0
     container_name: dozzle
-    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    restart: "no"
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     read_only: true
     tmpfs:
-      - /tmp:size=8m           # insurance, not a measurement — see the header
-    # The tmpfs above is insurance and not a need: `docker diff` on a live probe
-    # showed an empty write set — the only entries were /data and the users file,
-    # both artefacts of the bind mount below. Dozzle is a single Go binary serving
-    # from its own image and keeping no state on disk; the auth session is a
-    # cookie, not a file.
-    user: "65534:65534"        # nobody — it speaks TCP to the proxy, so no docker group
+      - /tmp:size=8m
+    user: "65534:65534"
     environment:
       DOCKER_HOST: tcp://socket-proxy:2375
-      # Logs are the point, and they are also the most quietly sensitive surface
-      # in the stack: every other container's stdout in one page — session ids,
-      # e-mail addresses, tokens an app decided to log. `vpn-only` already gates
-      # it like everything else, so this is the second lock, for the case where
-      # the perimeter itself is what failed (a stolen WireGuard key, a
-      # compromised LAN device). Credentials come from the file below.
       DOZZLE_AUTH_PROVIDER: simple
       DOZZLE_NO_ANALYTICS: "true"
-      # The default polls GitHub for newer Dozzle releases on a schedule. Version
-      # bumps arrive through Renovate on the pin above, so the call buys nothing
-      # and is one more outbound connection from a container that needs none.
       DOZZLE_RELEASE_CHECK_MODE: manual
-      # DOZZLE_ENABLE_ACTIONS / DOZZLE_ENABLE_SHELL stay at their default false.
-      # Both need POST on the socket-proxy, which is 0 — so enabling either here
-      # would put start/stop/restart buttons and an in-browser shell in the UI
-      # that fail against the proxy rather than work. The proxy is the boundary;
-      # this is a log viewer, not a control panel.
     volumes:
-      # The FILE, not the directory around it: a directory bind mount here would
-      # be resolved in the container's namespace and is exactly how #27 left
-      # SearXNG with a dangling link for weeks. 0444 from the LUKS secrets dir,
-      # rendered by the deploy role — it carries the bcrypt hash of the admin
-      # password, so it is a secret by ADR-011's definition even though Dozzle
-      # wants it at a fixed path rather than under /run/secrets.
       - /mnt/data/secrets/docker/dozzle_users.yml:/data/users.yml:ro
-    # The binary's own subcommand rather than a port probe: it performs a real
-    # HTTP request to /healthcheck on the listener, so a Dozzle that is up but
-    # no longer serving fails it. Nothing else in the image can run it — there is
-    # no shell, no wget, no curl.
     healthcheck:
       test: ["CMD", "/dozzle", "healthcheck"]
       interval: 30s
@@ -2304,41 +984,15 @@ services:
       - "traefik.http.routers.dozzle.tls.certresolver=letsencrypt"
       - "traefik.http.services.dozzle.loadbalancer.server.port=8080"
 
-  # --- IT-Tools (offline dev toolbox) ---
   it-tools:
-    # Pinned to a DIGEST on a moving tag, which is unusual here and deliberate.
-    # Upstream stopped cutting releases: the newest is 2024.10.22, and its image
-    # ships Alpine 3.20 (past end of support) with nginx 1.26.2. `nightly` — a
-    # build of main, not an unstable channel in this project — is where the
-    # maintenance went: Alpine 3.23, nginx 1.28.2. Serving a 21-month-old base to
-    # replace third-party web tools would defeat the point of self-hosting this.
-    # The digest restores what the tag gives up: the deployed artefact cannot
-    # change underneath us, and Renovate raises a PR when the digest moves.
-    #
-    # This digest has not moved since 2026-02-13, and that is NOT the signal to
-    # drop the service — the earlier version of this comment said it was. The
-    # nightly build still runs and succeeds every night; it rebuilds the same
-    # commit, because main has not moved since 2026-02-12. Frozen input, not a
-    # stopped pipeline. Drop it if it ever gains a backend, leaves the VPN, or the
-    # nightly build starts FAILING — not because the digest is old (#162,
-    # ADR-024).
     image: corentinth/it-tools:nightly@sha256:f07d246567e1ceb65e29b0a2ea155a70d7b05e9a35cfc534a2eee7b1f53df64b
     container_name: it-tools
-    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    restart: "no"
     security_opt: *no-new-privs
-    # Zero capabilities, including NET_BIND_SERVICE, even though nginx listens on
-    # :80 as uid 101. Docker sets net.ipv4.ip_unprivileged_port_start=0 inside the
-    # container, so the bind needs no capability at all — measured, not assumed:
-    # the container serves 200 with `--cap-drop ALL` and nothing added.
     cap_drop: *cap-drop-all
-    read_only: true            # measured: `docker diff` write set is empty
-    user: "101:101"            # nginx user in the image
+    read_only: true
+    user: "101:101"
     tmpfs:
-      # These need uid/gid, unlike every other tmpfs in this file. A tmpfs is
-      # mounted root-owned 0755 by default, so uid 101 cannot create
-      # /var/cache/nginx/client_temp and nginx exits 1 at startup with
-      # "mkdir() ... failed (13: Permission denied)" — a failure that reads like
-      # a read-only filesystem problem and is not one.
       - /var/cache/nginx:size=16m,uid=101,gid=101
       - /var/run:size=4m,uid=101,gid=101
       - /tmp:size=8m,uid=101,gid=101
@@ -2349,10 +1003,6 @@ services:
       retries: 3
     networks:
       - proxy
-    # No second lock, unlike Dozzle. Every tool here runs in the browser: the
-    # server parses nothing, stores nothing and never sees what is pasted into a
-    # JWT decoder. `vpn-only` on the entrypoint is the whole perimeter, and there
-    # is no server-side secret behind it to defend.
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.it-tools.rule=Host(`tools.${DOMAIN}`)"
@@ -2360,42 +1010,13 @@ services:
       - "traefik.http.routers.it-tools.tls.certresolver=letsencrypt"
       - "traefik.http.services.it-tools.loadbalancer.server.port=80"
 
-  # --- Calibre-Web-Automated (ebook library + OPDS) ---
   calibre-web:
     image: crocodilestick/calibre-web-automated:v4.0.6
     container_name: calibre-web
-    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
-    # NO read_only, and not for lack of trying: `docker diff` on a running
-    # container shows **1797** entries, because the image patches its own source
-    # tree and writes Python bytecode caches under /app at every start. Unlike
-    # transmission below, there is no polite degradation to weigh — it simply
-    # cannot start.
+    restart: "no"
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     cap_add:
-      # The same five as transmission, for the same reason, and measured the
-      # same way. This is a linuxserver-style s6 image: the init runs as root,
-      # chowns /config, /calibre-library and /cwa-book-ingest, then drops to
-      # PUID/PGID. Six variants were tried before settling here (ADR-025):
-      #   - zero caps                     → /config/client_secrets.json denied, never serves
-      #   - CHOWN+SETUID+SETGID           → reports **healthy** while /app cache is missing
-      #   - the above + DAC_OVERRIDE      → reports **healthy** while `install` fails on
-      #                                     /config/processed_books/* (needs FOWNER)
-      #   - user: "1000:1000", zero caps  → s6 preinit: "/run belongs to uid 0 … we're
-      #                                     lacking the privileges to fix it", exit 100
-      #   - the above + owned /run tmpfs  → exit 126, tmpfs is noexec by default
-      #   - the above + exec on the tmpfs → s6 starts, then /app is root-owned in the
-      #                                     image and the app never serves
-      # So `user:` cannot remove the root phase here — the image would have to
-      # ship /app owned by the app uid, and it does not. Two of those variants
-      # sat at `healthy` while broken, which is why the Kuma monitor does not
-      # trust this container's own healthcheck (see docs/05-services/calibre-web.md).
-      #
-      # And root is NOT confined to init, unlike transmission below: cps.py does
-      # run as uid 1000, but cwa-ingest-service, metadata-change-detector,
-      # cwa-auto-zipper and svc-cron stay root for the container's whole life.
-      # The first of those parses whatever lands in the ingest folder, so treat
-      # that folder as a trusted path (ADR-025).
       - CHOWN
       - SETUID
       - SETGID
@@ -2406,32 +1027,16 @@ services:
       PGID: ${PGID}
       TZ: ${TZ}
     volumes:
-      # The Calibre library itself, alongside music/photos/videos and inside the
-      # restic set for free. CWA is the OWNER of this tree, not a reader of it:
-      # it rewrites metadata.db on first run (measured — the md5 changes), so
-      # editing the same library from desktop Calibre would silently fork the
-      # two. The desktop copy is a cold archive now (ADR-025).
       - /mnt/data/media/books:/calibre-library
       - ${SERVICES_DATA_DIR}/calibre-web:/config
-      # Drop an .epub here and CWA imports it into the library. Transient by
-      # design: files are moved out on success, so this is normally empty.
       - /mnt/data/media/books-ingest:/cwa-book-ingest
     networks:
       - proxy
-    # Deliberately NOT the image's own healthcheck, which is what `docker ps`
-    # reports: two of the capability variants above reached "healthy" with a
-    # broken install. This probes the login page, which is served by the same
-    # process that serves the library.
     healthcheck:
       test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:8083/login"]
       interval: 30s
       timeout: 10s
       retries: 5
-      # 120 s came from a warm measurement of the s6 init (~90 s). On a cold
-      # boot with the disk saturated it is not close: started 00:14:04, first
-      # served by 00:21:53 on 2026-08-27 — 7 min 49 s. It went unhealthy on
-      # that boot, and on the one before it. 600 s then went unhealthy on the
-      # cold boot of 2026-09-24, healthy only ~800-830 s after start.
       start_period: 900s
       start_interval: 15s
     labels:
@@ -2441,56 +1046,26 @@ services:
       - "traefik.http.routers.calibre-web.tls.certresolver=letsencrypt"
       - "traefik.http.services.calibre-web.loadbalancer.server.port=8083"
 
-  # --- Miniflux (RSS reader) ---
   miniflux:
     image: miniflux/miniflux:2.3.3
     container_name: miniflux
-    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    restart: "no"
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     read_only: true
     tmpfs:
-      - /tmp:size=8m           # insurance, not a measurement — see the header
-    # No tmpfs at all, and that is measured rather than hoped for: `docker diff`
-    # on a probe that ran the 132 migrations, created the admin account and
-    # served /healthcheck came back with an EMPTY write set. Miniflux is one Go
-    # binary on a distroless base and keeps everything it owns in Postgres.
-    user: "65534:65534"        # nobody — already the image's own default, restated
-                               # here so a base-image change cannot move it silently
+      - /tmp:size=8m
+    user: "65534:65534"
     depends_on:
       miniflux-db:
         condition: service_healthy
     environment:
       DATABASE_URL_FILE: /run/secrets/miniflux_database_url
       RUN_MIGRATIONS: "1"
-      # Idempotent by design: Miniflux logs "user already exists" and carries on
-      # when the account is there, so this stays on across deploys instead of
-      # being a first-boot flag someone has to remember to remove.
-      #
-      # That idempotence has a sharp edge, found 2026-09-02: because the account
-      # only has to EXIST for this to no-op, a second administrator created by
-      # hand in the web UI is completely invisible here. The host carried two —
-      # this one, never logged into, and the one in daily use, whose password
-      # lived only in Postgres. ADMIN_USERNAME must therefore name the account
-      # actually used, so that a rebuild from an empty database recreates the
-      # right one rather than adding a second.
       CREATE_ADMIN: "1"
       ADMIN_USERNAME: ${MINIFLUX_ADMIN_USER}
       ADMIN_PASSWORD_FILE: /run/secrets/miniflux_admin_password
-      # Upstream's default is 3, and it had never been chosen. Three consecutive
-      # fetch failures drop a feed from the scheduler permanently while the UI
-      # still shows it as active — measured on 2026-09-15, when heartofagile
-      # failed at 06:43, 08:43 and 10:43 UTC and was never polled again. The
-      # posture check then reported it on every scheduled run for three days,
-      # and only a manual refresh cleared it.
-      #
-      # 15 is a feed that has failed for most of a day at the default hourly
-      # polling, which is dead rather than flaky. The posture assertion reads
-      # THIS value rather than carrying its own copy of it: a tolerance that
-      # does not track the thing it tolerates is how a check goes vacuous.
       POLLING_PARSING_ERROR_LIMIT: "15"
-      # Upstream's default is 127.0.0.1:8080, which inside a container means the
-      # process answers only itself and Traefik gets connection refused.
       LISTEN_ADDR: 0.0.0.0:8080
       BASE_URL: https://rss.${DOMAIN}
     secrets:
@@ -2499,10 +1074,6 @@ services:
     networks:
       - proxy
       - internal
-    # The binary's own subcommand, like Dozzle, and here there is no alternative:
-    # the image is distroless — no shell, no curl, no wget — so a CMD-SHELL probe
-    # cannot run at all. It issues a real HTTP request against the listener, so a
-    # Miniflux that is up but no longer serving fails it.
     healthcheck:
       test: ["CMD", "/usr/bin/miniflux", "-healthcheck", "auto"]
       interval: 30s
@@ -2516,60 +1087,16 @@ services:
       - "traefik.http.services.miniflux.loadbalancer.server.port=8080"
 
   miniflux-db:
-    # Killed mid-checkpoint by the 10 s per-container default, PROVEN on the
-    # supervised restart of 2026-08-30 00:22 (#288):
-    #
-    #     22:22:52.537  received fast shutdown request
-    #     22:22:54.767  shutting down
-    #     22:23:00.051  FATAL. the database system is shutting down
-    #                   ... and no "database system is shut down" ever follows
-    #
-    # The image already sets STOPSIGNAL SIGINT, which is Postgres's *fast*
-    # shutdown and the correct signal - the signal was never the problem. The
-    # budget was that the final checkpoint did not fit in 10 s.
-    #
-    # 30 s was sized from nextcloud-db's drain on that restart, and the reboot of
-    # 2026-09-05 22:56 spent every second of it without finishing. Do NOT size
-    # this from a solo `docker stop` on an idle database, which reads 1.6-2.5 s -
-    # that is how this container came to be left on the default in the first
-    # place. The real cost is a full checkpoint with thirty-two containers
-    # draining onto the same USB disk at once, and this is what that looks like:
-    #
-    #     20:56:03.834  received fast shutdown request
-    #     20:56:10.514  aborting any active transactions        (6.7 s to reach it)
-    #     20:56:29.182  checkpoint complete: ... write=226.213 s
-    #                   - the PERIODIC checkpoint, which the shutdown had to wait
-    #                     out before it could start its own
-    #     20:56:31.853  checkpoint starting: shutdown immediate
-    #                   ... killed 2.2 s later, at the 30 s mark, and back with
-    #                     "database system was not properly shut down"
-    #
-    # That is the whole shape of it: the final checkpoint could not even BEGIN
-    # until 28 of the 30 seconds were gone. 90 s is headroom over that, not a
-    # measurement - nothing has yet observed this drain reaching its end.
+    # [warning]: do not size this from a solo `docker stop` on an idle database: the real cost is a checkpoint while every container drains to the same disk
     stop_grace_period: 90s
-    # Postgres 18, not the 16 immich-db is pinned to. This database is Miniflux's
-    # alone — nothing reads it across services — so there is no schema to match,
-    # and 18 is what upstream's own compose ships.
     image: postgres:18-alpine
     container_name: miniflux-db
-    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    restart: "no"
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     read_only: true
-    # Same reasoning as immich-db and nextcloud-db: running as the final uid from
-    # PID 1 removes the entrypoint's root phase, so there is no chown left to
-    # need a capability for.
     user: "999:999"
     tmpfs:
-      # Both carry uid/gid, unlike immich-db's Debian-based image, and both
-      # failures were observed rather than anticipated. A tmpfs mounts root-owned
-      # 0755; the alpine entrypoint chmods its socket directory before dropping
-      # privilege, so without the uid the container exits on
-      #   chmod: /var/run/postgresql: Operation not permitted
-      # and then, once that is fixed, on
-      #   mktemp: : Read-only file system
-      # because initdb wants a scratch directory the read-only rootfs denies.
       - /run/postgresql:uid=999,gid=999,size=8m
       - /tmp:size=64m,uid=999,gid=999
     environment:
@@ -2579,141 +1106,47 @@ services:
     secrets:
       - miniflux_db_password
     volumes:
-      # /var/lib/postgresql, NOT the /var/lib/postgresql/data that immich-db
-      # mounts: Postgres 18 moved PGDATA to /var/lib/postgresql/18/docker and
-      # declares the PARENT as its volume. Mounting the old path would leave the
-      # real datadir inside the container, where every recreate destroys it.
       - ${SERVICES_DATA_DIR}/miniflux/db:/var/lib/postgresql
     networks:
       - internal
     healthcheck:
-      # A round-trip rather than `pg_isready` — see immich-db for the
-      # measurement. The WAL-replay reasoning below still holds: psql fails
-      # while the database replays, which is the answer this wants.
       test: ["CMD-SHELL", "psql -U ${MINIFLUX_DB_USER} -d ${MINIFLUX_DB_NAME} -tAc 'select 1' >/dev/null"]
       interval: 10s
       timeout: 5s
       retries: 3
-      # No start_period until 2026-08-26, and that is what broke the boot. Without
-      # one, docker counts health failures from the first second: interval 10s x
-      # retries 3 declares the container UNHEALTHY after ~30 s, and `compose up`
-      # abandons a wave the moment a depends_on target says unhealthy.
-      #
-      # `pg_isready` failing is exactly what a Postgres replaying its WAL looks
-      # like — it is the correct answer to "are you ready", not a fault. Measured
-      # on the 2026-08-26 reboot: wave dispatched 10:03:21, compose gave up
-      # 10:03:57 (three failed checks), the database was ready 10:04:06. Nine
-      # seconds, and it took the whole staged startup down with it (#241).
-      #
-      # During start_period a failing check leaves the container `starting`, so
-      # compose waits instead of giving up. A genuinely dead database still ends
-      # up unhealthy, just 90 s later — which is the right trade at boot.
       start_period: 90s
 
-  # --- Forgejo (private git forge, GitHub pull-mirror) ---
   forgejo:
-    # The ROOTLESS variant, not the default image, and the difference is
-    # structural rather than cosmetic. The standard image starts as root, chowns
-    # its data directory and drops to uid 1000 through su-exec — a sequence that
-    # needs SETUID/SETGID back and a writable image layer to do it in. The
-    # rootless image is already uid 1000 at PID 1, so it meets this stack's
-    # baseline (no-new-privileges + cap_drop ALL) with nothing added back.
-    # It pays for that with a different data path: /var/lib/gitea, NOT the /data
-    # that every tutorial mounts, which would store every repository in a layer
-    # the next `compose up` discards (ADR-028).
     image: codeberg.org/forgejo/forgejo:16.0.5-rootless
     container_name: forgejo
-    restart: "no"              # started by the stack-startup waves; crashes handled by the heal timer
+    restart: "no"
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
-    # Measured, not assumed: `docker diff` after a full mirror clone of 425
-    # commits — every branch plus the pull/*/head refs — returned the SAME seven
-    # entries as an idle boot, five of which are mount points. Git writes nothing
-    # to the image layer; it all lands in the bind mount below.
     read_only: true
-    user: "1000:1000"          # `git` in the rootless image. USER_UID/USER_GID
-                               # are inert here: the uid is fixed at build time,
-                               # they only exist for the root-entrypoint variant.
+    user: "1000:1000"
     tmpfs:
-      # The single writable path the measurement found: GITEA_TEMP=/tmp/gitea,
-      # which Forgejo creates itself at 0700. The uid is not optional — a tmpfs
-      # mounts root-owned 0755, and uid 1000 holds no capability to work around
-      # that, so without it the container cannot create its own temp directory.
-      # Same failure that bit IT-Tools and the Postgres instances.
-      # 128m is a ceiling, not an allocation: measured usage after the initial
-      # clone was 8 KB, and tmpfs only occupies what it holds.
       - /tmp:size=128m,uid=1000,gid=1000
     environment:
       FORGEJO__server__ROOT_URL: https://git.${DOMAIN}/
       FORGEJO__server__HTTP_PORT: "3000"
-      # Git over SSH stays off. The only planned use is a pull-mirror, which
-      # Forgejo drives OUTBOUND over HTTPS, and cloning from the LAN works over
-      # HTTPS too. Leaving it on would publish port 2222 for a door nothing
-      # knocks on. Turn it on the day this stops being a mirror and starts being
-      # a remote people push to.
       FORGEJO__server__DISABLE_SSH: "true"
-      # The web installer is a single unauthenticated form that creates the first
-      # admin account — whoever reaches it first owns the forge. It is locked
-      # before the container ever answers a request, and the admin is created by
-      # CLI instead (see docs/05-services/forgejo.md). vpn-only would already
-      # gate it; this is the second lock, because the first one is a middleware
-      # and middlewares can be misconfigured.
       FORGEJO__security__INSTALL_LOCK: "true"
       FORGEJO__service__DISABLE_REGISTRATION: "true"
-      # SQLite rather than a Postgres sidecar: one user, one mirror job, no
-      # concurrency to speak of, and it saves ~70 MB plus a container. The cost
-      # is that a live .db cannot be snapshotted safely by restic — backup.sh
-      # therefore takes it through SQLite's Online Backup API, exactly as it
-      # already does for Vaultwarden (ADR-028).
       FORGEJO__database__DB_TYPE: sqlite3
       FORGEJO__database__PATH: /var/lib/gitea/data/forgejo.db
-      # The key that encrypts 2FA secrets and OAuth2 client secrets at rest.
-      # INSTALL_LOCK above is what makes this line necessary: the web installer
-      # is what generates SECRET_KEY, and locking it out means nothing ever did.
-      # Forgejo then falls back to a constant compiled into the binary and shared
-      # by every installation on earth. Measured on 2026-08-15: SECRET_KEY was
-      # empty in the live app.ini while JWT_SECRET and INTERNAL_TOKEN, which the
-      # binary generates on its own, were both populated.
-      # Nothing was at risk when this was found — no 2FA, no access tokens, no
-      # webhooks, and the three OAuth2 entries are Forgejo's own public clients
-      # with no secret. It is fixed now precisely BECAUSE nothing depends on it:
-      # Forgejo cannot rotate this key, so anything encrypted under the default
-      # would have to be re-enrolled by hand later.
-      # _URI rather than the value: it keeps the key out of the environment,
-      # where `docker inspect` would show it to anything that can read the socket.
       FORGEJO__security__SECRET_KEY_URI: file:/run/secrets/forgejo_secret_key
     secrets:
-      # Mounted so the first-run admin-create command can read the password from
-      # inside the container instead of it being typed on the host, where it
-      # would land in shell history.
       - forgejo_admin_password
       - forgejo_secret_key
     volumes:
-      # One mount, not two. /etc/gitea is what the documentation points at and it
-      # is a red herring for this image: GITEA_APP_INI is
-      # /var/lib/gitea/custom/conf/app.ini, so the configuration is already
-      # inside this volume. A /etc/gitea bind mount was tried and stayed empty
-      # through boot, a 425-commit clone and a fetch — removed rather than kept
-      # as decoration.
       - ${SERVICES_DATA_DIR}/forgejo/data:/var/lib/gitea
     networks:
-      # proxy only — SQLite means no database peer to reach on `internal`, and
-      # the mirror pulls leave northbound to GitHub like any other egress.
       - proxy
     healthcheck:
-      # /api/healthz reports component status rather than just proving the router
-      # answers, so a Forgejo whose database has gone away fails it.
-      # VERIFY ON FIRST DEPLOY: this assumes busybox `wget` is in the rootless
-      # image. If it is not, the container goes permanently unhealthy and the
-      # heal timer will fight it every 2 minutes — check before walking away.
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/api/healthz || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
-      # 420s: measured at 145 s on a boot with no backup collision, doubled for
-      # the worst case and rounded up. The 120 s it replaced was a bare guess
-      # ("first boot runs the schema migrations") with no measurement beside it,
-      # and an ordinary boot already overran it by 25 s.
       start_period: 420s
     labels:
       - "traefik.enable=true"

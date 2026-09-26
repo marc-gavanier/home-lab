@@ -1,32 +1,13 @@
 ---
-# Automatic security updates.
-
 - name: updates | Install unattended-upgrades
   ansible.builtin.apt:
     name:
       - unattended-upgrades
       - apt-listchanges
       - needrestart
-      # provides /usr/lib/update-notifier/apt-check — the pending-security-update
-      # counter the Pi health monitor reads (observability role)
       - update-notifier-common
     state: present
 
-# needrestart ships on Ubuntu Server but defaults to interactive mode ('i'),
-# which does NOTHING in a non-interactive unattended-upgrades run — so a
-# patched shared lib (libssl, glibc, pam...) stays MAPPED in already-running
-# host daemons until the next reboot, which policy avoids. Automatic mode ('a')
-# restarts affected host services right after the upgrade, closing that window
-# reboot-free — exactly what the LUKS-unlock model wants.
-# docker.service is blacklisted: auto-restarting it would bounce all ~19
-# containers (colliding with staged startup, ADR-007). Container userspace is
-# Renovate's lane; a host docker lib bump waits for the next deliberate reboot.
-# unattended-upgrades.service is blacklisted since 2026-09-22: that morning the
-# sweep that followed the glib upgrade stopped it mid-transaction and SIGTERMed
-# the very run performing the upgrade, so four of the eight packages were never
-# attempted. This entry only removes it from needrestart's restart list — it
-# does NOT protect it when dbus itself is restarted, which kills the bus
-# clients outright. ADR-013 carries the measurement and the residual exposure.
 - name: updates | Ensure the needrestart drop-in directory exists
   ansible.builtin.file:
     path: /etc/needrestart/conf.d
@@ -52,15 +33,6 @@
       APT::Periodic::AutocleanInterval "7";
     mode: "0644"
 
-# Reboot policy — driven per host by unattended_automatic_reboot (52- overrides
-# the package's 50unattended-upgrades):
-#  - homelab (default false): an auto-reboot would bring the host back with
-#    /mnt/data LOCKED and every service down until a manual homelab-unlock — a
-#    collision with the LUKS-unlock model. A pending reboot is surfaced by the
-#    Pi health monitor and cleared on a bounded manual cadence (ADR-013).
-#  - offsite (true): no LUKS, so an unattended reboot is safe AND wanted — kernel
-#    updates self-clear at unattended_automatic_reboot_time, after the nightly
-#    copy. Without this the offsite would neither auto-reboot nor alert.
 - name: updates | Set the unattended-upgrades reboot policy
   ansible.builtin.copy:
     dest: /etc/apt/apt.conf.d/52homelab-reboot-policy
@@ -69,8 +41,6 @@
       Unattended-Upgrade::Automatic-Reboot-Time "{{ unattended_automatic_reboot_time | default('04:00') }}";
     mode: "0644"
 
-# Supersedes the earlier fixed-false drop-in (renamed to carry the per-host
-# policy); remove the stale file so both never coexist.
 - name: updates | Remove the superseded no-auto-reboot drop-in
   ansible.builtin.file:
     path: /etc/apt/apt.conf.d/52homelab-no-auto-reboot

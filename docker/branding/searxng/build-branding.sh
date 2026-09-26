@@ -1,32 +1,4 @@
 #!/usr/bin/env bash
-#
-# build-branding.sh — produce the Gerbier-branded stylesheet to bind-mount over
-# the stock SearXNG "simple" theme.
-#
-# Strategy (see overrides.css for the "why"):
-#   1. Extract the *current image's* compiled CSS   → stays in sync with `latest`
-#   2. Append our Gerbier --color-* overrides        → recolor only, no templates
-#   3. Optionally embed a logo as a data-URI         → only if SEARXNG_LOGO is set
-#   4. Regenerate the .br/.gz siblings               → SearXNG serves precompressed
-#
-# The base CSS is re-extracted from the image on every build, so a `docker pull`
-# + rebuild picks up upstream changes automatically; only our small override
-# block is carried across versions (CSS variable names are stable).
-#
-# The logo is embedded straight into the CSS (data-URI), so there is no image
-# file to mount: with no logo set, nothing is added and the stock logo is kept.
-#
-# Branding is opt-in: with SEARXNG_BRANDING != "true" the script emits the stock
-# CSS untouched, so the (always-present) bind-mount is a no-op and SearXNG stays
-# vanilla. Set it to "true" to apply the Gerbier theme.
-#
-# Run where the image is available (the Pi, via the deploy role).
-# Requires docker, brotli, gzip. Env:
-#   SEARXNG_BRANDING  "true" to apply the Gerbier theme  (default: false = stock)
-#   SEARXNG_IMAGE     image to read the base CSS from     (default searxng/searxng:latest)
-#   SEARXNG_LOGO      path to a .svg/.png logo, or empty  (default: keep stock logo)
-#   OUT_DIR           output directory                    (default ./out)
-#
 set -euo pipefail
 
 SRC="$(cd "$(dirname "$0")" && pwd)"
@@ -61,25 +33,18 @@ else
         esac
         echo "→ Embedding logo ${LOGO} (${mime}) as a data-URI on .index .title"
         b64="$(base64 -w0 "$LOGO")"
-        # Match the stock homepage selector `.index .title` (specificity 0,2,0) so we
-        # override it and don't leak the logo onto other `.title` elements. min-height
-        # drives the logo size (background-size:contain fits the box height).
         printf '\n.index .title{min-height:8rem;background-image:url("data:%s;base64,%s")}\n' "$mime" "$b64" >> "$TMP"
     else
         echo "→ No logo configured (SEARXNG_LOGO empty) — keeping the stock logo"
     fi
 fi
 
-# Idempotence: leave the deployed files alone when the build output is
-# byte-identical. Ansible keys its changed status on BRANDING_RESULT.
 if [ -f "$OUT/sxng-ltr.min.css" ] && cmp -s "$TMP" "$OUT/sxng-ltr.min.css"; then
     echo "✓ CSS identical to the deployed build — nothing to rewrite"
     echo "BRANDING_RESULT=unchanged"
     exit 0
 fi
 
-# In-place refresh (cat >, never mv): keeps the inodes stable so the running
-# container's file bind-mounts see the new content without a recreate.
 echo "→ Refreshing CSS + precompressed variants (.br/.gz)"
 cat "$TMP" > "$OUT/sxng-ltr.min.css"
 brotli -q 11 -c "$OUT/sxng-ltr.min.css" > "$TMP" && cat "$TMP" > "$OUT/sxng-ltr.min.css.br"

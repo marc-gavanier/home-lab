@@ -1,10 +1,4 @@
 ---
-# Service configurations under /opt/homelab/configs.
-# docker/configs/ holds ONLY verbatim files (traefik/dynamic); anything
-# needing variables lives in this role's templates/ as .j2. Keep it that way:
-# copying unrendered Jinja over rendered files made every deploy report
-# changes (and fought the SearXNG settings symlink).
-
 - name: configs | Create service configuration directories
   ansible.builtin.file:
     path: /opt/homelab/configs/{{ item }}
@@ -34,15 +28,6 @@
     mode: "0640"
   notify: Restart traefik
 
-# Verbatim, so it belongs here rather than in templates/ (see the header).
-#
-# 0644, not the 0640 above it: traefik-log-redactor runs as root with EVERY
-# capability dropped, so it holds no DAC_OVERRIDE and the mode
-# bits decide. 0640 <user>:docker is unreadable to a uid that is neither the
-# owner nor in the group, and awk would exit on a missing script — leaving the
-# redactor up, shipping nothing, with the access log silently gone. The file
-# holds no secret; the directory it sits in is never traversed by the container,
-# which bind-mounts the FILE.
 - name: configs | Copy the Traefik access-log redactor (#287)
   ansible.builtin.copy:
     src: "{{ playbook_dir }}/../../docker/configs/traefik/redact-access-log.awk"
@@ -52,35 +37,6 @@
     mode: "0644"
   notify: Restart traefik-log-redactor
 
-# Verbatim, so it belongs here rather than in templates/ (see the header).
-#
-# root:root 0644, NOT the `<ansible_user>:docker 0640` the split-DNS config
-# next to it uses. That analogy was wrong and it cost this file five days of
-# rotation: logrotate refuses any configuration file it does not own, and says
-# so before reading a single rule —
-#
-#     error: Ignoring pihole because the file owner is wrong
-#            (should be root or user with uid 0).
-#     error: found error in file pihole, skipping
-#
-# "skipping" is the part that matters, and it is the whole FILE, not the rule:
-# all three of its stanzas die together, so the 2026-08-25 `copytruncate` fix
-# never ran once and it silently took FTL.log and webserver.log — which had been
-# rotating correctly all along — down with it.
-#
-# Reproduced on 2026-08-31 against the invocation the container actually makes
-# nightly (`/etc/periodic/daily/logrotate` runs `logrotate /etc/logrotate.conf`,
-# which includes /etc/logrotate.d/ — this file is mounted there as
-# `/etc/logrotate.d/pihole`):
-#
-#     docker exec pihole logrotate -d /etc/logrotate.conf
-#
-# `pihole.log` was 24.3 MiB with no rotated copy, growing 14.4 MB/day.
-#
-# This is the same treatment `/etc/logrotate.d/traefik` already gets in
-# traefik_accesslog.yml, for the same reason. DAC_OVERRIDE lets the container's
-# root READ the file whatever its mode; it does not make logrotate accept a
-# config it does not own, which is an ownership check and not a permission one.
 - name: configs | Copy the Pi-hole logrotate override (#202)
   ansible.builtin.copy:
     src: "{{ playbook_dir }}/../../docker/configs/pihole/logrotate"
@@ -99,19 +55,6 @@
     mode: "0640"
   notify: Restart pihole
 
-# Verbatim, so it belongs here rather than in templates/ (see the header).
-#
-# 0644, not the 0640 used above it, and the reason is the SearXNG lesson in
-# this same file one paragraph down: container UIDs are arbitrary. `nextcloud`
-# reads its PHP config as root and holds DAC_OVERRIDE, so 0640 would work
-# there — but `nextcloud-cron` runs cron.php as www-data (uid 33) with only
-# SETUID/SETGID, and would silently start without the file. Silently, because
-# PHP does not report an unreadable .ini in conf.d: it skips it. The setting
-# holds no secret, so world-readable costs nothing.
-#
-# The directory mode does not gate this one: the container bind-mounts the
-# FILE, so the host directory is traversed by the daemon as root and never by
-# the container.
 - name: configs | Copy the Nextcloud PHP JIT override
   ansible.builtin.copy:
     src: "{{ playbook_dir }}/../../docker/configs/nextcloud/zz-disable-jit.ini"
@@ -121,51 +64,12 @@
     mode: "0644"
   notify: Restart nextcloud
 
-# settings.yml embeds secret_key, so it stays on the encrypted volume — but as a
-# file the container bind-mounts directly, NOT as a symlink from a mounted
-# directory. That earlier arrangement could not work: Docker mounted
-# /opt/homelab/configs/searxng, and a symlink inside a bind-mounted *directory*
-# is resolved in the container's namespace, where /mnt/data/secrets does not
-# exist. SearXNG therefore saw no settings, wrote a stub with a random
-# secret_key over the symlink, and Ansible restored the link on the next run —
-# so the real settings never reached the instance (issue #27).
-#
-# Mode/owner follow the Docker-secret pattern of ADR-016 for the same reason it
-# was chosen there: container UIDs are arbitrary (searxng runs as 977), so the
-# file has to be world-readable, and the directory it sits in (0710 root:docker)
-# is what restricts access. 0640 <user>:docker was unreadable to that UID —
-# which is exactly how this surfaced.
 - name: configs | Template SearXNG settings (resolve secret_key + base_url)
   ansible.builtin.template:
     src: searxng-settings.yml.j2
     dest: /mnt/data/secrets/docker/searxng_settings
     owner: root
     group: root
-    # 0400, not 0444, since 2026-09-06. Every process in the SearXNG container
-    # runs as uid 0 — verified by reading /proc for the container's pid tree,
-    # not by `docker exec id`, which lands as root whatever the app then drops
-    # to — so the owner bit is all it needs.
-    #
-    # This file was missed by the sweep that closed the other fourteen, because
-    # that sweep read secrets.yml and this write lives in configs.yml. SIX task
-    # files across two roles write into the secret store; the gate added in the
-    # same change derives them instead of listing them, which is the only
-    # version of this check that survives the next writer.
-    # 0444 and NOT 0400, and the reason is a mechanism this repo got wrong on
-    # 2026-09-06 at the cost of every database going down. In SWARM, a
-    # `secrets:` entry is copied by the daemon and the host mode is irrelevant.
-    # In COMPOSE it is a BIND MOUNT of this very inode into /run/secrets/<name>,
-    # so the CONTAINER's uid reads this file directly — and postgres, mariadb and
-    # the rest run as non-root. 0400 root made three databases exit(1) in a
-    # restart loop within minutes of the deploy.
-    #
-    # The exposure this mode creates is real and is NOT closed here: any account
-    # able to traverse the parent directory can read these values. The parent is
-    # drwx--x--- root:docker and the operator is in `docker`. Closing it belongs
-    # on the DIRECTORY, not on these files — the daemon establishes the bind as
-    # root, so the container keeps working when the directory stops being
-    # traversable by the docker group. That change is not made here because it
-    # was not tested, and this file has been the wrong place to guess twice.
     mode: "0444"
   notify: Restart searxng
 

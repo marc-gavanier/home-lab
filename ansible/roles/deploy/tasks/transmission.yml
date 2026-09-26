@@ -1,18 +1,4 @@
 ---
-# Transmission runtime settings that cannot be set from the compose file.
-#
-# The linuxserver image exposes no environment variable for NAT-PMP/UPnP, so
-# this takes both paths, and it needs both:
-#
-#   - RPC changes the RUNNING daemon at once, but does NOT write settings.json.
-#     Transmission only persists its settings on a clean shutdown.
-#   - The file edit is what survives a SIGKILL or a crash-heal restart, where no
-#     clean shutdown ever happens and the old value would be read back.
-#
-# Editing the file is safe only because the RPC call has already put the daemon
-# on the same value: a later clean shutdown then writes back what we wrote, and
-# the two cannot disagree. Doing the file edit alone would be reverted.
-
 - name: transmission | List the running containers this wiring needs
   ansible.builtin.command:
     cmd: docker ps --filter status=running --format '{% raw %}{{.Names}}{% endraw %}'
@@ -24,18 +10,6 @@
   ansible.builtin.set_fact:
     transmission_up: "{{ 'transmission' in transmission_running.stdout_lines }}"
 
-# A skipped block that says nothing is the defect ADR-030 names, and it is the
-# same one `observability/tasks/main.yml` guards against with its "no silent
-# caps" report: the run is CORRECT — there is genuinely nothing to do against a
-# container that is not running — but its silence is not. `ok=0 changed=0` for
-# this whole section is what a healthy no-op and a missed configuration pass
-# look like from the outside, and `changed=0` is exactly what an idempotence
-# check is looking for, so a re-run confirms the wrong thing too.
-#
-# No count in the message on purpose: a hardcoded number is what went stale in
-# boot-and-unlock.md and in ADR-007. The message names the CONSEQUENCES, which
-# do not drift when a task is added.
-
 - name: transmission | Report that the port-forwarding state was NOT asserted
   ansible.builtin.debug:
     msg: >-
@@ -45,23 +19,6 @@
   when: not transmission_up
 
 
-# NAT-PMP here is not merely useless, it is misdirected: the daemon asks the
-# DOCKER bridge gateway (172.18.0.1 — this Pi) for a port mapping, not the
-# router, and UFW drops the request. It has therefore never opened anything.
-# What it did do is emit 3 739 blocked packets a day, which is 86% of the UFW
-# log and as many journal writes on the SD card — enough noise to bury the two
-# genuinely external packets that arrive in the same 24 h. Inbound peers reach
-# 51413 through the static forward, not through this.
-# No pipe on purpose, and for the reason collabora.yml already records: `cmd |
-# grep` under pipefail can return 141 when grep exits on the match before the
-# writer is done. The whole session summary is small — read it and match in
-# Ansible rather than in a shell.
-# `-ne` (--authenv) rather than `-n`: the `$(cat …)` already expands inside the
-# container, so the host's `docker exec` argv was clean — but the value still
-# landed in the argv of the transmission-remote process itself, which /proc
-# exposes to every local account just the same (#198). TR_AUTH puts it in that
-# process's environment instead, and /proc/<pid>/environ is 0400 owner-only.
-# Same change as the container healthcheck in compose.yaml.
 - name: transmission | Read the current port-forwarding state
   ansible.builtin.command:
     cmd: >
@@ -85,18 +42,11 @@
     - transmission_up
     - "'Port forwarding enabled: Yes' in transmission_portmap.stdout | default('')"
 
-# Ordered after the RPC call on purpose — see the header. On a host where the
-# container is down this still runs, which is what makes the setting hold across
-# a provision that never gets to talk to the daemon. Guarded on the file
-# existing: on a first provision Transmission has not written it yet, and
-# lineinfile would fail rather than skip.
 - name: transmission | Check whether settings.json exists yet
   ansible.builtin.stat:
     path: "{{ services_data_dir }}/transmission/config/settings.json"
   register: transmission_settings
 
-# backrefs means a no-op when the value is already false, so this stays quiet on
-# every deploy after the first.
 - name: transmission | Persist it in settings.json so a hard restart cannot revive it
   ansible.builtin.lineinfile:
     path: "{{ services_data_dir }}/transmission/config/settings.json"

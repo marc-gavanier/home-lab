@@ -1,69 +1,14 @@
-# =============================================================================
-# Homelab host variables (non-secret — secrets live in local.yml)
-# =============================================================================
-
-# --- Firewall ---
-# Sources allowed to reach SSH.
-#
-# Measured on this host before the rule was scoped, and the first version of
-# this comment got both halves of the measurement wrong (corrected 2026-09-13
-# evening): the journal's horizon was 18 days, not the 30 claimed, and the
-# bridge origin was 3308 connections over ten days (16-25 August), not 144 over
-# two. The conclusion survives the correction; the numbers did not, and they are
-# restated here rather than quietly replaced.
-#
-# The bridge is DELIBERATELY not in this list: putting it back would let any
-# container on `proxy` reach the host's sshd.
-#
-# WHAT THAT COSTS, AND WHY IT IS STILL RIGHT. wg-easy masquerades every VPN
-# client — `-s 10.8.0.0/24 -o eth0 -j MASQUERADE`, in the CONTAINER's own nat
-# table, which is why it does not appear in the host's — so a VPN client that
-# addresses this host by its LAN address arrives with the bridge's source and is
-# refused by the rule below. Probed 2026-09-13 from that exact address:
-# 24717 blocked, 443 and 51413 reachable, port 9 refused (controls both ways).
-#
-# That is NOT a hole in the rule, it is the rule working on an address the
-# client no longer carries. The VPN path that keeps its source is the host's own
-# `wg0`: this Pi is a peer of its own wg-easy at 10.8.0.5, so a client that
-# addresses 10.8.0.5 arrives over wg0 with a 10.8.0.0/24 source and matches the
-# second entry below. Verified from the same place in the same run: reachable.
-#
-# So remote SSH goes to the VPN address, never to the LAN address, and
-# docs/03-security/README.md says so where a reader will look for it.
 ssh_allowed_sources:
-  - 192.168.1.0/24 # LAN
-  - 10.8.0.0/24 # WireGuard
+  - 192.168.1.0/24
+  - 10.8.0.0/24
 
-# Service ports opened by the security role (SSH is always allowed separately).
 ufw_service_rules:
   - { port: "80", proto: tcp, comment: "HTTP (Traefik)" }
   - { port: "443", proto: tcp, comment: "HTTPS (Traefik)" }
   - { port: "51820", proto: udp, comment: "WireGuard VPN" }
   - { port: "51413", proto: tcp, comment: "BitTorrent peer (Transmission)" }
   - { port: "51413", proto: udp, comment: "BitTorrent peer (Transmission, µTP/DHT)" }
-  # This rule is on the INPUT path and does not govern the published container
-  # port — see the DOCKER-USER block in roles/security/tasks/firewall.yml, which
-  # is what actually restricts it. Kept for host-level reach and for symmetry.
-  # Both protocols spelled out, and that is the whole of the 2026-09-03 fix.
-  # This entry used to omit `proto`, the role applies `default('tcp')`, and ufw
-  # keys a rule on the (port, proto, source, comment) tuple — so the tcp rule was
-  # ADDED beside the older proto-less one instead of replacing it. `ufw status`
-  # went on printing `53 ALLOW IN 192.168.1.0/24 # DNS (Pi-hole, LAN only)`,
-  # which is the exact sentence the 2026-09-02 work was done to retire, while the
-  # real filtering had already moved to DOCKER-USER. No exposure at any point —
-  # re-probed from outside with a known-open control — but the instrument the
-  # operator reads was still telling the old story.
-  #
-  # Declaring udp explicitly rather than deleting the proto-less rule outright:
-  # its removal is below, and these two must exist BEFORE it runs so the INPUT
-  # path is never briefly without a udp/53 allow on a host that resolves DNS for
-  # the house.
   - { port: "53", proto: udp, from_ip: "192.168.1.0/24", comment: "DNS (Pi-hole, LAN; container path governed by DOCKER-USER)" }
   - { port: "53", proto: tcp, from_ip: "192.168.1.0/24", comment: "DNS (Pi-hole, LAN; container path governed by DOCKER-USER)" }
 
-# --- Security audit ---
-# lynis is scheduled, reported and ratcheted here by the observability role
-# (weekly run, hardening index pushed to a monitor, DOWN on any regression).
-# That is what makes it a control rather than a package — see the variable's
-# comment in group_vars/all.yml.
 lynis_scheduled: true

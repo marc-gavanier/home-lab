@@ -1,63 +1,4 @@
 ---
-# Docker image retention. Measured 2026-09-13: 73 images, 29 active,
-# **16.62 GB reclaimable (52 %)** — `docker system df` — and the store grows
-# monotonically at ~234 MB/day (73 images entered in 71 days, from the imagedb
-# content mtimes). dozzle held 7 tags, dnsproxy 5, traefik 5. Nothing has ever
-# removed a superseded image: every `compose pull` adds one and the pin list
-# that stops naming the old tag has no counterpart that deletes it.
-#
-# IMAGES ONLY, and that is not a detail. `docker system prune` would also take
-# volumes and networks, and this repository has a standing rule against a broad
-# prune — there is an orphaned anonymous volume that must be removed by hand,
-# deliberately. `docker image prune` cannot touch it.
-#
-# `-a --filter until=720h` is the safety, and it has two independent parts:
-#   * `-a` removes images no CONTAINER references. The 29 in use are held by
-#     the running stack, and the heal timer keeps stopped containers from
-#     lingering unreferenced, so an image in service is never a candidate.
-#   * `until=720h` then requires the image to be older than 30 days.
-#
-# CORRECTED 2026-09-13, the day after this shipped. The second bullet used to
-# claim it "keeps the immediately-previous tag of anything bumped this month —
-# the one you would roll back to". It does not, and the reason is a units
-# mismatch: `--filter until=` reads the image's UPSTREAM BUILD DATE, not the date
-# this host pulled it. Proof on the machine — ghcr.io/wg-easy/wg-easy:14 carries
-# 2025-06-03 on a host that has existed since July 2026. Controls: `until=1h`
-# selects 73 of 73 images, `until=87600h` selects 0.
-#
-# So the filter measures how old the image IS, while a rollback target is defined
-# by how long the tag was IN SERVICE. A slow-moving upstream breaks the two
-# apart: navidrome 0.63.2 was built 2026-07-11 and ran here until 2026-09-12, so
-# it is 60 days old on the day it stops being current and goes on the first run.
-#
-# Measured per repository, 2026-09-13: of the 18 repositories holding an
-# unreferenced previous tag, 6 keep it and 12 lose it. Restricted to this
-# comment's own scope — bumped this month — 7 qualify and exactly one loses its
-# rollback tag, navidrome. The old sentence was true by luck this month and false
-# as a rule.
-#
-# THE MECHANISM IS NOT CHANGED, deliberately, because the cost is small and
-# measured: all 8 lost rollback tags checked are still pullable upstream (control:
-# a fabricated tag is not), and the host resolves via 1.1.1.1/8.8.8.8 rather than
-# Pi-hole, so even a DNS-stack outage does not block the re-pull. Losing one costs
-# a download, never data. If that ever stops being true — an upstream that deletes
-# old tags — the fix is a second filter on the local pull date, which
-# `docker image ls` does not expose and would have to come from the imagedb
-# content mtimes.
-#
-# The residual case is unchanged: an image older than 30 days whose container is
-# down for maintenance across the timer is removed and re-pulled on the next
-# `compose up`. That costs bandwidth, never data.
-#
-# NOT on the deploy path, deliberately: this installs a timer and never prunes
-# during a run. A deploy that reclaims 16 GB while pulling new images is how a
-# rollback target disappears at the worst moment.
-#
-# Named `homelab-*` on purpose: `homelab-health.sh` derives its timer check from
-# that glob, so this unit is covered by the existing floor the moment it exists.
-# The goss units spec is a hand-written list and will NOT assert it — that is
-# C19's known shape, not a regression introduced here.
-
 - name: image_retention | Create the image retention service
   ansible.builtin.copy:
     dest: /etc/systemd/system/homelab-image-retention.service
@@ -81,9 +22,6 @@
       Description=Monthly Docker image retention
 
       [Timer]
-      # First Sunday, 04:30 — after the 03:00 backup's median run (407 s) and
-      # well clear of the Tuesday 01:00 maintenance. Persistent, because a Pi
-      # that was off must still reclaim rather than wait another month.
       OnCalendar=Sun *-*-01..07 04:30:00
       Persistent=true
 

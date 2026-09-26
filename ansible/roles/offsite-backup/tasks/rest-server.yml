@@ -1,6 +1,4 @@
 ---
-# rest-server: append-only restic target, basic-auth, systemd unit.
-
 - name: rest-server | Create rest-server system user
   ansible.builtin.user:
     name: rest-server
@@ -16,15 +14,6 @@
     group: rest-server
     mode: "0750"
 
-# `check_mode: false` so this reads the real version even during `--check`.
-# Without it Ansible skips the task — `command` does not support check mode —
-# `rest_server_installed.stdout` falls back to '', the version guard below
-# inverts, the download is *simulated* without fetching anything, and the copy
-# that follows fails on a source that was never extracted. A dry run therefore
-# aborted the whole play at step 5, on the host whose only access route is the
-# tunnel and where a dry run is worth the most (measured 2026-08-17: the real
-# binary is 0.14.0 and prints 78 bytes to stdout, so the guard is correct
-# outside check mode and both tasks are skipped).
 - name: rest-server | Check installed rest-server version
   ansible.builtin.command: /usr/local/bin/rest-server --version
   register: rest_server_installed
@@ -32,12 +21,6 @@
   failed_when: false
   check_mode: false
 
-# Two steps rather than one `unarchive: src: <url>`, and the split IS the fix:
-# unarchive has no `checksum:` parameter, so downloading through it means the
-# bytes are never verified. get_url has one. This host holds the append-only
-# offsite repository — the one copy that survives the homelab — and a
-# rest-server bump lands here through a weekly Renovate batch that can be merged
-# without anyone reading it.
 - name: rest-server | Download and verify against the published checksum, rest-server {{ rest_server_version }}
   ansible.builtin.get_url:
     url: "https://github.com/restic/rest-server/releases/download/v{{ rest_server_version }}/rest-server_{{ rest_server_version }}_linux_arm64.tar.gz"

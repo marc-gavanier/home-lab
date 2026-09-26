@@ -1,46 +1,9 @@
 ---
-# =============================================================================
-# storage | Periodic integrity checks on the data volume (#254)
-# =============================================================================
-# The volume holding every byte of service data, media, backups and the Docker
-# store was armed by nothing. Measured 2026-08-26, before this file existed:
-#
-#   Filesystem state:     clean
-#   Last checked:         Sun May 10 13:21:33 2026     (108 days)
-#   Maximum mount count:  -1
-#   Check interval:       0 (<none>)
-#
-# Not in fstab either (no passno, deliberately — homelab-unlock owns the mount),
-# so no boot-time fsck could reach it. Nothing was ever going to check it.
-#
-# --- Why this is configuration and not a new script -------------------------
-# `homelab-unlock` already runs `e2fsck -p` on the still-unmounted mapper at
-# every unlock, and that looked like the answer for months. It was not, and the
-# reason is worth stating precisely: preen HONOURS the superblock triggers, and
-# there were none. Measured on a loopback image, 2026-08-26:
-#
-#   unarmed, clean       "clean, 11/32768 files"                       30 ms
-#   armed -c 1, mounted  "has been mounted 1 times without being
-#                          checked, check forced"     full check, count reset
-#
-# So the existing check was never broken — it was correctly declining to do work
-# nobody had asked for. Arming the superblock is the entire fix, and ADR-030
-# applies: no new glue when an installed tool already does the job.
-#
-# --- Why the values differ from the root filesystem's ------------------------
-# /mnt/data is mounted once per unlock. A mount count would be a trigger that
-# never fires, so it is disabled outright rather than set to a number that only
-# looks like a policy. See group_vars/all.yml for the reasoning and the cost.
-# =============================================================================
-
 - name: fsck | Look for the opened data volume
   ansible.builtin.stat:
     path: "/dev/mapper/{{ luks_mapper_name }}"
   register: data_mapper
 
-# Everything below needs the mapper. A deploy against a locked volume is a
-# normal state (the operator has not unlocked yet), not a failure — but it must
-# not pass silently either, or an unarmed volume would look armed.
 - name: fsck | Warn when the data volume is locked and cannot be armed
   ansible.builtin.debug:
     msg: >-
@@ -56,14 +19,6 @@
   check_mode: false
   when: data_mapper.stat.exists
 
-# Both in one call so a half-applied state is not reachable, and the guard reads
-# the superblock rather than a marker file — the filesystem's own state is the
-# thing being asserted, and the only thing that answers honestly after a
-# reflash. Same shape as the root filesystem's arming in base/filesystem-checks.
-#
-# `-c 0` DISABLES the mount count and the superblock then reads `-1`, not `0`.
-# Comparing against the variable as written would make this task report changed
-# on every single run — measured on a loopback image before this was written.
 - name: fsck | Arm the interval trigger on the data volume
   ansible.builtin.command:
     cmd: >-
@@ -83,20 +38,12 @@
       or current_interval != (data_fsck_interval_days | int * 86400) | string
   changed_when: true
 
-# --- The operator's way to reserve the volume -------------------------------
-# The mount gate is raised by homelab-unlock and by nothing else, so a human
-# running e2fsck by hand had no way to say "hands off". On 2026-08-26 that cost
-# three minutes of diagnosis: a manual `e2fsck -fn` was in flight when
-# homelab-unlock was started, and the volume was mounted read-write underneath
-# the running scan. This script is the missing half — it takes the gate, and the
-# EXIT trap is the part a human does not do reliably.
 - name: fsck | Install the operator fsck wrapper
   ansible.builtin.copy:
     dest: /usr/local/bin/homelab-fsck
     mode: "0755"
     content: |
       #!/usr/bin/env bash
-      # Run e2fsck on the data volume with the mount gate held.
       set -euo pipefail
 
       MAPPER="{{ luks_mapper_name }}"
@@ -111,8 +58,6 @@
         exit 1
       fi
 
-      # e2fsck on a mounted filesystem corrupts it. This is the one refusal that
-      # is not about tidiness.
       if mountpoint -q "$MOUNT"; then
         echo "$MOUNT is mounted — e2fsck on a mounted filesystem corrupts it." >&2
         echo "Stop the stack and unmount first (knowledge/runbooks/boot-and-unlock.md)." >&2
@@ -126,33 +71,11 @@
 
       mkdir -p /run/homelab
       : > "$GATE"
-      # Cleared unconditionally, unlike homelab-unlock's failure path. A
-      # read-only pass returns rc=4 for "errors left uncorrected", which is the
-      # NORMAL result of `-fn` finding anything — latching the gate on that
-      # would leave the volume unmountable after a routine inspection.
       trap 'rm -f "$GATE" 2>/dev/null || true' EXIT
 
       echo "Gate raised — nothing can mount $MOUNT while this runs."
       rc=0; e2fsck -C 0 "${@:--fn}" "/dev/mapper/$MAPPER" || rc=$?
 
-      # Journal the verdict. Audit class C85 — a verification whose verdict is
-      # delivered only to an EPHEMERAL channel, so that afterwards nothing
-      # distinguishes "ran and passed", "ran and repaired" and "did not run".
-      # This is the SECOND instance of that class and the other half of the pair
-      # the register already records: homelab-unlock got this treatment when the
-      # class was minted, and this script, which does the same thing on the same
-      # volume for an operator rather than for the boot path, did not.
-      #
-      # It matters more here, not less. This wrapper is run by hand, usually
-      # after something went wrong, and its output scrolls past in a terminal
-      # that is then closed. `e2fsck -fn` also does not rewrite the superblock's
-      # `Last checked`, so nothing on the filesystem records that a check ever
-      # happened.
-      #
-      # The MODE is logged with the verdict because rc means different things
-      # under different flags: with the default -fn, 4 is the expected way to
-      # say "errors found, not repaired", while under -fy it would mean the
-      # repair itself failed. A verdict without its mode is not a verdict.
       mode="${*:--fn}"
       case "$rc" in
         0) logger -t homelab-fsck "integrity check passed (e2fsck $mode rc=0, no errors)" ;;

@@ -1,81 +1,20 @@
 # {{ ansible_managed }}
-# =============================================================================
-# Homelab — systemd unit state, declared (ADR-030, ADR-032)
-# =============================================================================
-# Two of the five conditions homelab-health.sh implemented by hand. The other
-# three did not move, and the reasons are worth knowing before editing this:
-#
-#   activating loop   the units have to be ENUMERATED and named, and goss cannot
-#                     report a value — it streams stdout and every format says
-#                     `object: *bytes.Reader`. It stays in the script.
-#   timer last run    enumerated from `systemctl list-timers homelab-*`, so a new
-#                     timer is covered without editing anything. A static spec
-#                     would trade that for a list to maintain. It stays.
-#   NRestarts delta   DELETED rather than moved, on the script's own measurement:
-#                     "Measured over 60 days: one real detection and ZERO
-#                     notifications". It cost a state file, a latch and the
-#                     subtlest reasoning in that file.
-#
-# --- Why `running` and not `enabled` ----------------------------------------
-# Measured, and it is the repository's own decision showing up in a linter: goss
-# reports docker.service `enabled: Expected false to equal true`, because the
-# staged startup owns docker deliberately and ssh is socket-activated. Both must
-# be RUNNING and neither is enabled. Asserting `enabled` here would fail forever
-# on a correct machine.
-#
-# --- The grace period is NOT here -------------------------------------------
-# goss has no memory, and these checks exist because of one: Docker restarted on
-# 2026-08-16 at 21:36:23 and was up at 21:37:02, 39 seconds where systemctl does
-# not say "active". A check running every five minutes has a 13% chance of
-# landing there. homelab-health.sh passes the names of failing assertions through
-# the shared gate before reporting them, so a transient restart never leaves this
-# spec as a notification. That composition is what made this migration possible
-# at all — the gate arrived first, on purpose.
-#
-# Nothing here is gated on /mnt/data either. The script skips this whole spec
-# before the LUKS unlock, when the stack is legitimately down and
-# claude-remote-control legitimately retries.
-# =============================================================================
 
 service:
 {% for u in health_watched_units %}
-  # {{ u.why }}
   {{ u.unit }}:
     running: true
 {% if u.enabled | default(false) %}
-    # Opt-in per unit, never blanket: `docker.service` and `ssh.service` are
-    # socket-activated and report `disabled` on a correct machine. The SOCKET
-    # units are enabled, which is what lets ssh.socket carry this since #332.
-    # See the flag's comment in group_vars for why only two entries do.
     enabled: true
 {% endif %}
 {% endfor %}
 
 command:
 
-  # The property `ssh.socket: running` cannot carry (#332): a socket that accepts
-  # is not a daemon that can start. Socket activation defers every configuration
-  # error to the first inbound connection, so a broken sshd_config sits invisible
-  # until the moment somebody needs to get in — on the offsite host, potentially
-  # for a week.
-  #
-  # `sshd -t` is the gate `ssh.service` already runs as its ExecStartPre, so
-  # this asserts what the activation itself would hit, without needing a
-  # connection to trigger it. Measured on both hosts 2026-09-06: rc=0. It is not
-  # the exact same run: the unit's RuntimeDirectory creates /run/sshd first, and
-  # outside it `sshd -t` fails on a missing /run/sshd until the first connection
-  # after a boot. The security role's tmpfiles.d entry creates it at boot.
   sshd-config-is-loadable:
     exec: /usr/sbin/sshd -t
     exit-status: 0
 
-  # ufw is NOT in the list above, and the reason is a trap worth recording: it is
-  # a oneshot and sits in `active (exited)` on a correct machine, so a
-  # `running: true` resource would be asserting the wrong thing about the one
-  # component whose whole job is to keep enforcing after its unit has exited.
-  # The property is that the rules are loaded, so that is what this reads.
-  #
-  # Nothing asserted the firewall on either host until 2026-08-29.
   ufw-enforcing:
     exec: ufw status verbose
     exit-status: 0
@@ -83,75 +22,20 @@ command:
       - "/^Status: active$/"
       - "/^Default: deny \\(incoming\\)/"
 
-  # The catch-all, and it is the one that names nothing — deliberately. The five
-  # assertions above name their unit; this one exists for a unit NOBODY listed,
-  # which is exactly the case a list cannot cover. When it fires, the operator
-  # runs `systemctl --failed`, which is one command and the same one this runs.
-  #
-  # `systemctl --failed` alone would NOT have caught either incident that made
-  # these checks exist: a unit with Restart=on-failure and StartLimitIntervalSec=0
-  # restarts forever and never reaches the failed state — it sits in
-  # activating/auto-restart, and --failed stays empty. That is why the script
-  # still watches `activating` separately. claude-remote-control looped 1 112
-  # times over 5h47 on 2026-07-27 while work was going on continuously on this
-  # host, and fail2ban — including its sshd jail — was down for six minutes the
-  # same morning (issue #52).
   systemd-no-failed-units:
     exec: '[ -z "$(systemctl --failed --no-legend --plain 2>/dev/null)" ]'
     exit-status: 0
 
-  # e2scrub_all.timer is masked because it scrubs LVM logical volumes and this
-  # host has none — it was green every week since installation over ZERO bytes
-  # (#154). The mask is what this asserts, not the absence of the package: the
-  # timer ships with e2fsprogs, so an update can put the unit file back, and the
-  # thing that must survive is the decision, not the file.
-  #
-  # `is-enabled` on a masked unit prints `masked` and exits 1 (measured on
-  # lynis.timer, which is masked here for the same class of reason). Asserting
-  # BOTH the word and the exit status matters: `enabled` also exits 0, so an
-  # exit-status assertion alone would pass on exactly the state this forbids.
   e2scrub-timer-still-masked:
     exec: systemctl is-enabled e2scrub_all.timer
     exit-status: 1
     stdout: ["/^masked$/"]
 
-  # The root filesystem's boot-time check needs BOTH halves, and each is
-  # asserted separately because each can be lost on its own (#154).
-  #
-  # The fstab half is the fragile one, and not hypothetically: cloud-init's
-  # `mounts` module is enabled on this host and rewrites /etc/fstab, and
-  # /etc/hosts is already wiped on every boot by the same mechanism. A passno
-  # silently reset to 0 leaves the superblock triggers below still armed and
-  # still green, with nothing ever consulting them — a check that is configured,
-  # asserted, and never runs.
   root-fstab-has-fsck-pass:
     exec: awk '!/^#/ && $2 == "/" { print $6 }' /etc/fstab
     exit-status: 0
     stdout: ["/^[1-9]$/"]
 
-  # The superblock half — and read #260 before reading it as a schedule.
-  #
-  # This comment used to say these two values are what systemd-fsck-root.service
-  # consults. They are not, and that service does not run: it is skipped at
-  # every boot with `ConditionPathExists=!/run/initramfs/fsck-root`, because the
-  # INITRAMFS has already checked the root device. The initramfs runs before any
-  # time sync, and neither Pi has an RTC, so its clock reads a frozen value —
-  # 2026-07-28 17:04 on both hosts, which is also what four consecutive boots
-  # stamp as their first journal entry. Every superblock therefore looks
-  # future-dated to it:
-  #
-  #   writable: Superblock last write time (Wed Aug 26 20:55:35 2026,
-  #           now = Tue Jul 28 15:04:46 2026) is in the future. FIXED.
-  #
-  # So a FULL check runs at every boot regardless of these triggers, and then
-  # rewrites `Last checked` and the mount count backwards — which is why both
-  # hosts read `Last checked: Tue Jul 28` and `Mount count: 1` after three and
-  # four boots. Neither trigger can fire, and neither needs to.
-  #
-  # The assertion is kept because the configuration should be right the day the
-  # clock is, and because a hand-run `tune2fs` that loosens it should still
-  # fail here. What it must NOT be read as is proof that anything is due.
-  # `root-was-checked-this-boot` below is the one that tests capability.
   root-fsck-triggers-armed:
     exec: tune2fs -l "$(findmnt -no SOURCE /)"
     exit-status: 0
@@ -159,12 +43,6 @@ command:
       - "/Maximum mount count:\\s+{{ root_fsck_max_mounts }}\\b/"
       - "/Check interval:\\s+{{ root_fsck_interval_days | int * 86400 }}\\b/"
 
-  # Capability, not configuration (#260). The two assertions above say the
-  # triggers are set; this one says a check actually happened. The log lives in
-  # /run, so it is this boot's and no other — an empty or absent one means
-  # nothing checked the root filesystem when this host came up, which is the
-  # state `fsck.mode=skip` on the kernel command line produces and which the
-  # superblock assertions above would sail straight through.
   root-was-checked-this-boot:
     exec: |
       log=/run/initramfs/fsck.log
@@ -172,22 +50,6 @@ command:
       grep -q 'fsck\.ext4' "$log" || { echo "$log records no ext4 check"; exit 1; }
     exit-status: 0
 
-  # The DDNS boot run is pulled by the volume, not by a fixed offset (#294).
-  #
-  # What this guards is a regression that already happened once and was invisible
-  # for months: the timer used to carry `OnBootSec=2min`, which fired against an
-  # environment file on the encrypted volume — unlocked BY HAND, so never present
-  # two minutes in. The unit failed on every single boot, then recovered at the
-  # next `*:0/15` tick, so nothing was left failed for `systemctl --failed` to
-  # report and no monitor ever went red.
-  #
-  # Two conditions, because either one alone can be satisfied by a broken setup:
-  # the boot trigger must be GONE from the timer, and the service must be wanted
-  # by the mount. A timer that regains OnBootSec fails here even though the
-  # mount link is still present, which is exactly the drift being guarded.
-  #
-  # `systemctl show` rather than reading the unit file: the file on disk is what
-  # ansible wrote, and the question is what systemd LOADED.
   ddns-boot-run-waits-for-the-volume:
     exec: |
       b=$(systemctl show homelab-ddns.timer -p TimersMonotonic --value)
@@ -196,25 +58,6 @@ command:
         { echo "nothing pulls the DDNS boot run when /mnt/data mounts"; exit 1; }
     exit-status: 0
 
-  # The journal store moved to the encrypted volume on 2026-09-20, because
-  # journald records `_CMDLINE` for every process and the audit of that day found
-  # live credentials in it — on the SD card, which is not encrypted.
-  #
-  # What this guards is not the move, it is the ONE procedure that silently
-  # undoes it. A reflash and re-provision — a routine recovery here, and the very
-  # step boot-and-unlock.md prescribes after an unexplained poweroff — gives back
-  # a distribution that creates /var/log/journal on the card. `Storage=auto` then
-  # writes there until the unlock, and the bind mount arrives afterwards and
-  # HIDES those files rather than removing them: credentials on the card, under a
-  # mount point, invisible to anyone who looks at /var/log/journal. Nothing else
-  # in this estate would notice, because every other signal — the journal reads
-  # fine, the cap holds, the store is on /mnt/data — is satisfied by that state.
-  #
-  # Both conditions, because either alone passes on the broken setup: the path
-  # must be a MOUNT POINT (a directory that merely exists is the defect), and its
-  # source must be the encrypted device (a tmpfs or a stray bind would satisfy
-  # the first test). `findmnt` is read from the kernel's mount table, not from a
-  # unit file, so it answers what is mounted rather than what was intended.
   journal-store-is-on-the-encrypted-volume:
     exec: |
       src=$(findmnt -no SOURCE --target /var/log/journal 2>/dev/null)
@@ -226,45 +69,6 @@ command:
       esac
     exit-status: 0
 
-  # --- The lock nothing removes (#331) ---------------------------------------
-  # Two locks left by an interrupted session on 2026-09-05 at 11:28 outlived the
-  # deploy, outlived a reboot, and were still there the next morning. The 03:00
-  # backup SUCCEEDED — `snapshot d79ddcc5 saved`, 350 GiB — and then failed on
-  # the lock while applying retention, which also meant the offsite `copy` that
-  # runs after it was never reached. Three monitors went red saying "backup
-  # command failed" about the one step that had worked, and the offsite
-  # repository spent a night a snapshot behind with nothing saying so.
-  #
-  # Nothing in this repo removes such a lock: `force-inactive-lock` is not set,
-  # deliberately — it authorises a run to break a lock it did not create, and it
-  # repairs without ever reporting, which is how eight and a half hours went
-  # unnoticed. Detection first, so the day a repair is added its effect is
-  # visible.
-  #
-  # HERE, and not in the posture spec, and the cadence IS the fix: posture runs
-  # once a day at 11:00, so a lock appearing after 11:00 would first be reported
-  # after the 03:00 run it breaks. This spec runs every five minutes.
-  #
-  # `pgrep` FIRST, so the test never has to reason about restic's lock refresh: a
-  # live operation owns its locks whatever their age, and the only question asked
-  # here is about locks nobody is holding. Residual, stated rather than hidden: an
-  # operation against the OFFSITE repository suppresses a judgement about this one
-  # too. It lasts minutes, once a night.
-  #
-  # 3600 s is not a preference, it is resticprofile's own threshold quoted back
-  # from the failure it produced: "possible stale lock detected (lock age
-  # 15h44m49.728s >= 1h0m0s)".
-  #
-  # The directory is the floor, and this loop is the INVERSE of the usual
-  # empty-set trap: an empty locks/ is the healthy state, so what has to be
-  # proven is that the place being scanned is real rather than that the set is
-  # non-empty. A repository whose locks/ is gone fails instead of passing.
-  #
-  # Five controls on the host before this was written, 2026-09-06: empty dir ->
-  # 0, fresh lock -> 0, two-hour lock -> 1, absent dir -> 1, fresh+stale -> 1
-  # naming the stale one. The message is for the journal, not the dashboard --
-  # goss streams stdout and never materialises it, so the NAME carries the
-  # diagnosis, as everywhere else in this file.
   restic-repo-has-no-stale-lock:
     exec: |
       d={{ backup_dir }}/restic-repo/locks

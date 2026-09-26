@@ -1,15 +1,4 @@
 ---
-# =============================================================================
-# Role: storage — LUKS-encrypted HDD with manual SSH unlock
-# =============================================================================
-# Boot flow:
-#   1. Pi boots normally from SD (unencrypted)
-#   2. SSH is available immediately
-#   3. User SSH in and runs: sudo homelab-unlock
-#   4. LUKS volume opens, /mnt/data mounts, Docker services start
-# =============================================================================
-# Thin orchestrator: one file per concern, task names prefixed with the file.
-
 - name: Set up LUKS on the data disk (first-time only, probe-guarded)
   ansible.builtin.import_tasks: luks.yml
 

@@ -1,9 +1,4 @@
 ---
-# =============================================================================
-# Role: base — System base configuration
-# =============================================================================
-# Thin orchestrator: one file per concern, task names prefixed with the file.
-
 - name: Configure system identity, packages and boot parameters
   ansible.builtin.import_tasks: system.yml
 

@@ -1,66 +1,13 @@
 #!/usr/bin/env bash
 # {{ ansible_managed }}
-# =============================================================================
-# Homelab Pi — Nextcloud notify_push self-test
-# =============================================================================
-# notify_push fails silently by construction: when the push connection breaks,
-# the desktop and mobile clients fall back to polling every 30s. Files keep
-# syncing, nothing logs an error, and the only symptom is a Pi quietly doing
-# more work than it should. That is why this needs an active probe and not a
-# monitor — there is nothing to observe from the outside.
-#
-# An HTTP check cannot stand in for it. The binary answers 404 on `/` and 400
-# on `/test/cookie` whether or not it can reach Redis, load mount info, or be
-# trusted as a proxy (measured 2026-08-15), so a status-code probe stays green
-# through every failure that matters.
-#
-# The six steps this runs are the ones that have actually broken here — the
-# 403 through the DNS hairpin, the untrusted reverse proxy, the missing trusted
-# domain (knowledge/runbooks/notify-push-troubleshooting.md). All of them
-# depend on proxy and DNS configuration this repo changes regularly, which is
-# also why the cadence is hourly: the failure follows a deploy rather than
-# arriving on its own, and should surface within the hour of causing it.
-# One occ call, measured at 2.0s. No-ops when no push URL is configured.
 
 set -uo pipefail
 
 KUMA_PUSH_URL='{{ notify_push_kuma_push_url | default("") }}'
-KUMA_PUSH_URL="${KUMA_PUSH_URL%%\?*}"   # strip a pasted example query (see homelab-health.sh)
+KUMA_PUSH_URL="${KUMA_PUSH_URL%%\?*}"
 
 notify() {
     [ -n "$KUMA_PUSH_URL" ] || return 0
-    # The push URL carries the monitor's own token, so it goes in on stdin
-    # instead of argv: /proc is mounted without hidepid, any local account can
-    # read another process's command line, and this runs unattended on a timer
-    # (#177). printf is a shell builtin, so the value never reaches an argv there
-    # either.
-    #
-    # The failure is KEPT, not discarded. This call used to end in `2>&1 || true`,
-    # which threw away curl's diagnosis AND its verdict, so a report that reached
-    # nobody was indistinguishable from one that landed. Measured on 2026-08-30:
-    # three runs of homelab-health finished green, having done their work, while
-    # their beats never reached Kuma and the monitor sat on a reading 16 min 55 s
-    # old. `|| echo` rather than a real failure because the caller must not abort
-    # on it — what failed is the report, not the check it carries. The marker
-    # string is what `no-kuma-report-was-lost-in-silence` reads in the posture
-    # spec; keep the two in step.
-    # A TIMEOUT IS NOT A LOSS. Until 2026-09-13 every non-zero curl status wrote
-    # `kuma-push-failed: this report reached nobody`, a sentence this side of the
-    # wire cannot justify: whether the beat LANDED is decided by the server, while
-    # curl only reports whether a reply came back inside its own budget. Measured
-    # on the netdata emitter that day — Kuma committed the beat at 23:25:29.334
-    # UTC, the script wrote "reached nobody" exactly TIMEOUT later, payloads
-    # byte-identical. The full reasoning lives once, in homelab-netdata-kuma.sh.
-    # curl exit 28 therefore gets `kuma-push-unconfirmed:`, which the live
-    # assertion's anchored `--grep '^kuma-push-failed:'` does NOT match. Every
-    # other status (22 on a 4xx/5xx, 7 refused, 6 DNS) is a beat that provably
-    # did not land and keeps the original marker and the original words.
-    #
-    # `|| rc=$?` rather than reading PIPESTATUS after a bare pipeline: two of the
-    # ten emitters run under `set -e`, where an unguarded failing pipeline would
-    # abort the whole script — the guard the old `|| echo` provided by accident.
-    # The verdict stays advisory, as it was: every branch leaves the status 0,
-    # because what failed is the report, not the check it carries.
     local rc=0
     printf 'url = "%s"\n' "$KUMA_PUSH_URL" |
         curl -fsS -m 10 --retry 2 -K - -G \
@@ -72,9 +19,6 @@ notify() {
     esac
 }
 
-# Same reasoning as the posture check: /mnt/data is unlocked by hand after a
-# reboot, so until then the stack is legitimately down and there is nothing to
-# test. Alarming here would cry wolf on every boot.
 if ! mountpoint -q /mnt/data; then
     notify up "/mnt/data locked — self-test skipped"
     exit 0
@@ -88,10 +32,6 @@ fi
 out=$(docker exec -u www-data nextcloud php occ notify_push:self-test 2>&1)
 rc=$?
 
-# Two different failures, and both have to be caught. A non-zero exit means the
-# command could not run at all; a ✗ line means it ran and a step failed. The
-# failing lines go into the push message, so the Discord alert names the step
-# instead of just saying something broke.
 failed=$(printf '%s\n' "$out" | grep '✗' | tr '\n' ';' | sed 's/;$//')
 
 if [ "$rc" -ne 0 ] || [ -n "$failed" ]; then
@@ -99,55 +39,16 @@ if [ "$rc" -ne 0 ] || [ -n "$failed" ]; then
     exit 1
 fi
 
-# Count the passing steps rather than asserting six of them: an app version
-# that adds a seventh check would otherwise read as a regression.
 passed=$(printf '%s\n' "$out" | grep -c '✓')
 
-# --- Counting the passes needs a floor, or zero of them reads as all of them --
-# The line above is right to count rather than to assert six — an app version
-# that adds a seventh check must not read as a regression. But with `rc` zero
-# and no `✗` anywhere, output carrying NEITHER glyph reaches here and pushes UP
-# as `self-test ok (0 checks)`: a self-test that examined nothing and one that
-# examined everything become the same green. The same event silences the
-# failure detector, because the absence of `✗` is what got us here.
-#
-# One is the floor, not six: it separates "this tool no longer prints what we
-# parse" from "a step failed", which is the distinction the rest of the block
-# already makes.
 if [ "$passed" -eq 0 ]; then
     notify down "notify_push self-test produced no result line — the check parsed nothing"
     exit 1
 fi
 
-# Context, never an alarm. Zero connections is the normal state when every
-# client is asleep, so it says something about usage, not about health.
 conns=$(docker exec -u www-data nextcloud php occ notify_push:metrics 2>/dev/null \
         | awk -F': ' '/Active connection count/ {print $2}')
 
-# --- Nextcloud cron freshness ---
-# Nothing watched it (#177), and the silent failure mode is documented in this
-# very repository: crond up, cron.php never running, the container Up and both
-# HTTP monitors green, while every background job — file scans, trash and
-# version expiry, federated retries, notifications — quietly stops.
-#
-# `core lastcron` is the unix timestamp cron.php last COMPLETED, so it moves
-# only on a real run. One hour is twelve missed five-minute runs, well clear of
-# a single slow one. Unreadable reports rather than passes, which is the rule
-# the rest of this stack follows.
-#
-# --- What this can see, and what it cannot ----------------------------------
-# Read at the source 2026-09-05: `core/Service/CronService.php:113` sets
-# `lastcron` AFTER `runCli()` returns, unconditionally and outside every
-# per-job loop. So the timestamp says "cron.php ran to completion", which is
-# exactly the #177 failure it was written for — crond dead, container Up, both
-# HTTP monitors green. It does NOT say "jobs were executed": a queue that
-# stalls behind a living runner moves this timestamp every five minutes.
-#
-# The message below used to read "background jobs have stopped", which is the
-# one thing this measurement cannot establish. Naming the runner instead of the
-# jobs costs nothing and stops the alert from asserting past its evidence. A
-# real starvation check — reserved jobs, or the oldest unexecuted job's age —
-# is a separate mechanism and is not pretended here.
 CRON_MAX_AGE=3600
 lastcron=$(docker exec -u www-data nextcloud php occ config:app:get core lastcron 2>/dev/null | tr -dc '0-9')
 if [ -z "$lastcron" ]; then

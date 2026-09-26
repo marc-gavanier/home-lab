@@ -1,74 +1,11 @@
 # {{ ansible_managed }}
-# =============================================================================
-# Container security posture — declarative assertions (ADR-032)
-# =============================================================================
-# GENERATED from docker/compose.yaml, exactly as the bash version was. The list
-# is not hand-maintained here any more than it was there; what changes is the
-# engine that checks it.
-#
-# --- Why this exists, in one measurement -------------------------------------
-# Ten fixes have landed on homelab-posture.sh. Four of them were not wrong
-# expectations but controls that COULD NOT FAIL: "posture OK on 0 containers"
-# was a green push, ten controls could not report the failure they named, a
-# shadowing check could vanish without saying so, four controls looked stronger
-# than they were.
-#
-# A loop can iterate over nothing and return true. A declared assertion cannot:
-# goss counts every one and prints the total, so "checked nothing" is not a
-# state this file can be in.
-#
-# --- The boundary with what stays in bash ------------------------------------
-# Everything here is answerable by `docker inspect`, which works on a stopped
-# container as well as a running one. What needs to ENTER the container
-# (AppArmor's applied profile, netdata's plugins) or to DERIVE before asserting
-# (the writability check, Vaultwarden's config comparison, the credential
-# probes) stays in homelab-posture.sh, which runs goss and then adds those.
-#
-# --- One trap, recorded ------------------------------------------------------
-# goss templates this whole file with Go templates before running anything, so a
-# `docker inspect -f` format string would be eaten by goss before docker ever
-# saw it — the same family as Jinja eating a Go template in the Ansible
-# templates. Everything below goes through `jq` instead, which is also more
-# readable.
-#
-# --- How the deadlines are sized, and why they are all explicit --------------
-# A deadline here exists to stop a hung check from hanging the run. It is NOT a
-# speed limit: goss renders an expired deadline as a FAILURE, so a check that is
-# merely slow pushes the same red as a check that is wrong, and the colour stops
-# carrying information. That happened on three consecutive scheduled runs
-# (2026-09-16 to 09-18) before the access-log deadline was resized.
-#
-# So: every deadline is at least three times the worst runtime observed for its
-# own check, with a floor of 60 s, and the whole run is bounded by the sum
-# rather than by any one value — the unit has no TimeoutStartSec and the timer
-# fires daily, so there is room. Real runs take 40-55 s in total.
-#
-# Every exec assertion declares one. Thirty of them did not, which meant they
-# ran on goss's implicit 10 s — the tightest deadline in this file was the one
-# nobody had written down.
-#
-# The rule is stricter than it looks: it applies to COMMENTS too. The first
-# version of this header spelled the offending syntax out to warn about it, and
-# goss died on the warning — "can't evaluate field HostConfig in type
-# *goss.TmplVars", pointing at a line that was never meant to execute. Do not
-# write Go template delimiters anywhere in this file, prose included.
-# =============================================================================
 
+# [critical]: never write Go template delimiters anywhere in this file, comments included: goss evaluates them
 {% set compose = lookup('file', playbook_dir + '/../../docker/compose.yaml') | from_yaml %}
-{#- The credential-store floor, derived here rather than kept by hand in
-    group_vars. It lives at the top of the file, away from every mapping key,
-    and that placement is not cosmetic: Ansible renders with `trim_blocks`, so a
-    `{%- set %}` eats the newline before it AND the newline after it. Placed
-    next to the assertion that uses it, this block swallowed the line break in
-    front of `credential-stores-derivation-nonempty:` and goss refused the whole
-    spec with "mapping key exec already defined". Set tags belong where there is
-    no key for them to absorb. -#}
 {%- set _cred_all = [] %}
 {%- for _n, _s in compose.services.items() %}
 {%-   for _v in _s.volumes | default([]) %}
 {%-     if (_v | string).startswith('${SERVICES_DATA_DIR}/') %}
-{#- `replace` rather than a slice: Ansible's Jinja has no `len`, so an
-    offset computed from the prefix would render here and fail on the host. -#}
 {%-       set _ = _cred_all.append((_v | string).split(':')[0] | replace('${SERVICES_DATA_DIR}/', '')) %}
 {%-     endif %}
 {%-   endfor %}
@@ -86,68 +23,16 @@ file:
   /mnt/data/secrets:
     exists: true
     mode: "0711"
-  # 0700 root:root since 2026-09-11, and the mode IS the control (#333 B).
-  # 0710 root:docker looked like one and was not: `--x` hides the names, the
-  # names are published in compose.yaml, and the operator is in `docker` — 13
-  # of 13 files were readable by name from an unprivileged shell on 2026-09-05.
   /mnt/data/secrets/docker:
     exists: true
     mode: "0700"
 
-# --- Exit codes: 1 is a verdict, 2 is an instrument that could not measure ----
-# goss NEVER prints what a check wrote. Verified on the host against the
-# deployed binary: a failing check renders its exit status and, if `stdout:` is
-# declared, the literal string "object: *bytes.Reader" — never the message. So
-# every branch of a multi-branch check pushes the same sentence to Kuma, and on
-# 2026-09-16..18 `miniflux-no-feed-silently-unscheduled` pushed
-# "Expected 1 to be numerically eq 0" three days running, for one of three
-# causes it could not name: an unreachable database, an unreadable count, or
-# three feeds genuinely retired from scheduling. The first two are repaired by
-# fixing the probe, the third by touching the feeds — opposite work, one line.
-#
-# The exit status is the only field that survives into the alert, so it carries
-# the distinction:
-#
-#   exit 1   the property is violated — the thing this check guards is wrong.
-#   exit 2   the check could not measure — a value missing, unparseable, or an
-#            enumeration that came back empty. Repair the instrument, not the
-#            estate. The alert then reads "Expected 2 to be numerically eq 0".
-#
-# Applied so far to the five branches of the three checks that have actually
-# fired this month; the remaining multi-branch checks still collapse. 28 of the
-# 219 checks here carry two or more `exit 1` branches, so this convention has
-# somewhere to go, one check at a time, as each one next proves it matters.
 command:
 
-  # --- Credential stores: the property, not a list of them (#217) ------------
-  # This replaced seven hardcoded paths. The seven had been carried by hand
-  # through a `for` loop, a variable and this spec, and each rewrite reproduced
-  # the same defect: Pi-hole was missed (#189), then Forgejo (#199), then
-  # Jellyfin — while the comment four lines above the list already stated the
-  # property that would have caught all three. A hand-maintained enumeration
-  # presented as a continuous assertion is a to-do disguised as a control.
-  #
-  # The property, evaluated against the containers that exist rather than the
-  # ones anyone remembered: a directory under the services data root, bind-
-  # mounted by EXACTLY ONE container. `uniq -c` then `awk` is the whole of it,
-  # and the "exactly one" is load-bearing — nextcloud/data is mounted by three
-  # containers and drops out on its own, which is correct: a shared directory
-  # cannot be closed to one uid without breaking another.
-  #
-  # `docker ps -aq` and not `-q`: a stopped container still declares its mounts,
-  # and a store must not leave the assertion because its service is down.
-  #
-  # On its first run this found two directories the list of seven did not have:
-  # jellyfin/config (six non-expiring device tokens and the admin hash, 0644
-  # under 0755) and traefik/acme (the ACME account key and eighteen
-  # certificates, 0755). Both are closed by the deploy role in the same change.
   credential-stores-all-closed:
     exec: |
       base={{ services_data_dir }}
       exempt="{{ credential_store_exemptions.keys() | list | join(' ') }}"
-      # `stat -c %a` prints 700, Ansible's convention writes 0700, and comparing
-      # the two makes every store fail. Caught by running this under dash on the
-      # host before deploying it, which is the rule this file states for itself.
       want={{ credential_store_default_mode }}; want=${want#0}
       bad=""
       for src in $(docker inspect $(docker ps -aq) \
@@ -160,45 +45,9 @@ command:
         [ "$mode" = "$want" ] || bad="$bad $rel=$mode"
       done
       [ -z "$bad" ] || { echo "not $want:$bad"; exit 1; }
-    # It went red on 2026-09-02 at 23:58 with `Error Command execution timed
-    # out (10s)` — the third check in one evening to fail for being SLOW rather
-    # than wrong, after `no-kuma-report-was-lost-in-silence` and
-    # `nextcloud-php-jit-is-disabled`.
-    #
-    # Measured on an idle host, three runs: 510, 648, 513 ms. So this is a
-    # half-second check that blew past ten seconds — a factor above fifteen —
-    # and it did it while an Ansible deploy was writing to the same disk it
-    # stats. goss reports a timeout exactly like a failed assertion, so the
-    # dashboard said the credential stores were open when nothing had been
-    # measured at all.
-    #
-    # 30 s is ~50x the idle cost and the modal value in this file. It is sized
-    # against the LOAD this check meets, not against the figure above: the
-    # deploy role re-asserts the posture as its last task, so every run of this
-    # spec lands in the busiest minute the host has.
-    #
-    # The general problem is untouched here and is not a small one: of the 193
-    # assertions in this spec, 9 declare a timeout. The other 184 sit on goss's
-    # 10 s default and can each report `not ok` for having been slow. Patching
-    # them as they bite is sampling; the systemic answer is `--retry-timeout` on
-    # the runner, which is a decision about what "green" means and belongs to
-    # the operator.
     timeout: 90000
     exit-status: 0
 
-  # The same derivation, asserted for the set it DROPS. `awk '$1 == 1'` above
-  # removes every store bind-mounted by more than one container, and that is
-  # correct — a directory three containers write to cannot be closed to one uid
-  # without breaking the other two. What was wrong until 2026-09-13 is that the
-  # removal was silent: a store could leave the mode assertion by gaining a
-  # second mount, and nothing would say so. The one store already in that set
-  # was holding two unmanaged copies of the live Nextcloud database password,
-  # and it was the audit that found them, not this spec.
-  #
-  # Equality, not a floor. A floor would let the set GROW in silence, which is
-  # the direction that costs something. Both directions are a decision: a store
-  # that stops being shared should come back under the mode assertion, and one
-  # that becomes shared should be looked at before it is written down.
   credential-stores-shared-set-unchanged:
     exec: |
       base={{ services_data_dir }}
@@ -209,20 +58,9 @@ command:
             | sort | tr '\n' ' ')
       got=${got% }
       [ "$got" = "$want" ] || { echo "shared stores are [$got], declared [$want]"; exit 1; }
-    # Same population and same disk as the assertion above, so the same budget.
     timeout: 90000
     exit-status: 0
 
-  # The same derivation, asserted for SIZE rather than for modes, and it is a
-  # separate assertion on purpose: goss streams stdout and never materialises it,
-  # so the name is the only thing an operator sees. "All closed" passing over
-  # zero stores and "the derivation found nothing" have to be distinguishable,
-  # because the first is the failure mode that made ADR-032 necessary — a loop
-  # can iterate over nothing and return true.
-  #
-  # The floor is a measurement (12 on 2026-08-24), not a target. It fails if a
-  # store stops being derivable — a container removed, a mount moved, a jq
-  # expression that quietly stops matching.
   containers-run-the-image-their-tag-designates:
     exec: |
       rows=$(docker inspect $(docker ps -q) \
@@ -246,24 +84,6 @@ command:
     timeout: 90000
     exit-status: 0
 
-  # --- The floor is DERIVED from compose.yaml, not carried in a variable ------
-  # It was `credential_store_min_count`, a number kept by hand in group_vars,
-  # and on 2026-09-05 it read 11 against a live population of 12: one credential
-  # store could have disappeared and this check would still have passed. That is
-  # the failure mode of every hand-kept cardinal, and this file already knows it
-  # — it is why C13 and C20 were taken out of the register's gated list.
-  #
-  # The same set the runtime derivation below builds, built here instead: bind
-  # sources under the services data directory, kept only when exactly ONE
-  # service declares them (a shared source is not a credential store — today
-  # that is `nextcloud/data`), minus the declared exemptions. Verified against
-  # the machine on 2026-09-05: the twelve names this produces are the twelve the
-  # host reports, in the same order.
-  #
-  # A last segment carrying a dot is read as a file and dropped, because the
-  # runtime side keeps directories only. The heuristic errs LOW by construction
-  # — a mis-dropped entry weakens the floor by one rather than raising a false
-  # alarm — and the direction of that error is the reason it is acceptable.
   credential-stores-derivation-nonempty:
     exec: |
       base={{ services_data_dir }}
@@ -287,40 +107,7 @@ command:
 {%-     set _ = _secret_pairs.append((_sv.container_name | default(_sn)) ~ ' ' ~ _sec) %}
 {%-   endfor %}
 {%- endfor %}
-  # --- A rotated secret has to reach the PROCESS, not just the disk (#333 A) --
-  # In Compose a `secrets:` entry is a bind mount of a host INODE, and Ansible
-  # writes these files with `copy`, which renames a temporary file into place and
-  # therefore makes a new inode. A running container stays attached to the old
-  # one — unlinked from the directory, still alive because the mount holds it —
-  # so a rotation lands on disk, reports `changed`, and never reaches the
-  # process. Measured 2026-09-06 on pihole_password: host inode dated 12:06,
-  # container inode dated 22 August, and the deploy task that was supposed to
-  # notice instead wrote the leaked password back over itself.
-  #
-  # Every consumer is restarted by a handler, which re-resolves the bind — that
-  # is the fix, and this is the assertion that outlives it. A handler removed, a
-  # new secret added without one, or some future mechanism nobody has thought of
-  # yet all show up here as the same divergence, which is the point: the property
-  # is asserted, not the remedy.
-  #
-  # Read entirely from the host. /proc/<pid>/root is the container's filesystem
-  # as seen from outside, so this needs no `docker exec` and works against
-  # images that carry no shell at all — dozzle, among others, has no shell to
-  # exec into.
-  #
-  # ONE `docker inspect` for the whole table, and that is not a micro-optimisation
-  # — it is what brings the check's own cost down to about a second. The first
-  # version called `docker inspect` once per pair: 1.4 s idle, which passed every
-  # rehearsal and then timed out on the very first real run, because the posture
-  # evaluates its ~385 assertions concurrently and the Pi is saturated while it
-  # does (1 min 8 s of CPU in a 48 s run). The comment forty lines up says the
-  # same thing about `docker compose`; this one had to learn it again. The
-  # name-to-pid lookup is pure shell for the same reason — fourteen `awk` calls
-  # buy nothing that a `case` over 29 words does not.
-  #
-  # A stopped container is SKIPPED, not failed: it holds no stale mount, and its
-  # absence is `homelab_container_down`'s to report. Which is why `compared` has
-  # its own floor — skipping every pair would otherwise pass silently.
+
   secret-mounts-carry-the-current-value:
     exec: |
       pids=$(docker inspect $(docker ps -q) 2>/dev/null \
@@ -351,43 +138,8 @@ command:
       [ "$compared" -gt 0 ] || { echo "not one of the {{ _secret_pairs | length }} secret mounts could be compared — every consumer is down, or /proc is not readable here"; exit 1; }
       [ -z "$stale" ] || { echo "container still holds the PREVIOUS value of:$stale — the deploy that rotated it did not restart the consumer, and the old credential is still live"; exit 1; }
     exit-status: 0
-    # 30 s rather than goss's 10 s default, and the number is not about what this
-    # check costs. Measured on the live host on 2026-09-11 at load 9: ~1 s —
-    # 0.34 s for the single inspect, 0.6 s to digest the whole store. The budget
-    # is spent by its NEIGHBOURS. The spec evaluates its assertions concurrently
-    # and saturates the four cores while it does (1 min 7 s of CPU in a 48 s run,
-    # load average 18.4 during that run), so a command costing a second can wait
-    # ten for a core.
-    #
-    # It lost that race twice, and both times on the run the DEPLOY triggers:
-    # 01:45 with the per-pair inspect, 18:15 with this version — the second
-    # alongside the Traefik access-log check, which expired in the same second on
-    # a 30 s budget of its own. A manual run 36 s later passed with nothing
-    # changed. The deploy itself does not fail on the result (`failed_when:
-    # false`, deliberately), so the whole visible effect is a red push to Kuma
-    # minutes after an ordinary deploy, reporting a stale secret where there is
-    # none — the false alarm this check exists to make credible.
     timeout: 90000
 
-  # --- dnsproxy lives in Pi-hole's namespace, and only the CURRENT one --------
-  # `network_mode: "service:pihole"` is what makes dnsproxy reachable at
-  # 127.0.0.1#5053, which is where FTLCONF_dns_upstreams points. RECREATING
-  # pihole destroys that namespace: dnsproxy keeps running, keeps reporting
-  # healthy, and is attached to a container id that no longer exists. Pi-hole
-  # then has no upstream at all.
-  #
-  # The failure is partial in the most misleading way — local records and
-  # blocklist replies still answer correctly, so any probe that does not CROSS
-  # the upstream says the resolver is fine. Six minutes of dead external
-  # resolution on 2026-09-06, every status green throughout.
-  #
-  # compose.yml repairs this inside a deploy and verifies the repair. What it
-  # cannot see is a recreate typed at the console, which is exactly how the
-  # 2026-09-06 outage started. Hence an assertion that runs on its own schedule.
-  #
-  # Compared through /proc, never through `.HostConfig.NetworkMode`: docker
-  # stores the RUNTIME form there, `container:<id>`, so matching on
-  # `service:pihole` finds nothing and the guard silently never fires.
   dnsproxy-shares-the-current-pihole-namespace:
     exec: |
       pp=$(docker inspect pihole 2>/dev/null | jq -r '.[0].State.Pid // 0')
@@ -401,60 +153,18 @@ command:
     timeout: 60000
     exit-status: 0
 
-  # The dump directory is EPHEMERAL: the backup creates it, the snapshot takes
-  # it, and resticprofile's run-after removes it. So `exists: true` under file:
-  # would report a false problem every day the backup succeeded — which is every
-  # day. The script this replaces wrapped the same check in `if [ -d ]`; absent
-  # is a valid state, a wrong mode is not.
   backup-dumps-mode:
     exec: stat -c %a {{ backup_dir }}/dumps 2>/dev/null || echo absent
     timeout: 60000
     exit-status: 0
     stdout: ["/^(700|absent)$/"]
 
-  # The assertion above watches ONE directory. #218 was an 87 MB Immich dump —
-  # `public."user"` password column, `api_key`, `session` — sitting 0664 in
-  # {{ backup_dir }} itself since 5 July, one level ABOVE it, written by hand at
-  # the v3 migration rather than by the dump job. The shell check this file
-  # replaced was scoped to `dumps/` and its translation inherited the scope, so
-  # nothing ever looked at the file: the same one-level-short mistake already
-  # recorded in #198, #199 and #217.
-  #
-  # Depth 2, not the whole tree: restic writes every pack 0400 (measured,
-  # 21411 of 21411) under a 0700 repository, so walking 340 GB nightly could
-  # only ever re-confirm what restic itself put there. Depth 2 covers this root,
-  # `dumps/*` and `wg-easy-v14/*`, which is every path a human or a job writes.
-  #
-  # `find` exiting 0 is asserted too — an unreadable directory makes it exit 1,
-  # and a scan that could not read is not a scan that found nothing.
-  # When this fails, the paths are one command away:
-  #   sudo find {{ backup_dir }} -maxdepth 2 -type f -perm /o+r -printf '%m %p\n'
   backup-root-nothing-world-readable:
     exec: find {{ backup_dir }} -maxdepth 2 -type f -perm /o+r -printf '%m %p\n'
     timeout: 60000
     exit-status: 0
     stdout: ["!/./"]
 
-  # The same one-level-short family, from the other side. The assertion above
-  # watches {{ backup_dir }}, where #218's stray dump sat. Neither has ever
-  # watched the directory Immich's own scheduled backup WRITES to, under
-  # {{ services_data_dir }} — and that is where the live copy is: seven dumps of
-  # ~89 MB, rewritten nightly at 02:01, world-readable until #272 found them.
-  #
-  # It has to be asserted by name. `credential-stores-all-closed` derives from
-  # bind mount SOURCES and stats only the source itself; `immich/upload` is the
-  # mount, is exempt as media, and this is its child. The derivation is
-  # structurally unable to see it — the same argument that made
-  # the Pi-hole store's gate a named assertion rather than a derived one, for
-  # the opposite reason (`pihole-store-not-traversable-by-others`).
-  #
-  # The directory mode, not the file modes: Immich writes the dumps with its own
-  # umask, which no task here can reach, while the directory it owns is
-  # enforceable and is what actually denies the traversal.
-  #
-  # No `absent` escape, unlike backup-dumps-mode above. That directory is
-  # ephemeral by design; this one is permanent, so a `stat` that cannot read is
-  # not a `stat` that found nothing.
   immich-dump-dir-closed:
     exec: stat -c %a {{ immich_backup_dir }}
     timeout: 60000
@@ -465,30 +175,7 @@ command:
 {%- for _n, _s in compose.services.items() %}
 {%-   set _ = expected_containers.append(_s.container_name | default(_n)) %}
 {%- endfor %}
-  # --- Every per-container assertion below assumes the container EXISTS -------
-  # `docker inspect <gone> | jq -r '...'` exits 0 with an empty line, because a
-  # pipeline's status is jq's. Measured 2026-09-05 with a name that does not
-  # exist: the output is byte for byte what a healthy `socket-proxy` produces,
-  # so all sixteen `-cap-add` assertions whose expectation is `/^$/` pass on a
-  # container that has vanished. Sixteen greens for an absence.
-  #
-  # Fixing them one by one would mean a second `docker inspect` per service, and
-  # this spec already sits near its timeout budget under load (#C76). One
-  # derivation covers the family instead, and it is derived from compose rather
-  # than listed: a service added tomorrow is inside it without an edit here.
-  #
-  # The expected names are rendered in from compose.yaml at deploy time, exactly
-  # as `no-undeclared-published-ports` renders its port list — so this is still
-  # derived from compose and not a hand-kept list, and it costs ONE cheap docker
-  # call at run time. The first version asked the daemon twice through
-  # `docker compose`, and goss killed it at its 10 s timeout on the very first
-  # run: 0.08 s for `docker ps -a` against roughly a second for each compose
-  # invocation, measured on this Pi.
-  #
-  # `awk` on the last column rather than `--format`: goss renders this file as a
-  # Go template before parsing it, so a Go format string's own delimiters would
-  # be consumed rather than asserted — the same reason the dumps spec gives for
-  # using `docker inspect`. NAMES is the last column and cannot contain a space.
+
   every-declared-service-has-a-container:
     exec: |
       declared="{{ expected_containers | join(' ') }}"
@@ -507,21 +194,10 @@ command:
 
 {% for name, svc in compose.services.items() %}
 {%- set cname = svc.container_name | default(name) %}
-{#- plain Jinja on purpose, as in homelab-posture.sh: `regex_replace` and
-    `select('search')` are Ansible-only, and a template that cannot be rendered
-    outside Ansible cannot be tested before it is deployed. -#}
 {%- set caplist = (svc.cap_add | default([])) | sort %}
 {%- set caps = ('CAP_' ~ caplist | join(' CAP_')) if caplist else '' %}
 {%- set ro = 'true' if svc.read_only | default(false) else 'false' %}
 {%- set optstr = (svc.security_opt | default([])) | join(' ') %}
-{#- Membership in the LIST, not a substring of the joined string. Until
-    2026-09-13 this read `'no-new-privileges' in optstr`, which is also
-    satisfied by `no-new-privileges:false` — the documented spelling for
-    turning the option OFF. A service could therefore have disabled it and
-    still been asserted, on both sides, to have it on. Nothing declared
-    `:false` when this was found; the assertion simply could not have said
-    so. Docker returns the option as `no-new-privileges:true` at runtime,
-    measured on traefik, pihole and vaultwarden. -#}
 {%- set nnp = 'true' if 'no-new-privileges:true' in (svc.security_opt | default([])) else 'false' %}
 {%- set aa = optstr.split('apparmor=')[1].split(' ')[0] if 'apparmor=' in optstr else '' %}
 {%- set usr = svc.user | default('') %}
@@ -545,19 +221,6 @@ command:
     exec: docker inspect {{ cname }} | jq -r '[.[0].HostConfig.SecurityOpt[]?] | join(" ") | test("(^| )no-new-privileges:true( |$)")'
     exit-status: 0
     stdout: ["/^{{ nnp }}$/"]
-  # Conditional on purpose, and the reason was learned the hard way on
-  # 2026-09-05. This assertion was briefly emitted for EVERY service, asserting
-  # `/^$/` for those declaring no `user:`, to close the gap where dropping a
-  # declaration removes its own check. It is wrong: `Config.User` carries the
-  # IMAGE's user when compose declares none, and two of ours do — socket-proxy
-  # returns `root`, collabora returns `1001`. Asserting the complement would
-  # mean writing upstream's values into this repo, which is the same objection
-  # this file already makes for `apparmor` and `pinned-port-bindings` below.
-  #
-  # And the gap does not close by assertion anyway: a service that loses its
-  # `user:` falls back to the image's user, so the running system is telling the
-  # truth and there is nothing for a check to disagree with. What catches that
-  # is the review of compose.yaml, not a probe of the result.
 {% if usr %}
   {{ cname }}-user:
     exec: docker inspect {{ cname }} | jq -r '.[0].Config.User'
@@ -569,11 +232,6 @@ command:
 {%-   if (p | string).split(':') | length >= 3 %}{%- set _ = pinned.append((p | string).split(':')) %}{%- endif %}
 {%- endfor %}
 {% if pinned %}
-  # A port compose pins to a host address must not be reachable on any other.
-  # Derived from `ports:` rather than listed here, so a pin removed in compose is
-  # a change to this assertion and not a silent widening. Checked per host port
-  # instead of by comparing whole sets, because Docker also binds the IPv6 form
-  # of an unpinned port and a set comparison would fail on that alone.
   {{ cname }}-pinned-port-bindings:
     exec: |
 {% for pp in pinned %}
@@ -586,10 +244,6 @@ command:
 {% endif %}
 {% if aa %}
   {{ cname }}-apparmor-enforced:
-    # The profile the KERNEL applied, read from inside the container — not the
-    # one the compose file requested. A profile that failed to load leaves the
-    # request intact and the container unconfined, which is the whole point of
-    # reading /proc/1/attr/current rather than HostConfig.
     exec: docker exec {{ cname }} cat /proc/1/attr/current
     exit-status: 0
     stdout: ["/^{{ aa }} \\(enforce\\)/"]
@@ -603,16 +257,6 @@ command:
 {%-   endfor %}
 {%- endfor %}
 
-  # --- The two things the posture check never asserted about the ENGINE -------
-  # Both are absences rather than misconfigurations, which is why nothing here
-  # had ever gone red on them: what is not declared is not checked, so the gap
-  # is invisible until someone enumerates the assertions against the posture the
-  # docs claim.
-
-  # The socket is the whole engine. socket-proxy exists so that no other
-  # container ever holds it, and the risk is not a rewrite here — it is the next
-  # service copied from upstream YAML, which brings that mount along and stays
-  # green forever.
   only-socket-proxy-mounts-the-docker-socket:
     exec: |
       n=$(docker inspect $(docker ps -aq) \
@@ -622,22 +266,12 @@ command:
     timeout: 60000
     exit-status: 0
 
-  # And nothing publishes a host port compose does not declare. Same shape as
-  # the credential-store derivation: a service added tomorrow starts INSIDE the
-  # assertion and has to be argued out of it by editing compose.yaml, which is
-  # the file that gets reviewed.
   no-undeclared-published-ports:
     exec: |
       declared="{{ declared | unique | join(' ') }}"
       live=$(docker inspect $(docker ps -q) \
                | jq -r '.[] | .NetworkSettings.Ports // {} | to_entries[] | select(.value != null) | .value[] | .HostPort' \
                | sort -u)
-      # An empty `live` skips the loop and exits 0, which is this assertion's
-      # pass — so "no container publishes anything" read exactly like "nothing
-      # undeclared is published". The comment above names the credential-store
-      # derivation as this check's model; that derivation carries a floor at
-      # `>= 12` and this one had none. Six ports are published today, and a
-      # stack with none is a stack that is not serving.
       [ -n "$live" ] || { echo "no published host port was found at all — the derivation asserted nothing"; exit 2; }
       for p in $live; do
         case " $declared " in
@@ -648,10 +282,6 @@ command:
     timeout: 60000
     exit-status: 0
 
-  # --- netdata: the three axes its failures actually show up on --------------
-  # Its plugins are setuid root and it drops to uid 201 only if it managed to
-  # prepare its own directories; when it cannot, it runs entirely as root while
-  # every chart stays present. So the uid is the signal, not the charts.
   netdata-runs-as-201:
     exec: docker exec netdata awk '/^Uid:/ {print $2}' /proc/1/status
     timeout: 60000
@@ -666,33 +296,11 @@ command:
       - "/^{{ plugin }}$/"
 {% endfor %}
   netdata-context-count:
-    # A count, not a pattern: goss matches stdout, so the comparison has to
-    # happen in the command and surface as an exit status.
     exec: |
       n=$(docker exec netdata curl -s --max-time 10 http://127.0.0.1:19999/api/v3/contexts | jq -r '.contexts | length')
       test "${n:-0}" -ge {{ netdata_min_contexts }}
     timeout: 60000
     exit-status: 0
-  # C07's widening, 2026-09-19. The gate this replaces certified ONE collector
-  # (go.d docker) against a fleet, so it could not see a plugin that is not that
-  # collector running far hotter. Keying on the CONTEXT does not work and was
-  # measured not to: (context -> update_every) is not a function, because
-  # disk.space and disk.inodes each carry both 1 and 5 (the /tmp charts run at
-  # 5 s). Keying on the PLUGIN does, and it needs no hand-chosen constant.
-  #
-  # The rule: no plugin whose charts feed no curated alarm may collect more
-  # samples per second than the busiest plugin that does. Both sides are derived
-  # live -- the consumers from the `on:` lines of health.d, which is the same
-  # source the check above already reads, and the rates from the charts API.
-  # Nothing here has an author who can go absent.
-  #
-  # Retroactive positive control: applied on 2026-09-17 it marks apps.plugin,
-  # which is the defect that was found by hand on 2026-09-18 -- 2082 charts at
-  # 1 s, 2082 samples/s against proc.plugin's 536.2. It came back green when
-  # that was fixed to 5 s, without the rule being touched.
-  #
-  # Cost measured 2026-09-19: /api/v1/charts is 5.42 MB and the whole pipeline
-  # runs in 1.14 s for 31 MB RSS, against a posture run of 66 s.
   netdata-runs-no-hotter-for-what-nothing-reads:
     exec: |
       charts=$(docker exec netdata curl -s --max-time 30 http://127.0.0.1:19999/api/v1/charts)
@@ -743,25 +351,6 @@ command:
     timeout: 60000
     exit-status: 0
   netdata-apparmor-matches-dockerd:
-    # This container runs a scoped replacement for docker-default rather than
-    # `apparmor:unconfined`, and that replacement is a COPY of the daemon's own
-    # policy. A copy is correct the day it is taken and silently wrong
-    # afterwards: the profile loads, aa-status reports it enforcing, and the
-    # only observable is a denial the container would otherwise have had. On
-    # 2026-09-12 it was four rules behind — `deny network alg`, `deny network
-    # vsock`, the powercap read-denial Docker added for RAPL/PLATYPUS, and the
-    # `/` upstream added inside the @{PROC} character classes.
-    #
-    # So the difference is DERIVED from the running daemon's binary on every
-    # run rather than reviewed by eye. dockerd holds the template as a string
-    # constant, and the deny rules are the half that is textually stable enough
-    # to compare — the grant rules carry interpolations that are not.
-    #
-    # Direction matters: this fails when dockerd has a rule we lack, and stays
-    # silent when we deny something extra, because denying MORE than
-    # docker-default is exactly what a scoped replacement is for.
-    #
-    # Costs 2.4 s, which is most of it `strings` over a 100 MB binary.
     exec: |
       strings /usr/bin/dockerd | awk '
         { sub(/^[ \t]+/, ""); sub(/[ \t]*#.*$/, "") }
@@ -779,35 +368,9 @@ command:
             exit 1
           }
         }' /etc/apparmor.d/homelab-netdata -
-    # Measured 2026-09-12: 2.4-2.6 s warm and 3.9 s with the page cache dropped,
-    # nearly all of it `strings` over a 101 MB binary. It still blew goss's 10 s
-    # default on its first real run, because the posture check runs it alongside
-    # thirty container inspections and the contention, not the command, is the
-    # cost. A timeout reported through `exit-status` is indistinguishable from a
-    # profile that genuinely diverged — the same channel for the expiry and for
-    # the condition — so the deadline is set from the measurement with margin
-    # rather than left at a default nobody chose.
     timeout: 180000
     exit-status: 0
 
-  # --- The hole the adapter's startup grace leaves, closed here (#289) --------
-  # homelab-netdata-kuma.sh reports UP rather than DOWN while netdata has been
-  # running for less than its measured startup window, because a netdata that
-  # came back forty seconds ago is not a fault and paging for it is how an
-  # operator learns to ignore a monitor.
-  #
-  # That grace is keyed on netdata's own start time, which leaves exactly one
-  # way to hide behind it: a netdata restarting faster than the grace, whose
-  # uptime is therefore never long enough for the adapter to call the empty
-  # answer a fault. The adapter cannot close that without remembering something
-  # between runs, and a watchdog that grants itself a grace from its own memory
-  # is the #289 defect a second time.
-  #
-  # So it is closed from outside, on a daily cadence, against the property
-  # itself: netdata's health engine has evaluated something. One re-ask thirty
-  # seconds later, because this spec must not fail merely for having run during
-  # the same window the adapter tolerates — a deploy that restarts netdata is a
-  # normal thing to do at eleven in the morning.
   netdata-health-engine-has-verdicts:
     exec: |
       count() {
@@ -824,35 +387,6 @@ command:
     timeout: 180000
     exit-status: 0
 
-  # --- Every library category reaches the backup (2026-09-12, ADR-035) -------
-  # `library_dir` holds the categories an importer writes into, and its
-  # `downloads/` is deliberately absent from the restic source: a path that was
-  # never in the source cannot be un-excluded by mistake. The cost of that
-  # choice is the symmetric failure — a NEW category created here and never
-  # added to the source would go unbacked, silently, with every check green and
-  # the deploy reporting changed.
-  #
-  # So the check is DERIVED from the machine rather than from a list: it reads
-  # what actually exists under library_dir and requires each one, minus
-  # downloads/, to appear in the deployed profile's source. Add `library/anime`
-  # without touching resticprofile.yaml and this goes red the same night.
-  #
-  # The floor matters as much as the comparison. If library_dir were empty or
-  # missing, a loop over nothing returns true and the assertion would pass while
-  # verifying that nothing is backed up — the exact shape this repository keeps
-  # a pre-commit gate against.
-  # Renamed in spirit on 2026-09-13, not in name: it no longer asserts that
-  # EVERY category is backed up, because two deliberately are not. It asserts
-  # that the deployed profile matches `library_unbacked_categories`, IN BOTH
-  # DIRECTIONS. The one-directional version could only catch a category falling
-  # out of the backup; it could not catch one being added, which is exactly what
-  # ADR-035 did on 2026-09-12 — 70 GiB of torrent video into an append-only
-  # offsite repository, a 4 h 25 backup, and a starved weekly maintenance.
-  #
-  # The declared set is rendered here rather than read from the host, so the
-  # assertion compares the DEPLOYED profile against the DECLARED intent. Both
-  # floors are kept: an empty category listing and an unreadable profile fail
-  # rather than pass over nothing (class C83).
   library-backup-source-matches-the-declared-split:
     exec: |
       lib="{{ library_dir }}"
@@ -947,55 +481,7 @@ command:
     timeout: 60000
     exit-status: 0
 
-  # --- Retention delivered against retention declared (class C68) ------------
-  # Every `db` setting used to be commented out, so all three tiers ran on stock
-  # 1024MiB caps against stock 14d/3mo/2y time bounds. The size bound binds
-  # first, so the store held 4 d 18 h where the configuration asked for 14 d —
-  # and netdata publishes BOTH numbers, side by side, with nothing reading
-  # either. Nine days of per-second history that only existed in the config.
-  #
-  # `expected_retention` and NOT `retention`, and this is the whole design of
-  # the check. `retention` is what the store holds RIGHT NOW, so a tier that is
-  # merely young reads as a tier that is capped: tier 2 held 1 mo 5 d of a
-  # 10 mo 5 d projection simply because netdata had not been running longer.
-  # Asserting on that would have been red for months and then quietly green,
-  # which is worse than not asserting. `expected_retention` is netdata's own
-  # projection of what the tier will hold at the current ingest rate, so it
-  # answers the question the class actually asks: WILL this store keep what the
-  # configuration claims?
-  #
-  # 0.6, and the number was WRONG at first — it shipped as 0.8, calibrated on a
-  # single reading taken minutes after a netdata restart. It went red the next
-  # day on a healthy store, which is the defect this spec exists to avoid: a
-  # threshold that has never met the variance it will live in.
-  #
-  # netdata charts this exact ratio itself, and reading it back gave three
-  # regimes instead of one point. `netdata.dbengine_retention_tier0`, `time`
-  # dimension — note the chart has TWO dimensions and `space` is the other one,
-  # which is what the first attempt at this comment misread as hours:
-  #
-  #   stock 14d/3mo/2y declared   34 %   the structural mismatch to catch
-  #   steady state, 5d declared   100 %  held flat for 14 h (03:00-17:00)
-  #   after an Ansible deploy     72-75 % and it does not bounce back
-  #
-  # The middle row is what matters: 5d IS deliverable, so the declaration is
-  # right and must not be lowered. The bottom row is a deploy spiking series
-  # cardinality on a store already at 1021 MiB of its 1024 MiB cap, which evicts
-  # the oldest data — evicted data does not return, so the dip persists.
-  #
-  # 0.6 sits between a regime this must never miss (0.34) and one it must never
-  # flag (0.72), with margin on both sides. It is not a concession: at 0.6 the
-  # stock defaults are still caught by a factor of nearly two.
-  #
-  # Proven in both directions without contriving anything: this assertion FAILED
-  # on all three tiers before docker/configs/netdata/netdata.conf was deployed
-  # and PASSED on all three after, on the same machine, the same day.
-  #
-  # The jq is deliberately path-independent (`.. | objects | select(has(...))`)
-  # rather than `.db_size[]`: netdata has moved this structure between versions,
-  # and a hardcoded path that stops matching would make the check pass on an
-  # empty set — the vacuous-pass shape this spec exists to avoid. The starvation
-  # guard below is what turns that into a loud failure instead.
+  # [warning]: do not lower the declared retention to fit a post-deploy dip: the dip is eviction, not a wrong declaration
   netdata-delivers-the-retention-it-declares:
     exec: |
       rows=$(docker exec netdata curl -s --max-time 20 \
@@ -1010,10 +496,6 @@ command:
         echo "read $n tier(s) from netdata's info API, expected at least 3 — the query stopped matching, so this check proves nothing"
         exit 1
       }
-      # awk rather than a `while read` loop: a pipe into `while` runs in a
-      # subshell under dash, so anything it accumulates is lost at the `done`
-      # and the check passes vacuously. awk returns the verdict on stdout, which
-      # survives.
       bad=$(printf '%s\n' "$rows" |
             awk '$2 * 10 < $3 * 6 { printf " tier%s(%ss of %ss declared)", $1, $2, $3 }')
       [ -z "$bad" ] || {
@@ -1023,19 +505,6 @@ command:
     timeout: 180000
     exit-status: 0
 
-  # --- The resolution the container-unhealthy floor is built on (#262) -------
-  # `homelab_container_unhealthy` only fires once its window holds more than 500
-  # samples, ninety per cent of the 556 a saturated window was measured to hold
-  # while the docker collector runs every second. That is the whole point — a
-  # chart too young to have 500 samples cannot satisfy the alarm — but it also
-  # means a collector running slower would never reach the floor and the alarm
-  # would stop firing without a word. The silent-disablement shape from #220, so it
-  # gets an assertion rather than a comment.
-  # The resolution the alarm's floor is divided by. Asserted against the
-  # CONFIGURED value, not against a hard-coded 1: this used to read `== 1`, which
-  # was a proxy for the floor and the wrong one — it would have gone red on a
-  # legitimate resolution change while staying green on every other way of making
-  # the floor unreachable.
   docker-collector-resolution:
     exec: |
       n=$(docker exec netdata curl -s --max-time 10 \
@@ -1048,12 +517,6 @@ command:
     timeout: 60000
     exit-status: 0
 
-  # And the property the proxy was standing in for: the floor is REACHABLE. Read
-  # from the live carrier alarm rather than inferred from the resolution, so any
-  # cause — a slower collector, a collection gap, a shorter retention — is caught
-  # by the same assertion. MAX across instances on purpose: a container recreated
-  # seconds ago legitimately carries a short chart, and one mature chart is all
-  # this needs to prove.
   container-health-sample-floor-reachable:
     exec: |
       max=$(docker exec netdata curl -s --max-time 10 \
@@ -1061,27 +524,12 @@ command:
               | jq '[.alarms[] | select(.name=="homelab_container_health_samples") | .value] | max // 0')
       max=${max%%.*}
       case "${max:-x}" in ''|*[!0-9]*) echo "container_health_samples unreadable: [$max]"; exit 2 ;; esac
-      # The floor has to be what netdata has HAD TIME to collect, not a constant.
-      # A recreate resets the counter, so the full floor is unreachable for its
-      # own accumulation time — measured 2026-09-19: a deploy recreated netdata
-      # at 00:55:45 and the posture run it triggered at 01:02:05 found 76 samples
-      # against a floor of 100, went red, and was green again nine minutes later
-      # having changed nothing. A deploy is not a fault, and an assertion that
-      # calls one a fault teaches the operator to ignore it.
-      #
-      # `docker inspect` WITHOUT `-f`: goss renders this spec as a Go template and
-      # would eat the format string — the rule this file states above, applied.
       su=$(docker inspect netdata | sed -n 's/.*"StartedAt": "\([^"]*\)".*/\1/p' | head -1)
       st=$(date -d "$su" +%s 2>/dev/null)
       case "${st:-x}" in ''|*[!0-9]*) echo "cannot read netdata's start time: [$su]"; exit 2 ;; esac
       up=$(( $(date +%s) - st ))
-      # Under two intervals there is nothing to compare and a verdict would be
-      # noise; netdata being absent or restarting is carried by its own container
-      # alarms, not by this one.
       [ "$up" -lt $(( {{ netdata_docker_update_every }} * 2 )) ] && exit 0
       cap={{ ((600 / netdata_docker_update_every) * 0.833) | round | int }}
-      # The same 0.833 margin the alarm threshold uses, applied to the age rather
-      # than to the window: what a healthy collector should have by now.
       floor=$(( up * 833 / 1000 / {{ netdata_docker_update_every }} ))
       [ "$floor" -gt "$cap" ] && floor=$cap
       [ "$max" -gt "$floor" ] || {
@@ -1091,45 +539,6 @@ command:
     timeout: 60000
     exit-status: 0
 
-  # --- Pi-hole: the property that actually protects its store ----------------
-  # pihole/etc is a credential store — pihole.toml carries `webserver.api.pwhash`
-  # with TOTP and app-password empty, so that hash is the only factor, and
-  # pihole-FTL.db is every DNS query the household has made. It is NOT in the
-  # derived 0700 assertion above, and that is a measurement rather than a
-  # concession: the image's prestart script runs
-  # `find /etc/pihole/ -type d -exec chmod 0755` on every container start, so a
-  # directory mode set from Ansible survives exactly until the next restart.
-  #
-  # The same script sets every file to 0640 (0600 for keys) and re-applies that
-  # on every start too, which is why a different unprivileged account is refused
-  # every credential file here while the directory is 0755 — verified with
-  # controls on 2026-08-25.
-  #
-  # So the file modes are the property that holds, and this is what asserts them.
-  # It would also have caught #189's original finding, pihole.toml at 0644, which
-  # the directory gate closed only as a side effect.
-  #
-  # --- What the first day of this assertion's life disproved ------------------
-  # The paragraph above was written on 2026-08-29 and was wrong by 03:26 the
-  # next morning. "The same script sets every file to 0640 … on every start" is
-  # true AT START, and says nothing about files a periodic job rewrites after
-  # it. Gravity's weekly rebuild put gravity.db and three listsCache files back
-  # at 0664, four hours after a container start had set them 0640, and the
-  # blanket `find` went red — as it will after every gravity and green after
-  # every restart. It reported which of two clocks ran last, not a posture.
-  #
-  # Excluding what gravity writes was the cheap answer and is the shape #291 is
-  # open about: a list of exceptions cannot catch the next writer that behaves
-  # like gravity. So the list is INVERTED. What is enumerated below is what must
-  # be protected — a small, stable set — rather than what may be ignored, which
-  # is open-ended. Anything else world-readable in that tree is now covered by
-  # the directory gate instead, one level up, where neither the image nor
-  # gravity can reach: see `pihole-store-not-traversable-by-others`.
-  #
-  # The count check is not decoration. A `find` or a loop that matches nothing
-  # returns clean, and this whole spec exists because that is how an assertion
-  # goes green over zero subjects (ADR-032). If pihole.toml and pihole-FTL.db
-  # stop being found, the set stopped being derivable and that is the failure.
   pihole-credential-files-not-world-readable:
     exec: |
       d={{ services_data_dir }}/pihole/etc
@@ -1148,54 +557,12 @@ command:
     timeout: 60000
     exit-status: 0
 
-  # The gate the two mechanisms above cannot revert, and the one that makes the
-  # file modes inside stop mattering to any other account on this host.
-  #
-  # `credential-stores-all-closed` is structurally unable to see it: that
-  # derivation stats bind mount SOURCES, and the sources here are this
-  # directory's children (`etc`, `dnsmasq`). The parent is mounted by nothing —
-  # checked against the running containers, not read off the compose file — which
-  # is exactly why the image's `find /etc/pihole/ -type d` never touches it. Same
-  # reason `immich/upload/backups` had to be named rather than derived.
-  #
-  # 0750 rather than 0700: the directory is <user>:gpio with one member, and
-  # Docker resolves the mounts as root, so the OTHERS traverse bit is the only
-  # bit that was ever load bearing.
   pihole-store-not-traversable-by-others:
     exec: stat -c %a {{ services_data_dir }}/pihole
     timeout: 60000
     exit-status: 0
     stdout: ["/^750$/"]
 
-  # --- Pi-hole: FTL must be writing the log that is named `pihole.log` -------
-  # The query log was orphaned from 2026-08-17 to 2026-08-25 and NOTHING saw it.
-  # The rotation renamed the file, FTL kept its descriptor on the renamed inode,
-  # and the `postrotate` that should have told it to reopen ends in upstream's
-  # own `|| true`. `pihole.log` then sat at 0 bytes, `notifempty` skipped it
-  # every subsequent night, and the state sustained itself while the rotated
-  # file grew past 70 MB (#202).
-  #
-  # Every SHAPE of check that looked at the outcome would have passed: the
-  # container was healthy, DNS answered, the files were all present with sane
-  # modes, and `pihole.log` existed. What was wrong was WHICH FILE the writer
-  # had open — so that is what this asserts, at the descriptor, from the host.
-  # `docker exec` cannot do it: reading another uid's /proc/PID/fd needs
-  # CAP_SYS_PTRACE, which this container does not have and must not get.
-  #
-  # Empty output fails on purpose (`${open:-nothing}`): FTL not appearing at all
-  # means the query log is off or the process is gone, and neither is a state
-  # this should report as fine.
-  # Gravity is the blocklist itself. Its refresh is the one Pi-hole mechanism
-  # whose failure is completely silent: DNS keeps answering, the dashboard stays
-  # green, and the lists simply stop ageing. `gravity.info.updated` records the
-  # last successful rebuild and NOTHING read it — zero hits in the health script
-  # and in every goss spec, found by enumeration on 2026-08-29.
-  #
-  # Read host-side rather than through the container: there is no sqlite3 in the
-  # pihole image (measured), and `pihole-FTL sqlite3` is not a subcommand either.
-  #
-  # 14 days is two missed weekly rebuilds, not one: the cadence is weekly, so a
-  # single skipped run is not yet evidence of a stopped mechanism.
   pihole-gravity-not-stale:
     exec: |
       v=$(sqlite3 -readonly "file:{{ services_data_dir }}/pihole/etc/gravity.db?mode=ro" \
@@ -1231,23 +598,6 @@ command:
     timeout: 60000
     exit-status: 0
 
-  # --- Uptime Kuma: an incident that notifies once is an incident nobody is
-  # --- being told about any more (#200)
-  # Kuma sends ONE message at the state transition and nothing afterwards while
-  # the outage lasts, unless the monitor carries a resend interval. Every active
-  # monitor had `resend_interval = 0`, and stat_daily records what that cost:
-  # 2026-07-31 to 08-02, roughly 54 hours of continuous outage OF THE DEAD-MAN'S
-  # SWITCH ITSELF, for a single Discord message sent 54 hours earlier.
-  #
-  # Monitors are created by hand here — Kuma v2 has no editing API and the
-  # tooling that automated v1 does not work — so the setting is exactly the kind
-  # of thing a new monitor is created without. That is what this assertion is
-  # for: not to re-verify a value someone set once, but to catch the 32nd
-  # monitor on the day it is added.
-  #
-  # `${n:-1}` on purpose: an unreadable database or a query that returns nothing
-  # must FAIL rather than compare an empty string and pass. A control that
-  # cannot report its own blindness is the defect ADR-032 exists to prevent.
   kuma-every-active-monitor-resends:
     exec: |
       n=$(docker exec uptime-kuma sqlite3 "file:/app/data/kuma.db?mode=ro" \
@@ -1256,37 +606,6 @@ command:
     timeout: 60000
     exit-status: 0
 
-  # --- The dead-man's fuse that a restart of its own watchdog re-arms (#289) --
-  # Kuma schedules a push monitor's first check one full interval after ITS OWN
-  # PROCESS STARTS, not one interval after that monitor's last heartbeat. Every
-  # restart of the container therefore re-arms the fuse of all 15 push monitors
-  # from zero. Proven on recorded data rather than read off the source: monitor
-  # 30 was silent for 93 474 s against a 90 000 s window and emitted NO DOWN,
-  # while a 90 001 s silence with no restart in between — one second over the
-  # same window — emitted one.
-  #
-  # Kuma cannot be corrected from here, so the fuse is checked against a clock
-  # that a restart does not touch: `heartbeat.time`, the moment a beat was
-  # RECEIVED. It is written once and never rescheduled, which is exactly the
-  # property the scheduler lacks.
-  #
-  # What this asserts is the INCONSISTENCY, not the outage. `h.status = 1` is
-  # the load-bearing half: a monitor that is genuinely late carries a last beat
-  # saying DOWN, Kuma is already saying so, and this assertion must stay quiet.
-  # It fires only when the last beat says UP while being older than the window
-  # the monitor itself declares — which is the defect and nothing else.
-  #
-  # That distinction is not fussiness, it is #216's lesson applied one level up.
-  # This spec feeds "Pi security posture", and a condition that stays red for
-  # days sitting in the same signal as the acute checks mutes them. A backup
-  # that is three days late must not silence this monitor for three days.
-  #
-  # The count guard is the ADR-032 half. It counts push monitors that HAVE a
-  # heartbeat, so it exercises both tables and the relation between them: a
-  # schema change that made the join match nothing would otherwise read exactly
-  # like a healthy fleet. The floor is 10 against 15 today — low enough that
-  # retiring a monitor is not a failure, high enough that a query matching
-  # nothing is.
   kuma-no-push-monitor-silent-past-its-own-window:
     exec: |
       db="file:/app/data/kuma.db?mode=ro"
@@ -1305,52 +624,9 @@ command:
              where m.active = 1 and m.type = 'push' and h.status = 1
                and strftime('%s','now') - strftime('%s', h.time) > m.interval")
       [ -z "$bad" ] || { echo "$bad" | sed 's/^/  /'; exit 1; }
-    # Two round trips into the container, against a default of 10 s. The pihole
-    # and miniflux assertions above pay the same cost for the same reason.
     timeout: 60000
     exit-status: 0
 
-  # --- The only check that re-reads backed-up bytes (#290, class C39) --------
-  # The weekly maintenance runs `check`, and in the first week of each month it
-  # also re-reads one twelfth of the repository's actual data. That monthly run
-  # is the ONLY operation in the whole backup chain that reads bytes back;
-  # everything else — the nightly backup, the copy, the offsite check — asserts
-  # metadata. A twelfth a month is a full pass a year.
-  #
-  # Two ways it goes silently missing, and neither shows up as a failure:
-  #
-  #   - the host is off for the first week of a month. The catch-up fires on a
-  #     day the calendar branch no longer matches, the run degrades to metadata
-  #     only, the monitor stays green. resticprofile cannot know what ran last
-  #     month, so nothing in the job itself can notice;
-  #   - the branch is edited, or `read-data-subset` stops being understood by a
-  #     future restic, and the run keeps succeeding on metadata.
-  #
-  # Asserted against Kuma's heartbeat history rather than the journal, and that
-  # choice IS the fix for this class: the journal holds 16.8 days on this host
-  # against a period of 30, so the evidence expired before the event repeated.
-  #
-  # What keeps that evidence is the monitor's CADENCE, not Kuma's retention
-  # setting, and the difference was measured on 2026-09-19. keepDataPeriodDays is
-  # 180, but heartbeat rows are pruned against a per-monitor row budget: on the
-  # 5-minute health monitor an ordinary beat survives ~36 h and only `important`
-  # beats outlive it, while this weekly monitor still holds all 13 of its beats
-  # back to 2026-07-19 — 62 days against the 40-day window below. The assertion
-  # is safe because the job runs weekly. It would NOT survive this monitor
-  # becoming frequent, and nothing here would say so.
-  #
-  # Matched on the message rather than on a monitor id or name: only this job
-  # ever says "deep check", so the phrase identifies the event without this spec
-  # having to know which monitor carries it. It also matches the message the
-  # SHELL job used before ADR-031 — `local prune + deep check (8/12) passed`,
-  # still in Kuma from 2026-08-02 — so the assertion has evidence to stand on
-  # from the day it deploys instead of being red until the next first-of-month.
-  # A control that is red for a week on arrival teaches its operator to ignore
-  # it, which is #216 one level down.
-  #
-  # 45 days: consecutive deep runs are 24 to 37 days apart on a healthy
-  # schedule, and a whole month skipped puts the gap past 45. Tight enough to
-  # catch one missed month, loose enough never to fire on a normal one.
   restic-deep-check-not-stale:
     exec: |
       sources=$(docker exec uptime-kuma sqlite3 "file:/app/data/kuma.db?mode=ro" \
@@ -1377,34 +653,10 @@ command:
     timeout: 60000
     exit-status: 0
 
-  # The assertion above believes the beat, and the beat believes the calendar.
-  # `read-data-subset` and the words "deep check" come out of the SAME Jinja
-  # branch in resticprofile.yaml.j2, so nothing in the chain observes that restic
-  # read a single byte. Its own comment names the failure it cannot catch — "the
-  # branch is edited, or read-data-subset stops being understood by a future
-  # restic, and the run keeps succeeding on metadata" — and the mechanism for
-  # that is live: `restic-arguments-filter: true` drops unsupported restic flags
-  # SILENTLY, which is precisely how the flag stops being passed while the run
-  # still exits 0.
-  #
-  # So this one measures instead. resticprofile's own status-file records the
-  # duration of the last restic command, and the two modes are not close:
-  # 25 min 40 s for the deep run of 2026-09-06 (`read group #9 of 1821 data
-  # packs`) against 30 s for the metadata run of 2026-08-30. A factor of 51. The
-  # floor below sits 9x above metadata and 5x below deep, so it cannot be reached
-  # by a slow metadata run nor missed by a fast deep one.
-  #
-  # The check runs weekly and only the first-week run is deep, so the status file
-  # holds whichever ran last. That is enough: the DATE in the file says which
-  # mode the branch would have chosen, and the duration says which one happened.
-  # A deep date with a metadata duration is the defect, and nothing else is.
   restic-deep-check-was-observed-not-claimed:
     exec: |
       sf=/var/lib/homelab-backup/status.json
       if [ ! -f "$sf" ]; then
-        # The repo's settle idiom: a producer installed by this same deploy has
-        # not necessarily run yet. resticprofile writes this file on its first
-        # invocation, and the nightly backup is the soonest one.
         dir=/var/lib/homelab-backup
         age=$(( $(date +%s) - $(stat -c %Y "$dir" 2>/dev/null || echo 0) ))
         [ "$age" -lt 93600 ] && exit 0
@@ -1414,23 +666,6 @@ command:
       t=$(jq -r '.profiles.homelab.check.time // empty' "$sf")
       d=$(jq -r '.profiles.homelab.check.duration // empty' "$sf")
       if [ -z "$t" ] || [ -z "$d" ]; then
-        # The settle idiom again, and one level further in than the branch above.
-        # That one covers a status file that does not exist yet; this covers a
-        # status file that exists without a check section, which is a different
-        # state with a different cause: `backup` writes this file NIGHTLY while
-        # the homelab `check` is written by homelab-local-maintenance, WEEKLY on
-        # Tuesday. Between a deploy that introduces the status file and the first
-        # Tuesday after it, the file is real, its shape is right, and the section
-        # is legitimately absent.
-        #
-        # This is not hypothetical: status-file shipped 2026-09-11 23:09, the
-        # weekly producer had last run 2026-09-06, and the assertion was red
-        # from the next morning's backup until the following Tuesday — announcing
-        # "the status file shape moved", which was false in every word.
-        #
-        # The window is measured from the config that declares `status-file`,
-        # because editing it is what can reset the file. Eight days covers one
-        # full weekly cycle from any starting point, with margin.
         cfg=$(stat -c %Y /opt/homelab/resticprofile.yaml 2>/dev/null || echo 0)
         [ $(( $(date +%s) - cfg )) -lt 691200 ] && exit 0
         echo "no check section in $sf more than 8 days after the config declaring"
@@ -1456,43 +691,6 @@ command:
     timeout: 60000
     exit-status: 0
 
-  # --- Offsite parity, and the gate that makes it one (#291, class C02) ------
-  # C02's property is "a control on the homelab with no counterpart on the
-  # offsite host". #285 closed it with seven assertions on the offsite, one per
-  # divergence found. They are real and they are green — and they are a LIST. A
-  # list closes the instances it names and cannot fail on the eighth, which was
-  # found the same day: lynis installed on the offsite, its timer masked, its
-  # last report 2026-08-17, nothing scheduled in its place.
-  #
-  # This is the gate the seven were not. It derives the set of controls from the
-  # MACHINE — every homelab-*.timer that has a unit file — and requires each one
-  # to be classified in `homelab_control_timers`, either with the offsite unit
-  # that carries the same property or with a reason it does not exist there.
-  # A new control creates a timer; the timer shows up here; the assertion fails
-  # until somebody decides. That is the difference between a sweep and a gate,
-  # and it is C10's shape one domain over: derive the set, subtract documented
-  # exemptions.
-  #
-  # It fails in BOTH directions on purpose. A timer with no entry is the
-  # divergence this exists to catch. An entry with no timer is a stale
-  # exemption, which is worse than useless: it is a written reason to not look
-  # at something that no longer exists, and the next reader would trust it.
-  #
-  # `list-unit-files` rather than `list-units`: a control timer that exists but
-  # is not loaded must still be classified. Whether it is ARMED is asserted
-  # HERE, on the set this assertion already built. It used to say that
-  # goss-units.yaml asked that question. It does not: units.yaml declares
-  # services and no timer, and its own header records that the timer check
-  # "stays in the script" — where homelab-health.sh reads each timer's LAST
-  # RESULT and accepts the empty value, which is exactly what a unit that has
-  # never run reports. Three artefacts each deferred to another and nobody
-  # asked. homelab-image-retention has never run and has no Kuma push, so it
-  # was the one instance with no other detector at all.
-  #
-  # The floor is a measurement (13 on 2026-08-30), not a target. It fails if the
-  # enumeration stops matching — a renamed prefix, a systemctl output change —
-  # rather than reporting parity over nothing, which is the failure mode ADR-032
-  # exists to prevent.
   offsite-parity-register-covers-every-control-timer:
     exec: |
       declared="{{ homelab_control_timers | map(attribute='timer') | sort | join(' ') }}"
@@ -1521,30 +719,6 @@ command:
     timeout: 60000
     exit-status: 0
 
-  # --- The clock before the clock (#292, class C42) --------------------------
-  # This board has no RTC. Without fake-hwclock, systemd starts it at the mtime
-  # of its own binary — 2026-07-28 on both hosts, measured — and every entry
-  # written before the first NTP reply carries that date. The journal segment
-  # opened in that window is NAMED for it, becomes the oldest file on the host,
-  # and journald's vacuum removes it first: the beginning of the current boot,
-  # deleted before anything genuinely old.
-  #
-  # Asserted on freshness rather than on the package being installed, because
-  # installed-and-never-run is the shape this repo has already refused twice
-  # (#155, #291).
-  #
-  # 900 s, and the number moves WITH the save interval — that is the whole point
-  # of touching it here. This tolerance used to be 7200 s, justified as "hourly
-  # saves, so 2 h is one missed save, which is slack rather than a symptom".
-  # Correct while the timer was hourly. The timer now saves every 5 minutes
-  # (base/tasks/clock.yml), so 7200 s would have meant TWENTY-FOUR missed saves:
-  # the assertion would have kept its shape and lost its meaning, staying green
-  # through most of a day of a dead timer.
-  #
-  # 900 s is three missed saves — the same slack the old number expressed,
-  # against the new cadence. **If the save interval changes again, this changes
-  # with it**; a tolerance that does not track the thing it tolerates is how a
-  # check goes quietly vacuous.
   fake-hwclock-data-is-fresh:
     exec: |
       for u in fake-hwclock-load.service fake-hwclock-save.timer; do
@@ -1652,18 +826,6 @@ command:
     timeout: 60000
     exit-status: 0
 
-  # --- Addresses this host does not control (#292, class C43) ----------------
-  # The board holds no fixed address on the LAN side: the router hands it a
-  # one-day DHCP lease, and <pi-lan-ip> is written into the repository
-  # nineteen times — including as the resolver every VPN client is handed. The
-  # day the router gives it a different one, nothing anywhere says so; the
-  # symptom is VPN clients with no DNS and an operator reading a configuration
-  # that has been describing a different machine since the morning.
-  #
-  # Pinning it belongs to the router, which is not in this repository. Watching
-  # it is one line and belongs here. Asserted against `homelab_ip`, the same
-  # variable the inventory connects with, so the check cannot drift from the
-  # value the rest of the deploy assumes.
   lan-address-is-the-one-the-configuration-hardcodes:
     exec: |
       live=$(ip -4 -o addr show dev eth0 scope global 2>/dev/null |
@@ -1698,10 +860,6 @@ command:
     timeout: 60000
     exit-status: 0
 
-  # Docker allocates these, not us — no `ipam_config` anywhere in compose.yaml.
-  # Generated from `docker_expected_subnets` so a network added to the stack
-  # without an entry is a change to this spec rather than a silent fourth
-  # allocation nobody watches.
   docker-networks-are-where-the-configuration-expects-them:
     exec: |
       bad=""
@@ -1713,17 +871,6 @@ command:
     timeout: 60000
     exit-status: 0
 
-  # The one that is load-bearing rather than merely tidy, and the only one of the
-  # three asserted against the two AUTHORITIES instead of against a remembered
-  # value: the live network on one side, the allowlist file on the other.
-  #
-  # `vpn-only` admits the proxy network because every VPN client reaches Traefik
-  # through it. The range was narrowed from 172.16.0.0/12 to 172.18.0.0/16 for
-  # good reason — the /12 also admitted the Docker socket proxy's network — and
-  # that narrowing is exactly what makes a re-allocation fatal: if Docker brings
-  # `proxy` back on a different /16 after a network is recreated, the allowlist
-  # stops covering it and every VPN client is refused. Discovered from outside
-  # the house, in the worst case.
   traefik-allowlist-covers-the-live-proxy-subnet:
     exec: |
       live=$(docker network inspect proxy 2>/dev/null | jq -r '.[0].IPAM.Config[0].Subnet // empty')
@@ -1737,16 +884,6 @@ command:
     timeout: 60000
     exit-status: 0
 
-  # --- fail2ban: every configured jail is actually loaded --------------------
-  # Comparing two derived lists, so the assertion is the exit status. A jail
-  # present in jail.local and absent from the running set is a jail that looks
-  # configured and bans nobody.
-  #
-  # Each side is checked non-empty BEFORE they are compared (#261). An absent or
-  # unparseable jail.local empties `want`; a fail2ban-client that cannot reach
-  # the server empties `have`; empty equals empty, so the bare comparison passed
-  # in precisely the two states this exists to detect. Inherited from the bash
-  # version, not introduced by the goss migration.
   fail2ban-jails-all-loaded:
     exec: |
       want=$(grep -oE '^\[[a-z0-9_-]+\]' /etc/fail2ban/jail.local | tr -d '[]' | grep -v '^DEFAULT$' | sort | tr '\n' ' ')
@@ -1757,39 +894,6 @@ command:
     timeout: 60000
     exit-status: 0
 
-  # --- The VPN's IPv6 cannot be removed, so it has to be caught arriving ------
-  # compose.yaml sets DISABLE_IPV6=true on wg-easy, with the measurement next to
-  # it: v15 emits ip6tables rules through its bundled LEGACY binaries, the
-  # ip6_tables module is absent on a host running the nf_tables backend,
-  # wg-quick exits 3 and NO tunnel comes up — while the container stays green.
-  # That flag is a declaration of intent. This is the only thing that checks the
-  # outcome.
-  #
-  # It is not paranoia about a flag being deleted. wg-easy's data model has no
-  # way to express "no IPv6", and that is measured rather than assumed (#236):
-  #
-  #   sqlite schema      ipv6_cidr text NOT NULL, ipv6_address text NOT NULL
-  #   POST an empty one  HTTP 400, "CIDR must be at least 1 Character"
-  #
-  # So the database holds an IPv6 prefix permanently, and it is not inert
-  # migration residue either — a client created on 2026-08-26 was assigned
-  # fdcc:…:cafe:6 on the spot. The interface prefix is a live generator.
-  # DISABLE_IPV6 strips it when the configuration is WRITTEN, which is the one
-  # and only thing standing between that database column and a dead tunnel.
-  #
-  # The generated FILE is asserted rather than the running interface, and the
-  # difference matters: wg-quick reads this file at the next start, so a file
-  # that has gone wrong is detectable while the tunnel is still up from the
-  # previous one — and it stays detectable with the container stopped, which is
-  # exactly when the next start is about to happen.
-  #
-  # `grep -c` prints 0 and exits 1 with no match; both are asserted, because an
-  # unreadable file also exits non-zero and would otherwise pass.
-  # An EMPTY file also prints 0 and exits 1, which is this assertion's pass
-  # condition exactly — measured 2026-09-05. `grep -c` cannot tell "no IPv6 in a
-  # real config" from "no config". The content floor is checked first, and it is
-  # the section header rather than a byte count, because a one-byte file is
-  # non-empty and still not a configuration.
   wg-generated-config-carries-no-ipv6:
     exec: |
       f={{ services_data_dir }}/wireguard/wg0.conf
@@ -1799,43 +903,6 @@ command:
     exit-status: 1
     stdout: ["/^0$/"]
 
-  # --- The allow-list entry that does the work is not the one that looks like
-  # --- it (#128)
-  # `vpn-only` admits the LAN, `172.18.0.0/16` and `10.8.0.0/24`, and the two
-  # subnets serve DIFFERENT callers — see middlewares.yml for the full path of
-  # each. VPN clients arrive on the docker one: wg-easy masquerades 10.8.0.0/24
-  # out of its eth0, the client is full-tunnel so the packet leaves for the Pi's
-  # LAN address, and the host hairpin-NATs it back into the bridge as
-  # 172.18.0.1. Two NAT hops.
-  #
-  # So the docker entry is the one holding the tunnel open, and it reads like
-  # internal plumbing. Anyone tightening this by eye removes it. This assertion
-  # is what makes that a red monitor within five minutes instead of a lockout
-  # discovered from outside the house — which on this host means physically
-  # present or not at all.
-  #
-  # It covers that entry ONLY. The twin below covers 10.8.0.0/24, and the
-  # reason there are two is #259: this check probes from `uptime-kuma`, a
-  # container on the proxy network, so it stayed green for the five days the
-  # offsite host spent locked out by the removal of the other line.
-  #
-  # It is a REQUEST, not a reading of the config file. A config assertion would
-  # pass on a list that is syntactically perfect and semantically closed, and
-  # would say nothing about the hairpin address changing underneath it.
-  #
-  # `!= 403` rather than `= 200`, and both halves were measured on 2026-08-26 by
-  # temporarily removing the entry and putting it back:
-  #
-  #   admitted   HTTP 200, backend reached, "vaultwarden@docker" "http://…"
-  #   refused    HTTP 403, NINE bytes, backend field "-", 0 ms
-  #
-  # Vaultwarden's root is the target because it answers 200 unauthenticated. The
-  # trap avoided: a backend can return 403 on its own — Pi-hole's admin does,
-  # 3 433 bytes with a real backend in the log — and pointing this at that host
-  # would have made the assertion pass on a denial and fail on a success.
-  #
-  # Traefik's address is resolved rather than hardcoded, and via jq because goss
-  # templates this file before running it.
   traefik-allowlist-admits-the-proxy-network:
     exec: |
       ip=$(docker inspect traefik | jq -r '.[0].NetworkSettings.Networks.proxy.IPAddress')
@@ -1849,24 +916,6 @@ command:
     timeout: 60000
     exit-status: 0
 
-  # --- And the entry the first assertion cannot see (#259) ------------------
-  # The offsite Pi is the only caller that arrives as 10.8.0.x. It dials
-  # services.{{ domain }}, pinned in its /etc/hosts to this host's own
-  # WireGuard address, and that hop is masqueraded by nothing: Traefik logs
-  # `10.8.0.4` verbatim. #128 removed `10.8.0.0/24` on a census drawn from an
-  # access log filtered to 400-599 — a log of refusals, in which offsite's
-  # successful pushes could not appear — and took away the only channel it has
-  # for reporting anything. Silent from 2026-08-24 to 2026-08-28, and it would
-  # have surfaced on 2026-09-01 as heartbeat age, saying nothing about why.
-  #
-  # Probing from the host bound to its own WireGuard address reproduces the one
-  # thing the allow-list decides on: a source inside 10.8.0.0/24. It does not
-  # test the tunnel — `Offsite health` and the wg monitors do that — it tests
-  # that Traefik still admits the subnet. Both outcomes measured on 2026-08-28,
-  # before and after the entry went back:
-  #
-  #   refused    HTTP 403, nine bytes, backend "-", 0 ms, logged as 10.8.0.5
-  #   admitted   HTTP 200 from vaultwarden's root
   traefik-allowlist-admits-the-vpn-subnet:
     exec: |
       code=$(curl -sk -o /dev/null -w '%{http_code}' --max-time 10 \
@@ -1880,43 +929,6 @@ command:
     timeout: 60000
     exit-status: 0
 
-  # --- The credential the access log must not carry (#287, ADR-034) ---------
-  # Removing the 400-599 filter one entry above is what opened this: with only
-  # refusals kept, the successful requests that carry a credential in their
-  # query string were invisible, and the four-axis sweep of 2026-08-22 was
-  # correct on the day. A fix reopened the class underneath it. An ENUMERATED
-  # class has no gate and will reopen — this is the gate.
-  #
-  # It reads the DURABLE trace, not the config: the two container logs that can
-  # hold a proxied request line. That is the whole class rather than the two
-  # services measured emitting one on 2026-08-29 — every service behind Traefik
-  # funnels through the redactor, so one added tomorrow is covered here without
-  # an edit, and `traefik` itself is in the list because pointing filePath back
-  # at /dev/stdout is exactly how this comes back.
-  #
-  # Made to fail on purpose before being believed, the #278 standard: with
-  # filePath on /dev/stdout and one request through vaultwarden, this reports
-  # the count and exits 1.
-  #
-  # The redactor is checked to be RUNNING first, and not as a duplicate of the
-  # container alarms: without it nothing writes an access line to any container
-  # log at all, and the grep below would go green because the trace had stopped
-  # existing rather than because it was clean. An assertion that passes when its
-  # subject disappears is the failure this spec keeps being written to avoid.
-  #
-  # timeout because goss allows a command 10 s and a timeout renders as a
-  # FAILURE, not as a skip (the lesson of 2026-08-30). 90 s on 2026-09-18 and
-  # 300 s later the same day (e1dac8f). It is sized on a measurement: the
-  # assertion body costs 8.7 s with the page cache warm, and the redactor's read alone cost 16.5 s cold, over
-  # 581 089 retained lines in eight files. The posture run adds the contention
-  # of eight concurrent tests on one dockerd on top of that. The 30 s it
-  # replaces timed out on every run from 2026-09-16 and intermittently before,
-  # which is a red that carries no information about what it asserts.
-  #
-  # The window below bounds what awk EXAMINES, not what is read: `docker logs
-  # --since` walks the whole retained set before filtering. So the deadline has
-  # to be sized against the retention — 20m x 10 for the redactor, where the
-  # rest of the stack runs on the daemon's 10m x 3 — and not against the window.
   traefik-access-log-carries-no-credential:
     exec: |
       up=$(docker inspect traefik-log-redactor 2>/dev/null | jq -r '.[0].State.Running')
@@ -1925,33 +937,7 @@ command:
         exit 1
       fi
       pat='[?&]([Aa]ccess_?[Tt]oken|[Aa]pi_?[Kk]ey|token|auth|secret|password|sig|signature)='
-      # The expression above is anchored on `[?&]`, so it can only see a
-      # credential carried as a QUERY parameter — and so is the redactor it
-      # grades. Uptime Kuma carries its push token in the PATH, so on
-      # 2026-09-20 this assertion reported `bad=0` while 1 283 lines in 24 h
-      # carried a live token in clear. What made the verdict FALSE rather than
-      # merely incomplete is that the estate's own 15 push reporters are the
-      # only writers of that shape: the sole instances of what this check hunts
-      # were the ones its own reporting path had put there.
       pat_path='/api/push/'
-      # Bounded to 48 h and read in ONE pass, and both halves were measured.
-      #
-      # Unbounded, this walked the whole rotation window every run: 323 071
-      # lines and 9.12 s isolated on 2026-09-12, which became a 30 s timeout
-      # under the contention of the full posture run — four times in the
-      # preceding 21 days, while the run's own CPU went 58.7 s to 1 min 13.7 s
-      # over the same period. A deadline sized against an input that has grown.
-      #
-      # 48 h against a DAILY cadence means every line is examined at least
-      # twice, so one missed run loses nothing; two consecutive missed runs
-      # would leave a gap, which is accepted because the posture run's own
-      # liveness is monitored and unbounded growth is not. The window is
-      # RELATIVE deliberately: `docker logs --since` parses an absolute stamp in
-      # host local time while `-t` prints UTC, and a duration has no such trap.
-      #
-      # One awk pass rather than three greps: the first bounded version counted
-      # the floor separately and came out at 10.25 s, SLOWER than the unbounded
-      # form it replaced. Measured at 4.87 s in this shape, over 49 255 lines.
       window=48h
       set -- $( { docker logs --since "$window" traefik 2>&1
                   docker logs --since "$window" traefik-log-redactor 2>&1
@@ -1963,9 +949,6 @@ command:
             if (v !~ /=\*\*\*$/) bad++
             line = substr(line, RSTART + RLENGTH)
           }
-          # `index()` first so the second expression costs nothing on the 96 %
-          # of lines that cannot carry it; the masked form ends in `***` and a
-          # live token does not, which is the same discriminator as above.
           if (index($0, pat_path)) {
             line = $0
             while (match(line, pat_path "[^ ?\"]*")) {
@@ -1977,9 +960,6 @@ command:
         END { print (http+0), (bad+0) }')
       seen=$1
       bad=$2
-      # The floor. A redactor that is running and emitting nothing would let
-      # this assertion pass over an empty set, which proves nothing — the shape
-      # this repository has a pre-commit gate against.
       if [ "${seen:-0}" -lt 1 ]; then
         echo "the redactor is running but produced no HTTP line in $window —"
         echo "this assertion would otherwise pass over an empty set"
@@ -1992,11 +972,6 @@ command:
     timeout: 300000
     exit-status: 0
 
-  # The raw line still exists, and these are the two properties that make that
-  # acceptable. Both are one boot away from being lost by accident: if the
-  # tmpfiles.d entry goes, Docker creates the bind-mount source itself as 0755
-  # and every account on the host can read the raw log; if /run stopped being a
-  # tmpfs the credential would reach the disk. Neither failure announces itself.
   traefik-raw-access-log-stays-in-ram-and-root-only:
     exec: |
       case "$(findmnt -no FSTYPE --target /run/traefik 2>/dev/null)" in
@@ -2011,42 +986,6 @@ command:
     timeout: 60000
     exit-status: 0
 
-  # --- The PHP JIT, which an image bump turns back on without a word ---------
-  # The nextcloud image ships opcache-recommended.ini with opcache.jit=1255 and
-  # an 8M buffer. On this board that segfaults an Apache child on every PHP
-  # request — but only after a trace goes hot, which on 2026-08-27 took 2 h 13
-  # of ordinary healthcheck traffic. Six hours of outage, three Kuma monitors
-  # and the rclone vault mount, from a Renovate patch bump.
-  #
-  # The override is a mounted zz-*.ini. Nothing about that mount is asserted by
-  # the compose file itself, and the failure mode is silent twice over: PHP
-  # SKIPS an unreadable .ini without complaining, and the JIT it re-enables
-  # does not bite until hours later. So this reads the value PHP actually
-  # resolved, in each container that runs PHP, rather than checking that a file
-  # exists.
-  #
-  # `php -i` prints `opcache.jit_buffer_size => 0 => 0` (local => master); the
-  # local value is the one that decides. notify-push shares the image and is
-  # deliberately absent: it runs a Rust binary and has no PHP to configure.
-  # --- The one thing the password had to change, asserted from where it was
-  # --- proven open ------------------------------------------------------------
-  # nextcloud-redis ran `nopass ~* &* +@all`, and PHP's session handler is redis:
-  # 217 of its 254 keys were live Nextcloud sessions, ~1.9 KB each. Reading one
-  # is becoming a logged-in user, with no password and no second factor.
-  #
-  # This probes from the HOST, deliberately, because the host is the path the
-  # audit proved open and the one a network change would NOT have closed — the
-  # host routes to the docker bridge, so `bash -c 'exec 3<>/dev/tcp/<ip>/6379'`
-  # answered `+PONG` from an ordinary account. The `claude` account is the
-  # concrete case: uid 1001, not in the `docker` group, so it can reach this port
-  # and cannot read the secret file.
-  #
-  # The address is DERIVED and not written down: it is assigned by Docker, and a
-  # hardcoded one silently probes nothing the day the subnet moves.
-  #
-  # Three outcomes, three verdicts, and the third is what stops a vacuous pass:
-  # NOAUTH is correct, PONG is the regression this exists to catch, and an EMPTY
-  # reply is reported as "proved nothing" rather than quietly succeeding.
   nextcloud-redis-refuses-an-unauthenticated-caller:
     exec: |
       ip=$(docker inspect nextcloud-redis 2>/dev/null |
@@ -2092,61 +1031,9 @@ command:
           *)  echo "$c: JIT buffer is $v — the tracing JIT is back, PHP will segfault"; exit 1 ;;
         esac
       done
-    # It timed out for real on 2026-08-31 at 20:19, during the deploy that
-    # shipped this file's sibling changes, and took the whole `Pi security
-    # posture` monitor DOWN with a message that reads like a JIT regression:
-    #
-    #     Command: nextcloud-php-jit-is-disabled: exit-status:
-    #     Error Command execution timed out (10...
-    #
-    # It declared no `timeout:`, so it was running on goss's 10 s default. The
-    # check itself is cheap — measured three times on an idle host at 1.53,
-    # 1.27 and 1.30 s — and what it cannot survive is the load of a DEPLOY,
-    # because two `docker exec ... php -i` calls queue behind a daemon that is
-    # restarting containers. The posture re-assertion runs at the END of the
-    # deploy by design (#307), so this check meets that load every time.
-    #
-    # 60 s, matching `netdata-health-engine-has-verdicts` above — the closest
-    # analogue in this file, being the other assertion that shells into a
-    # container while the machine is busy. Stated honestly: the true requirement
-    # is NOT measured. All that is known is that it exceeded 10 s once under a
-    # deploy; 60 s is ~46x the idle cost, chosen for the analogue rather than
-    # from a measurement of the loaded case.
-    #
-    # The general problem is larger than this line and is not fixed here: of the
-    # 193 assertions in the deployed spec, 9 declare a timeout. The other 184
-    # run on the 10 s default and can each report `not ok` for having been slow,
-    # which goss cannot distinguish from a real failure.
     timeout: 180000
     exit-status: 0
 
-  # --- The perimeter is the peer set, and nothing said so until 2026-08-29 ----
-  #
-  # A VPN peer key IS the perimeter: anyone holding one is inside. The docs have
-  # said so since the VPN was built, and the only WireGuard assertion this
-  # appliance carried was a grep for an IPv6 literal in a config file (#236) —
-  # which says nothing about who can connect.
-  #
-  # THE TRAP, and it is the reason this assertion is written the way it is:
-  # there are TWO interfaces called `wg0`, in two network namespaces.
-  #
-  #   host  wg0   1 peer    the management tunnel — the operator's own SSH path
-  #                         and the offsite link
-  #   wg-easy wg0  4 peers  the enrolled VPN clients
-  #
-  # `sudo wg show wg0` on the host answers about the FIRST one. An assertion
-  # written that way passes forever while saying nothing about the client
-  # perimeter. Measured on 2026-08-29; the audit that found it very nearly wrote
-  # the wrong check.
-  #
-  # SECOND TRAP: the client store moved. `wg0.json` is still on disk and still
-  # readable, frozen at 2026-07-28 — the pre-migration file. The live store is
-  # the SQLite database (#236). Reading the JSON gives a plausible, well-formed,
-  # month-old answer, which is worse than an error.
-  #
-  # The property: the peers the interface will accept are exactly the clients
-  # the operator has enrolled and left enabled. A revoked client that is still
-  # live fails this; so does a peer with no client behind it at all.
   wireguard-peers-are-the-enrolled-clients:
     exec: |
       live=$(docker exec wg-easy wg show wg0 peers 2>/dev/null | sort)
@@ -2161,54 +1048,9 @@ command:
         printf '%s\n' "$live" "$enrolled" | sort | uniq -u | cut -c1-12 | sed 's/^/  /'
         exit 1
       }
-    # `docker exec` into wg-easy plus a sqlite3 read, same reason.
     timeout: 90000
     exit-status: 0
 
-  # --- A feed reader that stops reading some feeds and keeps showing them ------
-  #
-  # The one instance found while enumerating C09 — work a container schedules
-  # for itself, on a period no sweep window catches (28/28 swept, 2026-08-29).
-  #
-  # Miniflux gives a feed three consecutive parse failures, then drops it from
-  # the scheduling query. It does NOT set `disabled`, so the interface keeps
-  # listing the feed as active while `next_check_at` sits frozen in the past.
-  # Two of 119 were in that state when this was written, one of them unpolled
-  # since 2026-08-20 — nine days, and nothing anywhere was going to say so.
-  #
-  # `disabled = false` is the load-bearing half of the condition: a feed the
-  # operator switched off deliberately is not a defect and must not fail this.
-  # What fails it is a feed that the machine stopped polling while still
-  # presenting it as live.
-  #
-  # Daily cadence is right and five-minutely would be wrong: a feed poller that
-  # is behind for an hour is not news. This sits beside pihole-gravity-not-stale
-  # for the same reason — both are freshness of data this host is responsible
-  # for producing, which is what this spec has come to hold besides posture.
-  # The credentials are read from the container's own environment rather than
-  # restated from a role variable. Two reasons, and the second is the real one:
-  # this spec is rendered by the observability role while the miniflux database
-  # variables are declared by deploy, so naming them here would either fail to
-  # render or quietly resolve to an empty string that psql turns into a
-  # confusing authentication error. And a credential this spec does not carry is
-  # a credential this spec cannot get wrong when it moves.
-  #
-  # `docker exec ... env` and NOT `docker inspect -f` with a Go template, which
-  # is the obvious way to write this and is a trap twice over.
-  #
-  # First, goss renders its own spec as a Go template before running anything,
-  # so a doubled-brace expression would be consumed by goss instead of reaching
-  # docker. Checked before writing it: no deployed spec on this host contains a
-  # doubled brace anywhere, and this assertion was not going to be the one to
-  # find out why the hard way.
-  #
-  # Second — and this one was paid, not avoided — THIS FILE is a Jinja template
-  # too. Jinja has no idea what a YAML comment is: a doubled brace written in a
-  # comment here is still parsed as an expression, and the deploy dies with
-  # `Syntax error in template: unexpected '.'` pointing at the comment. That is
-  # why the paragraph above describes the braces in words instead of showing
-  # them. yamllint and ansible-lint both pass over the broken form; only a real
-  # render catches it.
   miniflux-no-feed-silently-unscheduled:
     exec: |
       u=$(docker exec miniflux-db env 2>/dev/null | sed -n 's/^POSTGRES_USER=//p')
@@ -2229,23 +1071,9 @@ command:
           -c "select id, checked_at, left(title,48) $q;" 2>/dev/null | sed 's/^/  /'
         exit 1
       }
-    # Three `docker exec` plus a psql round trip, for the same reason as
-    # no-container-came-back-recovering below.
     timeout: 90000
     exit-status: 0
 
-  # --- The shutdown budget, and the recovery that proves it was too small -----
-  #
-  # Two assertions for #288, answering different questions: this one is the
-  # configuration, the next one is the outcome. Both are written WITHOUT a single
-  # doubled brace, and that is deliberate — goss renders this spec as a Go
-  # template before running it, so `docker inspect -f` with a Go format string
-  # would be eaten by goss instead of reaching docker. Hence `grep`/`sed` over
-  # plain `docker inspect` output rather than the obvious `--format`.
-  #
-  # The daemon-wide budget must be big enough to drain the slowest container and
-  # still fit inside the time systemd allows the daemon itself. Backwards, and
-  # systemd kills dockerd mid-drain — the same data loss by another route.
   docker-shutdown-budget-fits-inside-systemd:
     exec: |
       d=$(sed -n 's/.*"shutdown-timeout": *\([0-9]*\).*/\1/p' /etc/docker/daemon.json)
@@ -2262,43 +1090,12 @@ command:
     timeout: 60000
     exit-status: 0
 
-  # C74, and it is the assertion the repo did not have on 2026-09-11: the only
-  # sysctl guard in the estate compares DECLARATIONS against DECLARATIONS, and
-  # this spec carried zero sysctl assertions at all. So a knob declared at
-  # `.all.` and `.default.`, reading 0 at both, had never reached eth0 on either
-  # host — and could not have been seen.
-  #
-  # Derived from the declared file rather than from a list of knobs: add a
-  # net.ipv6.conf.{all,default}.X line to 99-homelab.conf and it is swept the
-  # same night, with no edit here.
-  #
-  # IPv6 only, and that is a reasoned narrowing rather than a shortcut. IPv4 ANDs
-  # the per-device value with `.all.` at use time, so an eth0 that kept the
-  # kernel default is genuinely inert there — which is exactly why the IPv4 twin
-  # of the live instance reads 0 and the IPv6 one reads 1. IPv6 has no such
-  # aggregation for these knobs: the ICMPv6 path reads the receiving device's
-  # own inet6_dev copy, taken at NETDEV_REGISTER before systemd-sysctl runs.
-  #
-  # `lo` and -1 are skipped on the kernel's own terms, not as exceptions: -1 is
-  # what a device that never autoconfigures reports, and loopback receives no
-  # redirect from a third party.
-  #
-  # Scope, stated rather than left implicit: it sweeps what THIS REPO declares,
-  # in 99-homelab.conf. Distribution files are out — 10-ipv6-privacy.conf sets
-  # use_tempaddr, whose eth0 copy diverges for the same NETDEV_REGISTER reason
-  # and is immaterial here (no global IPv6 address, no SLAAC, accept_ra=0), and
-  # asserting it would be a permanent red for a value nothing acts on. Measured
-  # 2026-09-11: 3 knobs x 41 interfaces = 123 pairs, 1 divergence.
   sysctl-declared-knobs-reach-every-interface:
     exec: |
       decl=/etc/sysctl.d/99-homelab.conf
       [ -r "$decl" ] || { echo "$decl unreadable — the derivation has no source"; exit 1; }
       knobs=$(sed -n 's/^net\.ipv6\.conf\.all\.\([a-z_]*\) *=.*/\1/p' "$decl" | sort -u)
       [ -n "$knobs" ] || { echo "derived ZERO ipv6 knobs from $decl — the sed no longer matches"; exit 1; }
-      # The floor that matters is not "more than zero" but "as many as the file
-      # declares": a sed that silently stops matching some lines shrinks the
-      # sweep without emptying it, which is the failure this spec keeps finding
-      # elsewhere. Both counts come from the same file, so they move together.
       declared=$(grep -c '^net\.ipv6\.conf\.all\.' "$decl")
       found=$(printf '%s\n' $knobs | wc -l)
       [ "$found" -eq "$declared" ] || {
@@ -2306,22 +1103,6 @@ command:
         echo "the sed is losing lines — the sweep would be narrower than the file"
         exit 1
       }
-      # One grep per knob, and both halves of that matter.
-      #
-      # Speed: the first version forked basename, dirname and cat per iteration —
-      # about 250 processes over 3 knobs x 41 interfaces — and blew through
-      # goss's 10 s default, reporting a TIMEOUT instead of a verdict.
-      #
-      # Portability: the second version replaced those with `read -r have <
-      # "$path"`, which forks nothing and works under bash. GOSS RUNS sh. dash's
-      # `read` returns non-zero on a /proc/sys file, so every iteration took the
-      # `|| continue`, `seen` stayed 0 and the anti-vacuity floor fired — the
-      # floor did its job, and the assertion reported vacuous rather than
-      # passing. Verified under bash AND sh this time, which is the actual
-      # lesson: it had been verified under bash only.
-      #
-      # `grep -H .` reads every interface's copy in one call and prints
-      # path:value, so this is 3 greps and 3 sysctls in total.
       bad=0; seen=0
       for k in $knobs; do
         want=$(sysctl -n "net.ipv6.conf.all.$k" 2>/dev/null) || continue
@@ -2344,23 +1125,6 @@ command:
     timeout: 60000
     exit-status: 0
 
-  # The property that makes #288 hard to see: a container killed mid-shutdown
-  # says nothing about it. The evidence is in the log of the NEXT start, and by
-  # then everything is green — 28 containers up, no failed unit, no red monitor.
-  #
-  # Scoped to the CURRENT start, and that is not optional: a json-file log
-  # survives restarts, so grepping all of it would report every recovery this
-  # container has ever done, forever, and the assertion could never go green.
-  #
-  # Three markers for three engines, taken from the real logs of 2026-08-29.
-  # Redis is absent for nextcloud-redis only, which runs with `--save ""` and
-  # no appendonly and therefore has nothing to recover. immich-redis does NOT:
-  # it holds Immich's immich_bull:* job queues and was given
-  # `--appendonly yes --appendfsync everysec` for that reason, so it has a real
-  # AOF and a real recovery. The sentence this comment replaces said both
-  # instances ran with persistence off "and never will", which stopped being
-  # true the day the queues were made durable and was still here on 2026-09-11.
-  # Adding a marker for it is a separate question from correcting the claim.
   no-container-came-back-recovering:
     exec: |
       bad=""
@@ -2379,66 +1143,9 @@ command:
         echo "the shutdown budget did not cover them — see #288"
         exit 1
       }
-    # goss allows a command 10 s by default and this one exceeded it on
-    # 2026-08-30 01:02, reporting `Error Command execution timed out` — which
-    # reads as a failed assertion but is the instrument failing, not the system.
-    # Measured cost on an idle host: 1 061 ms for all four containers. The
-    # timeout is not about that figure, it is about the load THIS SPEC creates:
-    # 337 checks, many shelling out to docker, and the run that timed out came
-    # minutes after a daemon restart. 30 s is ~28x the idle cost.
     timeout: 90000
     exit-status: 0
 
-  # --- A report that reached nobody (audit of 2026-08-30) --------------------
-  # Eight scripts push a beat to Uptime Kuma. Until this shipped, seven ended
-  # their curl in `2>&1 || true` and the eighth carried no --fail at all, so a
-  # push that failed was indistinguishable from one that landed: the run exited
-  # 0, the unit was green, and the monitor kept showing the PREVIOUS reading.
-  # Measured that evening after the 17:29 reboot — three runs of homelab-health
-  # at 17:30:40, 17:35:40 and 17:40:36, each burning 5.6-8.0 s of CPU on real
-  # work, none of them reaching the dashboard, the monitor sitting 16 min 55 s
-  # stale. This is the shape the whole audit exists to catch, and it is the same
-  # one that opened it on 2026-08-15.
-  #
-  # Each site now writes `kuma-push-failed:` to stderr, which systemd files in
-  # the journal. That half only moves the defect one layer down unless something
-  # READS it — this assertion is that something.
-  #
-  # The floor is DERIVED, not a constant. A push that failed before Kuma was
-  # able to record anything is a boot artifact, not a lost report: measured on
-  # this same reboot, the container reached `StartedAt` at 17:34:03 and did not
-  # record its first beat until 17:41:17, 434 s later. Hard-coding 434 s would
-  # be a number that rots; the first beat Kuma itself recorded since its own
-  # start is the same fact, owned by the machine. Without this floor the check
-  # fires after every single reboot, which is how an assertion teaches its
-  # reader to ignore it.
-  # --- The vault mount answers, rather than merely being mounted -----------
-  # Added 2026-09-13, after /home/claude/vault returned `Input/output error` on
-  # every read for EIGHTEEN HOURS while both of its units reported healthy:
-  #
-  #     vault-mount.service       active (running)
-  #     home-claude-vault.mount   active (mounted)
-  #
-  # rclone does not exit when its credential stops being accepted, so neither
-  # unit can express the failure. The only symptom that surfaced was
-  # homelab-feed-digest failing the next morning — a consumer that touches the
-  # mount once a day, which made the detection latency a day by construction.
-  #
-  # WHY A WRITE AND NOT `ls -l`. Two traps, both measured that day:
-  #   - `ls -l <file>` on this mount prints `Input/output error` AND the correct
-  #     line, on a perfectly healthy mount. Asserting on it would produce a
-  #     permanent false positive.
-  #   - a plain read can be served from rclone's dir-cache (30 s here), so it
-  #     can succeed against a backend that is already refusing.
-  # Writing, reading back and removing exercises the credential end to end, and
-  # it is what the real consumer does.
-  #
-  # Written as the `claude` user because the mount is 0700 and root is NOT
-  # exempt: rclone's FUSE mount is not shared with other uids, so a root test
-  # would fail on a healthy mount for the wrong reason.
-  #
-  # The file is written under Inbox/ deliberately — a directory that exists and
-  # is synced, so a failure here means the mount, not a missing path.
   vault-mount-is-writable-not-just-mounted:
     exec: |
       t=/home/claude/vault/Inbox/.goss-vault-probe
@@ -2456,95 +1163,19 @@ command:
       started=$(docker inspect uptime-kuma 2>/dev/null |
                 sed -n 's/.*"StartedAt": *"\([^"]*\)".*/\1/p' | head -1)
       [ -n "$started" ] || { echo "cannot read uptime-kuma StartedAt — no floor, refusing to judge"; exit 1; }
-      # Both sides are UTC: Docker stamps Z, and the Kuma container runs UTC, so
-      # its `heartbeat.time` needs no conversion. `datetime(x,'localtime')` in
-      # that container is a NO-OP for the same reason — it cost this audit a
-      # wrong reading before it was noticed.
       utc=$(printf '%s' "$started" | sed 's/T/ /; s/\..*//')
       first=$(docker exec uptime-kuma sqlite3 "file:/app/data/kuma.db?mode=ro" \
               "select strftime('%s', min(time)) from heartbeat where time >= '$utc'" 2>/dev/null)
       case "$first" in
         ''|*[!0-9]*) echo "uptime-kuma has recorded no beat since it started at $started — nothing can be judged, and that is itself wrong"; exit 1 ;;
       esac
-      # CAP THE LOOKBACK, and the reason is written one screen down under
-      # `timeout:`. The floor above is derived and correct, but it is bounded by
-      # Kuma's uptime, which is bounded by nothing — so the scan grew every day
-      # this container stayed up and crossed its own budget on the second day.
-      #
-      # 26 h, because this spec's timer fires daily and OnBootSec=30min: a
-      # 26 h window covers the widest gap between two consecutive runs with
-      # margin, so nothing can be lost BETWEEN runs, which is all this check has
-      # ever needed to see. Beyond that the window was buying history no run
-      # reads.
-      #
-      # `max(first, now-26h)` and not a bare `now-26h`: the derived floor still
-      # wins when Kuma restarted recently, so the check keeps refusing to judge
-      # a period during which no push could have landed.
       cap=$(( $(date +%s) - 26 * 3600 ))
       [ "$first" -lt "$cap" ] && first="$cap"
-      # --grep, and ANCHORED, for two separate reasons.
-      #
-      # --grep applies to the MESSAGE field alone, where a pipe into grep sees
-      # the whole formatted line. The anchor then rejects a message that merely
-      # MENTIONS the marker. Both matter, and the second was not theoretical: on
-      # the evening this shipped, the first form counted 7 losses on a host that
-      # had lost nothing — sudo had journalled the audit's own
-      # `grep -c kuma-push-failed: /usr/local/bin/...` verification commands.
-      # A marker whose namespace is the entire journal is trippable by anyone
-      # looking for it.
-      #
-      # Controls run before this was trusted: anchored -> 0, the same --grep
-      # WITHOUT the anchor -> 7, so the zero comes from the anchor rather than
-      # from a filter that matches nothing; and `--grep "push failed"` over the
-      # same window -> 1, the old-format line the netdata adapter wrote at
-      # 17:42, proving the filter reaches real script output.
-      #
-      # One call, not two: the listing reuses what the count read, so the
-      # failing path costs no more than the passing one.
-      # --- A LOSS IS AN EVENT; THIS ALARM MUST DESCRIBE A STATE ---------------
-      # Counting losses in the window made this a level alarm on an edge event:
-      # one push that failed at 13:56 held the monitor red until 15:56 the NEXT
-      # DAY, while reports had been landing again since 14:01. Measured
-      # 2026-09-05, and the cause was our own deploy — recreating dnsproxy took
-      # DNS away for the seconds in which homelab-health ran, and its report
-      # could not escape because escaping needs to resolve a name.
-      #
-      # Every deploy that touches dnsproxy or traefik would repaint 26 hours of
-      # red that says nothing new, and #207 is this repository's own record of
-      # what that costs: a monitor that is permanently red is a monitor nobody
-      # reads. The question worth alarming on is not "was a report lost" but
-      # "are reports STILL not getting through".
-      #
-      # So a loss is LIVE unless the push path has demonstrably recovered, and
-      # recovery is read from Kuma's own tables rather than from a new marker in
-      # ten copies of push_to():
-      #
-      #   no beat at all since the loss        nothing proves the path works.
-      #   a reporter silent past its OWN       that reporter is still failing;
-      #   cadence since the loss               derived from monitor.interval,
-      #                                        the same source C41 uses.
-      #
-      # A weekly job that has not run yet is NOT judged, which is the whole
-      # reason the second clause compares against each monitor's own interval
-      # instead of demanding that everything beat. Both clauses were run against
-      # the live database in both directions before this shipped.
-      # The `grep '^[0-9]'` is not cosmetic and removing it re-breaks this check
-      # silently. `journalctl` writes `-- No entries --` to STDOUT, not stderr,
-      # so `2>/dev/null` does not remove it and a loss-free day counts as ONE
-      # loss: the fast path below dies, `newest` becomes `--`, and `date -d "--"`
-      # does not fail — it returns today's local midnight. Every run then judged
-      # recovery against a fabricated loss and excluded 9 of the 15 push monitors
-      # from the second clause. Keeping only timestamp-shaped lines is immune to
-      # the sentinel's wording; the offsite twin avoids it by using `-o cat`,
-      # which is not available here because this clause needs the timestamp.
       hits=$(journalctl --since "@$first" --no-pager -o short-iso \
              --grep '^kuma-push-failed:' 2>/dev/null | grep '^[0-9]' || true)
       lost=$(printf '%s' "$hits" | grep -c . )
       [ "$lost" -eq 0 ] && exit 0
 
-      # journalctl prints local time and Kuma stores UTC. Converting through an
-      # epoch rather than string-handling the offset is deliberate: reading one
-      # as the other is an instrument trap this audit has already paid for.
       newest=$(printf '%s\n' "$hits" | tail -1 | cut -d' ' -f1)
       loss_epoch=$(date -d "$newest" +%s 2>/dev/null)
       case "$loss_epoch" in
@@ -2555,36 +1186,6 @@ command:
 
       kq() { docker exec uptime-kuma sqlite3 "file:/app/data/kuma.db?mode=ro" "$1" 2>/dev/null; }
 
-      # `h.status = 1` ON BOTH CLAUSES, 2026-09-13, and without it this whole
-      # assertion is decorative. Kuma FABRICATES a beat: monitor.js writes a
-      # row reading "No heartbeat in the time window", once per interval, for
-      # every push monitor whose previous beat is not UP. There is no time term
-      # in that disjunct, so the rows keep coming for as long as the reporter
-      # stays down.
-      #
-      # Both clauses below used to count rows in `heartbeat` with no status
-      # filter, so those fabricated rows answered "something reached the
-      # dashboard" on behalf of a reporter that reached nothing — and a
-      # genuinely mute reporter could satisfy neither clause. Measured on the
-      # live database the day this shipped: 39 fabricated rows, 36 of them for
-      # monitor 20, ALL at status=0, against 164 real status=1 rows for the
-      # same monitor the same day. Both kinds coexist, which is exactly what
-      # makes a bare row count meaningless.
-      #
-      # Why status and not the message. The obvious fix is
-      # `h.msg <> 'No heartbeat in the time window'`, and it is the wrong one:
-      # that string is an upstream literal from one version of Kuma, and a
-      # release can change it silently — the same axis that has already cost
-      # this repository once. `status` is a structured field. C41 has filtered
-      # on it since 2026-08-30 and that is precisely why C41 survives what this
-      # assertion did not.
-      #
-      # Why the six-run fail-on-purpose proof passed anyway, on the afternoon
-      # this was promoted: it ran against a SYNTHETIC Kuma database, which by
-      # construction held only the rows the test itself wrote. A fixture cannot
-      # contain the rows the upstream writes on its own. The proof was sincere
-      # and the gate was blind. Re-prove this one against a database that
-      # CONTAINS fabricated rows, or it proves nothing again.
       beats=$(kq "select count(*) from heartbeat h join monitor m on m.id = h.monitor_id
                   where m.type = 'push' and m.active = 1 and h.status = 1
                     and h.time > '$loss_utc';")
@@ -2611,41 +1212,6 @@ command:
         printf '%s\n' "$silent" | sed 's/^/  /'
         exit 1
       fi
-    # The paragraph that used to sit here sized 45 s as ~11x a 4.2 s idle cost
-    # and then said, correctly: "The scan grows with the window, which is
-    # bounded by Kuma's uptime rather than by anything here. If this ever times
-    # out again, that is the reason, and the fix is to bound the window — not to
-    # raise the number."
-    #
-    # It timed out the next day. Measured on 2026-08-31 at idle, one session,
-    # same query, four window lengths:
-    #
-    #     6 h -> 5.63 s    12 h -> 6.54 s    25 h -> 20.04 s    48 h -> 52.90 s
-    #
-    # and 34.5-40.6 s under the load this spec itself creates, at ONE day of
-    # Kuma uptime. The claimed 11x margin was 1.2x. So the window is now capped
-    # at 26 h above, and the number is unchanged, exactly as that paragraph
-    # instructed.
-    #
-    # What the cap buys is not speed, it is a bounded term: cost now tracks the
-    # journal's WRITE RATE (~29 MB/day, stable) instead of this container's
-    # uptime. Re-measured after capping: 22.4 s, twice, against 45 s. It also
-    # decouples this check from #290 — raising the journal cap 500M -> 1500M
-    # lengthened retention and would otherwise have tripled this scan as the
-    # journal filled.
-    #
-    # 45 s stays because the failure mode has not changed: goss reports a
-    # timeout as `not ok`, indistinguishable from a failed assertion, so an
-    # instrument that got slow would announce that reports were lost. That trap
-    # was paid at `no-container-came-back-recovering` before it was paid here.
-    #
-    # NEVER "fix" this by filtering the scan with `-p err`. It is a 13x win and
-    # it makes the check blind: the marker is written to plain stderr, these
-    # units run StandardError=inherit with SyslogLevel=6, and script stderr
-    # therefore lands at priority 6 — verified with a positive control, `curl:
-    # (28) Operation timed out ...` sits at priority 6. An empty `-p err` sweep
-    # is not evidence that nothing failed; it is evidence that the filter cannot
-    # see the marker. If a priority filter is ever wanted, the marker has to be
-    # EMITTED at that priority first, in the same change.
+    # [warning]: never filter this scan with `-p err`: the failure marker is logged at priority 6, so the check would go blind
     timeout: 120000
     exit-status: 0

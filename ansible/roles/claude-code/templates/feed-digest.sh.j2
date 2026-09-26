@@ -1,20 +1,5 @@
 #!/usr/bin/env bash
 # {{ ansible_managed }}
-# =============================================================================
-# Daily feed digest — Miniflux -> claude -p -> Obsidian vault
-# =============================================================================
-# Reads everything unread in Miniflux, has Claude Code summarise it, writes one
-# note per day into the vault, then marks the summarised entries read so the next
-# run starts from a clean slate.
-#
-# Runs as the `claude` user: the same one Remote Control uses, whose ~/.claude
-# already holds a claude.ai login. That is why no API key and no long-lived
-# OAuth token are needed here (issue #15 assumed one; `claude -p` proved to work
-# with the existing session credentials).
-#
-# The SCRIPT writes the note, not Claude: the model only emits markdown on
-# stdout. Deterministic frontmatter, and the job needs no write tool at all.
-# =============================================================================
 set -euo pipefail
 
 MINIFLUX_HOST="rss.{{ domain }}"
@@ -22,77 +7,32 @@ MINIFLUX_IP="{{ homelab_ip }}"
 API_KEY_FILE="/mnt/data/secrets/claude/miniflux_api_key"
 VAULT="/home/claude/vault"
 
-# Everything the note shows is a variable with a generic English default, so this
-# script carries no opinion about the reader's vault layout or language. Override
-# in local.yml (see meta/argument_specs.yml for the full list).
 FOLDER="{{ feed_digest_folder | default('Digest') }}"
 NOTE_SUFFIX="{{ feed_digest_note_suffix | default('digest') }}"
 NOTE_TAGS="{{ feed_digest_tags | default('digest') }}"
-# %s is the date. Substituted literally, never through printf, so a stray % in an
-# operator-supplied string cannot turn into a format directive.
 TITLE_FMT="{{ feed_digest_note_title | default('Digest %s') }}"
 LABEL_READ="{{ feed_digest_label_read | default('entries read') }}"
 LABEL_CARRIED="{{ feed_digest_label_carried | default('beyond the cap, carried over to the next run') }}"
-# %s is the folder name, rendered as a wiki link back to the presentation note.
 FOOTER_FMT="{{ feed_digest_note_footer | default('Generated automatically, see [[%s]].') }}"
 
 DIGEST_DIR="${VAULT}/${FOLDER}"
-# FOLDER may be a path ("Domaines/Tech watch"), so the presentation note and the
-# wiki link need its LAST segment: Obsidian links by note name, not by path, and
-# "${DIGEST_DIR}/${FOLDER}.md" would nest the folder inside itself.
 FOLDER_NAME="${FOLDER##*/}"
 PROMPT_DEFAULT="/home/claude/.local/share/feed-digest/prompt.md"
 CLAUDE_BIN="/home/claude/.local/bin/claude"
 LOG="/home/claude/.local/share/feed-digest/digest.log"
 KUMA_PUSH_URL="{{ feed_digest_kuma_push_url | default('') }}"
 
-# Cap on how many entries reach the model in one run. Sized well above a normal
-# day (~120 feeds, mostly sparse release feeds) so it only trips on a backlog —
-# a week away, or the first run after an OPML import. What it drops is REPORTED,
-# never silently swallowed: a truncated digest that reads as exhaustive is worse
-# than no digest.
 MAX_ENTRIES={{ feed_digest_max_entries | default(400) }}
 
-# Per-entry content budget. Titles alone lose the "is this a breaking change or a
-# typo fix" signal, full articles blow the context on a busy day.
 CONTENT_CHARS={{ feed_digest_content_chars | default(600) }}
 
-# ONLY the log directory here, and it is on the SD card. Creating $DIGEST_DIR
-# is a WRITE INTO THE VAULT, and under `set -e` it used to run at this line —
-# 97 lines before fail() exists and 102 before the vault gate. On 2026-09-13 the
-# vault returned EIO and this script died right here: no trap, no notify(), no
-# log line naming a cause. The gate below was moved into this file so it could
-# announce its own failure, and the very first thing the file did was touch the
-# vault before that was possible. The vault half now lives after the gate.
 mkdir -p "$(dirname "$LOG")"
 log() { printf '[%s] %s\n' "$(date -u +%FT%TZ)" "$*" | tee -a "$LOG"; }
 
-notify() { # $1=up|down  $2=message
+notify() {
     local url="$KUMA_PUSH_URL"
     [ -n "$url" ] || return 0
-    # -G matters more than it looks: without it curl sends the parameters as a
-    # request body, and Kuma reads none of them. Measured 2026-08-15 — the push
-    # arrived, the monitor turned green, and the message was not the one sent.
-    # The strip is the other half. Kuma's own UI hands out a Push URL with a
-    # ready-made ?status=up&msg=OK&ping= suffix, and the URL's query wins over
-    # anything the request carries: one pasted verbatim pins EVERY push to
-    # up/OK, so `fail` below would report success on the day the digest breaks.
-    # Both halves are needed — the same pair guards backup.sh and the six other
-    # push scripts. Step 5 of knowledge/runbooks/feed-digest.md still says to
-    # paste the base form; this makes obeying it optional rather than critical.
     url="${url%%\?*}"
-    # The push URL's PATH is the monitor's token, so it goes in through a config
-    # file on stdin rather than as an argv positional: /proc is mounted without
-    # hidepid, any local account can read another process's command line, and
-    # this runs unattended on a timer. The sweep of #177 converted eleven scripts
-    # to this shape and never reached this role, which holds the twelfth notify()
-    # (#188). printf is a shell builtin, so the value never reaches an argv there
-    # either, and the pipe keeps it off the filesystem a heredoc would use.
-    # A TIMEOUT IS NOT A LOSS — see homelab-netdata-kuma.sh for the measurement.
-    # curl exit 28 gets `kuma-push-unconfirmed:`, which the live assertion's
-    # anchored grep does NOT match. `|| rc=$?` keeps the guard the old `|| {`
-    # provided: this script runs under `set -e`, where an unguarded failing
-    # pipeline would abort the digest over a report that may well have landed.
     local rc=0
     printf 'url = "%s"\n' "$url" |
         curl -fsS -m 10 -o /dev/null -K - -G \
@@ -106,10 +46,6 @@ notify() { # $1=up|down  $2=message
             ;;
         *)
             log "WARNING: Kuma push failed"
-            # Unprefixed and on stderr, for the same reason as the eight
-            # siblings: `log` stamps a timestamp, and the assertion that
-            # reads this anchors at ^. Keep the string in step with
-            # `no-kuma-report-was-lost-in-silence` in the posture spec.
             echo "kuma-push-failed: this report reached nobody — $2" >&2
             ;;
     esac
@@ -120,51 +56,13 @@ trap 'fail "digest aborted (rc=$?) — see $LOG"' ERR
 
 [ -r "$API_KEY_FILE" ] || fail "missing API key at $API_KEY_FILE"
 
-# The vault gate, and it lives HERE rather than in the unit's ExecStartPre for
-# one reason: `fail` exists on this line and does not exist there.
-#
-# Until 2026-09-13 the unit carried
-#   ExecStartPre=/bin/sh -c 'grep -q " /home/claude/vault " /proc/mounts && ls -1 /home/claude/vault >/dev/null'
-# and on that morning it did its job and nobody heard. rclone's mount was up
-# and `active (running)` while Nextcloud refused its credential — the unit
-# journal reads `PasswordLoginForbidden` at 06:34, 11:39 and 12:32 — so
-# /proc/mounts matched and the readdir returned EIO. The control process exited
-# 2, systemd failed the unit at 06:34:01, and digest.sh, which holds the only
-# notify() in this chain, never started. Nothing pushed anything.
-#
-# CORRECTED 2026-09-13 (night): this comment used to say the dead-man's window
-# "was the entire signal" and that the cause was never named. That is wrong, and
-# the correction is the reason this unit must keep failing loudly. `Pi health`
-# reported it at 06:41:12 — SEVEN MINUTES AND ELEVEN SECONDS later, carrying
-# `last run failed: homelab-feed-digest.service`, and it held that message for
-# 72 DOWN beats over six hours. It could do so for exactly one reason: systemctl
-# said the unit had failed. That is also why this unit gets no
-# SuccessExitStatus=1 while homelab-ddns does — see the note in
-# roles/deploy/tasks/offsite.yml, which paid for the same mistake.
-#
-# The hand-run at 12:36 then set `Result=success` and the aggregate went green
-# while the schedule stayed unexercised — which is how a green dashboard
-# survives a job that did not run.
-#
-# The protection the ExecStartPre bought is preserved exactly — the mount point
-# exists as an empty local directory when rclone is down, so writing the note
-# without this check lands it on the SD card instead of Nextcloud. Both halves
-# still have to hold, and the readdir is what catches a mount that is present
-# and not serving.
 grep -q " ${VAULT} " /proc/mounts \
     || fail "the vault is not mounted at ${VAULT} — refusing to write the note to the SD card"
 ls -1 "$VAULT" >/dev/null 2>&1 \
     || fail "the vault at ${VAULT} is mounted but unreadable — check vault-mount.service (a rejected credential leaves it active and failing)"
 
-# The vault is mounted and serving, so it is now safe to create the digest
-# folder and its presentation note. Everything below this line may write into
-# the vault; nothing above it may.
 mkdir -p "$DIGEST_DIR"
 
-# Some vaults expect every folder to carry a note named after it — that is what
-# Obsidian shows when you click the folder. Written once and never overwritten, so
-# a hand-written replacement survives every deploy; delete it if your vault has no
-# such convention and it will not come back until the folder is recreated.
 PRESENTATION="${DIGEST_DIR}/${FOLDER_NAME}.md"
 if [ ! -e "$PRESENTATION" ]; then
     cat > "$PRESENTATION" <<PRESENTATION_EOF
@@ -173,8 +71,6 @@ type: note
 tags: [${NOTE_TAGS}]
 ---
 
-# ${FOLDER_NAME}
-
 Dated notes in this folder are written **automatically** by
 \`homelab-feed-digest.timer\`: the job reads everything unread in Miniflux, has
 Claude summarise it, writes the note, then marks those entries read. This folder
@@ -182,8 +78,6 @@ is therefore the only place the digest is readable.
 
 A note is an output, never a source. If a digest reads badly, do not edit the
 note, fix the prompt and replay it.
-
-## Tuning the prompt
 
 The default prompt ships with the home-lab repository, in English and
 deliberately generic: that repository is public, so nothing personal lives in it.
@@ -207,21 +101,6 @@ PRESENTATION_EOF
     log "created ${PRESENTATION}"
 fi
 
-# Prompt selection. `ansible.builtin.template` is authoritative by design — this
-# role even PURGES commands deleted from the repo, so the host cannot drift from
-# git — and that is right for infrastructure. A prompt is not infrastructure, it
-# is tuning: it gets adjusted the morning a digest reads badly, from whatever
-# device is at hand.
-#
-# So the repo keeps full ownership of the default, and a hand-written override in
-# the VAULT wins when it exists. The two never collide: Ansible has no reason to
-# touch the vault, and the override is reachable from Obsidian on any device,
-# phone included. Seed one with:
-#   cp ~/.local/share/feed-digest/prompt.md "<vault>/<folder>/prompt.local.md"
-#
-# The override wins silently by explicit choice: no staleness warning when the
-# repo default moves on. Which file is in use IS logged, because a digest that
-# suddenly reads differently is otherwise very hard to explain.
 PROMPT_OVERRIDE="${DIGEST_DIR}/prompt.local.md"
 if [ -r "$PROMPT_OVERRIDE" ]; then
     PROMPT_FILE="$PROMPT_OVERRIDE"
@@ -233,15 +112,8 @@ fi
 
 API_KEY="$(cat "$API_KEY_FILE")"
 
-# The Pi's own resolver is NOT Pi-hole (systemd-resolved points elsewhere), so
-# rss.<domain> does not resolve on the host even though every LAN client can.
-# Pinning it here is what makes the job independent of the host's resolver —
-# and it goes through Traefik, so it exercises the same path a browser does.
-mf() { # $1=method  $2=path  [$3=body]
+mf() {
     local method="$1" path="$2" body="${3:-}"
-    # Args in an array, not a ${body:+...} expansion: the JSON body contains
-    # spaces, and an unquoted expansion would word-split it into broken curl
-    # arguments the moment a request carries one.
     local -a args=(-fsS -m 60
         --resolve "${MINIFLUX_HOST}:443:${MINIFLUX_IP}"
         -K -
@@ -249,11 +121,6 @@ mf() { # $1=method  $2=path  [$3=body]
     if [ -n "$body" ]; then
         args+=(-H "Content-Type: application/json" -d "$body")
     fi
-    # The API key authenticates every call this function makes, and `-H` would
-    # hold it in argv for the length of each request — the same exposure as the
-    # push URL above, on a second credential (#188). Same shape as cf_api() in
-    # cloudflare-ddns.sh. Content-Type stays in the array on purpose: it is not a
-    # secret, and it belongs next to the body the array exists to protect.
     printf 'header = "X-Auth-Token: %s"\n' "$API_KEY" |
         curl "${args[@]}" "https://${MINIFLUX_HOST}${path}"
 }
@@ -261,14 +128,6 @@ mf() { # $1=method  $2=path  [$3=body]
 log "fetching unread entries"
 ENTRIES="$(mf GET "/v1/entries?status=unread&direction=asc&limit=${MAX_ENTRIES}")"
 
-# Assert the SHAPE before deriving anything from it (#289, class C03). `-fsS`
-# only establishes that the call returned 2xx, and everything below then treats
-# the body as an entries page. On any well-formed JSON that is not one — an
-# error object served 200, a shape the API changes under us — `.entries` is
-# null, `null | length` is 0 in jq, and the run takes the "nothing unread"
-# branch: it pushes the monitor UP, says "nothing new", writes no note and
-# exits 0. A failure that reports success is worse than one that reports
-# nothing, and it is invisible on exactly the days the digest is empty anyway.
 jq -e 'type == "object" and (.entries | type == "array")' >/dev/null 2>&1 <<<"$ENTRIES" ||
     fail "miniflux answered without an entries array"
 
@@ -283,16 +142,10 @@ if [ "$FETCHED" -eq 0 ]; then
 fi
 
 DROPPED=$(( TOTAL > FETCHED ? TOTAL - FETCHED : 0 ))
-# `[ ... ] && log ...` would be a trap here: when the test is false the AND-list
-# returns 1, and under `set -e` that aborts the whole run. Every conditional in
-# this script is an `if` for that reason.
 if [ "$DROPPED" -gt 0 ]; then
     log "WARNING: ${DROPPED} entries beyond the cap, left unread for the next run"
 fi
 
-# Compact rendering for the model: category and feed give it the editorial pillar
-# without having to guess from the title. HTML is stripped rather than escaped —
-# the model gains nothing from markup and it costs context.
 INPUT="$(jq -r --argjson n "$CONTENT_CHARS" '
   .entries[]
   | "## \(.title)\n"
@@ -306,23 +159,11 @@ TODAY="$(date +%F)"
 NOTE="${DIGEST_DIR}/${TODAY} - ${NOTE_SUFFIX}.md"
 
 log "running claude -p on ${FETCHED} entries"
-# --print with NO TOOLS, and `--tools ""` is what makes that true rather than
-# aspirational. The comment here used to read "nothing here needs the
-# filesystem, so nothing here gets it" while the invocation carried the default
-# tool set — Read included — on the account that owns the vault and reaches the
-# secrets directory. Same defect as ADR-004's sandbox claim, in the same role
-# (#203, #219): a sentence describing an intention as though it were a control.
-#
-# The job genuinely needs no tool: the model reads stdin and writes markdown to
-# stdout, and this SCRIPT writes the note.
 BODY="$(printf '%s\n\n---\n\n# Entries\n\n%s\n' "$(cat "$PROMPT_FILE")" "$INPUT" \
     | "$CLAUDE_BIN" -p --tools "" 2>>"$LOG")" || fail "claude -p failed"
 
 [ -n "${BODY//[[:space:]]/}" ] || fail "claude -p returned an empty digest"
 
-# Operator-supplied strings are substituted, never passed to printf as a format:
-# a stray % in a translated label would otherwise be read as a directive and eat
-# the next argument.
 TITLE="${TITLE_FMT//%s/$TODAY}"
 FOOTER="${FOOTER_FMT//%s/$FOLDER_NAME}"
 
@@ -338,8 +179,6 @@ FOOTER="${FOOTER_FMT//%s/$FOLDER_NAME}"
 } > "$NOTE"
 log "wrote ${NOTE}"
 
-# Mark read only what was actually summarised. Anything past the cap stays unread
-# on purpose, so a backlog drains over several runs instead of vanishing.
 IDS="$(jq -c '[.entries[].id]' <<<"$ENTRIES")"
 mf PUT "/v1/entries" "{\"entry_ids\": ${IDS}, \"status\": \"read\"}" >/dev/null
 log "marked ${FETCHED} entries read"

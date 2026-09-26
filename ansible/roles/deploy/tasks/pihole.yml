@@ -1,26 +1,4 @@
 ---
-# Pi-hole password (v6 ignores the env var after first start).
-
-# Everything below reads the password THROUGH the container, at
-# /run/secrets/pihole_password. That path is a bind mount of a host inode, and
-# secrets.yml writes its files with `copy`, which renames a temporary file into
-# place and therefore replaces the inode. Until the consumer is restarted, the
-# container is still attached to the previous one — so on the deploy that
-# rotates the password, the probe below would read the new value from the host,
-# get 401, and `pihole setpassword` would then write the OLD value back over
-# itself from the stale mount. That is not a hypothesis: it happened on
-# 2026-09-06 and cost #333's finding A.
-#
-# Handlers run at the END of the play and this file runs in the middle of it, so
-# the `Restart pihole` that secrets.yml queues would arrive too late — the
-# rotation would only converge on a SECOND deploy. Flushing here makes one
-# deploy enough, which is what the issue's "done when" asks for.
-#
-# The caveat main.yml already records for its own flush applies here as well: a
-# flush runs EVERY handler pending in the play, not only this file's. That is
-# acceptable at this point — the handlers pending here are container restarts
-# whose configuration has already been written, and running them earlier than
-# planned is the same work in a different minute.
 - name: pihole | Flush handlers so the container holds the CURRENT secret, not the one it started with
   ansible.builtin.meta: flush_handlers
 
@@ -33,18 +11,6 @@
   ansible.builtin.set_fact:
     pihole_up: "{{ pihole_info.exists and (pihole_info.container.State.Running | default(false)) }}"
 
-# A skipped block that says nothing is the defect ADR-030 names, and it is the
-# same one `observability/tasks/main.yml` guards against with its "no silent
-# caps" report: the run is CORRECT — there is genuinely nothing to do against a
-# container that is not running — but its silence is not. `ok=0 changed=0` for
-# this whole section is what a healthy no-op and a missed configuration pass
-# look like from the outside, and `changed=0` is exactly what an idempotence
-# check is looking for, so a re-run confirms the wrong thing too.
-#
-# No count in the message on purpose: a hardcoded number is what went stale in
-# boot-and-unlock.md and in ADR-007. The message names the CONSEQUENCES, which
-# do not drift when a task is added.
-
 - name: pihole | Report that the admin password was NOT enforced
   ansible.builtin.debug:
     msg: >-
@@ -55,37 +21,6 @@
   when: not pihole_up
 
 
-# Idempotence: try the v6 auth API with the vault password (JSON-encoded via
-# python so special characters survive). 200 = already set, anything else =
-# needs (re)setting. The throwaway session expires on its own.
-#
-# `check_mode: false` even though this POSTs: the request creates a short-lived
-# session and nothing else, while skipping it registers stdout as an EMPTY
-# STRING — which is not '200', so a dry run would announce that it is about to
-# reset the Pi-hole admin password (#169). Of every probe in this role that is
-# the worst one to get wrong, because the task it guards is the one that changes
-# a credential.
-# Read from the FILE, not from `environment:`, since 2026-09-06. The single
-# letter `P` was chosen to keep the value out of the program's argv — correct
-# for that class, and it missed the channel that mattered: Ansible's become
-# wrapper renders `sudo sh -c 'P=<value> python3 ...'`, and sudo journals the
-# command line it is asked to run. So the secret left the argv of python3 and
-# landed in the argv of sh, in /var/log/auth.log and the systemd journal, both
-# readable without sudo by any account in `adm`.
-#
-# `no_log: true` did not help and was never going to: it suppresses Ansible's
-# own output, not the become wrapper. That was already measured and written
-# down on an earlier audit run; the note existed and had not been generalised
-# from `restic init` to this task.
-#
-# Measured 2026-09-05: 149 lines across auth.log and its four rotations. The
-# reason nine audits missed it is worth keeping: the variable name is chosen by
-# the AUTHOR, not by the secret, so no search for *PASSWORD*/*TOKEN*/*SECRET*
-# can find a leak called `P`. Only a search for the VALUE finds it.
-#
-# The file is the one secrets.yml already writes, and it is already mounted
-# into the container for `pihole setpassword` (#198) — this only stops the host
-# side from taking the long way round.
 - name: pihole | Check the admin password against the auth API
   ansible.builtin.shell:
     cmd: >-
@@ -101,44 +36,6 @@
   no_log: true
   when: pihole_up
 
-# The password is read from the mounted secret INSIDE the container. The probe
-# above was written with care to keep it off the command line, and this task
-# then put it there anyway, six lines below — argv of `docker exec` on the host,
-# every deploy, readable by any local account since /proc has no hidepid (#198).
-#
-# `sh -c` with single quotes is required: without it the `$(cat …)` expands on
-# the HOST, where that path does not exist, and `pihole setpassword` — which
-# takes no flags and treats whatever it receives as the new password — would
-# cheerfully set it to the empty string and answer "New password set".
-# The value reaches `pihole setpassword` on STDIN, never in an argv.
-# Audit class C26, fixed 2026-09-13.
-#
-# The host's `docker exec` line was already clean — `$(cat …)` expands inside
-# the container, not here — but `sh -c` then exec'd
-# `pihole setpassword <plaintext>`, which becomes
-# `pihole-FTL --config webserver.api.password <plaintext>`. /proc carries no
-# hidepid, so any local account could read it for the life of that call.
-#
-# This is verbatim the defect transmission.yml documents and fixes for itself in
-# this same role (#198): "the `$(cat …)` already expands inside the container,
-# so the host's `docker exec` argv was clean — but the value still landed in the
-# argv of the transmission-remote process itself". Six of the seven
-# `$(cat /run/secrets/…)` sites here keep the value out of argv; this was the
-# seventh.
-#
-# Three things make the stdin form correct, all verified in the running
-# container rather than assumed:
-#   - `SetWebPassword` falls through to `read` when given no argument, and it
-#     reads TWICE — password then confirmation. Hence two lines.
-#   - `/bin/sh` is busybox and `printf` is a SHELL BUILTIN there, so the value
-#     never becomes a separate process's argv on the way in either.
-#   - an EMPTY password is not an error to that function, it is the instruction
-#     to REMOVE the password ("Password Removed", exit 0). The guard below is
-#     what stops a failed `cat` from silently disabling authentication — the
-#     same hazard the deleted comment warned about for the argument form.
-#
-# No `-i` on `docker exec`: the pipe is inside the container, so `pihole` gets
-# its stdin from the shell, not from the host.
 - name: pihole | Set Pi-hole admin password
   ansible.builtin.command:
     cmd: >-
@@ -152,21 +49,6 @@
     - pihole_up
     - pihole_pw_check.stdout | default('') != '200'
 
-# `pihole setpassword` rewrites pihole.toml — which carries
-# `webserver.api.pwhash` — as 0644, undoing the 0640 the container's own start
-# script sets. Measured 2026-09-06: the posture check
-# `pihole-credential-files-not-world-readable` went red at 13:11, minutes after
-# the #327 deploy, and nothing in this file restored the mode.
-#
-# Exposure was nil and that was verified rather than assumed: the directory gate
-# /mnt/data/services/pihole is 0750 <deploy-user>:gpio, and the negative control
-# `sudo -u nobody head -c 1` on the file is refused. But the defence-in-depth
-# layer was genuinely off, and it recurs on EVERY rotation.
-#
-# Enforced unconditionally rather than only after the task above: the mode is
-# the property, and a run that finds it already correct reports ok, which is
-# what an idempotence check should see. Owner and group are deliberately not
-# set — the file belongs to the uid the container runs as.
 - name: pihole | Restore pihole.toml's mode after setpassword widened it
   ansible.builtin.file:
     path: "{{ services_data_dir }}/pihole/etc/pihole.toml"

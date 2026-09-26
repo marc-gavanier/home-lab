@@ -1,21 +1,4 @@
 ---
-# Security audit tools.
-#
-# lynis is scheduled and reported by the observability role: a weekly run, a
-# hardening index pushed to a monitor, and a ratchet that goes DOWN on any
-# regression. That is what makes it a control rather than a package.
-
-# `state` derived from whether this host SCHEDULES the tool, rather than
-# `present` unconditionally (#291). The schedule, the report script, the
-# hardening-index ratchet and the push monitor all live in the observability
-# role, which runs on the homelab only — so `present` here put lynis on the
-# offsite too, where nothing would ever run it. Its timer was masked (correctly,
-# below) and its last report is 2026-08-17: on any inventory of what is
-# installed, that reads as coverage.
-#
-# Same arbitration as rkhunter at the bottom of this file, and the same task
-# shape, so the two decisions are legible side by side: an absent tool is
-# honest, an installed tool that never runs is not.
 - name: audit | Install security audit tools where they are scheduled
   ansible.builtin.apt:
     name:
@@ -23,28 +6,11 @@
     state: "{{ 'present' if lynis_scheduled | default(false) else 'absent' }}"
     purge: "{{ not (lynis_scheduled | default(false)) }}"
 
-# The distribution ships its own lynis.timer, enabled, OnCalendar=daily. It was
-# masked on the homelab on 2026-08-16 for two reasons — roughly 40 minutes of
-# CPU a week on a Pi for a report nobody reads, and a permanently fresh
-# /var/log/lynis-report.dat that made the report script's freshness guard unable
-# to fire.
-#
-# These tasks live HERE, next to the package that ships the timer, rather than
-# in the observability role where they started. That role runs on the homelab
-# only, so the offsite Pi kept running the daily audit for another day: several
-# minutes of CPU on a 4 GB board with no report script, no push monitor and no
-# log anyone reads — the timer had no consumer on that host at all (#155). The
-# `security` role runs on both, which is the property that matters.
-# Statting the unit file rather than assuming it: on a host where the package
-# has just been purged the file is gone, and every task below correctly skips.
 - name: audit | Look for the distribution's own lynis timer
   ansible.builtin.stat:
     path: /usr/lib/systemd/system/lynis.timer
   register: lynis_distro_timer
 
-# Guarded on the unit actually existing rather than swallowed with
-# `failed_when: false` — a task that cannot fail is the very defect this change
-# is fixing, and it would be absurd to introduce one here.
 - name: audit | Stop and disable the distribution's daily lynis timer
   ansible.builtin.systemd:
     name: lynis.timer
@@ -52,40 +18,12 @@
     state: stopped
   when: lynis_distro_timer.stat.exists
 
-# Masked in a SEPARATE task, after the stop, and the order is the entire point.
-# Combining `masked: true` with `state: stopped` in one task produces the
-# equivalent of `systemctl mask --now`: the fragment becomes /dev/null, systemd
-# can no longer load the unit it is being asked to stop, and it records it as
-# FAILED. The timer is correctly dead either way, but `systemctl --failed` stops
-# being empty — and that is the first thing a human scans, besides being a
-# signal several checks here read.
-#
-# Both orders measured on the host on 2026-08-16:
-#   mask --now      -> ActiveState=failed,   one entry in --failed
-#   stop, then mask -> ActiveState=inactive, --failed empty
-#
-# Masked rather than merely disabled so a package update cannot quietly put the
-# daily run back.
 - name: audit | Mask lynis.timer so a package update cannot re-enable it
   ansible.builtin.systemd:
     name: lynis.timer
     masked: true
   when: lynis_distro_timer.stat.exists
 
-# rkhunter was installed here and NEVER RAN — not once, on either host, in the
-# lifetime of this lab. No /var/log/rkhunter.log exists, CRON_DAILY_RUN is
-# empty, and the signature database was frozen on 2026-05-10. It was pure
-# posture: a rootkit scanner on the package list, doing nothing, while looking
-# like coverage on any inventory of what is installed.
-#
-# Removed rather than scheduled. Scheduling it would mean adding an alerting
-# path and a false-positive budget for machinery nobody asked for — and this
-# repo has already declined a reputation/IPS layer for the same reason. An
-# absent tool is honest; an installed tool that never runs is not.
-#
-# To go the other way instead: put it back on the list above, set
-# CRON_DAILY_RUN="true" in /etc/default/rkhunter, run `rkhunter --propupd`
-# once to baseline it, and give it a push monitor like lynis has.
 - name: audit | Remove rkhunter, which was installed but never ran
   ansible.builtin.apt:
     name: rkhunter

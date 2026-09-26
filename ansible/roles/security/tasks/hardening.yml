@@ -1,17 +1,4 @@
 ---
-# CIS batches 5-6 (audit 2026-07): the genuine quick wins from the arbitration
-# table, kept to what ground-truth checks showed as REAL gaps. Deliberately
-# NOT here (verified already-satisfied or decided against):
-#   - lock shell-less accounts (5.4.2.8): every system account is already
-#     locked (* / ! in shadow) — the role's 17 "changed" are false positives
-#   - sudo use_pty (5.2.2): Ubuntu ships "Defaults use_pty" already
-#   - strong password hashing (5.4.1.4): login.defs is already SHA512
-#   - system-account shells (5.4.2.7): no non-root account has a login shell
-#   - umask 027, shell TMOUT, login banners, su group: see report §2 (skip/careful)
-
-# 1.1.2.2.4 — /dev/shm is tmpfs, exec-capable by default; a classic staging
-# ground for "drop payload in RAM and run it". It already has nosuid,nodev;
-# add noexec. (Container /dev/shm is a separate per-container mount — unaffected.)
 - name: hardening | Mount /dev/shm nodev,nosuid,noexec (CIS 1.1.2.2.4)
   ansible.posix.mount:
     path: /dev/shm
@@ -20,9 +7,6 @@
     opts: defaults,nodev,nosuid,noexec
     state: mounted
 
-# 2.1.21 — Postfix ships listening on all interfaces (0.0.0.0:25 + [::]:25).
-# No mail is received from the network here; restrict it to loopback so it
-# only carries local cron/report mail.
 - name: hardening | Postfix listens on loopback only (CIS 2.1.21)
   ansible.builtin.lineinfile:
     path: /etc/postfix/main.cf
@@ -30,13 +14,6 @@
     line: 'inet_interfaces = loopback-only'
   notify: Restart postfix
 
-# lynis MAIL-8818. The stock banner is `$myhostname ESMTP $mail_name (Ubuntu)`,
-# which names the software and the distribution to anyone who opens the port.
-# Only loopback can, since the task above — so this is depth, not a hole being
-# closed: the value of not naming the version is that a local process which
-# should not be talking to port 25 learns nothing from the answer. Postfix
-# requires the banner to START with $myhostname, so this is the shortest legal
-# form.
 - name: hardening | Postfix banner names the host and nothing else (lynis MAIL-8818)
   ansible.builtin.lineinfile:
     path: /etc/postfix/main.cf
@@ -44,8 +21,6 @@
     line: 'smtpd_banner = $myhostname ESMTP'
   notify: Restart postfix
 
-# 5.2.3 — record every sudo command to a dedicated log (use_pty is already a
-# Ubuntu default). Drop-in + visudo validation so a syntax slip can't lock sudo.
 - name: hardening | Enable a dedicated sudo logfile (CIS 5.2.3)
   ansible.builtin.copy:
     dest: /etc/sudoers.d/cis-logfile
@@ -53,74 +28,6 @@
     mode: "0440"
     validate: 'visudo -cf %s'
 
-# The rotation the task above needed from the day it shipped, and did not have.
-#
-# `Defaults logfile` makes sudo write every command line it runs to a file that
-# NOTHING rotates: Ubuntu ships no logrotate stanza for it, and adding the
-# sudoers drop-in does not create one. Measured 2026-09-12, 56 days after this
-# control was deployed: 14 MB, 241 043 lines, 250 kB/day, oldest entry 18 July,
-# on the SD card.
-#
-# The size is the small half. The large half is that the SAME command lines go
-# to auth.log, which rsyslog rotates weekly and keeps four — about five weeks —
-# so a secret that reaches a command line is forgotten there and kept here for
-# ever. The audit of 2026-09-12 found six distinct credential values in this
-# file spanning 12 August to 6 September, from the `environment:` defect fixed
-# that morning. All six were verified against the live secret set and none is
-# still in use; the point is not those six, it is that the file has no mechanism
-# by which anything ever leaves it.
-#
-# So the retention deliberately MATCHES rsyslog's for auth.log rather than
-# choosing its own number: same window, same compression, so the two stores of
-# the same data expire together. `create 0600 root root` is explicit because the
-# whole reason this file matters is who can read it — sudo creates it 0600 on
-# its own, and a rotation that quietly widened that would undo the control.
-#
-# 2026-09-20 — the "none is still in use" above stopped being true. The audit of
-# that day found the LIVE Cloudflare DNS token here and in `auth.log.2.gz`, and
-# the three *arr API keys in `auth.log.1`, which is 0640 syslog:adm and therefore
-# readable by the operator's own account without root. All of it on the SD card,
-# which is not encrypted, while ADR-011 claimed the card "yields configuration
-# but no credentials".
-#
-# Two changes, and the retention still matches auth.log's because both moved
-# together, which is what the paragraph above asks for:
-#
-#   - DAILY instead of weekly, 28 instead of 4. Same four-week window, but the
-#     newest file — the only one held in clear — now spans a day instead of a
-#     week. That is the difference between five weeks and twenty-four hours of
-#     exposure for anything that reaches a command line.
-#   - The rotated copy is MASKED, by two alternatives rather than one. The first
-#     is any run of 32 or more characters from `[A-Za-z0-9_]`, measured on
-#     2026-09-20 before it shipped: it covers the 32-hex *arr keys and the
-#     53-character Cloudflare token IN FULL, including the form that defeated two
-#     context-anchored searches — the token as a bare argument, with no variable
-#     name and no vendor word anywhere on the line. The hyphen is deliberately
-#     NOT in the class: with it, `no-kuma-report-was-lost-in-silence` and its
-#     siblings were masked too, which destroys readable evidence to no purpose.
-#   - The second alternative exists because the first one is blind to base64, and
-#     the audit of 2026-09-20 measured exactly how blind: `+` and `/` are not in
-#     `[A-Za-z0-9_]`, so they split a key into runs shorter than 32, and whether
-#     a key is redacted at all is decided by which random bytes it drew. Over 200
-#     synthetic 32-byte keys of the shape `wg genkey` emits, 107 passed through
-#     COMPLETELY UNTOUCHED. The two WireGuard server private keys are the live
-#     case: same generator, same 44 characters, and only one of them was masked.
-#     So a padded base64 run — 20 or more of `[A-Za-z0-9+/]` closed by `=` or
-#     `==` — is masked as well, which takes those 200 keys to 0 survivors.
-#     The padding is what keeps it off filesystem paths: a path never ends in
-#     `=`, and widening the FIRST class to include `/` instead was measured and
-#     rejected, because it redacts the path in `sudo.log` and destroys the record
-#     of which file a root command touched. Cost of the form actually shipped,
-#     measured against the live store: ONE additional line changed in auth.log,
-#     against 270 for the `/` form. Residue, stated rather than discovered later:
-#     UNPADDED base64 carrying `+` or `/` is still not covered.
-#
-# What this does NOT do, stated so nobody assumes otherwise: the systemd journal
-# holds the same command lines, on the same card, and has no insertion point for
-# a filter — journald captures `_CMDLINE` itself, in binary, with no hook. The
-# only remedies there are to never put a secret in a command line, and to move
-# the journal onto the encrypted volume, which cannot be validated without a
-# reboot and therefore is not done here.
 - name: hardening | Rotate the sudo logfile the way rsyslog rotates auth.log, masking what it carries
   ansible.builtin.copy:
     dest: /etc/logrotate.d/sudo
@@ -128,7 +35,6 @@
     group: root
     mode: "0644"
     content: |
-      # Managed by Ansible — do not edit on the host.
       /var/log/sudo.log {
           daily
           rotate 28
@@ -142,22 +48,6 @@
           endscript
       }
 
-# `auth.log` carries the SAME command lines as the file above and is the one that
-# matters, because it is 0640 syslog:adm while sudo.log is 0600 root:root — the
-# operator's own account is in `adm`, so it reads the credentials without sudo.
-#
-# Giving it its own schedule means taking ownership of the whole distribution
-# file: logrotate refuses two stanzas for one path, so `auth.log` cannot be split
-# out while the shipped stanza still names it. The other five paths below are
-# reproduced EXACTLY as Ubuntu 24.04 ships them — same rotate 4, same weekly,
-# same shared postrotate — so the only behaviour this task changes is auth.log's.
-# If a distribution upgrade ever changes that stanza, this file wins and the
-# change is silently dropped; that is the cost, and it is accepted because the
-# alternative is leaving credentials in clear for five weeks.
-#
-# `rsyslog-rotate` must stay in BOTH stanzas: it is what signals rsyslog to
-# reopen its files, and a stanza that rotates without it leaves rsyslog writing
-# to a renamed inode — the whole file silently stops growing.
 - name: hardening | Rotate auth.log daily and mask the credentials it carries
   ansible.builtin.copy:
     dest: /etc/logrotate.d/rsyslog
@@ -165,7 +55,6 @@
     group: root
     mode: "0644"
     content: |
-      # Managed by Ansible — do not edit on the host.
       /var/log/syslog
       /var/log/mail.log
       /var/log/kern.log
@@ -199,32 +88,20 @@
           endscript
       }
 
-# --- batch 6 ---
-
-# 5.3.3.4.1 — pam_unix ships with `nullok` in common-auth, which permits login
-# to accounts that have an EMPTY password. Remove the token (word-boundary
-# replace, leaves the rest of the line intact).
 - name: hardening | Remove nullok from pam_unix (CIS 5.3.3.4.1)
   ansible.builtin.replace:
     path: /etc/pam.d/common-auth
     regexp: '(\bpam_unix\.so\b[^\n]*?)\s+nullok\b'
     replace: '\1'
 
-# 5.4.2.6 — root's login shell has no explicit umask; default 022 lets new
-# root-created files be world-readable. Set 027 for root only (narrower and
-# safer than a system-wide default umask, which can break cross-service reads).
-# Target .bash_profile: the CIS-standard location for a login shell (also what
-# the benchmark checks).
 - name: hardening | Set root umask to 027 (CIS 5.4.2.6)
   ansible.builtin.lineinfile:
     path: /root/.bash_profile
     regexp: '^\s*umask'
-    line: 'umask 0027'  # 0027 == 027; the leading zero matches the CIS literal
+    line: 'umask 0027'
     create: true
     mode: "0600"
 
-# 2.3.2.1 — systemd-timesyncd has no explicit time source (NTP= commented),
-# relying on DHCP/fallback. Pin authorized NTP servers.
 - name: hardening | Configure authorized NTP servers for timesyncd (CIS 2.3.2.1)
   ansible.builtin.lineinfile:
     path: /etc/systemd/timesyncd.conf
@@ -233,29 +110,6 @@
     insertafter: '^\[Time\]'
   notify: Restart timesyncd
 
-# lynis TIME-3185 warns when /run/systemd/timesync/synchronized is 2048 s old or
-# more. systemd's PollIntervalMaxSec defaults to exactly 2048, so a STABLE clock
-# backs off until the file is permanently between 0 and 2048 seconds old and the
-# weekly audit warns or not depending on where in that cycle it happens to run —
-# measured 1612 s then 1679 s, sixty-seven seconds apart, on a host reporting
-# NTPSynchronized=yes.
-#
-# It cost NOTHING in hardening points, and that was measured after this task was
-# written rather than assumed: removing this warning and MAIL-8818 left the index
-# at 71, unchanged. The two points came from KRNL-5830 alone —
-# `Hardening: assigned partial number of hardening points (0 of 5)` for the
-# pending reboot — and so did the DOWN. What TIME-3185 actually cost is the
-# warning COUNT the push carries, which is the number an operator reads to decide
-# whether to look. That is a smaller claim than the one first written here, and
-# it is still worth the two lines below.
-#
-# Capping the interval below the threshold is not silencing the test, it is what
-# makes it able to fail for the right reason: as it stands the age of that file
-# cannot distinguish "backed off to the maximum" from "synchronisation stopped",
-# because both produce the same number. At 1024 the file is always fresher than
-# lynis's threshold while timesyncd is working, and crosses it immediately when
-# it is not. Costs one poll every ~17 minutes instead of ~34, against four pool
-# servers.
 - name: hardening | Cap the timesyncd poll interval below lynis's threshold (TIME-3185)
   ansible.builtin.lineinfile:
     path: /etc/systemd/timesyncd.conf

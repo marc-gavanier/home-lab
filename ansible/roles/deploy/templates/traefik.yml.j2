@@ -1,40 +1,9 @@
 # {{ ansible_managed }}
-# =============================================================================
-# Traefik — Static configuration
-# =============================================================================
 
 api:
   dashboard: true
   insecure: false
 
-# `aliasHeadersStrategy: delete` on every entry point that fronts a backend
-# deriving variable names from header names. Traefik 3.7 warns about this on
-# startup, on all three entry points, and the warning is not decorative: a
-# header named `X_Auth_User` (or `X.Auth.User`) reaches CGI/WSGI/PHP as
-# HTTP_X_AUTH_USER — the same variable as `X-Auth-User`, which Traefik believes
-# it controls. So a client can supply the alias form of a header the proxy
-# manages, and the backend cannot tell the two apart.
-#
-# It applies here because this lab really does run those backends: Nextcloud and
-# the Pi-hole admin are PHP, SearXNG and Calibre-Web are WSGI, it-tools sits
-# behind nginx. `delete` rather than `reject` deliberately — dropping the alias
-# is invisible to every legitimate client, while rejecting turns any client that
-# happens to send an underscore header into a 400.
-#
-# Scope, stated so nobody reads this as an emergency: ports 80 and 443 are not
-# forwarded from the internet, so reaching these entry points already requires
-# the LAN or the VPN.
-#
-# UNDER `http:`, not directly under the entry point — and the warning above is
-# what misleads: it says "set it on the entry points", which reads as the level
-# the entry point is defined at. It is one level down. Putting it at the level
-# the sentence suggests is not a warning, it is fatal: traefik exits with
-# "command error: field not found, node: aliasHeadersStrategy" and the container
-# restart-loops with a HEALTHY /ping, because :8082 answers before the static
-# configuration is read. That happened on 2026-09-05 and cost six minutes of
-# reverse proxy. The placement below was proven against the binary's own schema
-# (`traefik --help` lists `--entrypoints.<name>.http.aliasheadersstrategy`) and
-# then parse-tested in a throwaway container before being written here.
 entryPoints:
   web:
     address: ":80"
@@ -52,19 +21,16 @@ entryPoints:
     http:
       aliasHeadersStrategy: delete
       middlewares:
-        # Applied to EVERY HTTPS router (routers can still add their own):
-        - vpn-only@file        # VPN/LAN access only (403 to the internet)
-        - secure-headers@file  # HSTS, SAMEORIGIN, nosniff, referrer-policy
-        - rate-limit@file      # 100 req/s per source IP (DoS/brute-force cap)
+        - vpn-only@file
+        - secure-headers@file
+        - rate-limit@file
       tls:
         certResolver: letsencrypt
   ping:
-    address: ":8082"      # internal only (not published) — for the container healthcheck
+    address: ":8082"
     http:
       aliasHeadersStrategy: delete
 
-# Health endpoint used by the container healthcheck (`traefik healthcheck`).
-# Bound to the internal ping entryPoint above — no TLS, no vpn-only middleware.
 ping:
   entryPoint: ping
 
@@ -73,13 +39,6 @@ certificatesResolvers:
     acme:
       email: "{{ traefik_acme_email }}"
       storage: /acme/acme.json
-      # DNS-01 via Cloudflare (token read from /run/secrets by lego, through
-      # CF_DNS_API_TOKEN_FILE — ADR-016): proves domain control by writing
-      # _acme-challenge TXT records, so certs need no public A record or
-      # inbound :80 — services can stay out of public DNS.
-      # Each router keeps its own certresolver → per-host certs, deliberately NOT
-      # a *.{{ domain }} wildcard (one key valid for subdomains served elsewhere,
-      # e.g. a static site on GitHub Pages). See ADR-014.
       dnsChallenge:
         provider: cloudflare
         resolvers:
@@ -88,8 +47,6 @@ certificatesResolvers:
 
 providers:
   docker:
-    # Reached through the read-only docker-socket-proxy (compose service), never
-    # the raw socket — Traefik holds no direct Docker API access.
     endpoint: "tcp://socket-proxy:2375"
     exposedByDefault: false
     network: proxy
@@ -100,27 +57,5 @@ providers:
 log:
   level: WARN
 
-# No `filters.statusCodes` here, deliberately (#259). It used to keep only
-# 400-599, which made this a log of REFUSALS rather than a log of requests —
-# and #128 then drew a census of "who reaches Traefik" from it and concluded
-# that the offsite Pi never did. It did; it simply never failed. Removing the
-# entry it was granted on the strength of that census took offsite's only
-# reporting channel away for a week. An instrument that cannot observe a
-# success must not be asked who is present.
-#
-# And not /dev/stdout either, deliberately (#287, ADR-034). Removing the filter
-# above is what made this visible: with 400-599 gone the log keeps successful
-# requests too, and some clients can only present their credential in the query
-# string — SignalR cannot set an Authorization header, a media player following
-# a stream URL has nowhere else to put it. stdout is what `docker logs` keeps
-# and what Dozzle serves to every account authorised for it, so the raw line
-# must not go there.
-#
-# Traefik cannot mask a NAMED part of a field. Measured on 3.7.11, both formats:
-# `fields.names.RequestPath: redact` is a NO-OP — the value passes through
-# verbatim — and `drop` blanks the whole path for every line, which would leave
-# vaultwarden, whose own log carries no request line at all, with no HTTP
-# visibility anywhere. So the line is written to a tmpfs here and
-# traefik-log-redactor is what turns it into the durable, masked container log.
 accessLog:
   filePath: /var/log/traefik/access.log

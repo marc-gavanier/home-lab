@@ -1,33 +1,10 @@
 ---
-# =============================================================================
-# Handlers: deploy
-# =============================================================================
-# Pi-hole v6's `pihole reloaddns` does not reliably pick up new entries from
-# /etc/dnsmasq.d/*.conf. Full container restart is the reliable way to apply
-# changes to split DNS config.
-# =============================================================================
-
-# dnsproxy runs with `network_mode: service:pihole`, so restarting Pi-hole
-# destroys the network namespace dnsproxy is attached to. dnsproxy keeps
-# running, stays healthy, and becomes permanently unreachable at 127.0.0.1#5053
-# — Pi-hole then has no upstream at all and every uncached query times out.
-# LAN-wide DNS outage, with both containers green and nothing in `--failed`;
-# the crash-heal timer cannot see it either, since neither container exited.
-# Measured on 2026-07-28, when adding office.<domain> to the split-DNS template
-# fired this handler for the first time since dnsproxy replaced cloudflared.
-# The two restarts must stay in this order and in one handler: a plain
-# `docker restart pihole` anywhere is now a DNS outage waiting to happen.
+# [critical]: restart pihole then dnsproxy, in this order and in one handler: a lone `docker restart pihole` is a LAN-wide DNS outage
 - name: Restart pihole
   ansible.builtin.shell:
     cmd: docker restart pihole && docker restart dnsproxy
   changed_when: true
 
-# Traefik reads its static config (entryPoints, ping, ACME) ONLY at startup.
-# `docker compose up -d` won't recreate the container when only the mounted
-# traefik.yml changes (the compose config hash is unchanged), so a config edit
-# never takes effect without an explicit restart.
-# Replacing a loaded profile applies to the processes already confined by it,
-# so netdata does not need a restart when the profile changes.
 - name: Reload the netdata AppArmor profile
   ansible.builtin.command:
     cmd: apparmor_parser -r /etc/apparmor.d/homelab-netdata
@@ -38,22 +15,11 @@
     cmd: docker restart traefik
   changed_when: true
 
-# searxng_settings and dozzle_users.yml are bind-mounted as FILES, and
-# `template` writes a temporary file and renames it into place — which replaces
-# the inode. Docker bound the old one at container start, so a running
-# container keeps serving the previous content indefinitely: the deploy reports
-# changed, the file on disk is right, and the service never sees it. Traefik
-# and Pi-hole above are handled for the same reason; these two were not, which
-# is only latent today because both happen to have been restarted after their
-# last edit (measured 2026-08-16).
 - name: Restart searxng
   ansible.builtin.command:
     cmd: docker restart searxng
   changed_when: true
 
-# Same inode story, and the same failure shape as the secrets below: awk holds
-# the script open from container start, so an edited redaction pattern would sit
-# on disk, report changed, and never mask anything new (#287).
 - name: Restart traefik-log-redactor
   ansible.builtin.command:
     cmd: docker restart traefik-log-redactor
@@ -64,19 +30,6 @@
     cmd: docker restart dozzle
   changed_when: true
 
-# --- Secret consumers -------------------------------------------------------
-# The eleven Docker secrets are bind-mounted as FILES too, and `copy` with
-# `content:` replaces the inode exactly as `template` does. So the sweep above
-# was incomplete: it covered the two mounted CONFIG files and stopped ten lines
-# short of the secrets, which have the same failure mode and a worse blast
-# radius — a rotated credential that the running container never reads, while
-# the deploy reports changed and everything stays green. Measured: after
-# forgejo_secret_key was written on 2026-08-15, the forge ran 17 h 44 on the
-# previous key.
-#
-# One handler per consumer rather than one blanket restart, so rotating the
-# Cloudflare token does not bounce the password manager. The mapping was taken
-# from the running containers' mounts, not inferred from the compose file.
 - name: Restart vaultwarden
   ansible.builtin.command:
     cmd: docker restart vaultwarden
@@ -87,15 +40,6 @@
     cmd: docker restart forgejo
   changed_when: true
 
-# Restarting rotates nothing here: the database password is an initdb-only
-# input (#159). The handler stays because the container must still be restarted
-# when the file changes for any other reason, and because removing it would
-# leave the secret with no consumer at all — but a rotation needs
-# knowledge/runbooks/rotate-a-secret.md, not a deploy.
-# Both containers run PHP out of the same image and both mount the JIT
-# override, so both have to come back for the setting to be uniform. The
-# notify_push container shares the image too but runs a Rust binary, not PHP,
-# and is deliberately left out.
 - name: Restart nextcloud
   ansible.builtin.command:
     cmd: docker restart nextcloud nextcloud-cron
@@ -106,18 +50,6 @@
     cmd: docker restart nextcloud-db
   changed_when: true
 
-# The three consumers come back WITH it, and the order is the whole point. Redis
-# starts requiring a password the moment it restarts; a Nextcloud still holding
-# the old empty credential answers `NOAUTH` on every cache and session call,
-# which logs everyone out and leaves the web UI erroring rather than merely
-# slower. So this handler restarts the pair and the reader together instead of
-# leaving them to the `Restart nextcloud` handler, which may not be notified by
-# the same deploy.
-#
-# notify_push is included here and NOT in `Restart nextcloud` — the comment
-# above says it is deliberately left out there because it runs a Rust binary
-# rather than PHP. That reasoning is about a PHP setting; this one is about a
-# credential the Rust binary also needs, so it belongs in this list.
 - name: Restart nextcloud-redis
   ansible.builtin.command:
     cmd: docker restart nextcloud-redis nextcloud nextcloud-cron nextcloud-notify-push
@@ -128,22 +60,11 @@
     cmd: docker restart miniflux
   changed_when: true
 
-# Restarting rotates nothing here: the database password is an initdb-only
-# input (#159). The handler stays because the container must still be restarted
-# when the file changes for any other reason, and because removing it would
-# leave the secret with no consumer at all — but a rotation needs
-# knowledge/runbooks/rotate-a-secret.md, not a deploy.
 - name: Restart miniflux-db
   ansible.builtin.command:
     cmd: docker restart miniflux-db
   changed_when: true
 
-# immich_db_password is mounted by both halves, and the server holds the
-# connection, so the database goes first and the server reconnects behind it.
-#
-# Same caveat as the two above: the database side of that password is an
-# initdb-only input, so this restart does not rotate it (#159). See
-# knowledge/runbooks/rotate-a-secret.md.
 - name: Restart immich
   ansible.builtin.shell:
     cmd: docker restart immich-db && docker restart immich-server

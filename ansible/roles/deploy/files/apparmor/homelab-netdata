@@ -1,28 +1,3 @@
-# Managed by Ansible — do not edit on the host.
-#
-# Scoped replacement for `apparmor:unconfined` on the netdata container (#30).
-# Netdata ran unconfined for exactly one reason: apps.plugin reads
-# /host/proc/<pid>/* for processes that belong to other AppArmor profiles, and
-# Docker's default profile denies that cross-profile read. This profile is
-# docker-default plus that single grant — read only. `trace` (attaching to and
-# modifying another process) stays denied outside this profile, which is the
-# part that matters: reading /proc is what the charts need, attaching to a
-# process is not.
-#
-# It used to say "verbatim", and by 2026-09-12 that was false in four places.
-# A copy of another component's policy is correct on the day it is taken and
-# silently wrong afterwards: the profile loads, `aa-status` reports it
-# enforcing, `docker inspect` reports it applied, and the only observable is a
-# denial the container would otherwise have had. Read out of the running
-# daemon's own binary that day, this block was missing `deny network alg`,
-# `deny network vsock`, the powercap read-denial Docker added as the
-# RAPL/PLATYPUS mitigation, and the `/` that upstream added inside the @{PROC}
-# character classes. None of the four was exploitable here — the Pi 4 has no
-# powercap tree at all — and none of them would ever have been noticed.
-#
-# So the durable half of the fix is not this text. It is the
-# `netdata-apparmor-matches-dockerd` assertion in the posture spec, which
-# re-derives the difference from the binary on every run and fails at one.
 abi <abi/4.0>,
 
 include <tunables/global>
@@ -35,24 +10,14 @@ profile homelab-netdata flags=(attach_disconnected,mediate_deleted) {
   file,
   umount,
 
-  # Host (privileged) processes may signal container processes; dockerd signals
-  # them to stop or kill; the agent signals its own plugins.
   signal (receive) peer=unconfined,
   signal (send,receive) peer=homelab-netdata,
 
-  # The grant unconfined was covering, narrowed to reads.
   ptrace (read),
   ptrace (trace,read,tracedby,readby) peer=homelab-netdata,
 
-  # `lsns` asks for ptrace(trace) on host processes when the agent starts and is
-  # refused. Verified that the refusal costs nothing: lsns returns the same nine
-  # namespaces confined and unconfined, because what limits it is the container's
-  # namespace and capability set, not this profile. An explicit deny is silent,
-  # which keeps a harmless probe from leaving a DENIED line that reads like a
-  # fault during the next incident.
   deny ptrace (trace) peer=unconfined,
 
-  # --- docker-default, unchanged from here down -----------------------------
   deny @{PROC}/* w,
   deny @{PROC}/{[^1-9/],[^1-9/][^0-9/],[^1-9s/][^0-9y/][^0-9s/],[^1-9/][^0-9/][^0-9/][^0-9/]*}/** w,
   deny @{PROC}/sys/[^k]** w,

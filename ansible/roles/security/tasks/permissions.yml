@@ -1,8 +1,4 @@
 ---
-# CIS batch 4 (audit 2026-07): sensitive file permissions.
-
-# Shadow files: 0640 root:shadow (Ubuntu convention, CIS-compliant) — the
-# backups (-) sometimes regress to looser modes after package operations.
 - name: permissions | Restrict shadow and gshadow files (CIS 7.1.5-8)
   ansible.builtin.file:
     path: "{{ item }}"
@@ -15,8 +11,6 @@
     - /etc/gshadow
     - /etc/gshadow-
 
-# 5.1.1 — Ubuntu ships sshd_config 0644 (world-readable); CIS wants 0600.
-# Nothing secret is in it, but tightening costs nothing.
 - name: permissions | Restrict /etc/ssh/sshd_config (CIS 5.1.1)
   ansible.builtin.file:
     path: /etc/ssh/sshd_config
@@ -38,9 +32,6 @@
     - { path: /etc/cron.monthly, mode: "0700" }
     - { path: /etc/cron.d, mode: "0700" }
 
-# Allow-lists: when cron.allow/at.allow exist, only listed users may schedule
-# jobs. Nothing on this host uses user crontabs (everything is systemd timers)
-# — root only.
 - name: permissions | Restrict cron and at to root (CIS 2.4.1.8, 2.4.2.1)
   ansible.builtin.copy:
     dest: "{{ item }}"

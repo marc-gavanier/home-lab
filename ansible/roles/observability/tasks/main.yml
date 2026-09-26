@@ -1,17 +1,10 @@
 ---
-# =============================================================================
-# Role: observability — host-level health monitoring
-# =============================================================================
-# Thin orchestrator: one file per concern, task names prefixed with the file.
-
 - name: Install the shared persistence gate
   ansible.builtin.import_tasks: gate.yml
 
 - name: Push Pi power/thermal health to Uptime Kuma
   ansible.builtin.import_tasks: health.yml
 
-# Before posture.yml, and that ordering is the dependency: homelab-posture.sh
-# runs goss first and reports its TAP output as its own findings (ADR-032).
 - name: "Install goss and the declarative posture spec (ADR-032)"
   ansible.builtin.import_tasks: goss.yml
 
@@ -27,19 +20,10 @@
 - name: Watch the data disk (SMART counters, capacity, monthly long self-test)
   ansible.builtin.import_tasks: disk.yml
 
-# Gated the way the repository gates every other optional path (see
-# offsite_restic_password): empty means DISABLED, and it says so out loud in the
-# example file. That is a documented opt-out, not the accidental empty value
-# catalogued in #220 — which is what the assert inside guards against.
-# Either way the 57 stock alarms stay unrouted.
 - name: "Route curated Netdata alarms to a human (ADR-030, phase 1)"
   ansible.builtin.import_tasks: netdata.yml
   when: netdata_alarm_groups | default([]) | selectattr('push_url') | list | length > 0
 
-# A skipped feature that says nothing is the defect this whole ADR is about: the
-# first deploy of phase 1 reported `changed=2, failed=0` and installed none of
-# it, because no push URL was set. The run was correct; its silence was not.
-# No silent caps — if coverage is off, the deploy says so.
 - name: "Report that curated Netdata alarms are NOT installed"
   ansible.builtin.debug:
     msg: >-
@@ -50,24 +34,6 @@
       vaulted host_vars — see local.example.yml.
   when: netdata_alarm_groups | default([]) | selectattr('push_url') | list | length == 0
 
-# ...and the message above used to be the WHOLE of the "off" branch, which made
-# it true of the run and false of the machine. Clearing the push URLs is the
-# documented way to turn this feature off; before 2026-09-13 it only stopped
-# INSTALLING. Whatever an earlier deploy had already put on the host stayed —
-# the alarms loaded in Netdata, the adapter on disk, and the timer firing every
-# five minutes at a URL that is no longer configured — while the deploy printed
-# "no alarm, adapter or timer was installed". An opt-out that leaves the feature
-# running is not an opt-out.
-#
-# The removal set is DERIVED from the full catalogue (netdata_curated_alarms),
-# NOT from the active selection: when no group carries a push URL the active
-# selection is empty by construction, so a remover keyed on it would remove
-# nothing. That is the whole shape of the defect — a register that shrinks to
-# nothing cannot name what has to go.
-#
-# Deliberately NOT retracted: the go.d collector configurations and the dbengine
-# retention. Those are metrics, not alerting, and the sentence above only claims
-# the alarms, the adapter and the timer.
 - name: "Retract the curated Netdata alarms when no push URL is configured"
   when: netdata_alarm_groups | default([]) | selectattr('push_url') | list | length == 0
   block:

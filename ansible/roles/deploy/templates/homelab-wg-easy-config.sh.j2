@@ -1,19 +1,5 @@
 #!/bin/bash
 # {{ ansible_managed }}
-#
-# Re-assert wg-easy 15's settings from this repository on every deploy.
-#
-# v15 keeps its configuration in SQLite, edited through a web UI. Left alone,
-# that is a frontal regression of the infra-as-code model: the endpoint host,
-# the Pi-hole DNS and the allowed IPs would live in a database nobody reviews,
-# and a change made in the browser would drift from the repo in silence. This
-# script is what keeps the repository the source of truth (ADR-020).
-#
-# It also repairs the one thing the 14 -> 15 import gets wrong: `migrate` leaves
-# `host` empty and DNS on Cloudflare's 1.1.1.1, which would take every newly
-# generated client config off Pi-hole.
-#
-# Exit codes, consumed by Ansible: 0 already correct, 2 updated, 1 failed.
 
 set -euo pipefail
 
@@ -23,15 +9,11 @@ API="http://127.0.0.1:51821"
 log() { echo "[wg-easy-config] $*"; }
 die() { echo "[wg-easy-config] ERROR: $*" >&2; exit 1; }
 
-# Nothing to assert if the service is not up yet (first deploy, or a deploy
-# targeted at other services). Not an error.
 if [ "$(docker inspect -f '{{ "{{" }}.State.Running{{ "}}" }}' wg-easy 2>/dev/null || echo false)" != "true" ]; then
     log "wg-easy is not running — skipping"
     exit 0
 fi
 
-# Still on v14: it takes its settings from the environment, so there is no API
-# config to assert and this script must stay out of the way until the migration.
 if [ ! -f "{{ services_data_dir }}/wireguard/wg-easy.db" ]; then
     log "no SQLite database yet (still v14) — skipping"
     exit 0
@@ -46,22 +28,8 @@ set +a
 COOKIE="$(mktemp)"
 trap 'rm -f "$COOKIE"' EXIT
 
-# Two passes now — the defaults, then every client — so the exit code is
-# decided at the end rather than by whichever pass happens to run first.
 CHANGED=0
 
-# `/api/auth/password`, not `/api/session`. wg-easy moved the login endpoint in
-# 15.4.0 — a MINOR release — and 15.3.0's path now returns 404. Everything else
-# this script uses survived: GET /api/client, GET and POST /api/client/<id>, GET
-# and POST /api/admin/userconfig all still answer 200, and the per-client values
-# came through the upgrade untouched. Measured 2026-08-26, right after the bump
-# landed.
-#
-# The status code is read rather than relying on `curl -sf`, because the old
-# message named the wrong cause and cost twenty minutes: a 404 was reported as
-# "is WG_ADMIN_PASSWORD still correct?", which sends you to the credential store
-# for a problem that is in the URL. A wrong password and a moved endpoint are
-# different failures and now say so.
 AUTH_CODE="$(curl -s -o /dev/null -w '%{http_code}' -c "$COOKIE" \
     -X POST "$API/api/auth/password" -H 'Content-Type: application/json' \
     --data-binary @<(python3 -c "
@@ -81,8 +49,6 @@ esac
 CURRENT="$(curl -sf -b "$COOKIE" "$API/api/admin/userconfig")" \
     || die "cannot read the current user config"
 
-# Compare before writing, so an unchanged deploy reports unchanged. Only the
-# fields this repository owns are compared: the rest is v15's business.
 if python3 - "$CURRENT" <<'PY'
 import json, os, sys
 cur = json.loads(sys.argv[1])
@@ -117,46 +83,6 @@ print(json.dumps({
     CHANGED=1
 fi
 
-# =============================================================================
-# Per-client values (#238)
-# =============================================================================
-# Everything above is a DEFAULT, and a default is read exactly once — when a
-# client is created. It is never looked at again. So the values that actually
-# reach a phone were asserted by nothing, and that is not a hypothesis: it is
-# the whole of #125. The repository's DNS was right, the default was right, and
-# all four existing clients kept Cloudflare's 1.1.1.1 — off Pi-hole, off split
-# DNS, queries leaving the box. It was repaired by hand with a direct SQLite
-# UPDATE, going around an API that could not write at all (#138).
-#
-# What this asserts, and what it deliberately does not:
-#
-#   dns          asserted. No client has a legitimate reason to resolve
-#                somewhere else, and #125 is what happens when nothing checks.
-#   allowedIps   asserted, and it is the one that was drifting: every client
-#                carried ["0.0.0.0/0", "::/0"] against the repository's
-#                "0.0.0.0/0" — migration residue that routes a client's IPv6
-#                into a tunnel with no IPv6 to carry it. The cost is real and
-#                worth naming: a split-tunnel client now has to be expressed in
-#                the repository rather than clicked in the web UI. That is the
-#                ADR-020 model, not an accident of this script.
-#   mtu, persistentKeepalive   NOT asserted, deliberately. A roaming phone
-#                behind a bad NAT has a real reason to want its own keepalive,
-#                and asserting it would mean fighting the operator over a
-#                setting that harms nothing. Assert what must not drift, not
-#                everything that can.
-#
-# What this does NOT do, stated because it is easy to misremember: these fields
-# produce the configuration FILE at download time. They do not steer a running
-# peer. Correcting a client here fixes what the next import will contain; the
-# device keeps whatever it was given until someone re-imports. That was the
-# painful half of #125 too.
-#
-# The POST needs the whole client object back — the validator rejects a partial
-# one, field by field. It is built from the GET rather than from a hand-written
-# list, so a field this repository has no opinion about survives untouched. The
-# server-owned fields are dropped, and that includes privateKey and
-# preSharedKey: measured 2026-08-26, the schema accepts the body without them,
-# so no key material passes through this script.
 CLIENTS="$(curl -sf -b "$COOKIE" "$API/api/client")" || die "cannot list the clients"
 
 DRIFTED="$(python3 - "$CLIENTS" <<'PYDRIFT'
@@ -176,24 +102,12 @@ print("\n".join(rows))
 PYDRIFT
 )" || die "cannot compare the clients"
 
-# --- An empty client list is not a list of clients that all agree -------------
-# `DRIFTED` is empty both when every client matches and when there is no client
-# to compare: `/api/client` returning `[]` produces no rows, and the line below
-# then reports agreement. That is the same sentence this script prints on a
-# healthy run, and this script IS the guard against a recurrence of #125 — the
-# defect where per-client values silently stopped matching the repository.
-#
-# The count is asserted before the comparison is believed, and it is carried
-# into the log line so the healthy case states how many were actually checked.
 CLIENT_COUNT="$(printf '%s' "$CLIENTS" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))' 2>/dev/null || echo 0)"
 [ "$CLIENT_COUNT" -ge 1 ] || die "wg-easy returned no client at all — nothing was compared"
 
 if [ -z "$DRIFTED" ]; then
     log "per-client values already match the repository ($CLIENT_COUNT clients)"
 else
-    # A here-string, NOT a pipeline: `while ... | read` runs the body in a
-    # subshell, where `die` would kill only that subshell and let the script
-    # carry on reporting success after a failed update.
     while IFS="$(printf '\t')" read -r cid cname cwhat; do
         [ -n "$cid" ] || continue
         log "client '$cname' drifted from the repository — $cwhat"
@@ -203,9 +117,6 @@ else
         python3 - "$CUR_CLIENT" > "$BODY" <<'PYBODY'
 import json, os, sys
 c = json.loads(sys.argv[1])
-# Server-owned or derived. The validator rejects them, and none of them is
-# ours to state — privateKey and preSharedKey included, which is why no key
-# material passes through this script.
 drop = {"id", "createdAt", "updatedAt", "interfaceId", "userId", "publicKey",
         "privateKey", "preSharedKey", "endpoint", "latestHandshakeAt",
         "transferRx", "transferTx", "oneTimeLink"}

@@ -1,75 +1,16 @@
 #!/usr/bin/env bash
 # {{ ansible_managed }}
-# =============================================================================
-# Offsite Pi — daily health, the half goss cannot express
-# =============================================================================
-# This was 247 lines. ADR-030 had written this host off — "no Docker at all, so
-# nothing there moves to Netdata" — which was true of Netdata and read as true
-# of the whole migration. goss is a single static binary and never needed
-# Docker, so the declarative assertions are now /etc/goss/offsite-health.yaml and
-# what remains here is what a declarative spec has no way to say.
-#
-# THREE things, and each is here for its own reason:
-#
-#   1. the PUSH. Nothing listens on this host and nothing should: it dials out,
-#      so there is no new port on a machine nobody can reach physically. That
-#      was the choice taken over `goss serve` plus an HTTP monitor, which would
-#      have deleted this file entirely.
-#
-#   2. the security-update gate. It has to remember when the count first went
-#      nonzero, and goss has no memory. It uses the shared gate (ADR-030), which
-#      is why that library is deployed here too.
-#
-#   3. the READINGS. goss answers pass or fail and carries no values, and this
-#      host has no dashboard of any kind — no Netdata, no metrics, nothing. Four
-#      numbers in the daily message are the only visibility anyone has into it.
-#
-# The verdict itself is goss's: its TAP plan line is the count and its `not ok`
-# lines are the diagnosis, named after the failure mode because goss streams
-# stdout and never reports a value (measured on the backup dumps).
-# =============================================================================
 
 set -uo pipefail
 
 KUMA_PUSH_URL='{{ offsite_health_kuma_push_url }}'
-KUMA_PUSH_URL="${KUMA_PUSH_URL%%\?*}"   # strip a pasted example query — duplicates read as DOWN
+KUMA_PUSH_URL="${KUMA_PUSH_URL%%\?*}"
 MOUNT='{{ backup_mount_point }}'
 DRIVE='{{ backup_disk_device_base }}'
 SPEC=/etc/goss/offsite-health.yaml
 
 notify() {
     [ -n "$KUMA_PUSH_URL" ] || return 0
-    # The push URL carries the monitor's own token, so it goes in on stdin
-    # instead of argv: /proc is mounted without hidepid, any local account can
-    # read another process's command line, and this runs unattended on a timer
-    # (#177). printf is a shell builtin, so the value never reaches an argv.
-    #
-    # The failure is KEPT, not discarded. This call used to end in `2>&1 || true`,
-    # which threw away curl's diagnosis AND its verdict, so a report that reached
-    # nobody was indistinguishable from one that landed. Measured on 2026-08-30:
-    # three runs of homelab-health finished green, having done their work, while
-    # their beats never reached Kuma and the monitor sat on a reading 16 min 55 s
-    # old. `|| echo` rather than a real failure because the caller must not abort
-    # on it — what failed is the report, not the check it carries. The marker
-    # string is what `no-kuma-report-was-lost-in-silence` reads in the posture
-    # spec; keep the two in step.
-    # A TIMEOUT IS NOT A LOSS. Until 2026-09-13 every non-zero curl status wrote
-    # `kuma-push-failed: this report reached nobody`, a sentence this side of the
-    # wire cannot justify: whether the beat LANDED is decided by the server, while
-    # curl only reports whether a reply came back inside its own budget. Measured
-    # on the netdata emitter that day — Kuma committed the beat at 23:25:29.334
-    # UTC, the script wrote "reached nobody" exactly TIMEOUT later, payloads
-    # byte-identical. The full reasoning lives once, in homelab-netdata-kuma.sh.
-    # curl exit 28 therefore gets `kuma-push-unconfirmed:`, which the live
-    # assertion's anchored `--grep '^kuma-push-failed:'` does NOT match. Every
-    # other status (22 on a 4xx/5xx, 7 refused, 6 DNS) is a beat that provably
-    # did not land and keeps the original marker and the original words.
-    #
-    # `|| rc=$?` rather than reading PIPESTATUS after a bare pipeline: two of the
-    # ten emitters run under `set -e`, where an unguarded failing pipeline would
-    # abort the whole script — the guard the old `|| echo` provided by accident.
-    # The verdict stays advisory, as it was: every branch leaves the status 0,
-    # because what failed is the report, not the check it carries.
     local rc=0
     printf 'url = "%s"\n' "$KUMA_PUSH_URL" |
         curl -fsS -m 10 --retry 2 -K - -G \
@@ -83,19 +24,11 @@ notify() {
 
 problems=()
 
-# Degrade LOUD if the gate library is missing: without the fallback `gate` is an
-# unknown command, the substitution is empty, and the update check silently
-# stops reporting for good — the shape catalogued in #220.
 if ! . /usr/local/lib/homelab-gate.sh 2>/dev/null; then
     problems+=("homelab-gate.sh missing — the update grace period is disabled")
     gate() { shift 2; [ "$#" -gt 0 ] && printf '%s\n' "$@"; }
 fi
 
-# --- The declarative half ----------------------------------------------------
-# The plan line is goss's own count. Its absence means goss did not parse the
-# spec, which must read as a failure rather than as nothing to report: a loop
-# that visits nothing returns true, and that is the defect this whole file has
-# been rewritten around twice (#156, #177).
 if [ ! -f "$SPEC" ]; then
     problems+=("goss spec missing — nothing was asserted")
 elif ! command -v goss >/dev/null 2>&1; then
@@ -115,16 +48,6 @@ else
     fi
 fi
 
-# --- Pending security updates, which needs a memory goss has not -------------
-# unattended-upgrades installs security fixes daily, so a bare nonzero count
-# would flash red in the hours before it runs. Only alarm if it is STILL nonzero
-# after 48h — a held, failed, or stuck update. The reboot half is deliberately
-# absent: this host sets Automatic-Reboot at 04:00 (ADR-013) because it has no
-# LUKS volume to unlock, so a pending reboot resolves itself overnight.
-#
-# One consequence of the cadence, worth stating: this job became DAILY on
-# 2026-09-12, so 48h here means in practice "still pending at the next two
-# runs". It meant "at the next weekly run" when the threshold was chosen.
 APT_CHECK=/usr/lib/update-notifier/apt-check
 if [ -x "$APT_CHECK" ]; then
     sec=$("$APT_CHECK" 2>&1 | cut -d';' -f2); sec=${sec//[^0-9]/}; sec=${sec:-0}
@@ -136,20 +59,8 @@ if [ -x "$APT_CHECK" ]; then
     fi
 fi
 
-# --- Readings, because nothing else here reports a number --------------------
 disk=$(df --output=pcent "$MOUNT" 2>/dev/null | tail -1 | tr -dc '0-9')
 cpu=$(( $(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null || echo 0) / 1000 ))
-# The instantaneous reading AND the drive's own maximum, because this job runs
-# once a week at 08:00 and the disk's busy hour is the nightly copy: the sample
-# is taken at the coolest part of the cycle by construction.
-#
-# The maximum is REPORTED, never thresholded — unlike the homelab's, which uses
-# a `Power Cycle Min/Max` that resets at every boot, this drive exposes only the
-# attribute line's own `(Min/Max 16/61)`, whose window is not documented and is
-# most likely lifetime. A threshold on a value that can never come back down
-# latches red forever on a single past event, which is the exact shape #207 is
-# about. So the peak goes in the message for a human to read, and the assertion
-# in the goss spec keeps checking the current value.
 ssd_line=$(smartctl -A "$DRIVE" 2>/dev/null | awk '$1 == 194 { print; exit }')
 ssd=$(printf '%s\n' "$ssd_line" | awk '{ print $10 }')
 ssd_max=$(printf '%s\n' "$ssd_line" | sed -n 's/.*Min\/Max *[0-9]*\/\([0-9]*\).*/\1/p')
@@ -158,7 +69,6 @@ tunnel=$([ -n "${hs:-}" ] && echo "$(( $(date +%s) - hs ))s" || echo "down")
 
 msg="disk ${disk:-?}%, cpu ${cpu}C, ssd ${ssd:-?}C${ssd_max:+ (max ${ssd_max}C)}, tunnel ${tunnel}${total:+, ${total} checks}"
 
-{# bash ${#array[@]} reads as a Jinja comment opener — shield it #}
 if [ {% raw %}${#problems[@]}{% endraw %} -gt 0 ]; then
     notify down "$(printf '%s; ' "${problems[@]}" | sed 's/; $//') | $msg"
     exit 1

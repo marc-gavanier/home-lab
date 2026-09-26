@@ -1,5 +1,4 @@
 ---
-# Input contract — validated automatically at run time (ansible-core >= 2.11).
 argument_specs:
   main:
     short_description: System hardening (SSH, UFW, fail2ban, updates, cloud-init redaction)

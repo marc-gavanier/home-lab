@@ -1,21 +1,5 @@
 ---
-# Install and configure LibreSign — PDF signing inside Nextcloud (ADR-022).
-#
-# LibreSign carries no signing code of its own: the signature is produced by
-# JSignPdf, which is a Java program. So the app downloads a JRE, the JSignPdf
-# jar and pdftk into Nextcloud's appdata the first time it is set up — 185 MB
-# the image does not ship, living on /mnt/data, and re-fetched from GitHub if
-# lost. Automating that download is most of this file.
-#
-# The rest is the root certificate, and it is the part that must never be run
-# twice. `libresign:configure:openssl` calls InstallService::generate(), which
-# passes an empty configPath — that DELETES the stored `config_path` key and
-# makes the engine initialise a fresh PKI directory, i.e. a brand new CA. Every
-# certificate already issued from the old one keeps validating against a root
-# nobody holds anymore. Hence the guard below reads the CA files themselves
-# rather than a flag: present means never touch it, absent means a previous
-# generation failed and should be retried.
-
+# [critical]: the root CA must never be generated twice: a second `configure:openssl` makes a new CA and orphans every issued certificate
 - name: libresign | Get the installed Nextcloud apps
   ansible.builtin.command:
     cmd: docker exec -u www-data nextcloud php occ app:list --output=json
@@ -24,8 +8,6 @@
   check_mode: false
   when: nextcloud_up | default(false)
 
-# Same split as the richdocuments connector: app:enable only flips an app that
-# is already downloaded, so a fresh provision needs app:install first.
 - name: libresign | Download the LibreSign app when absent
   ansible.builtin.command:
     cmd: docker exec -u www-data nextcloud php occ app:install libresign
@@ -58,12 +40,6 @@
     libresign_cfg: "{{ (libresign_conf.stdout | default('{}') | from_json).apps.libresign | default({}) }}"
   when: nextcloud_up | default(false)
 
-# The recorded paths are not evidence: InstallService writes them before the
-# extraction it cannot roll back, and appdata is a mount away from the image
-# that reads it. So this asks the filesystem, and actually starts the JVM —
-# `-version` is the cheapest call that proves the extracted binary is
-# executable and matches the container's libc, which is the failure a
-# `test -x` would sail straight past.
 - name: libresign | Check whether the signing binaries are usable
   ansible.builtin.shell:
     executable: /bin/bash
@@ -81,21 +57,6 @@
   failed_when: false
   when: nextcloud_up | default(false)
 
-# Deliberately NOT `--all`, which the documentation recommends: --all also
-# pulls the CFSSL binary, and CFSSL is a certificate engine we do not use —
-# LibreSign's default engine has been `openssl` since it stopped shipping cfssl
-# as a prerequisite (Command/Install.php reads `certificate_engine` with
-# 'openssl' as its default). Naming the three we need keeps a Go binary we
-# would never call off the disk.
-#
-# The architecture is auto-detected from php_uname('m') inside the container —
-# aarch64 here — and the distribution from the container's own os-release, so
-# the JRE fetched is the glibc build the Debian-based Nextcloud image needs
-# rather than the Alpine one.
-#
-# Measured on the Pi: 185 MB fetched and extracted in 22 s, so the first run of
-# this file is barely slower than the rest. It runs once — the probe above is
-# what makes every later deploy skip it.
 - name: libresign | Download the signing binaries (JRE, JSignPdf, pdftk)
   ansible.builtin.command:
     cmd: docker exec -u www-data nextcloud php occ libresign:install --java --jsignpdf --pdftk
@@ -122,10 +83,6 @@
     - nextcloud_up | default(false)
     - libresign_install is changed
 
-# ca.pem is the certificate handed to whoever verifies a signature; ca-key.pem
-# is the private key that issues the per-signer certificates. Both are written
-# by the same call, so one without the other means a generation that died
-# halfway — and that is a case worth retrying, unlike a complete CA.
 - name: libresign | Check whether a root certificate already exists
   ansible.builtin.shell:
     executable: /bin/bash
@@ -140,17 +97,6 @@
   failed_when: false
   when: nextcloud_up | default(false)
 
-# argv rather than a command string: the common name contains a space, and the
-# command module splits on whitespace — the CN would arrive truncated at the
-# first word, silently, and be baked into a CA that must not be regenerated.
-# An empty value here is not a bad deploy, it is a permanent one: the CA is
-# minted once and regenerating it orphans every signature already issued
-# (ADR-022). group_vars carries working defaults, but host_vars beat
-# group_vars, and local.example.yml used to ship these three as empty strings —
-# so a rebuild started from the example would have run `--cn= --o= --c=`
-# without a word. The example no longer does; this is what stops an empty
-# value arriving by any other route. Guarded exactly like the generation
-# below, so it speaks only when the certificate is about to be created.
 - name: libresign | Refuse to mint the root certificate from empty values
   ansible.builtin.assert:
     that:
@@ -206,11 +152,6 @@
     - nextcloud_up | default(false)
     - libresign_generate is changed
 
-# generate() sets the engine itself, so this only ever fires on drift — the
-# admin UI offers CFSSL and switching to it points LibreSign at a CA that does
-# not exist, which fails at signing time rather than at the switch. The
-# repository stays the source of truth, as it does for wg-easy and
-# richdocuments.
 - name: libresign | Re-assert OpenSSL as the certificate engine
   ansible.builtin.command:
     cmd: docker exec -u www-data nextcloud php occ config:app:set libresign certificate_engine --value=openssl
@@ -219,10 +160,6 @@
   when:
     - nextcloud_up | default(false)
     - libresign_cfg.certificate_engine | default('openssl') != 'openssl'
-
-# --- Verification -----------------------------------------------------------
-# A green container proves nothing here: every part of LibreSign that can fail
-# lives in appdata, outside the image and outside Docker's own health view.
 
 - name: libresign | Verify the JRE LibreSign recorded actually runs
   ansible.builtin.shell:
@@ -237,23 +174,6 @@
   failed_when: false
   when: nextcloud_up | default(false)
 
-# libresign:configure:check exits 0 whatever it finds — it is a report, not a
-# test — so the verdict is in the rows, and only in the first column:
-#
-#      info     java       Non-UTF-8 encoding detected: …
-#     success   jsignpdf   JSignPdf version: 2.3.0
-#      error    openssl-configure   OpenSSL (root certificate) not configured.
-#
-# The table style carries no `|` borders (symfony-style-guide), so the anchor is
-# the indentation: a status cell sits under six spaces and is followed by the
-# column padding, while a wrapped Tip continues some eighty columns to the
-# right. That distinction matters because the Tip column is prose *about* the
-# error it is telling you how to fix — a bare `grep error` would report failure
-# forever, including on a perfectly configured instance.
-# `info` is deliberately not a failure: poppler is one (see ADR-022), and it is
-# a note about an optional accelerator, not a broken install.
-# No pipe on purpose, for the reason collabora.yml records at length: a
-# `... | grep -q` under pipefail can return 141 when grep exits on the match.
 - name: libresign | Verify LibreSign reports no setup error
   ansible.builtin.shell:
     executable: /bin/bash

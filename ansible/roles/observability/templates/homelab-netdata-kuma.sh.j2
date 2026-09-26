@@ -1,129 +1,16 @@
 #!/usr/bin/env bash
 # {{ ansible_managed }}
-# =============================================================================
-# Netdata curated alarms -> Uptime Kuma (ADR-030, phase 1)
-# =============================================================================
-# ONE adapter, not one script per check. It translates Netdata alarm states into
-# Kuma push heartbeats, and it does not grow when an alarm is added: the calls
-# below are generated from netdata_alarm_groups and netdata_curated_alarms.
-#
-# --- Why an adapter, rather than letting Netdata notify ----------------------
-# Netdata notifies on a STATE TRANSITION. A Kuma push monitor expects a
-# HEARTBEAT and marks itself down when one does not arrive in its window.
-# Wiring one to the other directly looks fine and rots quietly: a condition that
-# stays healthy produces no transition, no push, and Kuma eventually reports a
-# failure that never happened. Measured, not feared — monitor 20 carries 108
-# heartbeats reading "No heartbeat in the time window".
-#
-# Polling turns that mismatch into a property: a beat goes out on every run
-# whatever the state, so every monitor here is also a dead-man's switch. If
-# netdata dies, this adapter stops, or the host goes away, the monitor goes red
-# on its own. Transition-driven notification would have sat green forever.
-#
-# Netdata's own notification configuration is deliberately NOT touched. It still
-# reaches nobody — stock alarms and curated ones alike — which keeps
-# docs/07-observability/README.md literally true and leaves Kuma as the single
-# place the notification channel is configured.
-#
-# --- Why alarms are GROUPED --------------------------------------------------
-# One monitor per ACTION, not per condition, which is what that same page asks
-# for. Conditions that send you to the same place share a monitor: the dashboard
-# stays readable, and Kuma v2 monitors are created by hand.
-#
-# The line that must not be crossed is LIFETIME, not subject matter. #216 cost a
-# whole day because `reboot pending` — which waits for a human and stays red for
-# days by construction — sat in the same signal as the acute checks and muted
-# them. Hence a `pending` group of its own.
-#
-# Within a group, a still-down monitor only re-notifies if `resend_interval` is
-# set on it in Kuma (#200). Without that, a second condition appearing while the
-# first is unresolved reaches nobody. The grouping is only safe with it.
-#
-# The raw block below is not decoration. Bash's array-length syntax opens a
-# Jinja COMMENT, so without the block this template fails to render with
-# "Missing end of comment tag" — and a stale rendered copy will happily pass
-# `bash -n` while you think you are checking the new one.
-#
-# This paragraph used to demonstrate the problem by quoting both the offending
-# bash syntax and the marker that cures it, and that was itself the defect,
-# twice over:
-#
-#   - the quoted opening marker OPENED THE BLOCK HERE, ten lines early;
-#   - which is the only reason the template rendered at all, because it then
-#     shielded the array-length syntax quoted right after it. Remove the marker
-#     from this paragraph without also removing the bash syntax and Jinja stops
-#     on the comment instead. Measured, while fixing the first defect.
-#
-# What the early open cost: the real marker below was emitted verbatim into the
-# deployed file, and bash reported it as an unknown command on every run — 288
-# times a day, in a script whose whole job is to make silence suspicious.
-#
-# Outside the block they delimit, DESCRIBE the markers and the bash syntax.
-# Never quote either.
-#
-# The alarm names below must match the `alarm:` lines in health.d/. A name that
-# does not resolve reports its group DOWN saying so, rather than silently
-# reporting healthy — a mapping typo must be loud.
-# =============================================================================
 
+# [critical]: never quote the raw/endraw markers or the bash array-length syntax in a comment here: Jinja parses comments too
 {% raw %}
 set -uo pipefail
 
 CONTAINER="netdata"
 API="http://127.0.0.1:19999/api/v1/alarms?all=true"
-# 30, raised from 10 on 2026-09-13. The budget was sized against an idle host
-# and the host is not always idle: on 2026-09-13 at 01:25 three timers plus a
-# heal-triggered container restart were live at once, and Kuma's push latency
-# went 274 ms -> 10.9 s / 12.0 s / 3.3 s. A 10 s budget under a 12.0 s reply is
-# not a failure, it is a ruler that is too short. 30 s is 2.5x the worst
-# latency ever measured here, and the unit's own period is 300 s.
 TIMEOUT=30
 
-log() { echo "$*"; }   # stdout -> journal
+log() { echo "$*"; }
 
-# One API call for every group, not one per alarm. The API answers roughly a
-# megabyte, so it is flattened ONCE into "name<TAB>status<TAB>value" and the
-# lookups below only grep it — the adapter's cost must not grow with the number
-# of conditions it reports on.
-#
-# --- What the retry is allowed to conclude (#289, class C03) -----------------
-# Read it several times before believing it (#262). A single failed read marked
-# EVERY group down, and with `maxretries: 0` on both push monitors that reached
-# the operator immediately: the two adapter monitors produced 33 of 94
-# notifications over the audited period, two of them intentional and none
-# leading to an action. The retry belongs here rather than in Kuma's retry
-# count — Kuma cannot re-ask a push monitor for its state, it can only wait for
-# the next push, so a monitor-side retry would just delay the same wrong
-# verdict.
-#
-# The first version guarded on "the request succeeded and the body is not
-# empty", and everything downstream then behaved as if it had established "the
-# alarms parsed". Those are different questions, which is the whole of C03.
-# Measured rather than argued — ONE run, on 2026-08-30 at 00:45:32, logged both
-# of these lines:
-#
-#     netdata alarm API answered on attempt 3
-#     netdata alarm API unreachable or unparseable — reporting every group down
-#
-# The retry reached its own goal and missed its purpose. So the guard below is
-# written against what the caller actually needs, which is a non-empty alarm
-# TABLE, and the parse moved inside the loop to make that possible.
-#
-# --- The window no retry budget can cover ------------------------------------
-# A netdata that has just started answers HTTP 200 with a 129-byte body whose
-# `alarms` object is EMPTY, and it keeps doing so long after it is reachable.
-# Measured on this host by restarting the container and polling it:
-#
-#     since start   body      alarms
-#        15 s         0 B     docker exec refused, container not up yet
-#        30 s       129 B     0
-#        51 s       129 B     0
-#        64 s       378 kB    243
-#
-# Roughly 25 s to 60 s on an idle Pi — and 269 s once, at 01:10:09 the same
-# night, under the backup. A retry cannot cover the loaded case inside a 300 s
-# timer without becoming the load it is waiting on. So the empty answer is not
-# retried away: it is DISCRIMINATED, against netdata's own start time.
 alarms_json=""
 ALARM_TABLE=""
 API_STATE="unreachable"
@@ -143,32 +30,6 @@ for attempt in 1 2 3 4; do
     [ "$attempt" -lt 4 ] && sleep 10
 done
 
-# Four attempts ten seconds apart span the idle window measured above end to
-# end. The unit carries a matching TimeoutStartSec so this cannot outlive the
-# timer that starts it.
-#
-# The uptime comes from docker, never from anything this script remembers
-# between runs. A grace period a watchdog grants itself from its own memory is
-# the #289 defect written a second time, and this adapter is not going to be
-# the place it gets written again.
-# Measured, not chosen: netdata's container started 2026-09-20T13:54:06Z and
-# its health engine produced a first verdict at 14:07:13Z — 787 s. The 300 s
-# this replaces therefore declared a fault 487 s early, six times in fifteen
-# days: monitors 35 and 37 red for 7 min 33 and 6 min 17 on 09-20 with nothing
-# wrong, each carrying "netdata up 310s and its health engine has evaluated no
-# alarm". A monitor that is red when nothing is wrong is how an operator is
-# taught to ignore it, which is the failure this whole adapter exists against.
-#
-# The floor the mechanism gives is 900 s: the longest curated `lookup` window
-# is 600 s and nothing can be evaluated before one window has passed, plus
-# ~300 s for the collectors to come up. 1200 s is the operator's call on top of
-# that, and the asymmetry justifies it — this branch only DEFERS the dead-man's
-# switch, never disarms it, so being late costs detection latency on a health
-# engine that is genuinely dead, while being early costs a false alarm every
-# time netdata restarts. Since 2026-09-25 it also covers the `unreachable` path,
-# but only for a container docker reports as running: on the
-# cold boot of 2026-09-24 netdata took 301 s to answer at all, and the retry
-# above gives up after at most 150 s.
 STARTUP_GRACE=1200
 netdata_uptime=-1
 netdata_state="$(docker inspect "$CONTAINER" 2>/dev/null |
@@ -179,24 +40,6 @@ if [ -n "$netdata_started" ]; then
     [ -n "$epoch" ] && netdata_uptime=$(( $(date +%s) - epoch ))
 fi
 
-# Three outcomes where there used to be one, because they call for three
-# different actions and the old single message named none of them:
-#
-#   unreachable   netdata is not answering at all. DOWN when the container is
-#                 stopped, absent or older than STARTUP_GRACE —
-#                 on 2026-08-30 at 01:05 the attempts were `docker exec`
-#                 refusals against a stopped container, and the DOWN they
-#                 produced was the dead-man's switch working. UP only while a
-#                 running container is younger than STARTUP_GRACE, so a hung
-#                 netdata is reported at most STARTUP_GRACE late.
-#   no-verdict,   the startup window above. Reported UP, because "netdata came
-#   young        back 40 seconds ago" is not a fault and waking someone for it
-#                 is how a monitor teaches its operator to ignore it. The beat
-#                 still goes out, so the switch is only ever deferred by
-#                 STARTUP_GRACE, never disarmed.
-#   no-verdict,   netdata has been up longer than the whole measured window and
-#   old           still evaluates nothing. That IS a fault, it is the first
-#                 message here anyone can act on, and it says so.
 UNAVAILABLE_STATUS=""
 UNAVAILABLE_MSG=""
 case "$API_STATE" in
@@ -221,54 +64,9 @@ case "$API_STATE" in
 esac
 [ -n "$UNAVAILABLE_MSG" ] && log "$UNAVAILABLE_MSG — reporting every group $UNAVAILABLE_STATUS"
 
-push() {   # $1 url, $2 up|down, $3 message
-    # Strip any query string the URL already carries. Kuma's UI displays the
-    # push URL decorated with its own example parameters —
-    # `...?status=up&msg=OK&ping=` — and pasting it verbatim is the natural
-    # thing to do. Appending ours then sends `status` and `msg` TWICE, Kuma
-    # parses the duplicates as arrays, and the result is a beat that reads
-    # `[object Object]` and is recorded DOWN because an array never equals the
-    # string "up". Measured on the first real run, not imagined.
+push() {
     local url="${1%%\?*}"
 
-    # Two properties this call had neither of, and every one of its twelve
-    # siblings has both.
-    #
-    # The URL carries the monitor's own token, so it goes in on stdin instead of
-    # argv: /proc is mounted without hidepid, any local account can read another
-    # process's command line, and this runs unattended on a timer (#177). The
-    # sweep that converted eleven scripts to this shape, and #188 that converted
-    # the twelfth, never reached this role.
-    #
-    # --fail matters as much and is less obvious. Kuma answers an unknown or
-    # inactive push token with 404 "Monitor not found or not active", and
-    # WITHOUT --fail curl treats that as a successful transfer and exits 0 — so
-    # the branch below is unreachable, `log "ERROR: push failed"` can never be
-    # written, and a beat that was never recorded reports as sent. Measured on
-    # the Pi with an invalid token, no write reaching the database.
-    # THE OUTCOME OF A TIMEOUT IS NOT A LOSS, AND SAYING SO COST C03 ITS FIFTH
-    # REOPENING. Until 2026-09-13 every non-zero curl status wrote
-    # `kuma-push-failed: this report reached nobody`. That sentence asserts
-    # something this side of the wire cannot know: whether the beat LANDED is
-    # decided by the server, while curl only reports whether a reply came back
-    # inside its own budget. Under load the two disagree.
-    #
-    # Measured, both sides, on 2026-09-13:
-    #
-    #     Kuma committed the beat   23:25:29.334 UTC, status UP
-    #     this script wrote "reached nobody"  23:25:39 UTC
-    #     gap                       exactly TIMEOUT
-    #     payloads                  byte-identical
-    #
-    # A false positive, and it fed a LIVE assertion: `no-kuma-report-was-lost-
-    # in-silence` greps '^kuma-push-failed:' and has no other input.
-    #
-    # So the two cases are now named differently. curl exit 28 is "operation
-    # timed out" — the request may or may not have been processed — and gets
-    # `kuma-push-unconfirmed:`, which the assertion's anchored grep does NOT
-    # match. Everything else (22 from --fail on a 4xx/5xx, 7 on a refused
-    # connection, 6 on DNS) is a beat that provably did not land, and keeps the
-    # original marker and the original words.
     printf 'url = "%s"\n' "$url" |
         curl -fsS --max-time "$TIMEOUT" -K - -G \
             --data-urlencode "status=$2" --data-urlencode "msg=$3" >/dev/null
@@ -284,7 +82,7 @@ push() {   # $1 url, $2 up|down, $3 message
 
 join() { local sep="$1"; shift; local out; out="$(printf "%s${sep}" "$@")"; printf '%s' "${out%"$sep"}"; }
 
-group() {   # $1 push url, $2.. alarm names
+group() {
     local url="$1"; shift
     local problems=() reports=() name rows settled bad odd status value chart count n
 
@@ -294,28 +92,13 @@ group() {   # $1 push url, $2.. alarm names
     fi
 
     for name in "$@"; do
-        # A netdata TEMPLATE creates one alarm per chart instance, all sharing
-        # the same name: one per container for the two container alarms, one per
-        # sensor the day a second thermometer appears. Anchored on the tab so a
-        # name cannot match a longer one by prefix.
         rows="$(printf '%s\n' "$ALARM_TABLE" | grep -P "^\Q$name\E\t" || true)"
 
-        # Absent entirely. Not transient: the name here and the `template:` line
-        # in health.d/ have drifted, or the file failed to load — which is also
-        # what a container that never got the health.d bind mount looks like.
-        # Silence would report healthy.
         if [ -z "$rows" ]; then
             problems+=("${name} is not loaded in netdata")
             continue
         fi
 
-        # EVERY instance in trouble, not just the worst one. Keeping only the
-        # worst names one container while three are down, and the operator fixes
-        # that one and waits five minutes to learn about the next — which is how
-        # a monitor that is technically correct still wastes an evening. The
-        # chart id carries which instance it is, and it is reported raw rather
-        # than parsed: the shape of a chart id is netdata's to change, and a
-        # message that is long is better than one that is confidently wrong.
         bad="$(printf '%s\n' "$rows" | grep -P "^\Q$name\E\t(WARNING|CRITICAL)\t" || true)"
         if [ -n "$bad" ]; then
             n=0
@@ -330,26 +113,6 @@ EOF
             continue
         fi
 
-        # An instance with no verdict yet is not a fault, and this is the rule
-        # that took two measurements to get right.
-        #
-        #   REMOVED         its chart went away — measured: netdata drops a chart
-        #                   from its listing within 90 s of `docker rm`
-        #   UNINITIALIZED   its chart is NEW and the alarm has not evaluated yet
-        #   UNDEFINED       brief after a netdata restart, this role's handler
-        #                   included
-        #
-        # All three are windows rather than states, all three call for no action,
-        # and none of them names anything the operator could act on. The first
-        # version reported any of them and turned the group red on a message that
-        # said only "is UNINITIALIZED" while twenty-eight siblings were CLEAR.
-        # That is not an edge case: EVERY container creation makes a new chart,
-        # so every deploy that recreates one would have produced it.
-        #
-        # What matters is whether ANY instance has reached a verdict. If one has,
-        # the transient ones are noise. If none has, that is the collector or the
-        # alarm itself failing, and it is reported — which also keeps a
-        # single-instance alarm stuck UNINITIALIZED loud, as it should be.
         settled="$(printf '%s\n' "$rows" |
                    grep -Pv "^\Q$name\E\t(REMOVED|UNINITIALIZED|UNDEFINED)\t" || true)"
         if [ -z "$settled" ]; then
@@ -357,16 +120,12 @@ EOF
             continue
         fi
 
-        # A status netdata invented that is none of the above still counts.
         odd="$(printf '%s\n' "$settled" | grep -Pv "^\Q$name\E\tCLEAR\t" | head -1 || true)"
         if [ -n "$odd" ]; then
             problems+=("${name} is $(printf '%s' "$odd" | cut -f2)")
             continue
         fi
 
-        # All clear. One instance keeps the original reading; several report
-        # their count, because the value of an arbitrary one of 21 containers
-        # says nothing that "ok on 21 instances" does not say better.
         count="$(printf '%s\n' "$settled" | grep -c . || true)"
         if [ "${count:-0}" -gt 1 ]; then
             reports+=("${name} ok on ${count} instances")
@@ -376,8 +135,6 @@ EOF
         fi
     done
 
-    # Same message shape as the health scripts: what is wrong first, then the
-    # readings, so the first words of a Discord notification are the problem.
     local readings=""
     [ ${#reports[@]} -gt 0 ] && readings="$(join ', ' "${reports[@]}")"
 

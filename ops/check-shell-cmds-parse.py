@@ -1,20 +1,4 @@
 #!/usr/bin/env python3
-"""Every shell program this repo embeds in a task must parse as shell.
-
-Written 2026-09-11, after a comment INSIDE a single-quoted awk program contained
-the apostrophe in "ufw's". The quote closed there, bash tried to interpret the
-rest of the awk source, and the deploy died at the task — on the host, in the
-middle of a run, with the ruleset half applied.
-
-Nothing in the suite could have caught it. yamllint parsed the YAML, because the
-YAML was valid. ansible-lint accepted the task, because the task was valid. The
-program inside the string was never handed to a shell until the deploy ran it.
-
-So: extract the cmd of every `shell:` task, and `bash -n` it. Tasks carrying
-Jinja are skipped — their rendered form is not knowable here — but a task whose
-Jinja is only in a comment or a filename is still worth checking, so the skip is
-reported rather than silent.
-"""
 import re
 import subprocess
 import sys
@@ -34,14 +18,13 @@ except ImportError:
 
 
 def shell_cmds(root):
-    """(file, task name, program) for every shell task, Jinja ones included."""
     out = []
     for glob in GLOBS:
         for path in sorted(root.glob(glob)):
             try:
                 doc = yaml.safe_load(path.read_text(encoding="utf-8"))
             except yaml.YAMLError:
-                continue          # yamllint owns that failure, not this check
+                continue
             for task in doc or []:
                 if not isinstance(task, dict):
                     continue
@@ -57,16 +40,6 @@ def shell_cmds(root):
 
 
 def goss_execs(root):
-    """(file, assertion name, program) for every goss `exec:` body.
-
-    Checked with `sh -n`, NOT bash, and the distinction is the whole reason this
-    half exists: goss runs its commands with sh. On 2026-09-11 an assertion that
-    passed under bash failed under dash, because dash's `read` builtin returns
-    non-zero on a /proc/sys file. A static check cannot catch that one — it is a
-    runtime difference, not a syntax error — but it catches every bashism that
-    IS a syntax error, and it is the cheap half of the same lesson: exercise a
-    goss body under sh before believing it.
-    """
     out = []
     pat = re.compile(r"^(\s*)([a-z0-9-]+):\n\1  exec: \|\n((?:\1    .*\n|\n)+)", re.M)
     for glob in GOSS_GLOBS:
@@ -107,13 +80,6 @@ def selftest():
         if ok != should_parse:
             failures.append("%s: parsed=%s expected=%s" % (label, ok, should_parse))
 
-    # What `sh -n` can and cannot see, stated rather than assumed. It catches
-    # bashisms that are SYNTAX errors for dash. It does NOT catch `[[ ]]`, which
-    # dash parses happily as a command name and only fails on at runtime, and it
-    # does not catch a builtin that behaves differently — dash's `read` returning
-    # non-zero on a /proc/sys file is the one that cost a deploy on 2026-09-11.
-    # The gate is the cheap half; exercising the body under sh is the other half
-    # and no static check replaces it.
     sh_cases = [
         ("MUST FLAG under sh - a bash array",
          "a=(one two)\necho ${a}\n", False),

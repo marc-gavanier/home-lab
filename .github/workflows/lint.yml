@@ -1,12 +1,4 @@
 ---
-# Lint gate — mirrors the local pre-commit hooks so a bypassed hook
-# (git commit --no-verify, GitHub web edits) still gets caught on the PR.
-#
-# Actions are pinned by commit SHA, not by tag (issue #37): a tag is a mutable
-# pointer, and a compromised maintainer can move it to different code that this
-# workflow would then run over a checkout of the whole repository — one whose
-# entire discipline is that secrets never enter it. Renovate keeps the digests
-# updated and rewrites the trailing version comment.
 name: Lint
 
 on:
@@ -21,7 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          fetch-depth: 0  # scan the full history of the push/PR range
+          fetch-depth: 0
       - uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e  # v3.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -39,21 +31,6 @@ jobs:
       - name: Install linters
         run: pip install ansible-lint yamllint
       - name: Install pinned collections and roles
-        # -p keeps external roles OUT of the repo tree (the relative
-        # roles_path in ansible.cfg would land them in ansible/roles/,
-        # where the linters would scan third-party code)
-        #
-        # --no-cache: ansible-galaxy caches Galaxy API responses in
-        # ~/.ansible/galaxy_cache. A runner starts with an empty one, so the
-        # cache can only ever be reused within this single job — a handful of
-        # version lookups. It cost a red PR on 2026-08-19: the entry was written
-        # and read back malformed inside the same run, and resolving
-        # community.crypto failed with "Missing expected 'results' in
-        # ansible-galaxy cache". The tool's own message names this flag as the
-        # workaround. Trading those few lookups for a class of failure that has
-        # already fired once is the right way round. Not passed to `role
-        # install`, which does not accept it — the role API uses a different
-        # path and was not what broke.
         run: |
           ansible-galaxy collection install --no-cache -r ansible/requirements.yml
           ansible-galaxy role install -r ansible/requirements.yml -p ~/.ansible/roles
@@ -77,6 +54,7 @@ jobs:
           ops/check-empty-set-floors.py --selftest
           ops/check-shell-cmds-parse.py --selftest
           ops/check-secret-in-environment.py --selftest
+          ops/check-no-comments.py --selftest
       - name: ascii-system-files
         run: ops/check-ascii-system-files.py
       - name: jinja-templates-parse
@@ -89,3 +67,5 @@ jobs:
         run: ops/check-secret-in-environment.py
       - name: shell-cmds-parse
         run: ops/check-shell-cmds-parse.py
+      - name: no-comments
+        run: ops/check-no-comments.py

@@ -1,9 +1,4 @@
 ---
-# =============================================================================
-# Role: docker — Install Docker Engine and Compose
-# =============================================================================
-# Thin orchestrator: one file per concern, task names prefixed with the file.
-
 - name: Install Docker Engine, Compose and networks
   ansible.builtin.import_tasks: install.yml
 

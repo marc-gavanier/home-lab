@@ -1,70 +1,16 @@
 #!/usr/bin/env bash
 # {{ ansible_managed }}
-# =============================================================================
-# Homelab Pi — daily disk-health report
-# =============================================================================
-# The 5 TB disk carries every service's data, the media library and the local
-# restic repository, and until now nothing watched it. The offsite Pi — which
-# holds a *copy* — had a weekly SMART report and a monthly long self-test since
-# July; the original had neither. The only self-test ever run on this drive was
-# a short one at 16 power-on hours, measured 2026-08-15 at 2363.
-#
-# Daily, like the offsite's own self-report since 2026-09-12, because this drive
-# takes writes from 25 services continuously while the offsite one is read once
-# a night. Reading
-# the attributes costs nothing and never spins the drive up: it is always awake.
-#
-# The overall `smartctl -H` verdict is deliberately NOT trusted on its own — it
-# stays PASSED until a drive is nearly dead. The early-warning counters are
-# checked individually, so any of them leaving zero reports DOWN long before the
-# verdict flips. Same reasoning, same counter list as the offsite report.
-#
-# Power and thermal for the Pi itself stay in homelab-health.sh (every 5 min);
-# this is about the disk, and it has its own push monitor so a slowly rotting
-# drive cannot hide inside a signal that carries CPU temperature.
 
 set -uo pipefail
 
 KUMA_PUSH_URL='{{ disk_health_kuma_push_url | default("") }}'
-KUMA_PUSH_URL="${KUMA_PUSH_URL%%\?*}"   # strip a pasted example query (see homelab-health.sh)
+KUMA_PUSH_URL="${KUMA_PUSH_URL%%\?*}"
 MOUNT='{{ data_mount_point }}'
 DISK='{{ data_disk_device }}'
 DRIVE=${DISK%[0-9]*}
 
 notify() {
     [ -n "$KUMA_PUSH_URL" ] || return 0
-    # The push URL carries the monitor's own token, so it goes in on stdin
-    # instead of argv: /proc is mounted without hidepid, any local account can
-    # read another process's command line, and this runs unattended on a timer
-    # (#177). printf is a shell builtin, so the value never reaches an argv there
-    # either.
-    #
-    # The failure is KEPT, not discarded. This call used to end in `2>&1 || true`,
-    # which threw away curl's diagnosis AND its verdict, so a report that reached
-    # nobody was indistinguishable from one that landed. Measured on 2026-08-30:
-    # three runs of homelab-health finished green, having done their work, while
-    # their beats never reached Kuma and the monitor sat on a reading 16 min 55 s
-    # old. `|| echo` rather than a real failure because the caller must not abort
-    # on it — what failed is the report, not the check it carries. The marker
-    # string is what `no-kuma-report-was-lost-in-silence` reads in the posture
-    # spec; keep the two in step.
-    # A TIMEOUT IS NOT A LOSS. Until 2026-09-13 every non-zero curl status wrote
-    # `kuma-push-failed: this report reached nobody`, a sentence this side of the
-    # wire cannot justify: whether the beat LANDED is decided by the server, while
-    # curl only reports whether a reply came back inside its own budget. Measured
-    # on the netdata emitter that day — Kuma committed the beat at 23:25:29.334
-    # UTC, the script wrote "reached nobody" exactly TIMEOUT later, payloads
-    # byte-identical. The full reasoning lives once, in homelab-netdata-kuma.sh.
-    # curl exit 28 therefore gets `kuma-push-unconfirmed:`, which the live
-    # assertion's anchored `--grep '^kuma-push-failed:'` does NOT match. Every
-    # other status (22 on a 4xx/5xx, 7 refused, 6 DNS) is a beat that provably
-    # did not land and keeps the original marker and the original words.
-    #
-    # `|| rc=$?` rather than reading PIPESTATUS after a bare pipeline: two of the
-    # ten emitters run under `set -e`, where an unguarded failing pipeline would
-    # abort the whole script — the guard the old `|| echo` provided by accident.
-    # The verdict stays advisory, as it was: every branch leaves the status 0,
-    # because what failed is the report, not the check it carries.
     local rc=0
     printf 'url = "%s"\n' "$KUMA_PUSH_URL" |
         curl -fsS -m 10 --retry 2 -K - -G \
@@ -79,11 +25,6 @@ notify() {
 problems=()
 report=()
 
-# --- Capacity ---
-# /mnt/data is unlocked by hand after a reboot. Until then there is no
-# filesystem to measure — but the drive is still there and its SMART data still
-# readable, which is the part that matters here. Report the gap, keep going.
-
 if mountpoint -q "$MOUNT"; then
     usage=$(df --output=pcent "$MOUNT" | tail -1 | tr -dc '0-9')
     [ "$usage" -ge 85 ] && problems+=("disk ${usage}% full")
@@ -91,10 +32,6 @@ if mountpoint -q "$MOUNT"; then
 else
     report+=("locked")
 fi
-
-# --- SMART ---
-# smartctl exit status is a bitmask: bit 3 (value 8) = disk failing;
-# bits 0-2 = command/device errors (USB bridge quirks — not a disk failure).
 
 smart_out=$(smartctl -H -A -l selftest "$DRIVE" 2>/dev/null)
 rc=$?
@@ -104,46 +41,10 @@ fi
 
 raw() { awk -v id="$1" '$1 == id { print $10; exit }' <<<"$smart_out"; }
 
-# Readability is asserted on a VALUE, not on the output being non-empty.
-#
-# On 2026-08-15 the unreadable case was promoted from a report line to a
-# problem, which was the right call and not enough: the branch requires the
-# output to be EMPTY, and measurement on this host 2026-08-17 shows it never is.
-# smartctl writes its refusals to stdout, so a device it cannot talk to returns
-# rc=1 with 285 bytes of "Unable to detect device type". Execution then fell
-# through to the normal path, every attribute lookup came back empty, every
-# check below was skipped in silence, and the run still ended green.
-#
-# Power-on hours is the instrument: present on every ATA drive, already needed
-# for the self-test staleness check below, and it can only parse as a number if
-# the attribute table was genuinely read. Same guard in the offsite sibling
-# (#155) — the two scripts drift apart precisely when one is corrected alone.
 power_on_h=$(raw 9)
 if ! [[ "$power_on_h" =~ ^[0-9]+$ ]]; then
     problems+=("SMART unreadable (rc=$rc)")
 else
-    # Each of these is an early failure predictor, and each must stay at zero:
-    # media decay (5/198), data-path corruption (184), read failures the
-    # drive corrected but should not have had (187), and USB cable or bridge
-    # trouble (199) — the fault that killed the first candidate disk.
-    # 197 (pending) is deliberately NOT in this list — it is the one attribute
-    # here that does not mean what the others mean, and it has its own block
-    # below the self-test parsing, which it depends on.
-    #
-    # --- An attribute that is not on this drive is not an attribute at zero ---
-    # `raw` returns an empty string for an ID the drive does not publish, and
-    # the `[ -n "$v" ]` below then reads that silence as "healthy". Measured
-    # 2026-09-05 on the 5 TB drive: its table holds
-    # `1 3 4 5 7 9 10 11 12 192 193 194 196 197 198 199 200`, so **184 and 187
-    # are absent** and this loop was checking three of the five predictors its
-    # own comment above names. Nothing said so.
-    #
-    # Not an alarm: an attribute missing from a drive's table is a property of
-    # the drive, and alarming on it would paint a permanent red, which is the
-    # mistake #207 documents at length. The count goes in the message instead,
-    # exactly like `ext4 clean ($ext4_seen)` below, so the coverage is visible
-    # every morning rather than assumed. ZERO of five is a different thing —
-    # that means the table stopped parsing, and it alarms.
     smart_seen=0
     smart_absent=""
     for spec in 5:realloc 184:end-to-end 187:uncorrectable \
@@ -164,25 +65,6 @@ else
         report+=("SMART ${smart_seen}/5${smart_absent:+ (absent:$smart_absent)}")
     fi
 
-    # Temperature (attribute 194). 60C rather than the offsite SSD's 70: this is
-    # a spinning drive in an enclosure and it already idles near 53.
-    #
-    # --- The threshold is on the PEAK, not on the reading of the moment -------
-    # This job runs at 07:00 and the disk's busiest hour is 03:00, so the
-    # instantaneous attribute is a sample of the coolest part of the cycle by
-    # construction. Measured 2026-08-29: 49C at 07:03 while the drive's own
-    # `Power Cycle Min/Max` recorded 53C during the nightly backup, and 67% of
-    # 274 smartd samples over 22 days sat at 50C or above.
-    #
-    # `Power Cycle Min/Max` and not the attribute line's own Min/Max: this
-    # counter RESETS at every power cycle, so a peak that has been dealt with
-    # stops being reported. A lifetime maximum can never come back down, which
-    # would make the threshold latch permanently on a single past event — the
-    # "red monitor nobody can act on" shape that #207 is about.
-    #
-    # It needs its own smartctl call: `-x` changes the attribute table to the
-    # brief format, where the raw value moves out of field 10 and would silently
-    # break raw() for every other attribute here.
     hdd_temp=$(raw 194)
     hdd_tmax=$(smartctl -x "$DRIVE" 2>/dev/null |
                awk -F: '/Power Cycle Min\/Max Temperature/ {
@@ -192,39 +74,16 @@ else
             report+=("hdd ${hdd_temp}C (peak ${hdd_tmax}C)")
             [ "$hdd_tmax" -ge 60 ] && problems+=("hdd peak ${hdd_tmax}C this power cycle")
         else
-            # No peak counter is a gap in the instrument, not a clean bill of
-            # health: fall back to the instantaneous reading and SAY so, rather
-            # than silently checking the cooler value as though nothing changed.
             report+=("hdd ${hdd_temp}C (no peak counter)")
             [ "$hdd_temp" -ge 60 ] && problems+=("hdd ${hdd_temp}C")
         fi
     fi
 
-    # --- Two readings of the self-test log, because it answers two questions --
-    #   selftest   the newest entry: what did the last recorded run DO?
-    #   done_test  the newest entry containing "Completed": what is the last
-    #              real VERDICT on the surface, clean or failed?
-    #
-    # They differ exactly when the top of the log is an abort, an interruption
-    # or a run still going, and that difference is the whole of this block.
     selftest=$(awk '/^# 1/ { $1=""; $2=""; print; exit }' <<<"$smart_out" | xargs)
     done_test=$(awk '/^#[[:space:]]+[0-9]+/ { if ($0 ~ /Completed/) { $1=""; $2=""; print; exit } }' \
                 <<<"$smart_out" | xargs)
 
     if [ -n "$selftest" ]; then
-        # An abort is not bad news, it is the ABSENCE of news, and treating the
-        # two alike was a defect this file shipped for one day. The condition
-        # here read `completed without error|in progress` — and "in progress"
-        # never appears in THIS drive's log at all (measured 2026-08-26: a test
-        # was running while entry #1 still read "Aborted by host" from hours
-        # earlier). So the escape hatch did not exist, and any reboot during the
-        # four-to-eight-hour weekly scan would have held this monitor red until
-        # the following week. A red monitor nobody can act on is the thing #207
-        # is about.
-        #
-        # Unknown statuses still alarm. That part was right: a status a future
-        # smartctl invents, or a log this parser failed to read, must be loud
-        # rather than assumed benign.
         case "$(tr '[:upper:]' '[:lower:]' <<<"$selftest")" in
             *"completed without error"*) ;;
             *"completed:"*)              problems+=("self-test: $selftest") ;;
@@ -233,18 +92,6 @@ else
             *)                           problems+=("self-test: $selftest") ;;
         esac
 
-        # Dead-man's check on the timer itself: the log stamps each test in
-        # drive power-on hours, so comparing with attribute 9 catches a silently
-        # dead timer instead of leaving an eternally green "Completed without
-        # error" from a year ago — which is exactly the state this drive was
-        # found in, its only self-test dating back to 16 power-on hours out of
-        # 2363. 336 h = two missed weekly runs.
-        #
-        # Measured against the last COMPLETED run, not the last entry, and that
-        # is what closes the hole the case above would otherwise open: an abort
-        # stamps recent power-on hours, so reading entry #1 here would let a
-        # scan that is aborted every single week reset this clock forever while
-        # the status check stays quiet about it. Two silences making a third.
         test_h=$(awk '/^#[[:space:]]+[0-9]+/ { if ($0 ~ /Completed/) { for (i = 1; i <= NF; i++) if ($i ~ /%$/) { print $(i + 1); exit } } }' \
                  <<<"$smart_out")
         if [ -z "$test_h" ]; then
@@ -256,47 +103,6 @@ else
         report+=("no self-test yet")
     fi
 
-    # --- Pending sectors are not unreadable sectors (#207) -------------------
-    # `Current_Pending_Sector` counts sectors the drive judged UNSTABLE: ones
-    # that needed unusual effort to read. Such a sector still returns its data,
-    # so a full-surface read passes straight over it, and only a WRITE retires
-    # it. Treating it like the other attributes in the loop above produced a
-    # monitor that was correct and useless:
-    #
-    #   2026-08-26  extended self-test: Completed without error, whole surface,
-    #               zero unreadable sectors anywhere on 4.6 TB
-    #               Current_Pending_Sector: 2, and nothing read-only can move it
-    #
-    # That combination is "two weak sectors, act at leisure". The same number
-    # with a self-test that FAILED is "data is going". The report gave both the
-    # same red, which is how it stayed red — and a permanently red monitor is
-    # not read. This issue predicted that about itself and then demonstrated it:
-    # the count went from 1 to 2 on 2026-08-24 behind an already-red monitor and
-    # nobody saw it.
-    #
-    # So: always REPORTED, alarms on the two things that actually mean something.
-    #
-    # A RISE alarms unconditionally, clean scan or not — "the count no longer
-    # stands still" is the whole title of #207, and without this the fix would
-    # just be painting the red green. It needs one number of memory, which is
-    # the smallest state this script has ever kept.
-    #
-    # The newest entry that says something about the SURFACE is what counts,
-    # not the newest entry. An "Aborted by host" tells you nothing either way —
-    # it is an absence of evidence, not evidence of trouble — and a reboot
-    # during the weekly run leaves exactly that at the top of the log for up to
-    # a week. Measured on this drive 2026-08-26: a test aborted at 09:47 sits as
-    # entry #1 while the clean full-surface scan of 05:33 sits at #2, and a test
-    # RUNNING at the time of reading does not appear in the log at all.
-    #
-    # Matching on "Completed" covers both: an aborted, interrupted or running
-    # entry says something else and is skipped, so this reads the last real
-    # verdict — clean or failed.
-    #
-    # Note this parses DIFFERENTLY from the self-test alarm above, on purpose.
-    # That one asks "did the scheduled scan run properly", so an abort is a
-    # legitimate finding there. This one asks "what does the surface evidence
-    # say", and an abort is not evidence. Same log, two questions.
     PENDING_STATE=/var/lib/homelab-disk/pending.last
     pending=$(raw 197)
     if [ -z "$pending" ]; then
@@ -319,30 +125,7 @@ else
     fi
 fi
 
-# --- Filesystem, as opposed to disk ---
-# The middle layer was missing: SMART watches the hardware and nothing watched
-# the filesystem on top of it. ext4 keeps an error counter in the superblock,
-# and that counter is the only trace that survives both a reboot and journal
-# rotation — so it is precisely what an intermittent problem leaves behind after
-# every other record of it is gone. Nobody read it.
-#
-# A clean filesystem prints NO "FS Error count" line at all, so its presence is
-# itself the signal; `Filesystem state` is the second one, and it reads
-# "clean with errors" rather than "clean" once anything has been recorded.
-# Both volumes are clean today, so this instruments a margin that has never been
-# spent rather than fixing something.
-#
-# `errors=remount-ro` — the other half of the answer, both volumes being on
-# "Continue" — is deliberately NOT changed here. Turning a data volume
-# read-only mid-incident is a real trade-off on a host that serves media and
-# backups, and it deserves its own decision rather than riding along.
 ext4_bad=""
-# An empty result was indistinguishable from a clean pass: with /mnt/data locked
-# the loop visits only `/`, and with findmnt absent or the daemon confused it
-# visits nothing at all — and the push said `ext4 clean` either way, asserting
-# for filesystems it never opened (#177). Same shape as "posture OK on 0
-# containers". Counting what was actually visited is the whole fix, and putting
-# the count in the message makes the locked case visible instead of silent.
 ext4_seen=0
 ext4_devs=""
 while read -r src tgt; do
@@ -353,8 +136,6 @@ while read -r src tgt; do
     hdr=$(dumpe2fs -h "$src" 2>/dev/null) || { ext4_bad="$ext4_bad $tgt(unreadable)"; continue; }
     state=$(awk -F: '/^Filesystem state/ { gsub(/^ +| +$/, "", $2); print $2 }' <<<"$hdr")
     errs=$(awk -F: '/^FS Error count/ { gsub(/ /, "", $2); print $2 }' <<<"$hdr")
-    # An empty state means the header parsed but told us nothing — read as a
-    # failure, not as a pass, like every other check in this stack.
     case "$state" in
         clean) ;;
         "")    ext4_bad="$ext4_bad $tgt(state unreadable)" ;;
@@ -371,12 +152,9 @@ else
     report+=("ext4 clean ($ext4_seen)")
 fi
 
-# --- Verdict ---
-
 join() { local out; out=$(printf "%s$1" "${@:2}"); echo "${out%"$1"}"; }
 
 msg=$(join ', ' "${report[@]}")
-{# bash ${#array[@]} reads as a Jinja comment opener — shield it #}
 if [ {% raw %}${#problems[@]}{% endraw %} -gt 0 ]; then
     notify down "$(join '; ' "${problems[@]}") | $msg"
     exit 1

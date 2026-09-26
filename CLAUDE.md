@@ -34,7 +34,12 @@ Domain: example.com
 
 ## Conventions
 
-- All documentation and code comments in English
+- All documentation in English
+- No comments in code or configuration files. The only exceptions are a one-line
+  `# [important]: ...`, `# [warning]: ...` or `# [critical]: ...` guarding against a
+  known failure, and tool directives (`# noqa: X`, `# shellcheck disable=SCxxxx`,
+  `# renovate: ...`, `# floor: ...`). Reasoning goes in commit messages, docs or
+  ADRs. Enforced by `ops/check-no-comments.py` (pre-commit and CI)
 - Sensitive variables never in plain text — use `.env` (gitignored) + `.env.example` as template
 - Every architecture decision documented in `knowledge/decisions/` (ADR format)
 - Test on the Pi before documenting as "working"

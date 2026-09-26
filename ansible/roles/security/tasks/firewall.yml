@@ -1,29 +1,4 @@
 ---
-# UFW: deny by default, explicit whitelist.
-
-# =============================================================================
-# Repair a non-ASCII marker BEFORE ufw is invoked (2026-09-04)
-# =============================================================================
-# This task is FIRST, and the position is the whole point. ufw rewrites
-# after.rules line by line through an ASCII codec whenever the default policy is
-# set — ufw/backend_iptables.py:156 into ufw/util.py:256, os.write(fd,
-# bytes(out, 'ascii')) — so an em dash anywhere in that file kills
-# "Set UFW default deny incoming", which is the fourth task of this role.
-#
-# The first attempt at this fix put the repair in the blockinfile tasks near the
-# bottom, and that was a DEADLOCK: the task that fails runs before the task that
-# repairs, so Ansible could never reach its own remedy and both hosts would have
-# needed a hand-edit. Measured — the homelab failed at that task on 2026-09-04
-# 22:35, and the offsite wrote itself into the same state eight minutes later
-# from the pre-fix code.
-#
-# `replace` and not blockinfile-absent-then-present: it converts the marker in
-# place, so the block is never briefly missing from the file, and the blockinfile
-# tasks below then find their own ASCII marker and report no change. That
-# no-change is the proof the repair landed.
-#
-# Idempotent and self-healing: on a host that never had the bad marker, and on
-# every run after the first, it matches nothing.
 - name: firewall | Repair non-ASCII Ansible markers in after.rules
   ansible.builtin.replace:
     path: /etc/ufw/after.rules
@@ -35,10 +10,6 @@
     name: ufw
     state: present
 
-# UFW applies its own sysctl file (IPT_SYSCTL=/etc/ufw/sysctl.conf) on every
-# reload, OVERRIDING /etc/sysctl.d — its shipped log_martians=0 was silently
-# undoing the CIS hardening on each run (flip-flop caught by the convergence
-# runs). Align UFW's copy with the base role's value.
 - name: firewall | Align UFW sysctl overrides with the CIS hardening (log martians)
   ansible.builtin.lineinfile:
     path: /etc/ufw/sysctl.conf
@@ -56,8 +27,6 @@
     direction: outgoing
     policy: allow
 
-# CIS 4.2.4 — explicit loopback handling: allow all traffic on lo, and drop
-# anything from a loopback address arriving on a real interface (spoofing).
 - name: firewall | Allow inbound traffic on the loopback interface (CIS 4.2.4)
   community.general.ufw:
     rule: allow
@@ -79,29 +48,6 @@
     - 127.0.0.0/8
     - ::1
 
-# IPv4 only, and deliberately. A bare `rule: allow` with no from_ip emits the
-# rule for BOTH families, which on a host with a global IPv6 address and no NAT
-# in front of it puts SSH on the internet — the offsite Pi is exactly that.
-# None of the SSH either host has seen in 30 days came from a v6 source, and the
-# homelab has no IPv6 egress at all. So the v6 half protects nothing and is
-# removed below.
-#
-# SCOPED TO `ssh_allowed_sources` SINCE 2026-09-13, and the reason is that the
-# claim and the rule had drifted apart: `docs/03-security/README.md` said "SSH
-# is not internet-reachable" while ufw printed `ALLOW IN Anywhere`. Both were
-# true at once — the router forwards no port for SSH — but that made the router
-# the only thing enforcing it, with nothing here saying so and nothing checking
-# it. One box swap and the sentence silently becomes false.
-#
-# The old comment here also asserted that every connection came from the
-# WireGuard subnet or a LAN. That was wrong, and the host_vars carry the
-# measurement that shows it: 144 came from a docker bridge. It is excluded on
-# purpose — see `ssh_allowed_sources` in host_vars for both hosts.
-#
-# ORDER MATTERS AND IT IS NOT COSMETIC. The allows come first and the unscoped
-# rule is retracted only after, so the v4 path is never absent, not even between
-# two tasks. This runs against hosts whose only route is a tunnel, and one of
-# them is in another building.
 - name: firewall | Refuse to proceed with no SSH source to allow
   ansible.builtin.assert:
     that:
@@ -125,9 +71,6 @@
     comment: SSH
   loop: "{{ ssh_allowed_sources }}"
 
-# Retracting the unscoped rule is what makes the scoping real — ufw keys a rule
-# on its (port, proto, source) tuple, so the rules added above sit BESIDE the
-# old `Anywhere` one rather than replacing it, and `Anywhere` keeps winning.
 - name: firewall | Remove the unscoped IPv4 SSH rule the scoped ones replace
   community.general.ufw:
     rule: allow
@@ -136,10 +79,6 @@
     from_ip: 0.0.0.0/0
     delete: true
 
-# Adding the scoped rule above does NOT retract the unscoped one: ufw sees an
-# identical v4 entry and skips it, leaving the v6 entry in place. It has to go
-# explicitly. Ordered after the allow so the v4 path is never absent, not even
-# between two tasks — this runs against a host whose only access is a tunnel.
 - name: firewall | Remove the legacy IPv6 SSH rule
   community.general.ufw:
     rule: allow
@@ -148,7 +87,6 @@
     from_ip: "::/0"
     delete: true
 
-# Per-host service ports — defined in host_vars/<host>/main.yml
 - name: firewall | Allow service ports through UFW
   community.general.ufw:
     rule: allow
@@ -157,19 +95,8 @@
     from_ip: "{{ item.from_ip | default('any') }}"
     comment: "{{ item.comment | default(omit) }}"
   # floor: none needed — a host may legitimately publish no service port. What must
-  # never be empty is ssh_allowed_sources, and that carries its own assert above.
   loop: "{{ ufw_service_rules | default([]) }}"
 
-# Same shape as the legacy IPv6 SSH rule above, and for the same reason: adding
-# a scoped rule does not retract an older one whose tuple differs. This one is
-# the proto-less `53` entry that host_vars carried until 2026-09-03, which ufw
-# stores as proto `any` and prints with the comment "DNS (Pi-hole, LAN only)" —
-# a claim DOCKER-USER, not ufw, has been enforcing since 2026-09-02. Ordered
-# AFTER the loop that creates the explicit udp and tcp rules, so the INPUT path
-# is never left without a udp/53 allow.
-#
-# `delete: true` with no `proto` is what matches the proto-less rule: the module
-# passes no protocol and ufw resolves that to `any`, which is the tuple to remove.
 - name: firewall | Remove the legacy proto-less DNS rule ufw added beside its replacement
   community.general.ufw:
     rule: allow
@@ -177,57 +104,6 @@
     from_ip: 192.168.1.0/24
     delete: true
 
-# Every rule above lands on the INPUT path. A packet bound for a published
-# container port never takes it: it is FORWARDed, and in FORWARD Docker's own
-# chains sit ahead of every ufw-* chain — DOCKER-USER at position 1,
-# DOCKER-FORWARD at 2, the six ufw-*-forward chains only from 3. Docker's
-# DOCKER chain then ACCEPTs by destination port with no source filter at all,
-# which terminates the traversal before ufw is ever consulted.
-#
-# Measured on the running host 2026-09-02: six of the seven inbound ufw rules
-# were in that position. Five of them (80, 443, 51413 twice, 51820) say
-# "Anywhere" and are therefore honest — Docker permits exactly what they
-# describe. The sixth said "DNS (Pi-hole, LAN only)" and restricted nothing,
-# so it is the only one whose written intent was violated, and the only one
-# restored here. Deliberately NOT a general default-deny in front of Docker:
-# 51820/udp is the WireGuard tunnel, which is the only way into this host.
-#
-# DOCKER-USER is the single supported hook — Docker traverses it first and
-# never rewrites its contents. Declaring the chain here also creates it when
-# ufw loads before dockerd has ever run, so the ruleset cannot fail to parse.
-# =============================================================================
-# The markers below are ASCII, and that is not a style choice (2026-09-04)
-# =============================================================================
-# ufw rewrites this file line by line whenever the default policy is set:
-#
-#   ufw/backend_iptables.py:156  ufw.util.write_to_file(fd, line)
-#   ufw/util.py:256              os.write(fd, bytes(out, 'ascii'))
-#
-# The markers shipped by a5d450f contained an em dash, so the NEXT run of this
-# role died before it reached a single rule:
-#
-#   UnicodeEncodeError: 'ascii' codec can't encode character '\u2014' in
-#   position 24: ordinal not in range(128)
-#
-# position 24 being exactly where the dash sits in "# BEGIN ANSIBLE MANAGED ".
-# It stayed latent for two days because the failing task, "Set UFW default deny
-# incoming", runs BEFORE the tasks that write the marker: the run that
-# introduced the character could not trip over it, and every run after it did.
-# The offsite host was one successful run away from the same state.
-#
-# ops/check-ascii-system-files.py is the gate, and it was made to fail on these
-# three markers before they were changed.
-#
-# The two removals are what keeps the rename from DUPLICATING the blocks:
-# blockinfile matches on the marker, so a changed marker means a second block
-# appended beside an orphaned first one. Each is ordered immediately before its
-# replacement, and the live chain is untouched until the handler reloads at the
-# end of the play — so the only window is on disk, and a run that died inside it
-# would leave the rules absent from the file while the running kernel still
-# enforces them. Recovery is re-running this role.
-#
-# They can be deleted once both hosts have converged; left in place they are one
-# no-op task each, which is cheaper than remembering.
 - name: firewall | Declare the DOCKER-USER chain in UFW's after.rules
   ansible.builtin.blockinfile:
     path: /etc/ufw/after.rules
@@ -237,10 +113,6 @@
       :DOCKER-USER - [0:0]
   notify: Reload UFW
 
-# Source addresses are still the original ones here: filter/FORWARD is
-# traversed before nat/POSTROUTING, so the laundering that rewrites bridge
-# sources into 172.18.0.1 has not happened yet and `-s` matches what the
-# client actually sent.
 - name: firewall | Restrict Pi-hole's DNS to the LAN, the VPN and the container networks
   ansible.builtin.blockinfile:
     path: /etc/ufw/after.rules
@@ -251,8 +123,6 @@
       -A DOCKER-USER -p tcp --dport 53 -s 192.168.1.0/24 -j RETURN
       -A DOCKER-USER -p udp --dport 53 -s 10.8.0.0/24 -j RETURN
       -A DOCKER-USER -p tcp --dport 53 -s 10.8.0.0/24 -j RETURN
-      # The stack resolves through Pi-hole too, and that traffic is FORWARDed
-      # from a bridge subnet. Omitting this pair breaks DNS for every container.
       -A DOCKER-USER -p udp --dport 53 -s 172.16.0.0/12 -j RETURN
       -A DOCKER-USER -p tcp --dport 53 -s 172.16.0.0/12 -j RETURN
       -A DOCKER-USER -p udp --dport 53 -j DROP

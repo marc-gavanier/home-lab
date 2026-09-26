@@ -1,20 +1,4 @@
 ---
-# =============================================================================
-# Role: stack-startup — staged container startup, triggered by homelab-unlock
-# =============================================================================
-# Docker's data-root lives on the LUKS-encrypted /mnt/data, unlocked manually
-# via `homelab-unlock` (it mounts the disk, then starts homelab-services.target).
-# Docker and this orchestrator are BOTH pulled by that target, so they run only
-# AFTER the disk is mounted — never at boot, which would start Docker against an
-# empty data-root (the ghost-store failure).
-#
-# Once triggered: Docker auto-starts Tier 0 (pihole/traefik/wg-easy,
-# `unless-stopped`) so the LAN regains DNS immediately; the orchestrator then
-# brings the `restart: "no"` services up in health-gated waves, and a timer
-# restarts any that later crash (see homelab-stack-heal.sh).
-# =============================================================================
-# Thin orchestrator: one file per concern, task names prefixed with the file.
-
 - name: Install the staged-startup orchestrator
   ansible.builtin.import_tasks: startup.yml
 

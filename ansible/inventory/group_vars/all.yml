@@ -1,146 +1,42 @@
-# =============================================================================
-# Home Lab — Global Variables
-# =============================================================================
-# Override these values in a local file or via --extra-vars
-
-# --- Connection ---
-ansible_user: pi            # Override in local.yml with your real username
-# NO default, deliberately (2026-09-13). This file is committed and public, and
-# the address belongs to your network rather than to this project. Set it in
-# `host_vars/homelab/private.yml`, which is gitignored — see
-# `private.example.yml` for the tier and why it exists.
-#
-# Undefined here rather than defaulted: a wrong default would be templated into
-# Pi-hole's 21 `address=` lines, wg-easy's pushed DNS and two /etc/hosts pins
-# without a word, which is exactly the shape this repo files as class C29. An
-# undefined variable fails the run and names itself.
-# Target SSH port after hardening. The port is obscurity, not security (real
-# protection is key-only auth + fail2ban) — but publishing it would cancel the
-# one thing it buys. Set the real value in each host's vaulted local.yml.
+ansible_user: pi
 ssh_port_hardened: 22
 
-# --- System ---
 hostname: homelab
 timezone: Europe/Paris
 locale: fr_FR.UTF-8
-# 4096 since 2026-08-15, up from 2048. Not because the machine was short of
-# memory — it has never been OOM-killed — but because at 2 GiB the swap ran
-# SATURATED, not merely full: Netdata's history has `used` pinned at 2047.996
-# MiB of 2048 for days on end. Mostly cold pages (Collabora's pre-forked kits,
-# immich-server) that will never be touched again. A saturated swap does not
-# tell you how much it wanted, only that it wanted at least 2 GiB. A swap that
-# is pinned at its ceiling cannot warn about anything, and leaves the kernel
-# nowhere to evict to on the day memory actually gets tight. Doubling it costs
-# 2 GiB on a disk with 3.6 TiB free, no RAM and no CPU, and turns occupancy back
-# into a signal — the reconstructed steady state sits at 52-57% of the new file.
-# See the alert and its reconstruction in homelab-health.sh.
-# NOTE: changing this value alone resizes nothing, `creates:` guards the file.
-# See roles/storage/tasks/swap.yml for the deliberate manual procedure.
 swap_size_mb: 4096
 
-# --- Storage ---
-data_disk_device: /dev/sda1       # HDD 5TB partition
+data_disk_device: /dev/sda1
 data_mount_point: /mnt/data
 data_filesystem: ext4
 luks_mapper_name: data_crypt
-# luks_passphrase: set via --extra-vars or ansible-vault, NEVER in plain text
 
-# Boot-time fsck triggers on the ROOT filesystem (#154). Both are set, because
-# they cover opposite failure modes: the interval catches a host that never
-# reboots, the mount count a host that reboots constantly. See
-# roles/base/tasks/filesystem-checks.yml for what each half actually does and
-# for the emergency-shell trade-off this accepts.
 root_fsck_max_mounts: 30
 root_fsck_interval_days: 30
 
-# Filesystems beyond `/` that the base role arms, one entry per device (#260).
-# Empty here: the homelab's encrypted volume is armed by the storage role, which
-# owns the LUKS-mapper guard. The offsite Pi sets its backup disk in host_vars.
-# Arming alone checks nothing — the entry's `passno` in fstab is what makes the
-# boot-time fsck consult these triggers at all.
 extra_fsck_filesystems: []
 
-# The same triggers on the DATA volume (#254), and deliberately not the same
-# values. /mnt/data is mounted once per unlock, so the mount count is nearly
-# dead weight here — a host that reboots twice a year would reach 30 unlocks in
-# a decade — while the interval is the trigger that actually fires. `0` disables
-# the mount count rather than setting a number that pretends to mean something.
-#
-# Nothing new runs these: `e2fsck -p` in homelab-unlock already honours both
-# triggers, and returned in 30 ms on an unarmed volume for exactly that reason
-# (measured 2026-08-26). Arming the superblock is the whole change.
-#
-# The cost lands on the unlock where the interval has elapsed: 3 min 27 s on
-# 4.6 TB / 730 GB used, during which DNS stays down. Everything about this
-# volume being checkable only while unmounted follows from that.
 data_fsck_max_mounts: 0
 data_fsck_interval_days: 30
 
-# --- Docker ---
-docker_data_root: /mnt/data/docker  # Docker images/layers on HDD
-# Seconds the daemon gives ALL containers, together, to drain on shutdown. The
-# default is 15 and it killed four databases mid-shutdown on 2026-08-29 (#288).
-# 60 was not enough either: on 2026-09-05 three of them were still killed at
-# their own 30 s grace, so the per-container budget went to 90 s and this one
-# has to make room for it. The number that sizes it is not the grace but the
-# 54 s the daemon took that night with 30 s of grace — 24 s of network and mount
-# teardown OUTSIDE any container's budget, which every future sizing carries too.
-# Must stay below docker_stop_timeout — asserted in goss.
+docker_data_root: /mnt/data/docker
 docker_shutdown_timeout: 150
-# Seconds systemd gives docker.service itself to stop (TimeoutStopSec), written
-# into a drop-in rather than inherited. It was the distribution default of 90 s
-# until 2026-09-06, which made the budget above depend on a value this repo
-# neither set nor asserted — a distribution shipping 60 would have moved the
-# kill up one level, silently. Ordering: container grace < daemon < this.
 docker_stop_timeout: 240
 
-# --- Network ---
 domain: example.com
 
-# The homelab HOST's own WireGuard client address ("homelab-host" in wg-easy).
-# It lives here rather than in offsite's host_vars because BOTH hosts need it:
-# offsite pins services.{{ domain }} to it in /etc/hosts, and the homelab's own
-# posture check probes Traefik through it to prove the allow-list still admits
-# 10.8.0.0/24 (#259). The homelab play could not see it while it was offsite's.
 homelab_wg_ip: "10.8.0.5"
-traefik_acme_email: ""  # Set via --extra-vars (not in repo)
+traefik_acme_email: ""
 
-# --- Security ---
-# Follows the admin user from local.yml — a hardcoded placeholder here once
-# shipped "AllowUsers pi" to sshd and locked the real admin out (2026-07-11).
 ssh_allowed_users:
   - "{{ ansible_user }}"
 fail2ban_max_retry: 3
 fail2ban_ban_time: 3600
 
-# --- Services data directories ---
 services_data_dir: "{{ data_mount_point }}/services"
 media_dir: "{{ data_mount_point }}/media"
-# The tree an automated downloader may write into, kept separate from media_dir
-# on purpose. media_dir holds what the operator alone produces — home videos,
-# music videos, photos, the Calibre library — and nothing with a download client
-# behind it ever gets write access there. library_dir holds what arrives through
-# Transmission, and the downloads sit INSIDE it rather than beside it: a hard
-# link across two bind mounts fails with EXDEV even when both resolve to the
-# same filesystem, so sharing one mount is what makes an import a link instead
-# of a 40 GB copy that also breaks seeding.
 library_dir: "{{ data_mount_point }}/library"
 
-# Which categories under library_dir are deliberately OUTSIDE the restic source.
-# This is the single declaration of that split; the posture assertion
-# `library-backup-source-matches-the-declared-split` checks the deployed profile
-# against it in BOTH directions, so a category cannot silently drop out of the
-# backup and cannot silently be added to it either.
-#
-# `downloads` has always been here: it is Transmission's working area and every
-# completed file is hard-linked into a category anyway.
-#
-# `movies` and `shows` joined on 2026-09-13, reversing the original ADR-035
-# decision. They hold torrent-sourced video kept until watched and to seed. It
-# is re-downloadable, and the local repository lives on the SAME LUKS volume as
-# the data, so backing it up locally protected against an accidental delete and
-# nothing more. One night with them in the source cost 4 h 25 of reading,
-# 69.986 GiB stored, ~4 h 20 of uplink, and a failed weekly maintenance.
 library_unbacked_categories:
   - downloads
   - movies
@@ -154,18 +50,9 @@ containers_without_healthcheck:
 
 backup_dir: "{{ data_mount_point }}/backups"
 
-# Where the backup writes its narrative, and where the dump assertions leave
-# their verdict. The TAP file is goss's own output, read by the notification
-# hook: its ABSENCE means the dump step did not run at all, which is not the
-# same as "no failures" and must not read as success.
 backup_log: /var/log/homelab-backup.log
 dump_tap: /run/homelab-backup-dumps.tap
 
-# --- Database dumps and their assertions (ADR-031) ---------------------------
-# The dump commands live in the resticprofile `backup` hook and the assertions
-# in goss-backup-dumps.yaml; both are generated from these lists, so a database
-# added here gets dumped AND checked, and cannot get one without the other —
-# which is the defect #177 named, wearing different clothes.
 backup_sql_dumps:
   - name: nextcloud
     file: nextcloud.sql
@@ -174,9 +61,6 @@ backup_sql_dumps:
     file: miniflux.sql
     marker: "-- PostgreSQL database dump complete"
 
-# `source` is where the LIVE database is expected. Asserting it separately from
-# the dump is what turns "a version bump moved the path" from a silent skip into
-# a named failure.
 backup_sqlite_dumps:
   - name: vaultwarden
     container: vaultwarden
@@ -184,52 +68,17 @@ backup_sqlite_dumps:
     file: vaultwarden.sqlite3
   - name: forgejo
     container: forgejo
-    # The doubled segment is not a typo: the host directory forgejo/data is
-    # mounted at /var/lib/gitea, and Forgejo keeps its own APP_DATA_PATH one
-    # level under that, so the database lands in forgejo/data/data/.
     source: "{{ services_data_dir }}/forgejo/data/data/forgejo.db"
     file: forgejo.sqlite3
   - name: uptime-kuma
     container: uptime-kuma
     source: "{{ services_data_dir }}/uptime-kuma/kuma.db"
     file: uptime-kuma.sqlite3
-  # Added 2026-09-11. The file was already IN the restic set — services/ is a
-  # source and wireguard/ is not excluded — so this is not a missing copy, it is
-  # a missing ASSERTION. And the spec that now carries it names this very file
-  # as its founding disaster: "a bump renamed wg-easy's store from wg0.json to
-  # wg-easy.db and nothing noticed for weeks". The rename happened; the store
-  # that replaced it never entered this list, and the stale wg0.json is still
-  # sitting beside it.
-  #
-  # The consistency argument that justifies the .backup for Vaultwarden and Kuma
-  # barely applies here — #138 means wg-easy cannot write its own database, and
-  # the file has not changed since 2026-08-26. The argument is the named failure,
-  # not the torn copy: one entry generates -container-present, -source, -present,
-  # -integrity and -content with no new code, and wg-easy-source going red is the
-  # alarm that did not exist when wg0.json became wg-easy.db.
-  #
-  # 98 KB and 21 objects, holding every WireGuard peer — and the tunnel is the
-  # only route to this Pi, to the offsite Pi, and (wg0.conf symlinking into LUKS)
-  # to the unlock itself. The consequence is out of all proportion to the size.
   - name: wg-easy
     container: wg-easy
     source: "{{ services_data_dir }}/wireguard/wg-easy.db"
     file: wg-easy.sqlite3
 
-  # Added 2026-09-13. Deployed the same night and audited the next morning: all
-  # three were in the restic set — services/ is a source — and all three were
-  # copied LIVE, in WAL mode, with a WAL that was not empty. Measured before the
-  # fix: radarr.db-wal held 3.77 MB of committed transactions outside the main
-  # file, sonarr.db-wal 696 KB. A restore from that copy is a database missing
-  # its most recent writes, and nothing said so: this list is what generates the
-  # assertions, so a database absent from it has no -source, no -integrity and
-  # no -content check. The gate derives from the dump variables, not from the
-  # databases present, which is why three new services could arrive unguarded.
-  #
-  # NOT covered by the "a rescan rebuilds them" decision of 2026-09-02 — that
-  # named Navidrome, Jellyfin, Calibre-Web and Pi-hole, whose databases are
-  # derived from the media on disk. These hold indexer definitions, API keys,
-  # quality profiles and the download history: nothing on disk rebuilds them.
   - name: sonarr
     container: sonarr
     source: "{{ services_data_dir }}/sonarr/sonarr.db"
@@ -243,115 +92,26 @@ backup_sqlite_dumps:
     source: "{{ services_data_dir }}/prowlarr/prowlarr.db"
     file: prowlarr.sqlite3
 
-# Immich dumps itself on its own schedule, into the restic set. Only asserted.
 immich_backup_dir: "{{ services_data_dir }}/immich/upload/backups"
 
-# --- Backup ---
-# No backup_schedule here on purpose. One used to sit at this line holding
-# "0 3 * * *" — the correct time, read by nothing. Editing it to move the
-# backup changed nothing and the deploy still reported green. The schedules are
-# systemd OnCalendar expressions, which cron syntax cannot express anyway, and
-# they live with the units that use them: roles/deploy/tasks/backup.yml for the
-# nightly run and the weekly maintenance, roles/deploy/tasks/offsite.yml for the
-# offsite check.
-#
-# No restic_password here either, and for a sharper reason. One sat at this line
-# holding "" with a TODO beside it, and that empty default was doing real work:
-# argument_specs marks the variable required, `required` checks only that it
-# EXISTS, and this line guaranteed it always did. A host whose vaulted local.yml
-# never defined it would have deployed cleanly with an empty repository password
-# (#156). The secret belongs in host_vars/<host>/local.yml, vaulted, and nowhere
-# else.
-
-# --- PDF signing (LibreSign, ADR-022) ---
-# Identity of the root certificate every signature is issued from. Not a
-# secret — it is printed inside each signed PDF — but the real common name is
-# a person's name, so it lives in local.yml like the domain does. Changing
-# these after the CA exists has no effect: the certificate is generated once
-# and regenerating it would orphan every signature already issued.
 libresign_cert_cn: "Home Lab"
 libresign_cert_o: "Home Lab"
 libresign_cert_c: "FR"
 
-# --- Container logs (Dozzle) ---
-# Identity shown in the Dozzle UI. The password hash is not here: it is the one
-# secret of the three and belongs in the vaulted local.yml.
 dozzle_admin_user: "admin"
 dozzle_admin_email: "admin@localhost"
 dozzle_admin_name: "Admin"
 
-# --- Nextcloud ---
-# Minutes after which files_lock's own cron releases a lock nobody released.
-# Nextcloud ships that cron and then disables it: the default is -1, which
-# getDeprecatedLocks() reads as "never expire". A lock left by a client that
-# died therefore lasts forever, and the file silently stops syncing.
-# 60 rather than tighter because a lock is never refreshed — it ages from
-# creation whether or not the editor is still open. Losing one mid-edit is
-# harmless on a single-user instance: it only ever guards against a second
-# person, and Text autosaves. Lower it if stale locks still bite.
 nextcloud_lock_timeout_minutes: 60
 
-# --- RSS reader (Miniflux, ADR-026) ---
-# Login of the admin account created at first start. Not a secret; the password
-# is, and belongs in the vaulted local.yml. Note this is read ONLY while the
-# account does not exist — renaming it later has no effect, the old user stays.
-#
-# That last sentence had a consequence nobody had drawn, found 2026-09-02: the
-# account this variable names was created once and NEVER USED (last_login_at
-# empty), while the account carrying real daily admin access was made by hand in
-# the web UI. Two full administrators, and the rotation machinery governed the
-# one nobody logs in with — so "we rotate Miniflux's admin password" was true of
-# a dead account and false of the live one.
-#
-# This value must therefore name the account actually in use, and it is set in
-# the vaulted local.yml alongside its password rather than here, so the public
-# repo carries the mechanism and not the login. The default below is the
-# first-install value only; on a host where an admin already exists, CREATE_ADMIN
-# is a documented no-op and the pair matters solely for a rebuild from empty.
 miniflux_admin_user: "admin"
 
-# --- Netdata curated alarms (ADR-030, phase 1) ---
-# Netdata notifies NOBODY — stock alarms and curated ones alike, which is the
-# decision documented in docs/07-observability/README.md. A host-side adapter
-# (homelab-netdata-kuma.sh, every 5 minutes) reads the alarm API and pushes into
-# Uptime Kuma, which stays the single place the notification channel is
-# configured.
-#
-# Polling rather than notifying is also what makes each monitor a dead-man's
-# switch: a beat goes out on every run, so a dead netdata or a stopped adapter
-# turns the monitor red on its own.
-#
-# --- Grouping: one monitor per ACTION, not per condition -------------------
-# `docs/07-observability/README.md` asks for "one alert = one action needed" —
-# an ACTION, not a condition. Conditions that would send you to the same place
-# therefore share a monitor, which keeps the dashboard readable and the manual
-# monitor creation bearable (Kuma v2 has no API for it).
-#
-# What must NOT share a monitor is a difference of LIFETIME. That is what cost a
-# whole day in #216: `reboot pending` waits for a human and stays red for days
-# by construction, so folded in with the acute checks it occupied the signal
-# permanently and muted them. `pending` below exists for exactly that class.
-#
-# These monitors want `resend_interval` set (6 h is reasonable) so a monitor
-# that is still down re-notifies with its CURRENT message — which is what makes
-# a group safe: a new condition inside one still reaches you. See #200, which
-# measured 54 hours of continuous outage for a single notification.
-# There is no `pending` group here on purpose. The "waiting on a human"
-# monitor is fed directly by homelab-health.sh (see homelab_pending_kuma_push_url):
-# a Kuma push monitor takes its status from whoever pushed last, so two
-# independent pushers on one monitor would overwrite each other.
 netdata_alarm_groups:
   - name: resources
     push_url: "{{ netdata_resources_kuma_push_url | default('') }}"
   - name: services
     push_url: "{{ netdata_services_kuma_push_url | default('') }}"
 
-# One entry per curated alarm.
-#   file   the template, netdata-health-<file>.conf.j2, and the installed name
-#   alarm  the `alarm:` line inside it — the contract with the adapter
-#   group  which monitor reports it
-# An alarm whose group has no push_url is not installed at all, rather than
-# installed and unreported.
 netdata_curated_alarms:
   - file: homelab-swap
     alarm: homelab_used_swap
@@ -365,8 +125,6 @@ netdata_curated_alarms:
   - file: homelab-undervoltage
     alarm: homelab_undervoltage
     group: resources
-  # Phase 2. Both need the docker collector, which needs IMAGES=1 on the
-  # socket-proxy — measured, see the comment on that variable in compose.yaml.
   - file: homelab-container-unhealthy
     alarm: homelab_container_unhealthy
     group: services
@@ -374,120 +132,23 @@ netdata_curated_alarms:
     alarm: homelab_container_down
     group: services
 
-# Docker collector resolution, in seconds. NOT a free knob: it is the divisor of
-# the sample floor in homelab_container_unhealthy, and the two must move
-# together or the alarm stops firing while its assertion stays green. That is
-# exactly how it was found — the goss spec asserted `update_every == 1` as a
-# PROXY for the floor, so anyone setting this would have broken the alarm and
-# the check meant to protect it in the same edit.
-#
-# Why 5 and not 1: the collector polled the Docker API at 6.2 req/s (measured
-# 2026-08-29: 371 socket-proxy log lines in 60 s) to feed alarms thresholded at
-# TEN MINUTES. That traffic is ~150 MB/day of container log, which truncated
-# socket-proxy's audit log — the record of every Docker API call — to a sawtooth
-# window of roughly 3 h 15 to 4 h 45. Nothing from the previous day could ever
-# be investigated.
-#
-# Why not coarser: the floor has to stay clear of the largest spurious sample
-# count ever recorded (173 s of chart on a freshly recreated container). At 1 s
-# the margin is 500/173 = 2.9x; at 5 s it is 100/34.6 = 2.9x — identical, because
-# both sides divide. Past that the absolute numbers get small enough that a
-# single collection gap matters.
 netdata_docker_update_every: 5
 
-# Available-memory threshold, in MiB. Netdata is now the only consumer —
-# homelab-health.sh's memory check left the script, alongside swap and CPU
-# temperature, so this is no longer a number kept in step with a second copy.
-# Unlike the swap threshold this one IS measured — 19 days of retention, hourly
-# minimum never below 800 MiB.
 netdata_mem_threshold_mib: 800
 
-# CPU temperature, in Celsius. Not a tuned threshold: 80 is where the Pi's
-# firmware starts throttling, so it is a hardware fact. Netdata is now the only
-# consumer — this check left homelab-health.sh with the other two.
 netdata_cpu_temp_threshold_c: 80
 
-# Swap utilisation threshold. Netdata is now the only consumer — the swap check
-# left homelab-health.sh, so the "two copies would drift" reasoning that used to
-# stand here is spent. 85 is a STARTING POINT, not a measured value — occupancy
-# accumulates
-# cold pages until something restarts the containers, so it is not a steady
-# state to project from.
 netdata_swap_threshold_pct: 85
 
-# --- resticprofile (ADR-031) ---
-# The `no_self_update` build: a binary that updates itself on a host whose
-# versions are pinned and reviewed through Renovate would be a hole in that
-# process, not a convenience. Checksum published by the project alongside the
-# release — without it the download is trusted blindly, on the host that holds
-# the backups.
 resticprofile_version: "0.33.1"
 resticprofile_sha256: "58e4fd6fbe2bd460ee6823c3693f39a10f0f24c90635f0215c19b0ab20bbf5df"
 
-# --- Credential stores: derived, not enumerated (#217) -----------------------
-# The block that stood here described the hand-maintained map of seven paths and
-# said Jellyfin was "at 0644 today, a known, tracked defect" that would "join the
-# list with the fix". Both halves were stale: the map was replaced by the
-# derivation below, and `9a3e1e8` fixed Jellyfin — measured 0700 root:root on
-# 2026-08-29, with nothing tracking it any more. Removed rather than corrected,
-# because what follows already tells the whole story.
-#
-# What replaced the list of seven. A store is not something anyone remembers to
-# add here any more; it is a PROPERTY, evaluated against the running containers
-# by goss-posture.yaml: a directory under services_data_dir that is bind-mounted
-# by exactly one container. Everything the derivation returns must be 0700
-# unless it is named below, with the reason it is not a credential store.
-#
-# The list of seven was carried by hand three times over (a `for` loop, then
-# this map, then the spec) and missed the next store every time — Pi-hole (#189),
-# Forgejo (#199), then Jellyfin AND Traefik's ACME storage, which the derivation
-# found on its first run. The inversion is the point: a service added tomorrow
-# starts INSIDE the assertion and has to be argued out of it.
 credential_store_default_mode: "0700"
 
-# A floor, not a count to maintain. goss cannot report a value, so a derivation
-# `credential_store_min_count` was RETIRED on 2026-09-05 and the reason is worth
-# keeping. It was a floor kept by hand — "measured at 12 on 2026-08-24, then 11
-# on 2026-08-25 when pihole/etc moved to the exemptions". That second edit is
-# the whole argument: an exemption was added and the number was decremented,
-# but the population before the exemption was 13, not 12. The floor has sat one
-# below the truth ever since, so a credential store could have stopped being
-# derivable without this assertion noticing — which is the exact defect it
-# exists to prevent, committed by its own bookkeeping.
-#
-# goss-posture.yaml.j2 now derives the floor from compose.yaml, over the same
-# set the runtime side builds: bind sources under the services data dir, kept
-# when exactly one service declares them, minus the exemptions below. Verified
-# on 2026-09-05 to produce the twelve names the host reports, name for name.
-# The exemptions stay here, because a reason cannot be derived.
-
-# Out of scope, each with the reason. Not "known exceptions to fix later" — a
-# directory listed here is one the property reaches and that holds no credential,
-# except where a mode change would break the container, which is stated as such.
-# Stores the derivation DROPS for being bind-mounted by more than one container.
-# The drop itself is correct and deliberate: a directory three containers write
-# to cannot be closed to one uid without breaking the other two, which is why
-# `awk '$1 == 1'` sits in the derivation. What was missing until 2026-09-13 is
-# that the drop was SILENT — a new shared store would leave the assertion with
-# nothing said, and the one store already in this set turned out to be holding
-# two unmanaged copies of the live Nextcloud database password, found by the
-# audit of that day precisely because nothing was watching it.
-#
-# So the set is declared, and asserted to be exactly this. It is not an
-# exemption list to work through: it is the boundary of what the mode assertion
-# can reach, and a change to it is a decision, not a deploy.
 credential_store_shared:
-  - nextcloud/data   # mounted by nextcloud, nextcloud-cron and nextcloud-notify-push
+  - nextcloud/data
 
 credential_store_exemptions:
-  # The `wireguard` exemption was REMOVED here on 2026-08-29 (#261). It read
-  # "0700 here would BREAK wg-easy … sequenced behind the chown that fixes
-  # #138, at the machine". That chown was done during the 2026-08-26 visit,
-  # #138 is closed, and the directory is 0700 root:root today — so the most
-  # sensitive store in the lab was the one the continuous assertion had been
-  # told not to look at. `ca6d72e` removed the twin exemption in posture.sh and
-  # left this one. An exemption that outlives the ticket it names is
-  # indistinguishable from a blind spot.
   transmission/downloads: completed torrents — media the operator browses, no credential
   transmission/watch: the .torrent drop folder, written from outside the container
   pihole/dnsmasq: dnsmasq configuration fragments, no credential
@@ -544,14 +205,6 @@ credential_store_exemptions:
     Which is exactly why the dump had to move out from under this line. The same
     unprivileged account reads both, and only one of them is meant to be read.
 
-# --- goss (ADR-032) ---
-# Checksum taken from the project's own goss_<version>_SHA256SUMS, not computed
-# locally: a digest you compute from the file you downloaded pins that download
-# and proves nothing about what the publisher released.
-# Long-running units whose "active" state is the signal, asserted by
-# goss-units.yaml. `is-enabled` is deliberately NOT asserted: docker is disabled
-# because the staged startup owns it and ssh is socket-activated, yet both must
-# be running — goss reports the mismatch if you try.
 health_watched_units:
   - unit: docker.service
     why: the engine every service depends on
@@ -563,21 +216,6 @@ health_watched_units:
     why: looped 1112 times over 5h47 on 2026-07-27 without ever reaching failed
   - unit: wg-quick@wg0.service
     why: the only route to this host, and to the offsite one
-    # One of only TWO entries carrying this flag, and it is opt-in for a measured
-    # reason:
-    # `systemctl is-enabled` on 2026-09-03 returns enabled for containerd,
-    # fail2ban, claude-remote-control and this unit, but DISABLED for docker and
-    # `ssh.service`, which are socket-activated. A blanket assertion would fail forever on
-    # a correct machine, which is what the units template's comment warns about.
-    #
-    # Why this unit and not the others: `systemctl show` gives it
-    # `WantedBy=mnt-data.mount` and nothing else, so the symlink in
-    # mnt-data.mount.wants/ is the SOLE activation path of the only remote access
-    # to this host. `running: true` already covers it, but only after the reboot
-    # that has already cost the tunnel — at which point the fix needs someone in
-    # the room. This reads the precondition while the machine is still reachable,
-    # and `is-enabled` reads that symlink directly. The precedent is on file:
-    # `enabled: false` erased it on 2026-07-13.
     enabled: true
   - unit: ssh.socket
     why: >-
@@ -590,21 +228,11 @@ health_watched_units:
       pass once somebody had logged in. `ssh.socket` holds the port from boot,
       which is where "this host is reachable" actually lives. What the socket
       cannot carry is asserted separately by `sshd-config-is-loadable`.
-    # The second entry to carry this flag, on the argument of wg-quick@wg0 above,
-    # word for word: this unit is the SOLE activation path of the only remote
-    # access to these hosts, `running: true` would only report its loss after the
-    # reboot that has already cost the access, and `is-enabled` reads the
-    # precondition while the machine is still reachable. Measured 2026-09-06:
-    # enabled and active on both hosts.
     enabled: true
 
 goss_version: "0.4.10"
 goss_sha256: "90a59612b4d67d9f1a9038634c000790136bb82526a69de1e81ac075c2f6d2c6"
 
-# --- goss posture: netdata expectations (ADR-032) ---
-# Moved out of homelab-posture.sh unchanged. The plugin list and the context
-# floor were established by running a throwaway agent and diffing it against the
-# real one (#24); they are measurements, not preferences.
 netdata_expected_plugins:
   - "NETWORK-VIEWER"
   - "apps.plugin"
@@ -614,65 +242,10 @@ netdata_expected_plugins:
   - "spawn-plugins"
 netdata_min_contexts: 270
 
-# --- Journal retention: long enough to outlive what it is evidence of (#290) -
-# The journal is the fallback durable store for every job that does not push a
-# reading to a monitor, and #290 (class C39) is about evidence whose retention
-# is shorter than the period of the event it records. Measured on 2026-08-30:
-# 496 MB used at a 500M cap, spanning 2026-08-14 to 2026-08-30 — 16 days, about
-# 31 MB/day, against a monthly job. The only deep repository verification ever
-# executed had already fallen out of it.
-#
-# Re-measured 2026-09-21, after the journal moved to the encrypted volume:
-# 545.3 MiB spanning 2026-08-30 to 2026-09-21 — 21.3 days at 25.6 MiB/day, so
-# 1500M is about 59 days once the store saturates, not the 48 this said. The
-# 45-day threshold of `restic-deep-check-not-stale` is NOT what sizes this:
-# that assertion reads Kuma's heartbeat history and says so in its own spec.
-# What the cap has to outlive is the period of the jobs whose only durable
-# evidence is the journal, the longest being monthly.
-#
-# Raising a cap adds NO writes — it governs deletion, not writing — which is the
-# same argument that took it from 200M to 500M and the one that matters on a
-# host whose journal is on the SD card. 1.5 GB on a filesystem with tens of
-# gigabytes free. The offsite host retains 42 days at 500M because its log rate
-# is a fraction of this one's; the same cap there is simply slack.
 journald_system_max_use: "1500M"
 
-# --- lynis: installed only where it is scheduled and reported (#291) --------
-# The security role runs on BOTH hosts, so installing lynis here installed it
-# there too — while the schedule, the report script, the hardening-index ratchet
-# and the push monitor all live in the observability role, which runs on the
-# homelab only. The offsite therefore carried the package with its distribution
-# timer masked and nothing in its place: a security auditing tool whose last
-# report was 2026-08-17 and which would never produce another.
-#
-# The default is false on purpose. A host gets the package by declaring that it
-# schedules it, not by being in the inventory.
 lynis_scheduled: false
 
-# --- Offsite parity: derived, not enumerated (#291, class C02) --------------
-# #285 closed C02 by adding seven assertions to the offsite host, one per
-# control the homelab had and it lacked. The seven are real and they are green.
-# They are also a LIST, and a list closes the instances it names — it cannot
-# fail on the eighth. The eighth was found the same day: lynis installed on the
-# offsite with its timer masked and nothing scheduled in its place, last report
-# 2026-08-17, looking like coverage on any inventory of what is installed.
-#
-# So the parity is derived instead, from the machine rather than from memory.
-# Every `homelab-*.timer` actually deployed must appear below, classified one
-# way or the other, and the register must not name a timer that no longer
-# exists. A new control creates a timer, the timer appears in the enumeration,
-# and the assertion fails until somebody decides what it means for the offsite.
-# That is the difference between a sweep and a gate, and it is the same shape
-# as C10's credential stores: derive the set, subtract documented exemptions.
-#
-# The limit, stated rather than left to be discovered: this gates controls that
-# ARE timers. A homelab control that is neither a timer nor a goss assertion
-# would still escape it.
-#
-# `offsite:` names the unit that carries the same property over there.
-# `exempt:` says why the property does not exist on that host — and "the offsite
-# has no docker and no netdata" (both verified 2026-08-30) does most of the
-# work, because it is a fact about the host and not an opinion about the check.
 homelab_control_timers:
   - timer: homelab-health
     offsite: offsite-health
@@ -728,26 +301,6 @@ homelab_control_timers:
       set lynis_scheduled on the offsite, and give it the observability role's
       report and monitor as the homelab has them
 
-# --- Addresses a third party assigns (#292, class C43) ----------------------
-# Docker allocates a subnet per network from its default pool, with no pinning
-# anywhere in compose.yaml. That allocation is stable in practice and is not
-# guaranteed: it depends on creation ORDER and on what is already taken, so a
-# network recreated after the others comes back somewhere else.
-#
-# One of them is load-bearing. Traefik's `vpn-only` middleware admits
-# `172.18.0.0/16` because that is where `proxy` happens to live, and every VPN
-# client reaches Traefik through it — so a shift of that one subnet locks every
-# VPN client out, silently, at the next deploy. Its assertion compares the LIVE
-# network against the allowlist FILE rather than against this list, because
-# those two are the authorities and this list is only a memory of them.
-#
-# Pinning with `ipam_config` was the other option and was not taken: it requires
-# recreating the networks, `proxy` is `external: true`, and recreating it means
-# stopping every container attached to it. The acceptance of #292 allows pinned,
-# derived, or watched; this is watched, deliberately, and cheaply.
-#
-# Values measured on 2026-08-30. If a deploy moves one, the assertion says which
-# and to where, which is the whole point of writing them down.
 docker_expected_subnets:
   proxy: "172.18.0.0/16"
   homelab_internal: "172.19.0.0/16"

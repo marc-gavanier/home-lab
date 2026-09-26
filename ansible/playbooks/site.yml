@@ -1,17 +1,4 @@
 ---
-# =============================================================================
-# Home Lab — Main Playbook
-# =============================================================================
-# Provisions the entire system from bare Ubuntu Server to running services.
-#
-# Usage:
-#   ansible-playbook playbooks/site.yml
-#
-# To run a specific phase:
-#   ansible-playbook playbooks/site.yml --tags phase1
-#   ansible-playbook playbooks/site.yml --tags security
-# =============================================================================
-
 - name: Provision Home Lab
   hosts: homelab
   become: true
@@ -25,7 +12,6 @@
       ansible.builtin.setup:
 
   roles:
-    # Phase 1 — Foundations
     - role: base
       tags: [phase1, base]
 
@@ -38,30 +24,21 @@
     - role: docker
       tags: [phase1, docker]
 
-    # Host-level health monitoring (Pi power/thermal → Uptime Kuma). Independent
-    # of the services; the push no-ops until Kuma is up and a push URL is set.
     - role: observability
       tags: [phase1, observability]
 
-    # Phase 2-5 — Services deployment
     - role: deploy
       tags: [phase2, phase3, phase4, phase5, deploy]
 
-    # Phase 5 — Claude Code on the Pi (vault access via rclone WebDAV)
     - role: claude-code
       tags: [phase5, claude-code]
 
-    # Phase 5 — Remote kill switch (poweroff via secret ntfy message)
     - role: killswitch
       tags: [phase5, killswitch]
 
-    # Phase 5 — USB tamper response (poweroff on any USB plug/unplug while
-    # armed; armed by homelab-unlock, so it must run after the storage role)
     - role: usb-tamper
       tags: [phase5, usb-tamper]
 
-    # Phase 5 — Staged container startup at boot (DNS first; needs /opt/homelab
-    # from the deploy role, so it must run after it)
     - role: stack-startup
       tags: [phase5, stack-startup]
 

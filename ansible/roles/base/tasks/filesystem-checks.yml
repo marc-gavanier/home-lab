@@ -1,70 +1,9 @@
 ---
-# =============================================================================
-# base | Filesystem integrity — and one control that only looks like it (#154)
-# =============================================================================
-# Measured on BOTH hosts (2026-08-16, re-measured 2026-08-24):
-#
-#   systemctl is-enabled e2scrub_all.timer   -> enabled, active, green weekly
-#   e2scrub_all -n                           -> (empty output)
-#   vgs                                      -> (empty output)
-#
-# e2scrub only ever scrubs LVM LOGICAL VOLUMES — checking a mounted filesystem
-# requires a snapshot, and the snapshot is what LVM provides. Neither host has
-# LVM, so this timer has fired every week since installation over ZERO bytes.
-# It is not misconfigured: it is structurally incapable of examining the volumes
-# this lab actually has, and it has been reporting success for doing so.
-#
-# That is the shape this repository keeps finding and removing — a control that
-# is present, exits 0, and can never report the failure it appears to name. A
-# green timer that checks nothing is worse than no timer, because it answers the
-# question "is anything verifying these filesystems?" with a yes.
-#
-# Masked rather than disabled, and for the same reason as lynis.timer next door
-# in security/audit.yml: a package update must not be able to put a green no-op
-# back on the schedule quietly.
-#
-# --- Here rather than in `storage`, which is the whole of #155 ---------------
-# The storage role runs on the homelab only. The offsite Pi has the same inert
-# timer and the same absence of LVM (verified over the tunnel, 2026-08-24), so a
-# fix in `storage` would have left it running there — exactly what happened to
-# lynis.timer. `base` runs on both, which is the property that matters.
-#
-# --- What actually checks these filesystems, so masking loses nothing --------
-#   /mnt/data   `homelab-unlock` runs `e2fsck -p` on the still-unmounted mapper
-#               at every unlock (storage/unlock.yml). This paragraph used to
-#               stop there, and it was too generous: preen honours the
-#               superblock triggers, /mnt/data had NONE, and so that check only
-#               ever did work after an unclean shutdown. `Last checked` on it
-#               read 2026-05-10 for 108 days while this file claimed it was
-#               covered. The triggers are armed as of #254
-#               (storage/tasks/fsck.yml), which is what makes the sentence
-#               true — the check itself never changed.
-#   /           nothing, until the second half of this file. `passno=0` in
-#               fstab, `Maximum mount count: -1`, `Check interval: 0`, last
-#               checked 2026-02-10 — the date the image was built, on BOTH
-#               hosts. That decision was left open when this file was written;
-#               it is taken below.
-#   both        the daily disk report reads the superblock error counters
-#               (`ext4 clean`), which catches errors the kernel has ALREADY
-#               noticed. That is detection after the fact, not a consistency
-#               check, and the two are easy to mistake for each other.
-#
-# e2scrub_reap.service is deliberately left enabled: it removes stale e2scrub
-# snapshots, and with the timer masked it will never have one to remove. Leaving
-# it alone keeps this change to the single unit that makes a false claim.
-# =============================================================================
-
 - name: filesystem-checks | Look for the distribution's e2scrub timer
   ansible.builtin.stat:
     path: /usr/lib/systemd/system/e2scrub_all.timer
   register: e2scrub_distro_timer
 
-# Stop and mask in SEPARATE tasks, in this order. Combining `masked: true` with
-# `state: stopped` is the equivalent of `systemctl mask --now`: the fragment
-# becomes /dev/null, systemd can no longer load the unit it is being asked to
-# stop, and it records the unit as FAILED. Measured on the host on 2026-08-16
-# for lynis.timer, and the reasoning is identical here — `systemctl --failed`
-# staying empty is itself an assertion this lab makes.
 - name: filesystem-checks | Stop the e2scrub timer, which scrubs nothing here
   ansible.builtin.systemd:
     name: e2scrub_all.timer
@@ -78,122 +17,6 @@
     masked: true
   when: e2scrub_distro_timer.stat.exists
 
-# =============================================================================
-# The root filesystem, which nothing has ever checked (#154, option 2)
-# =============================================================================
-# Measured on BOTH hosts, 2026-08-25:
-#
-#   Maximum mount count:  -1                      -> mount-count trigger off
-#   Check interval:       0 (<none>)              -> time trigger off
-#   Last checked:         Tue Feb 10 04:01:10 2026 -> the image build date
-#
-# 2026-02-10 is not "the last time someone checked". It is the mkfs timestamp
-# baked into the Ubuntu image, identical on two machines flashed months apart.
-# Neither root filesystem has EVER been checked, and both were configured so
-# that neither ever would be.
-#
-# --- Two halves, and one without the other does nothing ----------------------
-#   fstab passno=1   set in system.yml, on the task that owns that line. It
-#                    makes systemd pull in systemd-fsck-root.service at boot.
-#                    Alone it changes nothing: the service asks the superblock
-#                    whether a check is due, and the superblock said "never".
-#   superblock       set here. `-c` and `-i` are the two triggers the service
-#                    consults. They live in the superblock rather than in a
-#                    file, which is the property that matters on this host:
-#                    cloud-init's `mounts` module is enabled and rewrites
-#                    /etc/fstab, and /etc/hosts is already wiped on every boot
-#                    for the same reason. It cannot reach these.
-#
-# --- Why the first firing is the next boot, deliberately ---------------------
-# `Last checked` is 196 days old, so a 30-day interval is already exceeded and
-# the check runs at the very next boot rather than in a month. That boot is the
-# supervised on-site one this work is being sequenced around — which is the only
-# honest way to enable this. A trigger whose first firing nobody watches is the
-# same bet as the controls this repository keeps deleting.
-#
-# --- The cost, stated rather than discovered ---------------------------------
-# ~10 GB used on a 57 GB card: tens of seconds at boot, once a month or once
-# every 30 mounts, on a host that reboots a few times a year. Both triggers are
-# kept because they fail in opposite directions — the interval covers a host
-# that never reboots, the mount count covers one that reboots constantly.
-#
-# --- CORRECTION, 2026-09-03: on ROOT the interval trigger cannot fire ---------
-# The sentence above is true of every filesystem here except the one it is
-# written about. Root is checked in the INITRAMFS — this boot's journal on both
-# hosts shows `systemd-fsck-root.service ... skipped because of an unmet
-# condition check (ConditionPathExists=!/run/initramfs/fsck-root)`, i.e. the
-# initramfs already did it — and the initramfs has no clock. fake-hwclock-load
-# runs in the main system, after; the `After=fake-hwclock-load.service` drop-in
-# further down targets `systemd-fsck@` instances and, as its own comment says,
-# not this unit. Nothing can order the initramfs after a clock that lives on the
-# filesystem being checked.
-#
-# So e2fsck stamps `Last checked` with whatever the pre-NTP clock reads. Measured
-# on the offsite, 2026-09-04:
-#
-#   /lib/systemd/systemd mtime   2026-07-28 17:04:45
-#   Last checked                 Tue Jul 28 17:04:59 2026   <- 14 s later
-#   Next check after             Thu Aug 27 17:04:59 2026
-#
-# CORRECTED 2026-09-13. The paragraph that stood here drew two conclusions from
-# those four lines and BOTH are wrong. It said the pre-NTP clock "is the mtime of
-# the systemd binary and therefore a FIXED date", and that "the interval is never
-# due and never will be. The trigger is inert, silently."
-#
-# The 14-second gap was a coincidence, not a mechanism. Re-measured on both
-# hosts, 2026-09-13:
-#
-#                                homelab                offsite
-#   /lib/systemd/systemd mtime   2026-07-28 17:04:45    2026-07-28 17:04:45
-#   Last checked                 2026-09-05 22:56:03    2026-09-06 04:00:00
-#   Next check after             2026-10-05 22:56:03    2026-10-06 04:00:00
-#
-# The named source has not moved in six weeks; `Last checked` has moved five and
-# a half. So the clock the initramfs hands e2fsck comes from somewhere else, it
-# ADVANCES, and the interval trigger is live rather than inert — due in early
-# October on both hosts.
-#
-# What that source actually is has NOT been identified, and this comment does not
-# guess: the candidates all live behind a boot, and an audit that may not reboot
-# cannot discriminate between them. What is established is only what the table
-# above shows. If you ever do settle it, replace this paragraph with the answer
-# rather than adding a third theory beside it.
-#
-# The practical consequence is the opposite of what was written here: the check
-# is NOT silently disabled, it will fire, and it will fire in the initramfs with
-# a clock that is days behind real time — which is the condition under which
-# `e2fsck` once rewrote (`FIXED.`) a superblock from a wrong date.
-#
-# The homelab's root reads `Last checked Sun Aug 30 17:28:54 2026`, a real date,
-# equal to the second to the start of boot -2 in `journalctl --list-boots`. Its
-# interval works today because that boot happened to have a good clock. That is
-# luck, not design, and it is the same luck the C42 note below describes.
-#
-# --- What is done about it, and what is not ----------------------------------
-# Nothing in this file, deliberately. There is no `tune2fs` value that fixes it:
-# stamping `Last checked` forward from Ansible, which does have a correct clock,
-# pushes `Next check after` further beyond the boot clock and makes the trigger
-# MORE inert; stamping it backward forces a full e2fsck at every single boot, and
-# `e2fsck -p` refusing to preen drops this host into an emergency shell with no
-# console, no tunnel and no one in the building. That is a decision about failure
-# modes, not a fix, and it is not taken here.
-#
-# `-c` is therefore the load-bearing trigger on root, and it works: the mount
-# count is a counter, not a clock. Both are kept — the interval costs nothing and
-# becomes correct the day this board gets an RTC or the initramfs gets the clock.
-# What changes here is only that the file no longer claims a coverage it does not
-# have.
-#
-# The real cost is not time. systemd-fsck runs `e2fsck -p`, which fixes only
-# what is unambiguously safe and exits non-zero on anything else, and systemd
-# turns that into an emergency shell. On a host reachable only through a tunnel
-# that needs the encrypted volume unlocked, that means physically present or not
-# at all. That is the correct outcome — a root filesystem e2fsck refuses to
-# preen should not silently carry on serving — but it is a real change in
-# failure mode and it is why this waited for a decision rather than shipping
-# with the mask above.
-# =============================================================================
-
 - name: filesystem-checks | Resolve the device behind /
   ansible.builtin.set_fact:
     root_fs_device: >-
@@ -206,10 +29,6 @@
   changed_when: false
   check_mode: false
 
-# `-c` and `-i` are both set in one call so a half-applied state is not
-# reachable, and the guard reads the superblock rather than a marker file: the
-# thing being asserted is the filesystem's own state, and it is the only thing
-# that can answer honestly after a reflash.
 - name: filesystem-checks | Arm both boot-time triggers on the root filesystem
   ansible.builtin.command:
     cmd: >-
@@ -226,58 +45,12 @@
     or current_interval != (root_fsck_interval_days | int * 86400) | string
   changed_when: true
 
-# =============================================================================
-# Other filesystems that need the same two halves (#260)
-# =============================================================================
-# Here, and not in `storage`, for the reason this file already argues about
-# itself sixty lines above: the storage role runs on the homelab only. #254
-# armed the encrypted data volume correctly and put the task in `storage`
-# anyway, so the offsite backup disk — which holds the entire offsite restic
-# copy — reached 48 days old having never been checked, with no interval, no
-# mount count, and `passno 0`. `base` runs on both hosts, which is the property
-# that matters.
-#
-# Driven by a list rather than hardcoded because the two hosts have different
-# disks and neither should carry the other's device name. The homelab's list is
-# empty: its data volume stays in `storage`, which owns the LUKS-mapper guard
-# that has no meaning here.
-#
-# Read the note above on the frozen boot clock before reading these triggers as
-# a schedule. But the sentence that stood here — "e2fsck runs in the initramfs
-# before any time sync" — is only true of the ROOT filesystem, and it was doing
-# real damage as a premise, because these extra filesystems are exactly the ones
-# it is NOT true of.
-#
-# Measured on the offsite, 2026-08-31, from the current boot's own journal:
-#
-#   [   17.83] Starting systemd-fsck@dev-disk-by\x2duuid-466c...service
-#   [   17.81] systemd-fsck[569]: /dev/sda1: Superblock last write time
-#              (Sat Aug 29 02:40:41 2026, now = Tue Jul 28 17:05:11 2026)
-#              is in the future.  FIXED.
-#   [   27.79] Finished  (a FULL check, ten seconds on 100 M blocks)
-#
-# That is a systemd unit in the main system, not the initramfs: root is checked
-# by systemd-fsck-root.service, these are `systemd-fsck@` instances, and the two
-# are orderable independently. The clock reads 2026-07-28 17:05 because that is
-# the mtime of the systemd binary, exactly as clock.yml measured.
-#
-# The consequence is a loop that sustains itself. e2fsck judges correct
-# timestamps to be in the future, rewrites them from the wrong clock, and
-# anchors `Last checked` in the past — so `Next check after` is already overdue
-# at the next boot, which forces another full check, from the same wrong clock.
-# Read live on 2026-08-31: Last checked Jul 28, Next check after Aug 27, both
-# in the past.
-#
-# So the triggers below are NOT merely "right the day the clock is". They are
-# overridden every boot by a check nothing asked for. The ordering task that
-# follows is what makes them mean something.
 - name: filesystem-checks | Read the check triggers on the extra filesystems
   ansible.builtin.command: "tune2fs -l {{ item.device }}"
   register: extra_fs_superblocks
   changed_when: false
   check_mode: false
   # floor: none needed — an empty extra_fsck_filesystems is this option's DESIGNED
-  # state. Hosts with no extra filesystem declare nothing and must iterate nothing.
   loop: "{{ extra_fsck_filesystems }}"
   loop_control:
     label: "{{ item.device }}"
@@ -299,37 +72,12 @@
     - current_max_mounts != wanted_max_mounts
       or current_interval != (item.item.interval_days | int * 86400) | string
   # floor: inherited — this iterates the results of the loop above, so it is empty
-  # exactly when extra_fsck_filesystems is, which is that option's designed state.
   loop: "{{ extra_fs_superblocks.results }}"
   loop_control:
     label: "{{ item.item.device }}"
   changed_when: true
 
-# =============================================================================
-# The check must not run before the clock is restored (class C42)
-# =============================================================================
-# `systemd-fsck@` and `fake-hwclock-load` both run with DefaultDependencies=no
-# in the sysinit tier, so they are unordered with respect to each other BY
-# DESIGN — the package's, not ours. Which one wins is luck: on the homelab the
-# clock happens to be restored first; on the offsite, fsck ran at 17.8 s into a
-# boot where `fake-hwclock-load` had not yet been enabled at all, and rewrote
-# the backup disk's superblock from the systemd build date.
-#
-# clock.yml records that an early-boot ordering drop-in was CONSIDERED AND
-# REJECTED, and that decision is not being overturned lightly. It concerned a
-# different edge — fake-hwclock BEFORE systemd-journald — and journald is the
-# cycle risk, because nearly every unit wants it. This edge is the other way
-# round and much narrower: fsck waits for the clock. `fake-hwclock-load` reads
-# only /etc/fake-hwclock.data on the root filesystem, and root is checked by
-# systemd-fsck-root.service, a DIFFERENT unit that this drop-in does not touch.
-# There is therefore no path back from fake-hwclock-load to a `systemd-fsck@`
-# instance, which is what a cycle would need.
-#
-# Verified with `systemd-analyze verify` on both hosts before shipping. The
-# honest limit: the real test is the next boot, and neither host is rebooted to
-# find out — the homelab has no out-of-band path and the offsite is in another
-# building. If a cycle did appear, systemd breaks it by dropping an edge and
-# says so in the journal; the disk report is where that would surface.
+# [warning]: the check must not run before the clock is restored (C42)
 - name: filesystem-checks | Ensure the fsck drop-in directory exists
   ansible.builtin.file:
     path: /etc/systemd/system/systemd-fsck@.service.d
@@ -346,16 +94,10 @@
     mode: "0444"
     content: |
       # Ansible managed — rendered from the home-lab repo, edits on the host will be overwritten
-      # e2fsck judges the superblock against the system clock. Without this
-      # edge it can run before fake-hwclock-load, read the systemd build date,
-      # call correct timestamps "in the future" and rewrite them — which
-      # anchors the next check in the past and repeats every boot.
       [Unit]
       After=fake-hwclock-load.service
   notify: Reload systemd units
 
-# A plain daemon-reload: the drop-in changes an ordering that only takes effect
-# at boot, so there is nothing to restart and nothing that would apply sooner.
 - name: filesystem-checks | Verify the drop-in introduces no ordering cycle
   ansible.builtin.command: systemd-analyze verify systemd-fsck@.service
   changed_when: false

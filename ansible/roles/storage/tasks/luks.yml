@@ -1,9 +1,4 @@
 ---
-# LUKS on the data disk — community.crypto.luks_device is idempotent: it
-# formats the container only when the device carries no LUKS header, opens
-# it only when the mapper is absent, and no-ops otherwise. This replaced
-# five probe+shell tasks (isLuks / stat / echo passphrase | cryptsetup).
-
 - name: luks | Install filesystem and encryption utilities
   ansible.builtin.apt:
     name:
@@ -21,8 +16,6 @@
     passphrase: "{{ luks_passphrase }}"
   no_log: true
 
-# No force: strictly first-boot — a device that already carries a filesystem
-# is left untouched.
 - name: luks | Create the ext4 filesystem (first time only)
   community.general.filesystem:
     fstype: ext4

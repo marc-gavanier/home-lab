@@ -1,33 +1,4 @@
 ---
-# Docker Compose: file, networks, pull, up — via the native compose module
-# (real changed detection per container, no stderr grepping). Optional
-# targeting: -e '{"deploy_services": "svc1 svc2"}' limits pull/up to those
-# services. Use the JSON form whenever there is more than one:
-# `-e deploy_services="a b"` looks right, but the shell strips the quotes and
-# Ansible's key=value parser then splits on whitespace, so only `a` survives and
-# `b` is dropped in silence. The deploy reports success having skipped the very
-# service the run was for — measured 2026-07-28, when the nextcloud half of a
-# two-service deploy never happened and `compose | Deploy services` said `ok`.
-#
-# CAVEAT — adding a BRAND-NEW service: targeting may not pull/create a service
-# that doesn't exist yet (the image isn't fetched, so `up` skips it silently).
-# The first time a new service is introduced, run a FULL deploy (no
-# deploy_services) or `docker compose up -d <svc>` on the host once; afterwards
-# targeted deploys keep it in sync. (Learned adding cloudflared, ADR-015.)
-#
-# SAME CAVEAT, SECOND FORM — a NEW MOUNT on an existing service. `docker
-# restart` cannot add a bind mount to a container that already exists; only a
-# recreate can, and `compose up` recreates only the services it was TARGETED
-# with. Deploying the Nextcloud JIT override with `-e deploy_services=nextcloud`
-# therefore mounted it in `nextcloud`, left `nextcloud-cron` untouched, and the
-# handler's `docker restart` reported success over a container still running the
-# old definition. Measured 2026-08-27: `nextcloud` on jit_buffer_size=0,
-# `nextcloud-cron` still on 8M, deploy green.
-#
-# When a change adds or moves a mount, every service sharing it has to be named:
-#   -e '{"deploy_services": "nextcloud nextcloud-cron"}'
-# The JSON form is not optional here, for the reason stated above.
-
 - name: compose | Copy Docker Compose file
   ansible.builtin.copy:
     src: "{{ playbook_dir }}/../../docker/compose.yaml"
@@ -36,76 +7,16 @@
     group: docker
     mode: "0640"
 
-# Only `proxy`, because only `proxy` is declared `external: true` in
-# compose.yaml and therefore has to exist beforehand. Compose creates the
-# internal network itself, prefixed — homelab_internal, 172.19.0.0/16, 12
-# containers. Creating a bare `internal` here built a SECOND, empty network on
-# a subnet of its own on every single deploy, and `docker network inspect
-# internal` returned that one rather than the live one. It was removed by hand
-# on 2026-08-16 at 14:12 and this task had rebuilt it by 14:51.
-#
-# The subnet the phantom took is deliberately NOT named here any more. It was
-# 172.20.0.0/16 on the day, and 172.20.0.0/16 is where `homelab_socketproxy`
-# lives today — so the sentence had become a live range described as a mistake,
-# which is exactly how a stale comment does damage (#292, and a C01 instance).
-# Docker assigns these from a pool with no pinning; where they are is a
-# measurement, kept in `docker_expected_subnets` and asserted, not prose.
 - name: compose | Ensure the external Docker network exists
   community.docker.docker_network:
     name: proxy
     state: present
 
-# Reads `changed` under --check on EVERY run, on any host, whatever the state of
-# the images. Not a pending update and not something to chase (#169): the module
-# decides with
-#
-#     ignore_service_pull_events = self.policy != "missing" and not self.check_mode
-#
-# so a real run with the default policy ignores pull events — an already-current
-# image is not a change — while a dry run counts every one of them, and
-# `docker compose pull --dry-run` emits one per service. Measured: all 28
-# reported as pulled minutes after a deploy that had pulled nothing.
-#
-# Deliberately NOT given `check_mode: false`, unlike the probes in this role: it
-# would make a dry run actually download images, which is precisely what a
-# rehearsal must not do. Read the line, do not act on it.
 - name: compose | Pull images
   community.docker.docker_compose_v2_pull:
     project_src: /opt/homelab
     services: "{{ deploy_services.split() if deploy_services is defined else omit }}"
 
-# The crash-heal timer is suspended around the recreate, and put back in an
-# `always:` so a failed deploy cannot leave recovery switched off.
-# Audit class C90, 2026-09-13 — two independent mutators of the same objects
-# with nothing serialising them.
-#
-# It has collided twice, and both times INVISIBLY. From the journal:
-#
-#   2026-09-05T22:05:58  container d2834e7137d6_immich-redis (service
-#                        immich-redis) is created — restarting
-#   2026-09-05T22:06:01  ERROR: failed to restart immich-redis
-#   2026-09-05T22:06:01  homelab-stack-heal.service: Deactivated successfully.
-#   2026-09-12T02:13:39  container da2ce0510d8a_forgejo (service forgejo) is
-#                        created — restarting
-#   2026-09-12T02:13:41  checked 30 of 29 declared container(s), 1 restarted
-#
-# `da2ce0510d8a_forgejo` is Docker's rename-on-recreate temporary. The healer
-# sees a container in `created`, calls it crashed, and restarts it underneath
-# an in-flight `compose up`. Three instruments were blind at once: the unit
-# logs ERROR and exits 0, so systemd reports success; the health assertion
-# fired only on `heal_n < heal_m` while a collision's signature is `30 of 29`,
-# one MORE than declared; and the dashboard stayed green.
-#
-# Why stopping the timer rather than a lock file: `always:` runs on failure,
-# so the window cannot outlive the deploy. A /run flag covering manual
-# `docker compose` too was considered and declined — an interrupted deploy
-# leaves it behind and disables recovery silently, which is the class of
-# defect this audit exists to find. The operator's manual path stays covered
-# by the runbook rule (`compose down`, never `stop`).
-#
-# `systemctl stop` on a TIMER does not touch a service already running; a heal
-# that is mid-flight when the deploy starts still finishes. This narrows the
-# window, it does not close it, and saying so is the honest version.
 - name: compose | Check whether the crash-heal timer is installed
   ansible.builtin.stat:
     path: /etc/systemd/system/homelab-stack-heal.timer
@@ -139,31 +50,7 @@
     var: compose_result.actions
   when: compose_result.actions | default([]) | length > 0
 
-# dnsproxy runs with `network_mode: service:pihole`, so it lives in pihole's
-# network namespace. RECREATING pihole — which `compose up` does whenever its
-# definition changes, not just when an image moves — destroys that namespace.
-# dnsproxy keeps running and keeps reporting healthy while being permanently
-# unreachable, which leaves Pi-hole with no upstream: a LAN-wide DNS outage with
-# both containers green. The `Restart pihole` handler pairs the two for this
-# exact reason; nothing paired them after a compose recreate.
-#
-# Found while adding a secret mount to pihole (#198), which is precisely the
-# kind of definition change that triggers it. Written as a namespace comparison
-# rather than a check on `compose_result.actions` so it also covers a recreate
-# nobody predicted — the failure is silent, so the guard should not depend on
-# having anticipated the cause.
-#
-# The remedy is `compose up`, NOT `docker restart` (#215). `HostConfig.NetworkMode`
-# holds a hard container ID resolved once at creation, so a restart re-runs the
-# container against the *dead* ID: it exits 1 and leaves dnsproxy stopped, which
-# is worse than the detached state it was meant to repair. Only recreating the
-# container re-resolves `service:pihole` to the new ID. Measured on a throwaway
-# pair before this was written — restart: exit 1, container exited, still bound
-# to the old ID; compose up --force-recreate: exit 0, running, re-attached.
 - name: compose | Re-attach dnsproxy if pihole was recreated under it
-  # `{% raw %}` is not decoration: `{{.State.Pid}}` is a Go template, and Ansible
-  # renders the shell body as Jinja first — without it the task dies on
-  # "unexpected '.'" before docker is ever invoked.
   ansible.builtin.shell: |
     {% raw %}
     set -o pipefail
@@ -171,12 +58,9 @@
     [ "$pp" != "0" ] || exit 0
     docker inspect dnsproxy >/dev/null 2>&1 || exit 0
 
-    # An unprivileged readlink returns empty for both, which compares EQUAL and
-    # would make the guard silently never fire. Fail loudly instead.
     ns_pihole=$(readlink "/proc/$pp/ns/net")
     [ -n "$ns_pihole" ] || { echo "cannot read pihole netns (needs root)" >&2; exit 1; }
 
-    # A stopped dnsproxy has pid 0 — that is a state to repair, not to skip.
     dp=$(docker inspect -f '{{.State.Pid}}' dnsproxy 2>/dev/null)
     if [ "$dp" != "0" ] && [ "$(readlink "/proc/$dp/ns/net")" = "$ns_pihole" ]; then
         exit 0
@@ -185,8 +69,6 @@
     docker compose --project-directory /opt/homelab up -d --force-recreate dnsproxy \
         >/dev/null 2>&1 || exit 1
 
-    # Report success only on a verified re-attach: the previous version echoed
-    # unconditionally, so a failed remedy still reported `changed`.
     np=$(docker inspect -f '{{.State.Pid}}' dnsproxy 2>/dev/null) || exit 1
     [ "$np" != "0" ] || exit 1
     [ "$(readlink "/proc/$np/ns/net")" = "$ns_pihole" ] || exit 1

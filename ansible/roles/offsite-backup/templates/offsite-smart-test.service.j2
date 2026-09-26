@@ -4,23 +4,5 @@ Description=Start a SMART long self-test on the backup disk
 
 [Service]
 Type=oneshot
-# The drive scans its own surface in the background (no host I/O, no repo
-# password needed); the daily health report reads the result from the
-# self-test log and alerts on failure.
-# ExecCondition, copied from homelab-smart-test.service on 2026-09-13. Its twin
-# gained this on 2026-08-26 after exactly the overlap below turned
-# `systemctl --failed` red, and the fix never crossed to this host.
-#
-# `smartctl -t long` on a drive already running a self-test exits non-zero, so a
-# run that lands on top of the previous one FAILS the unit rather than skipping
-# it. On this host that matters more than it looks: the only route here is the
-# WireGuard tunnel, and a unit stuck in `failed` is a red monitor nobody can
-# clear without a session.
-#
-# A non-zero ExecCondition SKIPS the unit without marking it failed, which is
-# the distinction a wrapper or SuccessExitStatus= would blur — a genuinely
-# broken drive must still fail loudly, and it does: the condition is inverted so
-# that if smartctl cannot talk to the drive at all it prints no match, the
-# condition passes, and ExecStart runs and fails.
 ExecCondition=/bin/sh -c "! /usr/sbin/smartctl -c {{ backup_disk_device | regex_replace('[0-9]+$', '') }} | grep -q 'Self-test routine in progress'"
 ExecStart=/usr/sbin/smartctl -t long {{ backup_disk_device | regex_replace('[0-9]+$', '') }}

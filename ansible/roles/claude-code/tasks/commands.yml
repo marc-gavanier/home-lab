@@ -1,11 +1,4 @@
 ---
-# Custom slash commands & subagents (authoritative mirror).
-# Source of truth lives in this role's files/{commands,agents}/. We MIRROR them
-# into the claude user's ~/.claude so the mobile Remote Control sessions expose
-# /conf-curate, /talk-add, etc. Authoritative: a file deleted from the repo is
-# also purged from the Pi (find + remove below), so the host can't silently
-# drift from version control. New sessions pick up changes; no service restart.
-
 - name: commands | Install custom slash commands for the claude user
   ansible.builtin.copy:
     src: commands/
@@ -24,18 +17,6 @@
     mode: "0644"
     directory_mode: "0755"
 
-# The two purges below delete every host file whose basename is absent from a
-# `fileglob` result, and `fileglob` returns an EMPTY LIST when its search path
-# does not resolve — no error, no warning. `x not in []` is true for every x, so
-# a glob that silently stops matching turns both purges into "delete the whole
-# mirror", on a host, in one run. The search path is relative to the ROLE, which
-# is resolved on the CONTROLLER: a move of these files, a rename of the role or
-# a run from a different checkout all produce that empty list without touching
-# this file.
-#
-# So the lists are resolved ONCE, here, and asserted non-empty before anything
-# is deleted. Verified 2026-09-13 on the live host: 6 of 6 files present, no
-# damage had occurred — this closes the path, it does not repair one.
 - name: commands | Resolve the repo's command and agent inventories once
   ansible.builtin.set_fact:
     repo_commands: "{{ query('ansible.builtin.fileglob', 'commands/*.md') | map('basename') | list }}"
@@ -63,7 +44,6 @@
     path: "{{ item.path }}"
     state: absent
   # floor: none needed — this is a PURGE. An empty find means there is nothing
-  # stale to remove, which is the correct state on a host deployed from scratch.
   loop: "{{ host_commands.files }}"
   loop_control:
     label: "{{ item.path | basename }}"

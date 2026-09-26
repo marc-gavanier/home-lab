@@ -1,12 +1,4 @@
 ---
-# AppArmor profile for the netdata container (issue #30).
-#
-# This lives in the deploy role, right before `compose up`, on purpose: Docker
-# refuses to start a container whose named profile is not loaded, so the tag
-# that deploys the stack has to be the tag that guarantees the profile. The
-# check-then-load below exists for the same reason — handlers run at the end of
-# the play, which is after the container would have been started.
-
 - name: apparmor | Install the netdata AppArmor profile
   ansible.builtin.copy:
     src: apparmor/homelab-netdata
