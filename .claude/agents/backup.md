@@ -14,7 +14,7 @@ Home lab on Raspberry Pi 4 with a 5TB LUKS HDD holding all service data. The **3
 ## Current Implementation
 
 - `resticprofile` (ADR-031, `ansible/roles/deploy/templates/resticprofile.yaml.j2`) — nightly Restic runs, encrypted and deduplicated
-- Consistent app backups: Vaultwarden via SQLite `.backup`, Nextcloud/Immich via SQL dumps (Immich uses its built-in dump), services stopped/quiesced where needed
+- Consistent app backups, taken online — no service is stopped: ten databases, the SQLite ones via `.backup` (Vaultwarden, Forgejo, Uptime Kuma, wg-easy, Sonarr, Radarr, Prowlarr), Nextcloud via `mariadb-dump --single-transaction`, Miniflux via `pg_dump`, Immich via its built-in dump
 - LUKS header backed up (runbook `luks-header-backup.md`)
 - Prune and check are **split** from the backup run (separate schedules)
 - Offsite sync monitored via `backup-notify.sh` + Uptime Kuma push monitors
@@ -29,7 +29,7 @@ Home lab on Raspberry Pi 4 with a 5TB LUKS HDD holding all service data. The **3
 ## Directives
 
 - Every backup encrypted (Restic native); never weaken that
-- Any scope change (new service) must update: backup script, restore runbook, and monitoring
+- Any scope change (new service) must update: the resticprofile `source` and the dump lists in group_vars (`backup_sqlite_dumps`, or `backup_sql_dumps` — which only generates the assertions, so a SQL dump also needs its own `run-before` hook in the profile), restore runbook, and monitoring
 - Restoration procedures live in `knowledge/runbooks/restore-from-backup.md` and `offsite-backup.md` — keep them executable as written
 - Test on the Pi before documenting as working
 

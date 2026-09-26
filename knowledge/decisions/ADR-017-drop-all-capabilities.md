@@ -117,7 +117,7 @@ on its own: it refuses a data directory it does not own.
 > is restated here because the claim had already propagated into the restore
 > runbook.
 
-What is left is four grants that are not accidents of ownership, and each fails
+What was left is four grants that are not accidents of ownership, and each fails
 the uid trick for its own structural reason:
 
 | Service | Why the root phase cannot be removed |
@@ -127,6 +127,12 @@ the uid trick for its own structural reason:
 | transmission | the s6 init model *is* the root phase; `PUID`/`PGID` is that mechanism, and it is what the image supports |
 | netdata | its setuid-root plugins write into `/run/netdata`, owned by uid 201 **inside** the container — no host ownership reaches it, and the agent already runs as 201 |
 
+*Amended 2026-09-26: eight services hold `DAC_OVERRIDE` today, not four.
+calibre-web (2026-08-05) is a fifth structural case, on transmission's s6
+pattern (ADR-025). radarr, sonarr and prowlarr (ADR-036) carry the same set by
+inheritance, unmeasured — they are not in this table because nobody has shown
+their root phase to be structural.*
+
 That is the difference worth keeping: a capability held because a directory
 belongs to the wrong user is a defect, and every one of those is now gone; a
 capability held because the image genuinely needs two identities is a property
@@ -135,8 +141,9 @@ of the image.
 ## Consequences
 
 **Positive**
-- Twelve of the twenty-one services hold no capabilities at all; the rest hold
-  between one and eight instead of fourteen. `NET_RAW` (packet spoofing/sniffing), `MKNOD`,
+- Sixteen of the thirty-two services hold no capabilities at all; the rest hold
+  between one and nine instead of fourteen (twelve of twenty-one when this was
+  decided). `NET_RAW` (packet spoofing/sniffing), `MKNOD`,
   `SYS_CHROOT`, `SETPCAP` and `AUDIT_WRITE` are gone wherever unused.
 - Every remaining capability is now a documented, justified line rather than an
   invisible default — a new service starts from zero and has to earn each one.
@@ -148,7 +155,8 @@ of the image.
 - Image updates can change the requirement (a new binary with file
   capabilities, an entrypoint that starts chowning). The file-capability sweep
   is the cheap regression check.
-- `DAC_OVERRIDE` survives on four services, which limits the gain there: it is
+- `DAC_OVERRIDE` survives on eight services (four when this was decided; see
+  the amendment above), which limits the gain there: it is
   the capability that makes root's file access unconditional. Two more make do
   with `DAC_READ_SEARCH`.
 - The four services now started under `user:` no longer go through their image's
@@ -173,7 +181,9 @@ sandbox-first rule applies to every service on the critical path.
   issue #28, and it works only for containers that run as a single identity
   (jellyfin, navidrome). It does not generalise, for the reason given above.
   Running the container **as** the service uid is what generalises, and it is
-  now applied to the five services where the image allows it. The two are
+  now applied to the four services of #28 (`nextcloud-cron` was reverted, see
+  above), and to five services added later (dozzle, it-tools, miniflux,
+  miniflux-db, forgejo) — nine `user:` lines in `compose.yaml` today. The two are
   complements, not competitors: both end in the storage role owning the tree
   correctly, which is the part a fresh provision depends on.
 - **A custom seccomp or AppArmor profile per service** — finer-grained than

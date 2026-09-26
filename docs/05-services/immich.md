@@ -43,8 +43,10 @@ ssh homelab "cd /opt/homelab && docker compose down immich-machine-learning"
 
 `immich-machine-learning` is the compose **service**; `immich-ml` is only its
 container name, and `compose` answers "no such service" if you pass it.
-`docker stop` would not work here either: the heal timer brings a stopped
-container back within two minutes, so the RAM never actually frees.
+`docker stop` is the wrong tool here too: if the container exits non-zero the
+heal timer brings it back within two minutes, so the RAM never actually frees;
+if it exits 0 the timer leaves it alone. `down` takes it out of the timer's view
+whatever the exit code; the next boot or deploy recreates it either way.
 
 ## Data
 

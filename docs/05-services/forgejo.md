@@ -62,7 +62,8 @@ environment at every start.
 
 Note the database path reads `forgejo/data/data/forgejo.db` on the host. The doubled
 segment is correct — the host `data` directory is the `/var/lib/gitea` mount, and
-Forgejo keeps its own `APP_DATA_PATH` one level below that.
+`compose.yaml` sets `FORGEJO__database__PATH` to `/var/lib/gitea/data/forgejo.db`, one level
+below it (`APP_DATA_PATH` itself is `/var/lib/gitea`).
 
 ## First Deploy
 

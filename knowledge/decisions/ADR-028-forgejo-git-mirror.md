@@ -25,7 +25,8 @@ over GitLab because GitLab wants 2.5-4 GB of RAM, which this Pi does not have to
 
 ## Decision
 
-Deploy **Forgejo 16.0.2, the rootless image**, behind Traefik at `git.<domain>`,
+Deploy **Forgejo 16, the rootless image** (16.0.5 today, pinned in `compose.yaml` and moved
+by Renovate), behind Traefik at `git.<domain>`,
 gated by `vpn-only` like everything else, on **SQLite**, with **git-over-SSH
 disabled** and the **web installer locked**. Mirrors are created by hand in the UI,
 for public repositories only.
@@ -121,7 +122,9 @@ the Pi rather than argued from the workstation:
    every branch plus the `refs/pull/*/head` refs — returned the *same* seven entries
    as an idle boot, five of them mount points. Git writes exclusively into the bind
    mount. With the redundant `/etc/gitea` mount since removed, the live write set is
-   **three entries**, all of them the secret mount — the image layer is untouched. One tmpfs on `/tmp` covers `GITEA_TEMP`, carrying `uid=1000` because a tmpfs
+   the secret mounts and nothing else — **four entries** (`/run`, `/run/secrets` and
+   one per secret) since `forgejo_secret_key` joined the admin password on
+   2026-08-15 — the image layer is untouched. One tmpfs on `/tmp` covers `GITEA_TEMP`, carrying `uid=1000` because a tmpfs
    mounts root-owned `0755` and the container holds no capability to work around it —
    the failure that already bit IT-Tools and both Postgres instances. Re-verified
    *after* enabling it, which is the part that matters: a fetch pulled a real new

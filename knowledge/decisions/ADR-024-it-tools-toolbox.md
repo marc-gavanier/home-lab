@@ -160,8 +160,9 @@ Stated here because the two ADRs otherwise look like they disagree.
   is its image, and restore is a redeploy.
 - A pin that carries an expiry condition — restated 2026-08-17 as a condition on
   *exposure*, not on freshness, because the freshness version could not be checked
-  by anything and did not mean what it appeared to. That obligation lives in the
-  compose comment and in `docs/05-services/it-tools.md`, not only here.
+  by anything and did not mean what it appeared to. That obligation lives in
+  `docs/05-services/it-tools.md` as well as here; the compose comment that also
+  carried it went with #390 (`git show 4b1c7c7^:docker/compose.yaml`).
 - Wave 1 of the staged startup gains a member that costs it nothing.
 
 ## Alternatives considered

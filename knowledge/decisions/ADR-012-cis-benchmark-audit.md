@@ -24,7 +24,8 @@ Use the benchmark as a **measuring stick, not an enforcer**.
 
 - `ansible/playbooks/cis-audit.yml` runs the role in **`--check` mode only** —
   an `assert` refuses to run otherwise, so it can read and report but never
-  modify. The role is pinned (`requirements.yml`, 1.6.0) and Renovate watches
+  modify. The role is pinned (`requirements.yml`, 1.7.0 since Renovate's
+  5fe83cc; the audit in the research report ran on 1.6.0) and Renovate watches
   it, so a new benchmark release arrives as a reviewable PR (controlled
   freshness, not silent drift).
 - Every gap is triaged into one of three answers: **assumed** (our architecture
@@ -159,10 +160,15 @@ suggestion[]=LYNIS|This release is more than 4 months old. Check the website
              or GitHub to see if there is an update available.|-|-|
 ```
 
-`homelab-lynis-report.sh` reads `^warning[]=` and nothing else — three times, for
-the count, the IDs and the new-since-last-run diff. A `suggestion[]` line is
-invisible to it by construction. So the tool is telling us its rules are stale,
-every week, into a channel nobody reads.
+`homelab-lynis-report.sh` read `^warning[]=` and nothing else — three times, for
+the count, the IDs and the new-since-last-run diff. A `suggestion[]` line was
+invisible to it by construction. So the tool was telling us its rules are stale,
+every week, into a channel nobody read.
+
+*Amended 2026-09-26: since 0fa9e07 (2026-09-19) the script also counts
+`suggestion[]` lines and names the new ones in the push message — so this one
+appears once, as "new", and then only in the count. It still cannot move the
+monitor's status: only a new warning does.*
 
 **Deliberately not fixed by promoting the suggestion to a warning.** The rules
 going stale is a real fact but a slow one, the package follows the distribution,
@@ -173,7 +179,8 @@ read as *"did this host drift against the same ruler as last week"*, which is
 what it can answer, and never as *"is this host current against what is known
 today"*, which it cannot.
 
-Identical on both hosts.
+Homelab only: lynis is absent from the offsite since 2026-08-30 (#291, the
+`homelab-lynis` entry of `homelab_control_timers` in `group_vars/all.yml`).
 
 ## Consequences
 

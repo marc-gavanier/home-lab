@@ -46,9 +46,10 @@ the only kind of monitor that can watch a once-a-day job.
 
 1. **Add New Monitor** → Monitor Type: **Push**.
 2. Friendly Name: `Feed digest`.
-3. **Heartbeat Interval**: `90000` s (25 h) — one daily run plus an hour of grace, which
-   absorbs the timer's `RandomizedDelaySec=300` and clock drift. Below 24 h the monitor
-   would go red every afternoon simply because the next run has not happened yet.
+3. **Heartbeat Interval**: `100800` s (28 h, the value on the live monitor) — one daily run
+   plus four hours of grace, which absorbs the timer's `RandomizedDelaySec=300` and clock
+   drift. Below 24 h the monitor would go red every afternoon simply because the next run
+   has not happened yet.
    Retries: `0` (on a passive monitor, retries only delay the alert).
 4. Tick your existing notification channel.
 5. **Save**, copy the **Push URL**, and keep only the base form

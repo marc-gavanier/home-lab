@@ -68,7 +68,8 @@ Install the [Bitwarden desktop app](https://bitwarden.com/download/), set the se
 
 ## Backup
 
-Backed up daily by Restic. Vaultwarden uses SQLite — the file is backed up directly.
+Backed up daily by Restic. Vaultwarden uses SQLite: the live file is in the snapshot, and a
+consistent `sqlite3 .backup` copy is dumped beside it before every run (`backup_sqlite_dumps`).
 
 ## Restore
 

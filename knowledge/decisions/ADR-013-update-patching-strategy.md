@@ -69,7 +69,7 @@ deliberate reboot posture.
 2. **`needrestart` in automatic mode** (`$nrconf{restart}='a'`, `docker.service`
    blacklisted). Restarts host daemons still mapping a patched library right
    after the upgrade — closing the userspace window **reboot-free**. Docker is
-   excluded so *needrestart* never bounces the ~19 containers (staged startup,
+   excluded so *needrestart* never bounces the 32 containers (staged startup,
    ADR-007); container userspace is Renovate's lane.
 
    > **Amended 2026-08-02 — the blacklist is narrower than this claimed.** The

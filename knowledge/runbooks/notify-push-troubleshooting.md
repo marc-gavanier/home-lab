@@ -5,7 +5,7 @@ Each failure points at a specific misconfiguration. This runbook lists the ones
 hit on this homelab and their fixes. All fixes live in `docker/compose.yaml` and
 `ansible/roles/deploy/tasks/nextcloud.yml` — re-deploy with `--tags deploy`. (The
 role's `main.yml` has been a thin orchestrator since the July 2026 split; it imports
-nineteen files and contains none of this.)
+twenty-one files and contains none of this.)
 
 ## Quick diagnosis
 
@@ -51,7 +51,7 @@ reads it only on the first install, so on an existing instance it changes nothin
 
 ### "<ip> is not trusted as a reverse proxy by Nextcloud"
 **Cause:** the notify_push container's IP (on the internal Docker subnet, e.g.
-172.18.x) isn't in `trusted_proxies`, which only covered the proxy subnet.
+172.19.x) isn't in `trusted_proxies`, which only covered the proxy subnet.
 **Fix:** widen it to cover all Docker subnets in `compose.yaml`:
 ```yaml
 TRUSTED_PROXIES: 172.16.0.0/12

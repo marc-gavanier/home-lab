@@ -61,9 +61,12 @@ address works at home and fails over the VPN, and why `offsite` — reached by
 
 **The endpoint name is resolved through the tunnel it is needed to build.**
 Every client carries `AllowedIPs = 0.0.0.0/0` with Pi-hole as its DNS *and* an
-`Endpoint` given as a name that only Pi-hole answers. While the tunnel is up
-this is invisible. When it is down — the case where a client is being repaired —
-the name has no resolver, and the same derivation is already written down for
+`Endpoint` given as a name, `vpn.example.com`. The name itself is public — the
+DDNS job keeps its A record current — so a client whose tunnel is fully off
+resolves it through its own network. The trap is the tunnel that is *active but
+broken* — the case where a client is being repaired: its resolver is then Pi-hole,
+reachable only through the dead tunnel, so the name has no resolver, and the same
+derivation is already written down for
 the offsite host: *"a full-tunnel client could not look the name up."* Nobody had
 applied it to the human clients. The configuration was read, not tested: there
 is no out-of-band path to this host, so proving the failure would mean causing
@@ -81,7 +84,8 @@ UI, the deploy re-asserts them through the admin API on every run
 The values come from `/mnt/data/secrets/wg-easy-setup.env` (`0600 root:root`,
 encrypted volume). It carries a **plaintext** admin password: v15 hashes with
 argon2 itself and takes no precomputed hash. That is why it is not in
-`homelab.env`, which is group-readable by docker and mounted into containers.
+`homelab.env` (`0600`, group `docker`), which Compose reads to fill in `${…}`
+values — whatever it holds is one reference away from a container's environment.
 
 Changing a setting means editing the repository and deploying — a change made in
 the web UI is reverted on the next deploy, on purpose.

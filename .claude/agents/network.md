@@ -15,8 +15,9 @@ Home lab on Raspberry Pi 4, Ethernet to an ISP router (SFR box). Domain: example
 
 ```
 Internet → ISP Router
-             └─ :51820/udp → WireGuard (wg-easy) → full LAN access
-                                (only exposed port)
+             ├─ :51820/udp → WireGuard (wg-easy) → full LAN access
+             └─ :51413     → Transmission peer port (seeding)
+                                (no HTTP(S), no DNS forwarded)
 
 LAN/VPN clients → Pi-hole (split DNS: *.example.com → Pi LAN IP)
                      └─ upstream: dnsproxy DoH → Quad9 (127.0.0.1:5053, ADR-015)

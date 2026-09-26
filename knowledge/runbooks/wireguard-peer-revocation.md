@@ -145,7 +145,8 @@ took the device. Work through this before deciding the incident is over:
 
 ## Cadence
 
-Review the peer list at each restore drill (annually, see
-`restore-from-backup.md`). The question to answer is not "are these peers
+Review the peer list whenever a device is replaced, and at any restore drill
+that happens (there is no scheduled one — `restore-from-backup.md` keeps a drill
+record, not a calendar). The question to answer is not "are these peers
 valid?" but "**can I name the device behind each one?**" — a peer that cannot be
 named is a peer to remove.

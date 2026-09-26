@@ -56,9 +56,16 @@ the Pi:
 
 ## First Steps (one-time, manual)
 
-1. Authenticate the `claude` user (claude.ai), then trust the vault + enable Remote Control —
-   exact commands in the header of `ansible/roles/claude-code/tasks/main.yml`.
-2. Re-run the `claude-code` Ansible role to start the systemd services.
+These are deliberate security confirmations, not automated on purpose — Ansible must not
+silently enable remote access. They persist in `~claude/.claude`.
+
+1. Authenticate the `claude` user: `sudo -u claude -H /home/claude/.local/bin/claude`, then
+   `/login` (claude.ai) and exit.
+2. Trust the vault and enable Remote Control:
+   `sudo -u claude -H bash -lc 'cd ~/vault && /home/claude/.local/bin/claude remote-control --name Homelab'`
+   → accept "Do you trust this folder?", answer `y` to "Enable Remote Control?", wait for
+   "Connected", then Ctrl+C.
+3. Re-run the `claude-code` Ansible role to start the systemd services.
 
 ## Troubleshooting: "no vault" in the app → Remote Control 401
 
@@ -241,7 +248,8 @@ suddenly reads differently.
 
 Nothing service-specific to restore: the **vault content lives in Nextcloud** (backed up
 with the rest of `/mnt/data/services`). Re-running the `claude-code` role rebuilds the user,
-sandbox, mounts and services; the only manual step is the one-time `claude` login.
+sandbox, mounts and services; the only manual steps are the [First Steps](#first-steps-one-time-manual)
+above — login, then trust + enable Remote Control — since `~claude/.claude` lives on the SD card.
 
 See also: `knowledge/research/obsidian-claude-mobile-workflow.md`,
 `knowledge/runbooks/restore-from-backup.md`,

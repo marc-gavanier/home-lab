@@ -7,8 +7,8 @@ metrics and uptime were reachable without SSH, logs were not.
 
 - URL: `https://logs.example.com` (VPN-only, like the other internal services — the
   subdomain only resolves on the LAN/VPN via Pi-hole split DNS).
-- **Login required.** Dozzle is the one internal service with its own credentials on top
-  of the network gate. See *Why two locks* below.
+- **Login required.** Dozzle ships without one; this deployment adds its own credentials
+  on top of the network gate. See *Why two locks* below.
 
 ## What It Does
 
@@ -18,7 +18,8 @@ metrics and uptime were reachable without SSH, logs were not.
 
 ## Why Two Locks
 
-Every other service is protected by `vpn-only` alone. Dozzle carries a second lock
+A service with no login of its own, such as IT-Tools or SearXNG, is protected by
+`vpn-only` alone. Dozzle has none upstream either, and was given a second lock
 because of what it aggregates: one page holding **every other container's stdout** —
 session ids, e-mail addresses, whatever an application decided to log. The network gate
 is the perimeter, and a stolen WireGuard key or a compromised LAN device is exactly the

@@ -13,12 +13,13 @@ Home lab on Raspberry Pi 4 (8GB RAM). Monitoring must stay lightweight — no Pr
 
 ## Current Stack
 
-| Tool                 | Role                                                              |
-|----------------------|-------------------------------------------------------------------|
-| **Netdata**          | Real-time system metrics; queryable via the `netdata-local` MCP server |
-| **Uptime Kuma (v2)** | Availability + push monitors (backups, offsite) + TLS-expiry alerts |
-| **homelab-health**   | systemd timer every 5 min: disk ≥85% and unit/timer failures (240 s gate), `ansible/roles/observability/` |
-| **lynis**            | Weekly security audit report                                       |
+| Tool                 | Role                                                                                                                                                                                     |
+|----------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Netdata**          | Real-time metrics; 6 curated alarms (`health.d/`, `to: silent`) pushed by `homelab-netdata-kuma.sh` into 2 Kuma monitors; queryable via the `netdata-local` MCP server                   |
+| **Uptime Kuma (v2)** | The one alerting channel (Discord): 22 active checks + 15 push monitors (backups, offsite, host jobs) + TLS-expiry alerts                                                                |
+| **homelab-health**   | systemd timer every 5 min: disk ≥85%, DNS upstream, git mirror, certificates, unit/timer failures and restart loops (240 s gate), crash-heal; pushes `Pi health` and `Pi pending action` |
+| **goss**             | Declared assertions: `units.yaml` (read by homelab-health), `posture.yaml` (daily `homelab-posture.sh`)                                                                                  |
+| **lynis**            | Weekly security audit report                                                                                                                                                             |
 
 ## Hard-won Lessons — respect these
 
@@ -29,7 +30,7 @@ Home lab on Raspberry Pi 4 (8GB RAM). Monitoring must stay lightweight — no Pr
 
 ## Directives
 
-- Lightweight above all; no long-term metric retention
+- Lightweight above all; no separate metrics store — the only long-term retention is Netdata's own size-capped dbengine tiers (5 d / 30 d / 10 mo)
 - Alerts only for actionable conditions; every alert documented with its threshold and rationale in `docs/07-observability/`
 - Docker logs must have rotation (max-size, max-file)
 - New services must get: healthcheck in compose + Kuma monitor (manual) + inclusion in health-script scope if relevant
@@ -38,6 +39,6 @@ Home lab on Raspberry Pi 4 (8GB RAM). Monitoring must stay lightweight — no Pr
 ## Project Resources
 
 - Observability documentation: `docs/07-observability/`
-- Ansible role: `ansible/roles/observability/` (health + lynis timers)
+- Ansible role: `ansible/roles/observability/` (health, posture, disk, SMART self-test, notify_push, Netdata→Kuma adapter and lynis timers)
 - Kuma export: `ops/kuma-dump.sh`
 - Decisions: `knowledge/decisions/`

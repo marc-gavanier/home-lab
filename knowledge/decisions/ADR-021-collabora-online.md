@@ -24,7 +24,7 @@ required — enabling `richdocuments` — was reverted to a byte-identical confi
 
 ## Decision
 
-Deploy `collabora/code:26.04.2.4.1` behind Traefik at `office.<domain>`,
+Deploy `collabora/code:26.04.4.1.1` behind Traefik at `office.<domain>`,
 VPN-only like every other service, wired to Nextcloud's `richdocuments`
 connector by the deploy rather than by the admin UI.
 
@@ -201,9 +201,10 @@ what Nextcloud actually held until a document refused to open.
 
 ## Consequences
 
-**A deploy now verifies a conversion, not a status.** The wiring task ends by
-converting a text file to PDF through the container and failing the deploy if
-the result is not a PDF. That is the probe that would have caught the
+**A deploy now verifies a conversion, not a status.** The wiring task converts a
+text file to PDF through the container and fails the deploy if the result is not
+a PDF — on a full deploy, a targeted deploy of `collabora` or `nextcloud`, or
+whenever `activate-config` ran; a targeted deploy of any other service skips it. That is the probe that would have caught the
 `no-new-privileges` failure above; `/hosting/capabilities` would not have.
 
 **The WOPI proof key cannot be generated.** `/etc/coolwsd` is `root:root 0755`
@@ -214,13 +215,17 @@ once more. Consequence: Nextcloud cannot verify that WOPI requests are signed by
 this server, and falls back to the access token alone. Accepted; the token is
 what protects the document either way, and the whole surface is VPN-only.
 
-**Three `ERR` lines at every start are expected.** They are the bind-mount
-fallback above. `--o:mount_jail_tree=false`, which the log itself suggests, has
+**A burst of `ERR` lines at every start is expected.** They are the bind-mount
+fallback above: `enterMountingNS`, the AppArmor user-namespace notice, and one
+`Failed to exec coolmount` per kit spawned — 26 in all on the start of
+2026-09-26, not the three this line once promised. `--o:mount_jail_tree=false`, which the log itself suggests, has
 **no effect** — while `--o:ssl.*` overrides passed in the same string do take
 effect. Left as noise rather than chased.
 
 **Collabora joins wave 3 of the staged startup**, with Immich and Jellyfin. It
-takes ~80 s to serve and nothing needs it until a document is opened. Like every
+took ~80 s to serve when measured alone, and about 7 minutes on the cold boot of
+2026-09-26 (hence the compose `start_period` of 1320 s); nothing needs it until a
+document is opened. Like every
 other member of that wave, a container that cannot be created fails the wave.
 
 **No unattended rollback harness**, unlike ADR-020. This is an additive service

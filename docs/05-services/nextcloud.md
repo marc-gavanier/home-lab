@@ -111,7 +111,7 @@ See ADR-003 for the rationale.
 | `/mnt/data/services/nextcloud/data/` | Nextcloud files and app data  |
 | `/mnt/data/services/nextcloud/db/`   | MariaDB database              |
 
-(Redis is a cache only — nothing to back up. Media External Storage points at the existing media libraries, backed up with them.)
+(Redis is a cache only — nothing to back up. Media External Storage points at the existing media libraries: `/mnt/data/media` — photos, music, home and music videos — is in the restic source; `/mnt/data/library` — films and series under `/Videos` — is not.)
 
 ## Backup
 

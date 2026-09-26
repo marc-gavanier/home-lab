@@ -46,9 +46,9 @@ receives a message whose body **exactly matches** a secret keyword.
 - **No attack surface added**: outbound-only, consistent with the perimeter model.
   Nothing to scan, nothing for fail2ban/UFW to defend.
 - **Reachable from anywhere** with just the two secrets — survives losing your own
-  devices (the design goal). Secrets are kept on paper, off-network.
+  devices (the design goal). Secrets are kept offline, off-network.
 - **Defence in depth**: even if the topic leaks, the keyword is still required.
-- **Simple & legible**: ~35 lines of bash + a systemd unit, no extra service to host.
+- **Simple & legible**: ~20 lines of bash + a systemd unit, no extra service to host.
 
 ### Cons
 - **Secrets cross a third party**: the keyword transits `ntfy.sh` in the message

@@ -72,8 +72,8 @@ assuming.
 ## Restore
 
 ```bash
-cd /opt/homelab   # `compose down`, never `docker stop`: a stopped container
-                  # is resurrected by the heal timer within 2 min (ADR-007)
+cd /opt/homelab   # `compose down`, never `docker stop`: the heal timer restarts a
+                  # container that exited non-zero within 2 min (ADR-007); only exit 0 is left down
 docker compose down jellyfin
 restic restore latest --target / --include /mnt/data/services/jellyfin
 docker compose up -d jellyfin

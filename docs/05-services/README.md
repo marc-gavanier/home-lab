@@ -35,7 +35,7 @@ All services run as Docker containers, orchestrated by Docker Compose. Persisten
 > This table lists the services with a page of their own. Three infrastructure
 > sidecars run beside them and have none: `dnsproxy` (DoH upstream, shares
 > Pi-hole's network namespace), `socket-proxy` (filtered Docker API for
-> Traefik and Dozzle) and `traefik-log-redactor`. They are documented in
+> Traefik, Netdata and Dozzle) and `traefik-log-redactor`. They are documented in
 > `docs/04-network/` and `docs/03-security/`, not here.
 
 > Notes live in **Obsidian** (a client app on PC/mobile, synced via Nextcloud), managed by
@@ -86,8 +86,9 @@ IT-Tools and Calibre-Web are where estimates went furthest wrong in opposite
 directions — the shortlist budgeted 50 MB for IT-Tools and 150-250 MB for
 Calibre-Web.
 
-Calibre-Web is also the largest image in the stack at **1.74 GB** unpacked, since
-it bundles a full Calibre for format conversion. That lands on `/mnt/data`, not
+Calibre-Web is also one of the two largest images in the stack at **1.74 GB**
+unpacked, since it bundles a full Calibre for format conversion — level with
+Uptime Kuma 2.5.5 at 1.75 GB (measured 2026-09-26). That lands on `/mnt/data`, not
 the SD card: Docker's data root is `/mnt/data/docker`.
 
 LibreSign has no line of its own: it is a Nextcloud app, and the JVM it spawns

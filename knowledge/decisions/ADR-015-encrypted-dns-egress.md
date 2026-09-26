@@ -19,6 +19,11 @@ Two gaps in the DNS path (network audit, issue #12 LATER-1):
 
 ## Decision
 
+*Amended 2026-09-26: the sidecar described here is now `adguard/dnsproxy`, with
+two Quad9 upstreams addressed by IP (`https://9.9.9.9/dns-query`,
+`https://149.112.112.112/dns-query`) in load-balance — both Quad9, so the
+"no fallback provider" rule below still holds. See the 2026-07-27 section.*
+
 Add a **cloudflared** sidecar (`proxy-dns`) that shares Pi-hole's network
 namespace (`network_mode: service:pihole`). Pi-hole forwards to `127.0.0.1#5053`
 (which, via the shared netns, is cloudflared), and cloudflared proxies to
@@ -47,8 +52,8 @@ anycast plus `restart: unless-stopped` is deemed reliable enough.
   domain name for it. That is the traffic this decision was taken for, and it is
   the majority of the lab's queries.
 - The upstream is reproducible from Ansible; no more `pihole.toml` drift.
-- No new public exposure: cloudflared makes only outbound HTTPS; nothing is
-  published.
+- No new public exposure: the sidecar (dnsproxy since 2026-07-27) makes only
+  outbound HTTPS and listens on `127.0.0.1` only; nothing is published.
 
 **Negative / cost**
 - **The perimeter is Pi-hole's clients, not the whole machine.** This section
@@ -82,20 +87,27 @@ anycast plus `restart: unless-stopped` is deemed reliable enough.
   remote path is a tunnel that starts inside that stack. The claim is corrected
   to the perimeter that was actually built; widening the perimeter stays open in
   #219 as a separate decision.
-- cloudflared is now on the **critical path** for all external resolution: if it
-  is down, Pi-hole has no working upstream. Mitigated by `restart: unless-stopped`
-  (Tier 0, same as Pi-hole) — now dnsproxy, which no restart policy saves from
-  running healthy on a dead network namespace after Pi-hole is recreated; the
-  deploy and the heal timer re-attach it, and Kuma's `Pi-hole DNS` monitor sees it — but there is deliberately **no cleartext fallback**
+- The sidecar — dnsproxy since 2026-07-27 — is on the **critical path** for all
+  external resolution: if it is down, Pi-hole has no working upstream. Mitigated
+  by `restart: unless-stopped` (Tier 0, same as Pi-hole), which does not save it
+  from running healthy on a dead network namespace after Pi-hole is recreated;
+  the deploy and the heal timer re-attach it. Two detectors see the failure:
+  `homelab-health.sh` pushes `dns upstream unreachable, sustained` through the
+  `Pi health` monitor, and the posture spec's
+  `dnsproxy-shares-the-current-pihole-namespace` flags an orphaned sidecar. Kuma's
+  `Pi-hole DNS + split-DNS` monitor does **not**: it queries a split-DNS name that
+  Pi-hole answers from its own `address=` line without asking any upstream, so it
+  stays green with dnsproxy dead. There is deliberately **no cleartext fallback**
   (it would defeat the encryption).
 - Quad9 sees the queries (trusted provider, encrypted transport) — the normal
   DoH trust model.
 
 **No bootstrap loop**
-- cloudflared must resolve `dns.quad9.net` once to open the DoH connection. The
-  Pi host's `/etc/resolv.conf` uses `1.1.1.1` + `8.8.8.8` (not Pi-hole), and
-  Docker's embedded DNS (127.0.0.11) forwards external names to those — so the
-  bootstrap never goes through Pi-hole. No loop.
+- cloudflared had to resolve `dns.quad9.net` once to open the DoH connection,
+  through the host's `1.1.1.1` + `8.8.8.8` rather than Pi-hole, so there was no
+  loop. dnsproxy removes the question: its upstreams are addressed by IP
+  (`9.9.9.9`, `149.112.112.112`), so there is no bootstrap lookup at all (see
+  "Upstreams by IP, deliberately" below).
 
 ## Alternatives considered
 

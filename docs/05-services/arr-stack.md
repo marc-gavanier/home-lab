@@ -63,8 +63,9 @@ the C89 audit sweeps.
 `/config` per service under `services_data_dir`, inside the restic source with
 the rest of `/mnt/data/services`. It holds the indexer definitions, the series
 and film lists, the quality profiles, the download history — and `config.xml`,
-which carries the API key. That is why the directory is `0700`: the file itself
-is `0644` and the directory is what keeps the key private.
+which carries the API key. That is why the file is `0600` (the deploy role sets
+it, `data_dirs.yml`) and the directory is `0700` on top: the databases beside it
+stay `0644`, and the directory is what keeps them private.
 
 **A plain file restore is not enough on its own — see `## Backup` below.** The
 full procedure is

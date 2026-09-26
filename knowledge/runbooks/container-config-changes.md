@@ -347,8 +347,9 @@ Three rules came out of it:
 
 - **Put the migration inside the deploy path, not beside it.** A documented
   manual step before `compose up` is a step someone will skip. The wg-easy
-  migration runs as an Ansible task placed *between* the compose file copy and
-  `compose up`, self-guarded so it is a no-op once done.
+  migration ran as an Ansible task placed *between* the compose file copy and
+  `compose up`, self-guarded so it was a no-op once done — and was deleted once
+  it had run (PR #223, ADR-030).
 - **Stage it on a copy and verify before touching production.** Copy the data
   directory, run the migration against a throwaway container that publishes
   nothing, and assert the result carries what matters — for a VPN, the same
@@ -371,4 +372,4 @@ docker compose up -d <svc>
 ```
 
 A container recreation is seconds. What takes time is noticing, so the
-automation in step 2 is worth more than speed here.
+automation in step 3 is worth more than speed here.

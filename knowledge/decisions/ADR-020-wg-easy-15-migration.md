@@ -83,8 +83,8 @@ Reversible in one line if the ISP ever provides IPv6.
 
 Two task files, and the placement of the first is the whole design:
 
-- **`wg_easy_migrate.yml`** runs *between* the compose file copy and
-  `compose up`. Any later and the deploy would have started v15 on a v14 data
+- **`wg_easy_migrate.yml`** (removed 2026-08-22, see below) ran *between* the
+  compose file copy and `compose up`. Any later and the deploy would have started v15 on a v14 data
   directory — no database, setup wizard reopened, no tunnel.
 - **`wg_easy_config.yml`** runs after, re-asserting host, Pi-hole DNS and
   allowed IPs from `wg-easy-setup.env`, comparing before writing so an unchanged
@@ -105,8 +105,8 @@ outage on every deploy.
 side and accepts no precomputed hash, so `PASSWORD_HASH` and the bcrypt block in
 `hashes.yml` are gone. The password lives in
 `/mnt/data/secrets/wg-easy-setup.env`, `0600 root:root` on the LUKS volume —
-deliberately *not* in `homelab.env`, which is group-readable by docker and
-mounted into containers (ADR-011, ADR-016).
+deliberately *not* in `homelab.env` (`0600`, group `docker`), which Compose reads
+to interpolate `${…}` into container environments (ADR-011, ADR-016).
 
 **Two settings the import gets wrong are now repaired by the deploy.** `migrate`
 leaves `host` empty and DNS on Cloudflare's `1.1.1.1`. Existing peers keep their
@@ -122,10 +122,14 @@ state rather than a transient one.
 for this image: it is the VPN and the only route to the offsite Pi, so a major
 here is read before it is merged, never merged blind.
 
-**The shipped CLI does not run.** `/app/server/cli.mjs` imports `citty`, absent
-from the image's 56 bundled modules. No consequence — the HTTP API covers
-everything — but it rules out the CLI as a configuration path, which was the
+**The shipped CLI did not run on 15.3.0.** `/app/server/cli.mjs` imports `citty`,
+absent from that image's 56 bundled modules. No consequence — the HTTP API covers
+everything — but it ruled out the CLI as a configuration path, which was the
 first option considered for keeping Ansible in charge.
+
+*Amended 2026-09-26: the deployed 15.4.0 ships `citty` (61 bundled modules), so
+the CLI is no longer ruled out by a missing import. The HTTP API stays the
+configuration path; nothing here was switched to the CLI.*
 
 **The peer inventory stays out of this repository**, as before.
 

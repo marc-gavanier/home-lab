@@ -17,7 +17,7 @@
       "groupName": "minor & patch updates"
     },
     {
-      "description": "wg-easy majors stay individual and are never merged blind: 14 to 15 was a rewrite whose only import path is an HTTP call the deploy must make itself (roles/deploy/tasks/wg_easy_migrate.yml, ADR-020). The 15 hold is lifted, but a major here still means reading the release notes before merging — this container is the VPN and the only route to the offsite Pi.",
+      "description": "wg-easy majors stay individual and are never merged blind: 14 to 15 was a rewrite whose only import path was an HTTP call the deploy had to make itself (ADR-020). The 15 hold is lifted, but a major here still means reading the release notes before merging — this container is the VPN and the only route to the offsite Pi.",
       "matchPackageNames": ["ghcr.io/wg-easy/wg-easy"],
       "matchUpdateTypes": ["major"],
       "dependencyDashboardApproval": true

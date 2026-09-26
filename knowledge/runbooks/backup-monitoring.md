@@ -18,7 +18,7 @@ failure *and* when no backup ran at all (Pi down, timer broken, repo unreachable
 
 1. **Add New Monitor** → Monitor Type: **Push**.
 2. Friendly Name: e.g. `Homelab backup`.
-3. **Heartbeat Interval**: `90000` s (25 h) — one daily run plus grace. Retries: `0`.
+3. **Heartbeat Interval**: `93600` s (26 h) — one daily run plus grace. Retries: `0`.
 4. Under **Notifications**, tick your existing notification channel.
 5. **Save**, then copy the monitor's **Push URL**. Use the *base* form
    `https://<uptime-kuma>/api/push/<token>` — drop any trailing `?status=up&msg=OK&ping=`
@@ -58,9 +58,10 @@ That line was written by `backup.sh`, which ADR-031 deleted; it was last emitted
 or the monitors themselves.
 
 To exercise the down path, point `RESTIC_REPOSITORY` at a bad path temporarily and
-run — the monitor goes red and the notification fires. Note that
-`backup-notify.sh` refers you to `/var/log/homelab-backup.log` on failure, and that
-file holds only the notify lines: **the cause is in the journal**, not there.
+run — the monitor goes red and the notification fires. The DOWN message ends
+with `journalctl -u <unit> -n 50`, and that is where to look: **the cause is in
+the journal**. `/var/log/homelab-backup.log` holds only the notify lines and the
+dump commands' stderr, never restic's output.
 
 ## Local maintenance monitor
 
@@ -84,8 +85,8 @@ Three more push monitors follow the same pattern:
 
 | Monitor        | Pinged by                                      | Interval       | Vault variable                                     |
 |----------------|------------------------------------------------|----------------|----------------------------------------------------|
-| Offsite backup | resticprofile `copy` (homelab, nightly)        | 90000 s (25 h) | `offsite_copy_kuma_push_url` (homelab local.yml)   |
-| Offsite check  | `resticprofile -n offsite check` (Sun 06:00)   | 700000 s (8 d) | `offsite_check_kuma_push_url` (homelab local.yml)  |
+| Offsite backup | resticprofile `copy` (homelab, nightly)        | 93600 s (26 h) | `offsite_copy_kuma_push_url` (homelab local.yml)   |
+| Offsite check  | `resticprofile -n offsite check` (Tue 02:00)   | 700000 s (8 d) | `offsite_check_kuma_push_url` (homelab local.yml)  |
 | Offsite health | `offsite-health.sh` (offsite Pi, daily 08:00)  | 90000 s (25 h) | `offsite_health_kuma_push_url` (offsite local.yml) |
 
 Deploy after filling the vault variables: same `--start-at-task "backup | Template
@@ -126,8 +127,9 @@ form as the homelab monitors.
 
 ## Notes
 
-- Interval 25 h: a missed daily run turns the monitor red ~1 h after the expected time.
-  Tighten or loosen to taste.
+- Interval 26 h (`93600` s on both nightly monitors): a missed daily run turns the
+  monitor red ~2 h after the expected time. Tighten or loosen to taste.
 - The ping is best-effort (`curl ... || true`): a monitoring/network outage never fails
   the backup itself.
-- Logs: `/var/log/homelab-backup.log` on the Pi.
+- Logs: `journalctl -u homelab-backup` (restic and resticprofile output);
+  `/var/log/homelab-backup.log` on the Pi holds the notify lines and dump stderr.

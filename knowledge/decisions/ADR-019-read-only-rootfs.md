@@ -21,9 +21,13 @@ That assumption was wrong, and the correction is the interesting part.
 
 `read_only: true` on every service whose write set allows it, with each writable
 path declared explicitly — a sized `tmpfs` for state meant to be lost, a bind
-mount for state that is not. **17 of 21 services.** The other four keep a
-writable rootfs with the reason written in their block, the same rule applied to
-the residual `DAC_OVERRIDE` grants in ADR-017.
+mount for state that is not. **17 of 21 services** at the time; **23 of 32**
+today. The others keep a writable rootfs with the reason written in the table
+below, the same rule applied to the residual `DAC_OVERRIDE` grants in ADR-017.
+
+*Amended 2026-09-26: the reasons used to sit as comments in each service's
+block of `compose.yaml`; #390 removed every code comment, so this ADR is where
+they live now (the old text: `git show 4b1c7c7^:docker/compose.yaml`).*
 
 **The requirement was measured, not derived.** `docker diff <container>` lists
 exactly what a running container has written to its image layer — weeks of real
@@ -51,7 +55,7 @@ read-only, and the workarounds are worse than the gap.** A `tmpfs` there hides
 what the image ships; a pre-rendered host copy silently swallows whatever the
 next image version adds. Both trade a visible limitation for an invisible one.
 
-## The four exceptions
+## The exceptions
 
 | Service | Measured behaviour |
 |--------------|-----------------------------------------------------------|
@@ -59,6 +63,9 @@ next image version adds. Both trade a visible limitation for an invisible one.
 | nextcloud | Exit 2 — `cannot create /usr/local/etc/php/conf.d/redis-session.ini`, a directory that also holds the 21 `.ini` files the image ships |
 | socket-proxy | Exit 1 — `can't create /usr/local/etc/haproxy/haproxy.cfg`, generated from the template beside it |
 | transmission | Starts, but the image itself announces that `PUID`/`PGID` and `UMASK` stop having any effect. Both are load-bearing: ownership of the downloads, and the `UMASK 022` that came out of a CIS finding (7.1.11, world-writable downloads) |
+| collabora | Added later. Read-only works, but the document-jail copy then lives in `tmpfs`: 1.257 GiB of RAM instead of 573 MiB. A priced trade, not a block (ADR-021) |
+| calibre-web | Added 2026-08-05. `docker diff` shows 1797 entries: the image patches its own source tree and writes bytecode under `/app` on every start (ADR-025) |
+| radarr, sonarr, prowlarr | Added with ADR-036. Not attempted — the state is "unknown", not "structural" |
 
 Transmission is the one that would have been easy to get wrong: it starts, it
 serves, its healthcheck passes — and it silently stops honouring two settings we
@@ -91,7 +98,8 @@ and a rollback whose "backup" already contained the change.
 ## Consequences
 
 **Positive**
-- 17 of 21 containers cannot modify the code they run.
+- 23 of 32 containers cannot modify the code they run (17 of 21 when this
+  was decided).
 - Every writable path is now declared and sized, rather than being wherever the
   image happened to write.
 - Netdata's history survives a recreate.
@@ -103,7 +111,8 @@ and a rollback whose "backup" already contained the change.
 - `tmpfs` sizes are a judgement call. They are set from observed usage with
   headroom (InnoDB's temporary files get 256 MB, most get 8–64 MB) on a machine
   with 8 GB of RAM.
-- Four services are unchanged, and the reason is in their block.
+- Nine services keep a writable rootfs, and the reason for each is in the
+  table above.
 
 ## Alternatives considered
 

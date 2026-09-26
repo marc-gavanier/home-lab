@@ -3,8 +3,8 @@
 Power the Pi off from anywhere via a secret `ntfy.sh` message, then bring it back.
 Design rationale in [ADR-006](../decisions/ADR-006-remote-kill-switch.md).
 
-The two secrets live **only** in the vault (`host_vars/homelab/local.yml`) and on
-your off-network paper backup — never in this repo:
+The two secrets live **only** in the vault (`host_vars/homelab/local.yml`) and in
+your offline backup — never in this repo:
 
 | Secret                  | Role                                                 |
 |-------------------------|------------------------------------------------------|
@@ -23,7 +23,7 @@ Within ~1–2 s the service logs `TRIGGER received — powering off now` and run
 `systemctl poweroff`. Any message body that is **not** an exact match is logged as
 `keyword mismatch — ignored` and does nothing.
 
-> Keep the trigger line (with the real topic) on your paper backup — the topic
+> Keep the trigger line (with the real topic) in your offline backup — the topic
 > alone is useless without the keyword, but you cannot publish without it.
 
 ## Recovery (power back on)
@@ -81,7 +81,7 @@ ansible-playbook playbooks/site.yml --tags killswitch --ask-vault-pass
 ```
 
 The `Restart killswitch` handler picks up the new env on a running service
-(systemd reads `EnvironmentFile` only at start). **Update your paper backup.**
+(systemd reads `EnvironmentFile` only at start). **Update your offline backup.**
 
 ## Related
 

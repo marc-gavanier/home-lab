@@ -5,7 +5,7 @@ Service availability monitoring and alerting.
 ## Access
 
 - URL: `https://services.example.com` (VPN-only middleware bypassed for LAN/Docker network)
-- Version: `louislam/uptime-kuma:2` (v2.x)
+- Version: `louislam/uptime-kuma:2.5.5` — pinned, bumped by hand (Renovate holds it for approval; see `knowledge/runbooks/uptime-kuma-migration-failure.md`)
 
 ## What It Does
 
@@ -16,7 +16,7 @@ Service availability monitoring and alerting.
 
 ## DNS Configuration
 
-Uses Pi-hole as DNS (`dns: [${PI_LAN_IP}]` in compose) so that domain lookups for homelab services resolve to LAN IPs (split DNS). Without this, Uptime Kuma resolves via Cloudflare → traffic exits to public IP → Traefik blocks it as non-VPN.
+The 21 service names are pinned to the Pi's LAN IP in `extra_hosts` (`x-kuma-hosts` in compose), so the HTTP monitors reach Traefik on the LAN without asking any resolver. Without that pin a lookup can return the public IP → traffic exits and comes back as non-VPN → Traefik blocks it. The container's resolvers (`dns: [${PI_LAN_IP}, 1.1.1.1]`) only serve names outside that list; the `Pi-hole DNS + split-DNS` monitor queries Pi-hole explicitly, so it does not depend on them.
 
 ## Monitors Configured
 
@@ -89,8 +89,8 @@ monitor every dashboard stays green.
 
 Four monitors deviate on purpose. **Forgejo** polls every 300s with 2 retries: it is a
 mirror, not an interactive service — nobody is waiting on it, and a minute of downtime
-is not worth a Discord message. **Veille quotidienne** waits 25h rather than the
-default: the digest runs once a day, so the dead-man window has to clear a full day
+is not worth a Discord message. **Veille quotidienne** waits 28h (100 800 s) rather
+than the default: the digest runs once a day, so the dead-man window has to clear a full day
 plus the slack for a slow run.
 
 **Pi health** (600s) and **DDNS** (1080s) run with retries turned **off**, which is
@@ -184,8 +184,8 @@ as long as the outage lasts, and #216 cost a day when a condition that stays red
 for days sat in the same signal as the acute checks and muted them. A backup
 three days late must not silence this monitor for three days.
 
-**It is the default, not a law: 32 of the 34 active monitors follow it, and two
-carry a deliberately different reminder.** Measured 2026-08-29:
+**It is the default, not a law: 35 of the 37 active monitors follow it, and two
+carry a deliberately different reminder.** Measured 2026-08-29, re-counted 2026-09-26:
 
 | Monitor                | Interval | `resend_interval` | Formula would give | Actual reminder |
 |------------------------|----------|-------------------|--------------------|-----------------|
@@ -251,7 +251,8 @@ not re-run. That is the argument for having a Kuma monitor at all — not for ha
 
 **Transmission is the only monitor that authenticates**, and the alternatives were
 measured rather than argued (#191). Its accepted set used to carry `401`, which made it
-the only one of the thirty-one to count a refusal as success. Through Traefik:
+the only one of the thirty-one monitors then in place (2026-08-21 — 37 since
+2026-09-13) to count a refusal as success. Through Traefik:
 
 | Request                     | no credentials | as `admin`     |
 |-----------------------------|----------------|----------------|

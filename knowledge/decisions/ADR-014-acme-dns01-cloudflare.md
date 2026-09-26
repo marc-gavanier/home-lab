@@ -29,7 +29,8 @@ DNS provider). Traefik proves control by writing `_acme-challenge` **TXT**
 records through the Cloudflare API, needing no inbound HTTP and no public A
 record. A **scoped API token** (Zone:DNS:Edit + Zone:Read, single zone
 `example.com`) is stored in the LUKS secrets set (ADR-011) and passed to the
-Traefik container as `CF_DNS_API_TOKEN`.
+Traefik container as a Docker secret (`/mnt/data/secrets/docker/cf_dns_api_token`,
+read through `CF_DNS_API_TOKEN_FILE`), not as a plain environment variable.
 
 **Per-host certificates, deliberately NOT a `*.example.com` wildcard.** Each
 router keeps its own `certresolver`, so DNS-01 issues one single-host cert per

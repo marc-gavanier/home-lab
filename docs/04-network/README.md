@@ -129,21 +129,15 @@ not, which is why the numbers above now carry the date they were measured.
 | `socketproxy`| `homelab_socketproxy` | Traefik ↔ docker-socket-proxy only      |
 
 `proxy` is declared `external: true`, so its name is unprefixed; the other two are
-created by Compose and carry the project prefix. **The distinction is not
-cosmetic**: a bare `internal` network also exists on the host — an empty orphan on
-a different subnet, with no container attached — and `docker network inspect
-internal` returns it rather than the live one. Address these by the host name when
-operating on them.
+created by Compose and carry the project prefix. Address these by the host name
+when operating on them: `docker network inspect internal` returns `[]`, not the
+live network.
 
-This line previously claimed the orphan had been removed. It had been, by hand,
-and two Ansible tasks rebuilt it thirty-nine minutes later: both looped over
-`[proxy, internal]` although only `proxy` needs to pre-exist. Those loops now name
-`proxy` only, so removing the orphan finally sticks — but it has to be removed
-once, by hand, since nothing deletes a network that no longer gets created:
-
-```bash
-docker network rm internal   # verify `docker network inspect internal` shows 0 containers first
-```
+A bare `internal` network did exist for a while — an empty orphan, rebuilt
+thirty-nine minutes after its first hand removal by two Ansible tasks that looped
+over `[proxy, internal]` although only `proxy` needs to pre-exist. Those loops now
+name `proxy` only, and the orphan was removed for good on 2026-08-22: nothing
+recreates it, and `docker network ls` no longer lists it.
 
 ## Addresses a third party assigns
 

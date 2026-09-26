@@ -83,7 +83,10 @@ The directory and the files carry deliberately opposite intents:
 - the secret files are `0444` — **the container-side access**. Container UIDs
   are arbitrary and unmappable (`mysql` 999, `abc` 911, `www-data` 33), and the
   bind mount lands at `/run/secrets/<name>` whose parent directories are inside
-  the container, where the host directory mode no longer applies.
+  the container, where the host directory mode no longer applies. Two rendered
+  files are the narrower variant, `0440` owned by the one gid that reads them —
+  `dozzle_users.yml` (65534) and `nextcloud_redis.conf` (999) — because their
+  reader's gid is fixed; that is deliberate, not drift to normalise back.
 
 **A symlink is not a substitute for a mount.** ADR-011 routes credential files
 through `/opt/homelab` symlinks into `/mnt/data/secrets`, and that works because
@@ -105,7 +108,7 @@ strip it. No-newline is the single form that satisfies every consumer.
   inspect endpoint.
 - The service passwords also leave `docker/.env` entirely — Ansible renders the
   secret files straight from the vault — so no single file aggregates every
-  credential any more. The wg-easy bcrypt hash is all that remains there.
+  credential any more. No credential remains there since wg-easy v15 (ADR-020).
 - Adding a service with a secret now has an obvious, uniform pattern.
 
 **Negative / cost**

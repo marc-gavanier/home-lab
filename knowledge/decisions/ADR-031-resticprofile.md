@@ -37,6 +37,10 @@ replacing it would be a regression, not a migration.
 **resticprofile takes the orchestration. The dumps and their assertions stay,
 and move into a script of their own invoked as a pre-backup hook.**
 
+*Amended 2026-09-26: that script no longer exists. Since 2026-08-24 the dump
+commands are `run-before` hooks in the profile and the assertions are
+`/etc/goss/backup-dumps.yaml` — see Consequences, "Superseded 2026-08-24".*
+
 `local-maintenance.sh` (72 lines, weekly prune + check) and `offsite-check.sh`
 (51 lines, weekly offsite check) become resticprofile commands.
 
@@ -169,8 +173,11 @@ reviewed by Renovate would be a hole in that process, not a convenience.
   rewriting away.** That sentence was true when written and stale within two
   days: ADR-032 installed goss, whose entire job is expressing assertions
   declaratively. The dump COMMANDS became `run-before` hooks and the assertions
-  `/etc/goss/backup-dumps.yaml`, both generated from two lists in group_vars.
-  373 lines to 19 named checks.
+  `/etc/goss/backup-dumps.yaml`, driven by two lists in group_vars.
+  373 lines to 19 named checks. *Amended 2026-09-26: only the SQLite list
+  generates both halves; `backup_sql_dumps` generates the assertions alone, and
+  the Nextcloud and Miniflux dump commands are written out in the profile. The
+  spec now holds 46 checks for ten databases.*
 
   The lesson is not about goss. A justification for keeping code names the tool
   that was missing at the time, and **nothing re-reads it when that tool
@@ -196,7 +203,8 @@ reviewed by Renovate would be a hole in that process, not a convenience.
 - **`ConditionPathExists` replaces the "not configured" branch.** `offsite-check.sh`
   opened by testing the repository variable and exiting 0. The offsite password
   file is written only when the vault variable is set, so its absence *is* "not
-  configured", and systemd skips the unit instead of failing every Sunday.
+  configured", and systemd skips the unit instead of failing every week
+  (Tuesday 02:00 since 2026-09-13; Sunday before).
 - Two new password files under the secrets directory, `0400 root:root`, rendered
   from the vault like every other secret here.
 

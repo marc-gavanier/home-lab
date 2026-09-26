@@ -96,7 +96,7 @@ is a worse trade.
 
 Four things keep the glue small enough to be worth it:
 
-- It is 4 lines of awk with no state, no network, no filesystem writes.
+- It is 5 lines of awk with no state, no network, no filesystem writes.
 - It runs with every capability dropped, a read-only rootfs, both mounts `ro`
   and `network_mode: none`.
 - Its two non-obvious choices were **measured**, not reasoned: busybox `tail -F`
@@ -124,4 +124,5 @@ Four things keep the glue small enough to be worth it:
 - PID 1 in the redactor is a shell, so `docker stop` waits out the grace period
   and kills. Harmless here — no state to flush, every line already shipped —
   and the grace period is shortened to 5 s so a stack stop is not held up. It is
-  the opposite of the #288 case, and the compose block says so.
+  the opposite of the #288 case: a shell as PID 1 is acceptable here only
+  because the redactor holds nothing that a kill could lose.

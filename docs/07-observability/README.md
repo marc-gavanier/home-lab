@@ -10,14 +10,16 @@ merely interesting belongs on a dashboard, not in a notification.
 
 | Tool            | Role                                                                                                |
 |-----------------|-----------------------------------------------------------------------------------------------------|
-| **Netdata**     | System metrics, forensic dashboard, and **curated** alarms — its 57 stock alarms still reach nobody |
+| **Netdata**     | System metrics, forensic dashboard, and **curated** alarms — its 59 stock alarms still reach nobody |
 | **Uptime Kuma** | Availability monitoring + alerting (Discord)                                                        |
 
 Netdata is not notification-free — that wording was wrong and it mattered. It
-ships **57 stock alarms and runs them**. They are tuned for a generic server —
-the disk-backlog one alone would fire on every nightly backup — so wiring them
-to Discord would produce exactly the noise this stack refuses. They address the
-`sysadmin`, `dba` and `silent` roles, and **none of those roles is routed**.
+ships **59 stock alarms and runs them** (counted 2026-09-26; the figure moves
+with the collectors, so read it from `/api/v1/alarms`). They are tuned for a
+generic server — the disk-backlog one alone would fire on every nightly
+backup — so wiring them to Discord would produce exactly the noise this stack
+refuses. They address the `silent`, `sysadmin` and `root` recipients, and
+**none of those is routed**.
 
 That was, and remains, a deliberate choice. What used to happen next was the
 part worth correcting: any signal worth acting on was added to
@@ -36,7 +38,8 @@ just declared instead of coded.
 notification configuration is untouched: curated alarms are written `to: silent`
 exactly like the stock ones. What reads them is a host-side adapter
 (`homelab-netdata-kuma.sh`, every 5 minutes) which pushes each curated alarm
-into **its own** Uptime Kuma monitor. Kuma then decides where that goes, so the
+into the Uptime Kuma monitor of **its group** — six alarms, two monitors, grouped
+by the action they call for (see below). Kuma then decides where that goes, so the
 notification channel stays configured in exactly one place — replace Discord one
 day and only Kuma changes.
 
@@ -46,8 +49,9 @@ transition-driven wiring could not:
 - **it fits what a Kuma push monitor actually is.** Those monitors expect a
   heartbeat and mark themselves down when one does not arrive. An alarm that
   stays healthy produces no transition, no push, and would eventually report a
-  failure that never happened. Not a fear — monitor 20 carries 108 heartbeats
-  reading "No heartbeat in the time window";
+  failure that never happened. Not a fear — monitor 20 (`Pi health`) still holds
+  33 heartbeats reading "No heartbeat in the time window" (2026-09-26; older
+  ones have been pruned);
 - **every curated monitor is also a dead-man's switch.** A beat goes out on
   every run whatever the state, so a dead netdata, a stopped adapter or an
   absent host turns the monitor red on its own. Notification on transition would
@@ -178,17 +182,18 @@ respect.
 "One alert = one action needed" is about an **action**. Conditions that would
 send you to the same place therefore share a monitor:
 
-| Monitor                 | What it carries                                                               | Fed by                              | What you would do        |
-|-------------------------|-------------------------------------------------------------------------------|-------------------------------------|--------------------------|
-| **Pi health**           | journal skew and fill, `/` and `/mnt/data` usage, DNS, mirror, certificates     | `homelab-health.sh`                 | look at the host         |
-| **Pi resources**        | temperature, undervoltage, memory, swap                                         | curated alarms via the Kuma adapter | look at load             |
-| **Pi disk health**      | `/mnt/data` usage, SMART, drive temperature, pending sectors, ext4 state        | `homelab-disk.sh`                   | look at the disk         |
-| **Pi pending action**   | reboot pending, journal skew, security updates, certificate expiry              | `homelab-health.sh`                 | schedule an intervention |
-| **Netdata — containers**| containers down, containers unhealthy                                           | curated alarms via the Kuma adapter | look at the stack        |
+| Monitor                  | What it carries                                                                                                             | Fed by                              | What you would do        |
+|--------------------------|-----------------------------------------------------------------------------------------------------------------------------|-------------------------------------|--------------------------|
+| **Pi health**            | `/` and `/mnt/data` usage, undervoltage, DNS, mirror, certificate store, failed units and timers, restart loops, crash-heal | `homelab-health.sh`                 | look at the host         |
+| **Pi resources**         | temperature, undervoltage, memory, swap                                                                                     | curated alarms via the Kuma adapter | look at load             |
+| **Pi disk health**       | `/mnt/data` usage, SMART, drive temperature, pending sectors, ext4 state                                                    | `homelab-disk.sh`                   | look at the disk         |
+| **Pi pending action**    | reboot pending, services on replaced libraries, journal skew under pressure, security updates, certificate expiry           | `homelab-health.sh`                 | schedule an intervention |
+| **Netdata — containers** | containers down, containers unhealthy                                                                                       | curated alarms via the Kuma adapter | look at the stack        |
 
-Five to create by hand, not thirty — `health.yml` records why that matters:
-"Kuma v2 monitors are created by hand, so folding host-level signals into one
-push keeps the alerting surface flat."
+Five to create by hand, not thirty — and that matters because Kuma v2 monitors
+are created by hand, so folding host-level signals into one push keeps the
+alerting surface flat (issue #13; the reasoning used to sit in a comment in
+`health.yml`, see `git show 4b1c7c7^:ansible/roles/observability/tasks/health.yml`).
 
 **The line that must not be crossed is lifetime, not subject.** `pending` exists
 because a condition that waits for a human stays red for days by construction.
@@ -341,6 +346,14 @@ instead of only saying something is wrong. The active connection count rides
 along as context and never alarms — zero is the normal state when every client
 is asleep.
 
+The same push also watches Nextcloud's **background-job runner**: it reads
+`core lastcron` and goes DOWN when `cron.php` has not completed for more than
+**3600 s**, or when the value cannot be read. `nextcloud-cron` fails the same
+silent way — busybox `crond` can stay Up while never executing a job (#28) — and
+the jobs run every 5 minutes, so an hour of silence is a stopped runner, not a
+slow one. It rides this monitor because the hourly cadence and the `occ` access
+are already there.
+
 ### The daily disk-health report
 
 `homelab-disk.sh` (daily at 07:00, its own Kuma push monitor) watches the 5 TB
@@ -445,9 +458,9 @@ self-test is the only control here that does, which is why it is back — and it
 costs nothing that needs a maintenance window: the drive scans in the
 background, no volume is unmounted and nothing is stopped.
 
-**They are generated when the `observability` role templates the script, not
-when the stack is deployed** — the running script holds a snapshot, it does not
-read `compose.yaml`. So a hardening change needs `--tags deploy,observability`:
+**The posture expectations are generated when the `observability` role
+templates `/etc/goss/posture.yaml`, not when the stack is deployed** — the spec
+holds a snapshot, it does not read `compose.yaml`. So a hardening change needs `--tags deploy,observability`:
 deploy only the stack and the check keeps yesterday's expectations and accuses a
 container that is exactly right. Seen on 2026-07-28 after the wg-easy 15
 migration dropped `SYS_MODULE` (ADR-020).
@@ -471,10 +484,13 @@ declares itself healthy, and protects one door less (measured: a single
 misindented line made two jails vanish). The check compares `jail.local` against
 `fail2ban-client status`, so it needs no list of its own to keep in sync.
 
-The health report covers the complementary case at a five-minute cadence:
-**expected containers that are not running at all**. `docker ps --filter
-health=unhealthy` cannot see them, and the heal timer only resurrects containers
-that *exited* — one that fails to come back was invisible to both (issue #34).
+The posture spec also covers the complementary case, once a day:
+**expected containers that are not running at all** —
+`every-declared-service-has-a-container`. A container that exists but is not
+running is the netdata alarm `homelab_container_down` (10 min), and none of it
+is in `homelab-health.sh` any more. `docker ps --filter health=unhealthy` cannot
+see such a container, and the heal timer only resurrects containers that
+*exited* — one that fails to come back was invisible to both (issue #34).
 
 ### Checking that the git mirror is still mirroring
 
@@ -655,38 +671,47 @@ internet except WireGuard.
 
 ### Host health (push, every 5 min)
 
-`homelab-health.sh` pushes one monitor covering the host-level signals that
-need a human. Nine of the conditions below are no longer evaluated by that
-script — ADR-030 moved them to curated Netdata alarms and ADR-032 to a goss
+`homelab-health.sh` pushes two monitors covering the host-level signals that
+need a human — `Pi health` for acute conditions, `Pi pending action` for the
+ones that wait on the operator (reboot, stale libraries, boot record, security
+updates, certificate expiry). Nine of the conditions below are no longer
+evaluated by that script — ADR-030 moved them to curated Netdata alarms and ADR-032 to a goss
 spec — so the third column names what actually watches each one. Without it the
 table reads as coverage, which is how a deleted check sat in it unnoticed:
 
-| Signal               | Alarms when                                                                                                                                          | Watched by                            |
-|----------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------|
-| CPU temperature      | ≥ 80 °C (Pi 4 throttles at ~80-85 °C)                                                                                                                | netdata `homelab-cputemp`             |
-| Undervoltage         | the `rpi_volt` hwmon alarm has latched                                                                                                               | netdata + the script ¹                |
-| Pending reboot       | `/var/run/reboot-required` exists — auto-reboot is disabled by policy, so it waits on the operator                                                   | `homelab-health.sh`                   |
-| Security updates     | still pending after **48 h** (age-gated: unattended-upgrades runs daily)                                                                             | `homelab-health.sh`                   |
-| Disk capacity        | `/` or `/mnt/data` ≥ **85 %** full                                                                                                                   | `homelab-health.sh`                   |
-| Available memory     | `MemAvailable` < **800 MiB** sustained over a **5 min** window (`lookup: max -5m`)                                                                   | netdata `homelab-memory`              |
-| Swap occupancy       | ≥ **85 %** of the 4 GiB swap file — provisional threshold, see below                                                                                 | netdata `homelab-swap`                |
-| DNS upstream         | a cache-busting query gets no answer, or a non-answer rcode, for **240 s** (shared gate)                                                             | `homelab-health.sh`                   |
-| Unhealthy container  | a container fails its healthcheck for > **10 min**                                                                                                   | netdata `homelab-container-unhealthy` |
-| Container stopped    | a container present in the engine is not running for > **10 min**                                                                                    | netdata `homelab-container-down`      |
-| Container absent     | an expected container is **gone from the engine entirely** — up to **24 h**, this is a daily check                                                   | goss `posture.yaml` ²                 |
-| systemd unit failed  | anything in `systemctl --failed`                                                                                                                     | goss `units.yaml` ²                   |
-| systemd restart loop | a unit stuck in `auto-restart` for **240 s** (shared gate)                                                                                           | `homelab-health.sh`                   |
-| Expected unit down   | docker, containerd, fail2ban, ssh, claude-remote-control or wg-quick@wg0 not `active`                                                                | goss `units.yaml` ²                   |
-| Timer last run       | a `homelab-*` timer whose triggered service did not end in `success`                                                                                 | `homelab-health.sh`                   |
-| Git mirror stale     | the mirror's `next_update_unix` is more than **1 h** in the past — so > 9 h since the last completed sync — or its state is unreadable for **240 s** | `homelab-health.sh`                   |
-| Certificate expiry   | the soonest certificate in `acme.json` is under **21 days**, unreadable, or the file is absent                                                       | `homelab-health.sh`                   |
-| Timer disarmed       | a `homelab-*` control timer is present but not `enabled` and `active`                                                                                | goss `posture.yaml`                   |
+| Signal               | Alarms when                                                                                                                                                        | Watched by                            |
+|----------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------|
+| CPU temperature      | ≥ 80 °C (Pi 4 throttles at ~80-85 °C)                                                                                                                              | netdata `homelab-cputemp`             |
+| Undervoltage         | the `rpi_volt` hwmon alarm has latched                                                                                                                             | netdata + the script ¹                |
+| Pending reboot       | `/var/run/reboot-required` exists — auto-reboot is disabled by policy, so it waits on the operator                                                                 | `homelab-health.sh`                   |
+| Stale libraries      | after a package change since boot, `needrestart` still lists services running replaced libraries — waits on a reboot                                               | `homelab-health.sh`                   |
+| Boot record at risk  | this boot's journal starts > 10 min before the machine did and the journal is ≥ **80 %** of its cap, or the kernel's first boot line is already gone               | `homelab-health.sh`                   |
+| Security updates     | still pending after **48 h** (age-gated: unattended-upgrades runs daily)                                                                                           | `homelab-health.sh`                   |
+| Disk capacity        | `/` or `/mnt/data` ≥ **85 %** full                                                                                                                                 | `homelab-health.sh`                   |
+| Available memory     | `MemAvailable` < **800 MiB** sustained over a **5 min** window (`lookup: max -5m`)                                                                                 | netdata `homelab-memory`              |
+| Swap occupancy       | > **85 %** of the 4 GiB swap file — provisional threshold, see below                                                                                               | netdata `homelab-swap`                |
+| DNS upstream         | a cache-busting query gets no answer, or a non-answer rcode, for **240 s** (shared gate)                                                                           | `homelab-health.sh`                   |
+| Unhealthy container  | a container fails its healthcheck for > **10 min**                                                                                                                 | netdata `homelab-container-unhealthy` |
+| Container stopped    | a container present in the engine is not running for > **10 min**                                                                                                  | netdata `homelab-container-down`      |
+| Container absent     | an expected container is **gone from the engine entirely** — up to **24 h**, this is a daily check                                                                 | goss `posture.yaml` ³                 |
+| systemd unit failed  | anything in `systemctl --failed`                                                                                                                                   | goss `units.yaml` ²                   |
+| systemd restart loop | a unit stuck in `auto-restart` for **240 s** (shared gate)                                                                                                         | `homelab-health.sh`                   |
+| Expected unit down   | docker, containerd, fail2ban, ssh, claude-remote-control or wg-quick@wg0 not `active`                                                                              | goss `units.yaml` ²                   |
+| Timer last run       | a `homelab-*` timer whose triggered service did not end in `success`                                                                                               | `homelab-health.sh`                   |
+| Timer never started  | a `homelab-*` timer fired but its service has no start time, for **240 s** (shared gate)                                                                           | `homelab-health.sh`                   |
+| Git mirror stale     | the mirror's `next_update_unix` is more than **1 h** in the past — so > 9 h since the last completed sync — or its state is unreadable on **two consecutive runs** | `homelab-health.sh`                   |
+| Certificate expiry   | the soonest certificate in `acme.json` is under **21 days**, unreadable, or the file is absent                                                                     | `homelab-health.sh`                   |
+| Certificates gone    | `acme.json` holds fewer certificates than the highest count it has held — a resolver stopped issuing                                                               | `homelab-health.sh`                   |
+| Crash-heal silent    | the heal timer is active but logged no `checked` line in **15 min**, or saw fewer or more services than are declared                                               | `homelab-health.sh`                   |
+| Timer disarmed       | a `homelab-*` control timer is present but not `enabled` and `active`                                                                                              | goss `posture.yaml` ³                 |
 
 ¹ Both, deliberately. ADR-030's migration rule is that no bash line is deleted
 until its replacement has been **observed** firing, and an undervoltage alarm
 cannot be observed on demand. The script's check stays until it is.
 ² Evaluated by the goss spec, reported by `homelab-health.sh`, which reads its
 TAP output — so the condition still arrives on the host-health monitor.
+³ Evaluated by `posture.yaml`, which `homelab-posture.sh` runs **daily** and
+reports on `Pi security posture` — not on this monitor, and not every 5 min.
 
 > **`Unit restarted` was removed from this table on 2026-08-29.** It read *"a
 > watched unit's `NRestarts` moved since the last run — held across a second
@@ -792,8 +817,9 @@ is `lookup: max -5m`.)
 The last two close the gaps the rest of the stack cannot see: Netdata graphs
 disk fill but delivers no notification, and the heal timer only resurrects
 containers that *exited* — one that stays up while failing its healthcheck
-(notably `nextcloud-notify-push`, whose death silently kills mobile push)
-would otherwise be invisible.
+would otherwise be invisible. `nextcloud-notify-push`, whose death silently
+kills mobile push, is not one of them: it declares no healthcheck, so the
+hourly self-test above is what watches it.
 
 **The unit checks exist because a service can die for hours in silence** (issue
 #52): `claude-remote-control` looped 1 112 times over 5h47 on 2026-07-27 while
@@ -919,9 +945,9 @@ reads silence.
 Neither check proves the published record is *correct*. Verifying that the A
 record matches the real public IP needs a probe from outside the LAN, which is
 a different piece of work. Note also that the WireGuard HTTP monitor does not
-help here despite watching `vpn.<domain>`: Kuma resolves through Pi-hole, split
-DNS pins that name to the LAN IP, so the monitor tests the internal path and is
-structurally blind to the public record DDNS maintains.
+help here despite watching `vpn.<domain>`: Kuma's `extra_hosts` pins that name
+to the LAN IP, so the monitor tests the internal path and is structurally blind
+to the public record DDNS maintains.
 
 The cost of a stale record is asymmetric. Remote access breaks immediately and
 silently — a device off the LAN resolves the old address and the tunnel never
@@ -969,7 +995,7 @@ source. See ADR-029.
 
 Every leg of the backup chain pushes on success, and the Kuma monitor alarms
 on *silence* — so a job that never ran is caught, not just one that failed:
-local backup (25 h window), local repository prune + check, offsite copy,
+local backup (26 h window), local repository prune + check, offsite copy,
 offsite repository check, and the offsite Pi's own disk/SMART health. See
 `knowledge/runbooks/backup-monitoring.md`.
 
