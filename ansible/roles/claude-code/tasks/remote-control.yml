@@ -9,6 +9,7 @@
       After=network-online.target vault-mount.service
       Wants=network-online.target vault-mount.service
       PartOf=vault-mount.service
+      RequiresMountsFor=/home/claude/.claude
       StartLimitIntervalSec=0
 
       [Service]

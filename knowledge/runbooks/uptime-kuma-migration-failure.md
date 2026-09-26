@@ -35,12 +35,15 @@ cd /opt/homelab && sudo docker compose down uptime-kuma
 ### 2. Assess the data on a copy
 
 A failed knex migration normally rolls back, so the data is probably intact. The throwaway copy is
-opened read-write so SQLite replays the `-wal`.
+opened read-write so SQLite replays the `-wal`. Every copy on this page expands its glob inside
+`sudo sh -c`: the directory is `0700 root`, so the operator's shell cannot see `kuma.db*`, and a
+plain `sudo cp` would copy nothing. `test -s` stops the step when the copy is empty.
 
 ```bash
+S=/mnt/data/services/uptime-kuma
 W=/mnt/data/tmp/kuma-assess
 sudo rm -rf $W && sudo mkdir -p $W
-sudo cp -a /mnt/data/services/uptime-kuma/kuma.db* $W/
+sudo sh -c "cp -a $S/kuma.db* $W/" && sudo test -s $W/kuma.db
 
 sudo docker run --rm -v $W:/d alpine:3.20 \
   sh -c 'apk add -q sqlite; sqlite3 /d/kuma.db \
@@ -67,7 +70,7 @@ provably a no-op like this one.
 
 ```bash
 T=/mnt/data/tmp/kuma-trial
-sudo mkdir -p $T && sudo cp -a /mnt/data/services/uptime-kuma/kuma.db* $T/
+sudo mkdir -p $T && sudo sh -c "cp -a $S/kuma.db* $T/" && sudo test -s $T/kuma.db
 
 cat > /tmp/mark.sql <<'SQL'
 INSERT INTO knex_migrations (name, batch, migration_time)
@@ -103,9 +106,9 @@ excludes these copies by glob.
 ```bash
 S=/mnt/data/services/uptime-kuma
 R=$S/kuma-pre-migration-$(date +%F-%H%M)
-sudo mkdir -p $R && sudo cp -a $S/kuma.db* $R/
-sudo docker run --rm -v $S:/d -v /tmp/mark.sql:/s.sql:ro alpine:3.20 \
-  sh -c 'apk add -q sqlite; sqlite3 /d/kuma.db < /s.sql'
+sudo mkdir -p $R && sudo sh -c "cp -a $S/kuma.db* $R/" && sudo test -s $R/kuma.db \
+  && sudo docker run --rm -v $S:/d -v /tmp/mark.sql:/s.sql:ro alpine:3.20 \
+    sh -c 'apk add -q sqlite; sqlite3 /d/kuma.db < /s.sql'
 cd /opt/homelab && sudo docker compose up -d uptime-kuma
 ```
 

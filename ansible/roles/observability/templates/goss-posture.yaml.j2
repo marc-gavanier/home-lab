@@ -1161,6 +1161,18 @@ command:
     exit-status: 0
     timeout: 60000
 
+  claude-state-is-on-the-encrypted-volume:
+    exec: |
+      data=$(stat -c %d /mnt/data)
+      bad=""
+      [ "$(stat -c %d /home/claude/.claude 2>/dev/null)" = "$data" ] || bad="$bad /home/claude/.claude"
+      cache=$(ps -C rclone -o args= | sed -n 's/.*--cache-dir[ =]\([^ ]*\).*/\1/p' | head -1)
+      [ -n "$cache" ] && [ "$(stat -c %d "$cache" 2>/dev/null)" = "$data" ] || bad="$bad rclone-cache(${cache:-default})"
+      [ ! -e /home/claude/.cache/rclone ] || bad="$bad /home/claude/.cache/rclone"
+      [ -z "$bad" ] || { echo "on the SD card, not the encrypted volume:$bad"; exit 1; }
+    exit-status: 0
+    timeout: 10000
+
   no-kuma-report-was-lost-in-silence:
     exec: |
       started=$(docker inspect uptime-kuma 2>/dev/null |
