@@ -24,6 +24,38 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-09-26 night (SEVENTEENTH run) — key `provenance`, one PR
+
+- **Ansible verifies host keys**: `host_key_checking = False` is gone from
+  `ansible.cfg`. A first connection to a new address or port asks once; after a
+  reflash, `ssh-keygen -R` the old entries (`installation.md`).
+- **The Docker apt key is pinned by sha256** (`docker_gpg_sha256`); a changed
+  key fails the install instead of being trusted.
+- **The 25 C01 corrections of the rewritten sections**, and the ADR-030 pointer.
+
+## Decisions taken on 2026-09-26 night (seventeenth run) — do not re-propose
+
+- **No higher floor on the Pi-hole blocklist size.** `gravity >= 1` stays; an
+  emptied list would pass unnoticed. Privacy only, no access.
+- **No `failed_when` on `occ libresign:install`** for a hash mismatch.
+- **Accepted and documented, not pinned**: Claude Code self-updates, Prowlarr's
+  daily indexer definitions, SearXNG's ClearURLs rules, Immich's models from
+  Hugging Face `main`, the LibreSign JRE checked against a same-release checksum.
+- **Pre-commit hooks pinned by tag, not SHA**: accepted base.
+
+## Instrument traps paid on 2026-09-26 night (seventeenth run)
+
+- **A glob under `/root` (0700) never expands from a user shell, `sudo` or not**:
+  the user's shell expands it. Use `sudo sh -c '...'`.
+- **A shell that sourced `backup.env` points a bare `restic` at the LOCAL repo**,
+  whatever section of the runbook it is in.
+- **`resticprofile -n offsite --dry-run` shows `--repo=<no value>`**: the offsite
+  profile is not a drop-in route for ad-hoc restic commands.
+- **e2fsck tolerates a day of clock skew**: after a boot under ~24 h, the
+  initramfs honours the clean flag, and `root-was-checked-this-boot` still passes.
+- **A markdown realign script must touch only the tables you edited**: run over
+  whole files, it reformatted 30 untouched tables.
+
 ## Shipped on 2026-09-26 evening — the C01 census, one PR, documentation only
 
 - **All 136 contradicted or partial sections of the 862 corrected**, across 68
