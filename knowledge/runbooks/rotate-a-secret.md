@@ -358,5 +358,7 @@ sudo systemctl start homelab-posture.service
 sudo journalctl -u homelab-posture.service -n 20 --no-pager
 ```
 
-A clean run pushes `posture OK on N/N containers`. A failed rotation shows up as
-`<container>: /run/secrets/<name> no longer opens the database`.
+A clean run prints nothing in the journal but systemd's own lines; the verdict is the Kuma
+"Pi security posture" beat, which reads `posture OK — N checks (…)`. A failed rotation prints
+`<container>: /run/secrets/<name> no longer opens the database` in the journal and turns that
+beat red.

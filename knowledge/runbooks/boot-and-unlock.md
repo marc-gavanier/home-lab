@@ -137,7 +137,9 @@ What to expect and do when the Pi comes back up. Design rationale in
 5. **Verify** (optional):
 
    ```bash
-   docker ps --format '{{.Names}}\t{{.Status}}' | sort   # all healthy, none missing
+   docker compose -f /opt/homelab/compose.yaml config --services | wc -l   # expected count
+   docker ps -q | wc -l                                    # must match
+   docker ps --filter health=unhealthy --filter health=starting   # must be empty
    swapon --show                                         # /mnt/data/swapfile (HDD)
    ```
 

@@ -24,6 +24,59 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-09-26 (FIFTEENTH run) — key `truncation`, one PR, deployed from the branch before merge
+
+- **`-e deploy_services="a b"` deployed `a` only, with a clean recap.** Ansible
+  splits a `-e k=v` string at spaces; the dropped words land in `_raw_params`.
+  15 runs in that form in the operator's history, the last on 2026-09-25
+  (netdata deployed, calibre-web not). Both playbooks now open with an `always`
+  assert that `_raw_params` is undefined — red on the broken form, green on
+  `-e deploy_services=x` and on the JSON form, tested. `.claude/agents/ansible-deploy.md`
+  taught the broken form and now teaches the JSON one. Filed under C77.
+- **The UFW→fail2ban handler is `reload --restart`** — see the correction under
+  the 2026-09-13 shipped list below.
+- **Push messages capped at 1 000 characters** in `homelab-posture`,
+  `homelab-health` and `homelab-netdata-kuma`, ending in `… +N characters, full
+  text in the journal`, with the full text written to the journal first. Kuma
+  hands `msg` verbatim to a Discord embed field, Discord refuses a field over
+  1 024 characters with HTTP 400, and Kuma only logs the refusal: the WHOLE alert
+  was lost, not its tail. Longest DOWN ever notified 718 (posture, 2026-09-07).
+- **Documentary corrections**: `rotate-a-secret.md` (the success line it quoted
+  does not exist), `docs/04-network/README.md` and the posture failure message
+  (the "19 places" count), `docs/03-security/README.md` (16 of 32 keep no
+  capability; the published ports), `claude-code.md`, `restore-from-backup.md`
+  (dumps survive a FAILED run), `boot-and-unlock.md` (compare counts, not colours).
+
+## Decisions taken on 2026-09-26 (fifteenth run) — do not re-propose
+
+- **No pre-commit gate for C124.** `ansible-deploy` sketched one (six grammars,
+  an `# [important]:` marker) and judged it a list-gate of low value; C124 stays
+  ENUMERATED.
+- **The posture LAN-address check keeps `head -1`** over eth0's global IPv4
+  addresses (1 of 1 today). Recorded as latent, not changed.
+
+## Instrument traps paid on 2026-09-26 (fifteenth run)
+
+- **`api/v1/alarm_log` is bounded by COUNT, not by time**: it returns the newest
+  N transitions, N being `[health] in memory max health log entries`
+  (`docker/configs/netdata/netdata.conf`), 5 000 today = 2 h 36 min. The meta
+  database holds the 60 days. The twelfth run's "1 000 entries over 0.37 day" was
+  the same bound at its old default. Answer "has this ever tripped" from the
+  database read `mode=ro`, or from the metric range.
+- **An empty `iptables-save | grep f2b` proves nothing**: fail2ban creates its
+  chains on the first ban, and there were 0 bans. The main session paid it.
+- **`fail2ban-client get <jail> <unknown attribute>` writes an ERROR line into
+  `fail2ban.log`.** Read-only in intent, not in effect. Paid by `security` (3 lines)
+  and by the main session (1).
+- **A template already wrapped in `{% raw %}` must not be wrapped again**: a
+  nested `{% endraw %}` closes the outer block early and the file fails to render
+  ("Missing end of comment tag"). And Ansible trims the newline after a block tag,
+  so `fi{% endraw %}` glues `fi` to the next line. Wrap the token inline,
+  `"{% raw %}${#msg}{% endraw %}"`, as `homelab-posture` does, and render with
+  Ansible's own `template` module: it sets `trim_blocks`, plain Jinja2 does not.
+
+---
+
 ## Shipped on 2026-09-25 (THIRTEENTH run) — key `initiality`, one PR, deployed from the branch before merge
 
 - **The journal-on-volume block moved from `base/tasks/logging.yml` to
@@ -1862,7 +1915,12 @@ the stack definition and no pending image pin was armed for the heal timer.
 - **Nine restore recipes clear `/mnt/data/tmp/restore` before staging**, with
   one section saying why once. The deletion is a line in each recipe, not an
   automatism: the person running it can see it.
-- **`fail2ban-client reload` chained to the UFW reload handler.**
+- **`fail2ban-client reload` chained to the UFW reload handler.** **It did NOTHING —
+  corrected 2026-09-26 (fifteenth run).** A plain `reload` runs the jail's empty
+  `actionreload` and never restarts the action, so the `-j f2b-<jail>` jump that
+  `ufw reload` flushes out of `DOCKER-USER` stayed gone; a later ban does not
+  restore it either. Now `reload --restart`, proven in a network namespace with
+  the hosts' own fail2ban 1.0.2: the jump comes back and the bans are restored.
 - **A monthly `homelab-image-retention` timer**, images only, `-a --filter
   until=720h`, off the deploy path.
 - **calibre-web's ingest staging excluded from restic**; the live 3.3 GB is
@@ -2666,7 +2724,12 @@ it can catch a known-present instance before any null from it is believed.**
   history before quoting this, because the resolution was WRONG TWICE before it
   was right.** `MANAGE_BUILTINS=no` and `delete_chains` is ufw-scoped, so a
   `ufw reload` destroys neither `DOCKER-USER` nor the `f2b-*` chains: **no ban is
-  lost.** That half always held.
+  lost.** That half always held. **Corrected 2026-09-26 (fifteenth run): the
+  CHAINS survive, the JUMP does not.** `after.rules` declares `:DOCKER-USER - [0:0]`,
+  which flushes that chain on every restore, and the `-j f2b-nextcloud` /
+  `-j f2b-vaultwarden` jumps live in it. The bans stay listed and stop being
+  enforced until fail2ban restarts — see the handler entry in the 2026-09-13
+  shipped list.
   - The half that did not: this bullet once claimed the 8 `DOCKER-USER` rules are
     **re-appended** per reload, evidenced by reading 8 rather than 16 "across two
     `sudo ufw reload`s on 2026-09-13". **Those two reloads never happened** — a
