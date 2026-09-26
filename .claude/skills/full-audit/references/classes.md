@@ -199,6 +199,11 @@ C130). **Consecutive zero-mint runs: still 0.** The key was a dimension, not a t
 all 126 classes asked whether a reaction was configured, ordered, timed or guarded;
 none asked about the GAIN between one cause and the number of effects it produces.
 
+**The nineteenth run, on 2026-09-27, used `fidelity` and minted two** (C131, C132).
+**Consecutive zero-mint runs: still 0.** Every class before it asked whether a
+mechanism acted correctly; none asked whether a COPY still carried what its readers
+rely on — the medium it sits on, the time it claims.
+
 ---
 
 # The register
@@ -561,7 +566,17 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
-## OPEN — 0 (after the EIGHTEENTH run of 2026-09-26, key `amplification`)
+## OPEN — 0 (after the NINETEENTH run of 2026-09-27, key `fidelity`)
+
+**Empty.** C131 and C132 were minted and swept in the same run — see "The run of
+2026-09-27 (NINETEENTH)" below.
+
+| ID | Property | State |
+|---|---|---|
+| C131 | **A copy kept on a medium less protected than its original** — data read from the encrypted volume, written back to the SD card | **MINTED 2026-09-27 (nineteenth run), GATED**: `system` 8/8 copy sites from `/mnt/data` to the card, 2 instances with one cause, both fixed: the `claude` user's `~/.claude` (sessions, memory, claude.ai login) and the rclone vault write cache. Gate `claude-state-is-on-the-encrypted-volume`, run against the pre-fix host: rc=1 on all three terms; after the deploy: rc=0 |
+| C132 | **A copy stamped with the time it was made, which its reader takes for the time of the original** | **MINTED and ENUMERATED 2026-09-27 (nineteenth run)**: `services` 10/10 paths where a consumer reads a date. 1 instance: 78 home videos converted by ffmpeg on 2026-05-23 with no `creation_time`, dated that day by Immich and Nextcloud. Remedy: file dates set to each folder's date, run by the operator. Not GATED |
+
+### The eighteenth run's table read:
 
 **Empty.** C127 to C130 were minted and enumerated in the same run — see "The run
 of 2026-09-26 (EIGHTEENTH)" below.
@@ -1132,6 +1147,55 @@ separate correction — **the marker is not a provenance instrument.**
 C92 and C03-R were closed as review rules once their spaces proved non-derivable.
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
+
+## The run of 2026-09-27 (NINETEENTH) — the key was `fidelity`, and it minted two
+
+The key, **chosen by the operator** over `attribution`, `inheritance` and `exhaustion`:
+**for every copy in the estate, does it keep every attribute of the original that a
+consumer of the copy depends on, and would anything notice if it did not?** Four
+forms: (F1) metadata dropped, (F2) content transformed lossily, (F3) scope narrower
+than the original, (F4) confidentiality or authority widened. Discriminant, all three
+mandatory: the loss is measured on an existing copy, a named consumer behaves
+differently, nothing detects it.
+
+### The counter: 0 OPEN in, 0 OPEN out, 2 minted, class total 130 -> 132
+
+### The sweep
+
+| Domain | Copy mechanisms | Result |
+|---|---|---|
+| `system` | 19/19 | C131 |
+| `security` | 33/33 | 0; C01 (ADR-010) |
+| `network` | 23/23 | 0 |
+| `services` | 20/20 | C132 |
+| `backup` | 17/17 | 0 |
+| `observability` | 17/17 | 0; one instrument trap (Kuma stat tables) |
+| `ansible-deploy` | 141/141 file-producing sites | 0 |
+| `project-manager` | 46/46 passages + C01 guard 5/5 | C01 ×2, C63 suspected |
+
+### Shipped
+
+1. **C131**: `~claude/.claude` and the rclone write cache moved to LUKS; gate proven
+   to fail on the old state.
+2. **C01**: the Kuma migration runbook's three copies (a `0700 root` directory, so
+   the operator's shell never expanded `kuma.db*` and the rollback copy was empty
+   before a write to production); `immich/redis` in the restore ownership table;
+   ADR-010's stolen-Pi row.
+
+### Filed under existing classes, not shipped
+
+- **C63, suspected**: `offsite-backup.md`'s disaster restore runs restic without
+  sudo, which drops owners. Not demonstrated: it needs a write.
+- **C132's instance** is the operator's data; its remedy is theirs to run.
+
+### Rejected or requalified
+
+- `observability`'s Kuma stat-table loss is a trap for the audit's own instrument, not
+  an estate defect: moved to `settled.md`.
+- `ansible-deploy`'s netdata `/etc/os-release` inode mismatch: `stat` read the link.
+- `network`'s workstation VPN profile using a different DNS resolver: both answer.
+
+---
 
 ## The run of 2026-09-26 (EIGHTEENTH) — the key was `amplification`, and it minted four
 
