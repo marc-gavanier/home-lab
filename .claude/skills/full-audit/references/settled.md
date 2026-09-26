@@ -24,6 +24,38 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-09-26 evening — the C01 census, one PR, documentation only
+
+- **All 136 contradicted or partial sections of the 862 corrected**, across 68
+  documentation files. The per-file detail is in the commit, not here.
+- **`private.example.yml` carries a `pihole_bypass_clients` placeholder**, and the
+  wg-easy rule in `renovate.json` no longer cites a deleted task.
+- **The medium of the kill-switch's offline copy is no longer named** in
+  `kill-switch.md` or ADR-006.
+
+## Decisions taken on 2026-09-26 evening (C01 census) — do not re-propose
+
+- **ADR version pins and counts are kept current**, not declared dated snapshots.
+  The operator chose it knowing Renovate will stale them again: a future census
+  that finds a stale pin in an ADR reports it as C01, it is not a new question.
+- **The full-disaster-recovery import order is flagged as untested, not
+  rewritten as a procedure.** Its fix belongs to a restore attempt, not to an
+  audit (the timed drill stays DECLINED).
+- **The Pi-hole bypass rule is still keyed by IP in the Pi-hole admin**; moving it
+  to the MAC is an operator action in the UI, recorded in `pihole.md`.
+- **Netdata's "none of those is routed" was left unverified**: proving it needs a
+  test mail.
+
+## Instrument traps paid on 2026-09-26 evening (C01 census)
+
+- **A heading split must skip fenced code**, or every `#` comment in a shell
+  block becomes a section.
+- **Disjoint file partitions let agents correct in one working tree** without a
+  worktree each, provided none commits, stashes or switches branch.
+- **Relaying an agent's claim into a document is a claim of your own.** The main
+  session wrote an agent's unverified sentence into ADR-015 that afternoon; the
+  census found it false the same evening.
+
 ## Shipped on 2026-09-26 (SIXTEENTH run) — key `propagation`, one PR, deployed from the branch before merge
 
 - **The homelab's `pending` monitor now asks `needrestart -b`** once dpkg has

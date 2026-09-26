@@ -178,6 +178,16 @@ search. What makes this one worth more is that four independent agents placed
 their candidates before being told where the others had, and every placement
 fits the class's property as written.
 
+**Later that evening the first half was met too: C01 was ENUMERATED by a census
+of every section of every documentation file (862/862), and the OPEN table is
+empty.** By the letter of this section the audit is finished: no OPEN class, and
+two consecutive runs on different keys (`truncation`, `propagation`) minted
+nothing. Two reserves, stated so the next reader does not have to rediscover
+them. Both zeros were earned partly by assignment, as written above. And nothing
+here is GATED except the nine GATED classes: C01 and every ENUMERATED class can
+reopen on the next change that nobody re-reads. "Finished" means the known
+perimeter is swept and two fresh keys found no new one — not that it will stay so.
+
 ---
 
 # The register
@@ -540,7 +550,16 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
-## OPEN — 1 (after the SIXTEENTH run of 2026-09-26, key `propagation`)
+## OPEN — 0 (after the C01 census of 2026-09-26)
+
+**Empty.** C01 left this table on 2026-09-26 evening, ENUMERATED by a census
+instead of another lexical slice — see "The C01 census of 2026-09-26" below.
+
+---
+
+## SUPERSEDED — OPEN table of the SIXTEENTH run of 2026-09-26, key `propagation`
+
+### It read: OPEN — 1 (after the SIXTEENTH run of 2026-09-26, key `propagation`)
 
 | ID | Property | What bounds the space, and what stopped the sweep |
 |---|---|---|
@@ -1089,6 +1108,59 @@ separate correction — **the marker is not a provenance instrument.**
 C92 and C03-R were closed as review rules once their spaces proved non-derivable.
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
+
+## The C01 census of 2026-09-26 — the class closed by enumeration, not by another slice
+
+Sixteen runs had swept C01 by LEXICAL slices (a trigger-word rule, then every
+statement it caught). Each closed its slice and left the class open, because a
+statement with no trigger word escapes every rule. The sixteenth run's
+`project-manager` proposed the other cut, and the operator ordered it: **every
+section of every documentation file gets exactly one verdict.**
+
+- **Space**: the 93 tracked `.md` files under `docs/`, `knowledge/` and
+  `.claude/agents/`, split at headings outside code fences — **862 sections**,
+  ~15 200 lines. The split script and the per-section lists lived in the session
+  scratchpad; the rule is reproducible from this paragraph.
+- **Partition**: by file, disjoint, one domain agent per file set, so eight agents
+  could both judge and correct in one working tree without touching each other.
+- **Verdicts, 862/862**: 554 CLEAN, 86 HISTORY, 49 NOT-CHECKABLE, 37 EMPTY,
+  **99 CONTRADICTED, 37 PARTIAL**. Every id checked for exactly one verdict.
+- **Corrected**: all 136, ADR version pins and counts included — the operator
+  chose to update ADR snapshots rather than declare them dated. Plus two findings
+  outside C01: the medium of an offline copy named in `kill-switch.md` and
+  ADR-006 (removed), and a reference to a deleted task in `renovate.json`.
+- **One correction left as a flagged lead**: step 3 of the full disaster recovery
+  imports dumps into database containers nothing has started. The likely order
+  is written as untested, per the "test before documenting" rule.
+
+### The causes, by weight
+
+1. Additions never propagated into the prose — the *arr trio (ADR-036), the
+   32-container estate, the 37 monitors, the 26 h push windows. Most count errors
+   in `docs/03-security`, ADR-017/019 and the observability page come from here.
+2. #390 removed every code comment and updated no document that pointed at one.
+3. Version pins in ADRs left behind by Renovate.
+
+### The ones that would have cost most
+
+- `usb-tamper.md` told the operator to read a journal line before the unlock that
+  is only readable after it (the journal moved onto the LUKS volume 2026-09-20).
+- `restore-from-backup.md` gave a `resticprofile` command without `-c`.
+- `nextcloud.md` said all media are backed up; `/mnt/data/library` is not.
+- `netdata.md` promised metric history back after a restore; its store is excluded.
+- `docs/02-system` put the Docker store on the SD card.
+- ADR-015: the main session's OWN sentence of that afternoon, relayed from an agent
+  without verification, credited a Kuma DNS monitor that queries a local record
+  and cannot see a dead dnsproxy.
+
+### Rule-5 deviations, declared
+
+`backup` ran a recursive `grep` over `/` on the offsite for 1-2 min before
+killing it; `network` and `security` probed the home public address's ports from
+the offsite. No temporary file on any host this time — the brief forbade
+`/dev/shm` explicitly, and it held.
+
+---
 
 ## The run of 2026-09-26 (SIXTEENTH) — the key was `propagation`, and it minted nothing for the second time running
 
@@ -7776,7 +7848,7 @@ Seven in the morning, C09 in the evening. C02's row records its downgrade.
 
 | ID | Property | Outcome |
 |-----|----------------------------------------------|--------------------------------------------|
-| C01 | A documentary statement whose content contradicts the deployed artefact | **REOPENED 2026-09-20 (tenth run) — read the OPEN table, not this row. It had been CLOSED 2026-09-19 (second run), 123/123 referents, 12 contradicted — it is in NO summary table, so read this row, not a pointer. The words "see the OPEN table" stood here after C01 had left it; corrected 2026-09-20.** Previously ENUMERATED, not GATED, and the distinction is the honest part. Bounded at last: **472 machine-checkable claim occurrences across 81 files, 218 distinct referents** (121 absolute paths, 29 containers, 26 quoted thresholds, 23 units, 19 goss/alarm names). Twelve instances corrected in #284. Free prose cannot be gated; what replaces a gate is **duplication removal** — where a document lists something the machine owns, print the command that regenerates it instead. Applied three times in #284. Its **temporal slice** was swept to completion on 2026-08-29 evening — N=88 from 389 candidate lines across 63 files, 88/88, 68 exact and **20 contradicted** — and is tracked as **#293** | **What reopened it**: all 218 referents are of five machine-checkable kinds (paths, containers, thresholds, units, goss/alarm names). A claim about a THIRD PARTY'S CAPABILITY is a sixth kind and was never in the space; three instances were found on 2026-09-11 by three domains using three different instruments. **What reopened it the SECOND time**: all 81 files of its space are DOCUMENTATION files — `docs/`, `knowledge/`, then `.claude/agents/*.md` and `CLAUDE.md`. A comment in `ansible/**/*.yml`, `ops/*.sh` or `compose.yaml` is a documentary statement and was never in the space; four instances were found there on 2026-09-20 by four agents with no contact. Bounded by a FILE TYPE while the property is not — eleventh payment of that shape | **UPDATED 2026-09-20 (eleventh run): BOUNDED AT LAST — the file set is the repo's tracked files that CARRY COMMENTS: 198 files, 13 757 comment lines, 11 666 prose statements. Swept `ansible/` 176/176, `docker/` 10/10, `ops/` 156/156, `usb-tamper`+`killswitch` 121/121 CLEAN. REOPENED a THIRD time: a comment in a RENDERED file (`/etc/goss/posture.yaml`, the systemd units) has never been in any space, and 2 instances live only there. Twelfth payment of the wrong-axis shape. Read the OPEN table.**
+| C01 | A documentary statement whose content contradicts the deployed artefact | **ENUMERATED 2026-09-26 evening by a CENSUS, 862/862 sections of the 93 documentation files** — 554 clean, 86 history, 49 not checkable, 37 empty, 99 contradicted and 37 partial, all corrected; see "The C01 census of 2026-09-26". Not GATED: any prose change can reopen it. Earlier history: **REOPENED 2026-09-20 (tenth run) — read the OPEN table, not this row. It had been CLOSED 2026-09-19 (second run), 123/123 referents, 12 contradicted — it is in NO summary table, so read this row, not a pointer. The words "see the OPEN table" stood here after C01 had left it; corrected 2026-09-20.** Previously ENUMERATED, not GATED, and the distinction is the honest part. Bounded at last: **472 machine-checkable claim occurrences across 81 files, 218 distinct referents** (121 absolute paths, 29 containers, 26 quoted thresholds, 23 units, 19 goss/alarm names). Twelve instances corrected in #284. Free prose cannot be gated; what replaces a gate is **duplication removal** — where a document lists something the machine owns, print the command that regenerates it instead. Applied three times in #284. Its **temporal slice** was swept to completion on 2026-08-29 evening — N=88 from 389 candidate lines across 63 files, 88/88, 68 exact and **20 contradicted** — and is tracked as **#293** | **What reopened it**: all 218 referents are of five machine-checkable kinds (paths, containers, thresholds, units, goss/alarm names). A claim about a THIRD PARTY'S CAPABILITY is a sixth kind and was never in the space; three instances were found on 2026-09-11 by three domains using three different instruments. **What reopened it the SECOND time**: all 81 files of its space are DOCUMENTATION files — `docs/`, `knowledge/`, then `.claude/agents/*.md` and `CLAUDE.md`. A comment in `ansible/**/*.yml`, `ops/*.sh` or `compose.yaml` is a documentary statement and was never in the space; four instances were found there on 2026-09-20 by four agents with no contact. Bounded by a FILE TYPE while the property is not — eleventh payment of that shape | **UPDATED 2026-09-20 (eleventh run): BOUNDED AT LAST — the file set is the repo's tracked files that CARRY COMMENTS: 198 files, 13 757 comment lines, 11 666 prose statements. Swept `ansible/` 176/176, `docker/` 10/10, `ops/` 156/156, `usb-tamper`+`killswitch` 121/121 CLEAN. REOPENED a THIRD time: a comment in a RENDERED file (`/etc/goss/posture.yaml`, the systemd units) has never been in any space, and 2 instances live only there. Twelfth payment of the wrong-axis shape. Read the OPEN table.**
 | C02 | A control on the homelab with no counterpart on the offsite host | **ENUMERATED, not GATED** — recorded GATED by #285 on 2026-08-29 morning and downgraded the same evening. #285 gave the offsite `rest-server`, `wg-quick@wg0`, `ssh`, `fail2ban`, a `--failed` catch-all, ufw by its rules, and `offsite-wg-reresolve.timer`, and corrected its two SMART assertions. But a list of seven assertions is not a gate on the property, and the eighth instance was found the same day |
 | C09 | Work a container schedules for itself, on a period no sweep window catches | **ENUMERATED 28/28**, closed 2026-08-29 evening after being named un-enumerated on 08-22 and sampled by three runs. Four axes: processes by cgroup from the host, cron files including `/etc/crontabs`, application schedulers queried in their own state, clocks. 4 containers carry an internal crond (1 inert), 11 an application scheduler, 4 databases an internal maintenance, 11 schedule nothing. **1 instance**: two Miniflux feeds of 119 reached `parsing_error_count = 3`, which excludes them from the scheduling query while leaving `disabled` false — feed 89 unpolled since 2026-08-20 and unable to recover on its own (tracked as **#294**). Also established: 25 of 28 containers run at UTC, with no job landing in the backup window |
 | C03 | A validation whose instrument answers a different question from the one its comment claims | **ENUMERATED, and its space restated on 2026-08-30 (#289).** It had been scoped to *the four goss specs on both hosts* — the directory the first sweep happened to be reading — rather than to the property, which is the scope trap this register already records from 2026-08-22. Restated: **every guard in the repo that decides whether a downstream step may trust a value**, swept as 20 shell artefacts × their guard sites. First sweep (goss specs): `zcat \| tail` swallowing the CRC verdict, and `redis-cli ping` exiting 0 on an error reply. Re-sweep under the restated space, **3 more**: the netdata adapter's retry, guarded on "the body is not empty" while the caller needed "the alarms parsed" — the only one **observed**, one run logging `answered on attempt 3` and `unreachable or unparseable` together; and two latent siblings, `feed-digest.sh` reading a 200 that is not an entries page as "nothing unread" and pushing UP, and `cloudflare-ddns.sh` guarding a raw body for emptiness while consuming a derivation of it, which answers a malformed 200 by creating a duplicate record. All five fixed, all five proven to fail on purpose first |
