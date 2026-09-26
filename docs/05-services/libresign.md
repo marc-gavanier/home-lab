@@ -1,142 +1,85 @@
 # LibreSign
 
-Digital signature of PDFs inside Nextcloud — sign a document yourself, or send
-it to someone else for signature, without it leaving the Pi.
+Cryptographic PDF signing inside Nextcloud, for signatures that must be verifiable
+or that someone else gives. To paste a signature image on a form, use Nextcloud's
+built-in PDF viewer instead.
 
-## Read this first: you probably want the built-in viewer
+## At a glance
 
-For **pasting a signature image onto a PDF** — the thing an administrative form
-means when it asks for a signature — LibreSign is the wrong tool and always
-will be. Nextcloud's own PDF viewer already does it, with nothing to install:
-open the PDF, switch to edit mode, and its toolbar offers an **image stamp**
-(*Add image*), **freehand ink** (drawable with a finger on a phone) and **free
-text**. Save, and the modified PDF is written back to Nextcloud.
+| Item     | Value                                                                                   |
+|----------|-----------------------------------------------------------------------------------------|
+| Access   | `https://drive.example.com` (VPN) → **LibreSign** in the top bar                        |
+| Runs as  | Nextcloud app `libresign`, no container. JSignPdf (Java) runs per signature: zero idle RAM |
+| Binaries | JRE 21, JSignPdf, pdftk in `data/appdata_*/libresign/aarch64/` (185 MB, not backed up)  |
+| Root CA  | `ca.pem`, `ca-key.pem` in `data/appdata_*/libresign/pki/<id>/` (backed up)              |
+| Deploy   | `ansible/roles/deploy/tasks/libresign.yml`                                              |
+| ADR      | [ADR-022](../../knowledge/decisions/ADR-022-libresign-pdf-signing.md)                  |
 
-The three tools are in the deployed `files_pdfviewer` templates — `editorStamp`
-with `editorStampAddImage`, `editorInk`, `editorFreeText`. No admin setting
-gates them; the app's only setting is `enable_scripting` (JavaScript embedded in
-PDFs), which is `no` and unrelated.
+## Stamp or sign?
 
-| | Built-in viewer | LibreSign |
-|---|---|---|
-| What it produces | an image on a page | a cryptographic signature |
-| Can it be tampered with | yes — move it, delete it, copy it elsewhere | no — any later edit breaks the signature |
-| Steps | open, stamp, save | create a request, add signers, place elements, sign with the certificate password |
-| Prerequisite | none | a personal certificate issued from the root CA |
+|              | Built-in viewer             | LibreSign                                          |
+|--------------|-----------------------------|----------------------------------------------------|
+| Produces     | an image on a page          | a cryptographic signature                          |
+| Tamper-proof | no                          | yes: any later edit breaks it                      |
+| Steps        | open, stamp, save           | request, add signers, place, sign with a password  |
+| Prerequisite | none                        | a personal certificate                             |
 
-**Use LibreSign when the signature has to be verifiable** — when someone else
-signs, or when you need to be able to prove the document has not moved since.
-Its request-then-sign ceremony exists because it is built to collect signatures
-from other people; it is not overhead you can skip for a solo stamp.
+The viewer's edit mode offers *Add image* (`editorStamp`), ink (`editorInk`) and
+free text (`editorFreeText`). No admin setting gates them.
 
-## Access
+## How it works
 
-- No address of its own. Open `https://drive.example.com` (VPN required, like
-  everything else) and pick **LibreSign** in the top bar, or use *Open in
-  LibreSign* in a PDF's context menu in Files (it asks for an *envelope* name —
-  the v14 grouping for the files of one request).
+- A self-signed root CA on the Pi issues every certificate.
+- The CA does not sign. Each user creates a **certificate password** in LibreSign,
+  which mints a personal certificate; it is asked at every signature. Then add a
+  signature graphic.
+- Add signers by **Nextcloud account**, not email (no SMTP).
+- Readers see "signature validity unknown" until they import `ca.pem` (downloadable
+  in LibreSign). The signature still proves the document is unchanged. A
+  certificate strangers trust must be bought (ADR-022).
+- `signing_mode` stays `sync`. `async` moves signing into `nextcloud-cron`, whose
+  32 MB tmpfs `/tmp` is too small for large scans (ADR-022).
 
-## Architecture
+### The root CA is created once
 
-No container. LibreSign is a Nextcloud app, and the signature itself is produced
-by **JSignPdf**, a Java program the app downloads on first setup:
+`libresign:configure:openssl` replaces the CA silently (exit 0) and orphans every
+certificate issued from it. The deploy only creates the CA when `ca.pem` and
+`ca-key.pem` are both missing.
 
-| Piece | Where |
-|-------|-------|
-| `libresign` app | Nextcloud, installed and enabled by the deploy |
-| JRE 21 + JSignPdf + pdftk | `data/appdata_*/libresign/aarch64/` — 185 MB on `/mnt/data`, not in the image |
-| Root CA (`ca.pem`, `ca-key.pem`) | `data/appdata_*/libresign/pki/<id>/` — in the backup, unlike the binaries |
+- `libresign_cert_cn` / `_o` / `_c` in `local.yml` are read only at creation.
+- Losing `ca-key.pem` keeps signed documents valid, but no new certificate can be issued.
 
-Permanent RAM cost: **zero**. The JVM starts when a document is signed and exits
-when it is done.
+## Common tasks
 
-## The root certificate can only be created once
-
-Every signature is issued from a self-signed CA generated on the Pi.
-`libresign:configure:openssl` **replaces** it if run again — it creates a new PKI
-directory and bumps the generation counter, silently, exiting 0 — and every
-certificate issued from the old root is then orphaned.
-
-The deploy therefore generates it only when `ca.pem` and `ca-key.pem` are both
-missing, and never touches an existing one. Its identity comes from
-`libresign_cert_cn` / `_o` / `_c` (real values in `local.yml`), read **only at
-generation time**: editing them later changes nothing at all.
-
-Losing `ca-key.pem` does not invalidate documents already signed — it means no
-new signer certificate can ever be issued under the same root.
-
-### The root CA does not sign anything — you still need a personal certificate
-
-Nothing announces this, and it is where a first attempt stalls: the CA is the
-authority that *issues* certificates, so a fresh account has none of its own and
-LibreSign parks it in an "incomplete certification" state where the sign button
-leads nowhere.
-
-The fix is one step, in LibreSign itself: **create a password for your
-certificate**. That password protects your private key, is asked again at every
-signature, and creating it is what mints your personal certificate from the root
-CA. Then draw or upload your signature graphic (two kinds: signature and
-initial), and you can sign.
-
-When adding yourself as a signer, identify by **Nextcloud account**, not by
-email. Both methods are enabled by default, but the email one sends a link and
-assumes a configured SMTP — waiting for a mail that will never leave is the
-other way this stalls.
-
-## What the signature proves, and what it does not
-
-The CA is ours, so a reader has no reason to trust it: Acrobat and Firefox
-display *"signature validity unknown"* until the recipient imports `ca.pem`
-(downloadable from LibreSign's own interface). What the signature does prove,
-to anyone, is that the document has not been altered since it was signed.
-
-For a signature strangers accept without importing anything, the certificate has
-to be bought from a qualified provider — see ADR-022.
-
-## Operations
-
-Everything below runs from the workstation over SSH.
+Run from the workstation. Setup report (the deploy fails on `error` rows):
 
 ```bash
-# Full setup report — the deploy fails on any `error` row, ignores `info`
 ssh homelab 'docker exec -u www-data nextcloud php occ libresign:configure:check'
+```
 
-# Re-download the binaries (safe, idempotent — verifies hashes, skips what is intact)
+Re-download the binaries (idempotent):
+
+```bash
 ssh homelab 'docker exec -u www-data nextcloud php occ libresign:install --java --jsignpdf --pdftk'
+```
 
-# Where the CA lives
+Show where the CA lives:
+
+```bash
 ssh homelab 'docker exec -u www-data nextcloud php occ config:app:get libresign config_path'
 ```
 
-Two `info` rows are expected and are not failures:
-
-- **poppler** — `pdfsig`/`pdfinfo` are absent from the Nextcloud image. LibreSign
-  14 validates signatures in pure PHP and falls back to its bundled parser for
-  page dimensions, so neither is used. Installing them would mean maintaining a
-  custom Nextcloud image.
-- **java encoding**, *if it ever comes back* — it means `LANG`/`LC_ALL` are
-  missing from the container again. Accented characters in document names and
-  signature reasons get mangled at the JSignPdf boundary. See ADR-022.
-
-### Undo
+Disable (binaries and CA stay; `app:remove` would delete the CA):
 
 ```bash
 ssh homelab 'docker exec -u www-data nextcloud php occ app:disable libresign'
 ```
 
-The binaries and the CA stay on disk; re-enabling picks them up again. Removing
-the app entirely (`app:remove`) also removes its data — including the CA.
+## Troubleshooting
 
-## Do not switch signing to async
-
-`signing_mode` is `sync`: signing runs in the `nextcloud` container, whose
-`/tmp` is on disk. The `async` setting moves it into `nextcloud-cron`, which has
-a **32 MB tmpfs `/tmp`** — enough for small documents, not for a large scan, and
-the failure lands in a background job instead of in front of the user. Raising
-that tmpfs is the prerequisite, not the toggle (ADR-022).
-
-## References
-
-- [ADR-022 — LibreSign for PDF signing](../../knowledge/decisions/ADR-022-libresign-pdf-signing.md)
-- Deploy tasks: `ansible/roles/deploy/tasks/libresign.yml`
-- [Nextcloud](nextcloud.md) — the host application
+| Symptom                              | Cause                                         | Action                         |
+|--------------------------------------|-----------------------------------------------|--------------------------------|
+| `info` row **poppler**               | `pdfsig`/`pdfinfo` not in the image, unused   | None                           |
+| `info` row **java encoding**         | `LANG`/`LC_ALL` missing, accents mangled      | Restore them (ADR-022)         |
+| Sign button leads nowhere            | No personal certificate                       | Create a certificate password  |
+| Signing email never arrives          | Signer added by email, no SMTP                | Add by Nextcloud account       |

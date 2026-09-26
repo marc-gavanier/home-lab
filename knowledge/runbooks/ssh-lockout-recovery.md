@@ -1,68 +1,61 @@
 # Runbook: SSH Lockout Recovery (no console fallback)
 
-Since [ADR-009](../decisions/ADR-009-physical-attack-surface.md), key-based SSH
-is the **only** way into the Pi: the account password is locked and the serial
-console no longer exists. If sshd refuses you (bad config deployed, fail2ban
-ban, lost key), this is the recovery path. Born from the real incident of
-2026-07-11: a placeholder `ssh_allowed_users: [pi]` in `group_vars/all.yml`
-shipped `AllowUsers pi` to sshd — locking out the actual admin user.
+Use this page when sshd refuses you (bad config deployed, fail2ban ban, lost key).
+Key-based SSH is the only way into the Pi: the account password is locked and
+there is no serial console ([ADR-009](../decisions/ADR-009-physical-attack-surface.md)).
 
-## 0. Check for a surviving session first
+## Before you start
 
-Existing SSH sessions survive an sshd restart. Any open terminal or tmux on
-the Pi can fix the problem in seconds — look before touching hardware.
+Look for a surviving session first. Existing SSH sessions survive an sshd
+restart; any open terminal or tmux on the Pi can fix the problem in seconds.
 
-## 1. Clean poweroff via the kill switch
+## Steps
 
-The ntfy [kill switch](kill-switch.md) runs as root on the Pi, independent of
-SSH — it doubles as the remote clean-shutdown tool for offline maintenance:
+1. **Power off cleanly with the [kill switch](kill-switch.md).** It runs as root,
+   independent of SSH:
 
-```bash
-curl -d '<keyword>' https://ntfy.sh/<topic>
-```
+   ```bash
+   curl -d '<keyword>' https://ntfy.sh/<topic>
+   ```
 
-Wait ~30 s (green LED stops, ping dies). The LAN loses DNS from here — point
-your workstation at `1.1.1.1` meanwhile.
+   Expected: after ~30 s the green LED stops and ping dies. The LAN loses DNS:
+   point your workstation at `1.1.1.1`.
+2. **Mount the SD card on the workstation.** Identify it with `lsblk -f` (vfat
+   `system-boot` + ext4 `writable`), then mount the ext4 partition if needed:
 
-## 2. Edit the SD card on the workstation
+   ```bash
+   udisksctl mount -b /dev/mmcblk0p2
+   ```
 
-Insert the SD; identify it with `lsblk -f` (vfat `system-boot` + ext4
-`writable`). Mount the ext4 partition if not auto-mounted:
+3. **Fix what locked you out.** Example, a wrong `AllowUsers`:
 
-```bash
-udisksctl mount -b /dev/mmcblk0p2
-```
+   ```bash
+   sudo sed -i 's/^AllowUsers .*/AllowUsers <your-user>/' <mount>/etc/ssh/sshd_config
+   ```
 
-Fix whatever locked you out — for the 2026-07-11 incident that was:
+4. **If failed logins preceded the lockout, delete
+   `<mount>/var/lib/fail2ban/fail2ban.sqlite3`.** fail2ban re-applies saved bans
+   ~30 s after the unlock, locking you out again even with sshd fixed. The file
+   is state only; fail2ban recreates it.
+5. **Unmount cleanly:**
 
-```bash
-sudo sed -i 's/^AllowUsers .*/AllowUsers <your-user>/' <mount>/etc/ssh/sshd_config
-```
+   ```bash
+   udisksctl unmount -b /dev/mmcblk0p2 && udisksctl unmount -b /dev/mmcblk0p1
+   ```
 
-**Also delete `<mount>/var/lib/fail2ban/fail2ban.sqlite3`** whenever failed
-logins preceded the lockout: fail2ban persists bans there and re-applies them
-when it starts, ~30 s after the unlock (it waits for the encrypted volume) —
-you can be locked out by a stale ban *even after fixing sshd*, with
-no way left to unban yourself. The file is state only; fail2ban recreates it.
+6. **Boot and unlock.** SD back in the Pi, power on, SSH in, then follow
+   [boot & unlock](boot-and-unlock.md). This poweroff is explained, so the
+   evil-maid reflash policy does not apply.
+7. **Fix the root cause in the repo.** Make Ansible converge to the same state,
+   and check what `--tags security` renders **before** the handler restarts
+   sshd. Placeholders that feed `sshd_config` cause lockouts.
 
-## 3. Unmount cleanly, boot, unlock
+## Check it worked
 
-```bash
-udisksctl unmount -b /dev/mmcblk0p2 && udisksctl unmount -b /dev/mmcblk0p1
-```
-
-SD back in the Pi, power on, SSH in, then the normal
-[boot & unlock](boot-and-unlock.md) procedure. This poweroff is *explained*,
-so the evil-maid reflash policy does not apply.
-
-## 4. Fix the root cause in the repo
-
-The SD edit is a hotfix; make Ansible converge to the same state (and check
-`--tags security` renders what you expect **before** the handler restarts
-sshd). Placeholders that feed `sshd_config` are lockout bugs waiting to fire.
+SSH in normally from your workstation.
 
 ## Related
 
-- [ADR-009](../decisions/ADR-009-physical-attack-surface.md) — why there is no console fallback.
-- [Kill-switch runbook](kill-switch.md) — trigger details and secrets.
-- [Boot & unlock runbook](boot-and-unlock.md) — the post-boot path.
+- [ADR-009](../decisions/ADR-009-physical-attack-surface.md): why there is no console fallback.
+- [Kill-switch runbook](kill-switch.md): trigger details and secrets.
+- [Boot & unlock runbook](boot-and-unlock.md): the post-boot path.

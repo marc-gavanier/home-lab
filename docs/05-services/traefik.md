@@ -1,77 +1,58 @@
 # Traefik
 
-Reverse proxy with automatic TLS certificate management.
+Reverse proxy: routes each subdomain to its container, terminates TLS with Let's Encrypt
+certificates, redirects HTTP to HTTPS and applies the `vpn-only`, rate-limit and header
+middlewares ([Network](../04-network/README.md#traefik)).
 
-## Access
+## At a glance
 
-- Dashboard: `https://proxy.example.com` (VPN only)
+| Item                | Value |
+|---------------------|-------|
+| Dashboard           | `https://proxy.example.com` (VPN only) |
+| Static config       | `ansible/roles/deploy/templates/traefik.yml.j2` (templated by Ansible) |
+| Dynamic config      | `docker/configs/traefik/dynamic/middlewares.yml` |
+| Routing             | Docker labels in `docker/compose.yaml` |
+| Certificates        | `/mnt/data/services/traefik/acme/acme.json` (account key + every certificate), backed up by restic |
+| Access log          | `/run/traefik/access.log`: raw, tmpfs, root-only, not backed up (ADR-034) |
+| Access-log redaction | `docker/configs/traefik/redact-access-log.awk`, run by `traefik-log-redactor` (ADR-034) |
 
-## What It Does
+## Logs
 
-- Routes incoming HTTPS traffic to the correct Docker container based on subdomain
-- Automatically obtains and renews Let's Encrypt TLS certificates
-- Redirects HTTP → HTTPS
-- Applies security middlewares (headers, rate limiting, VPN-only access)
-
-## Configuration
-
-- Static config: `ansible/roles/deploy/templates/traefik.yml.j2` (templated by Ansible)
-- Dynamic config: `docker/configs/traefik/dynamic/middlewares.yml`
-- Routing: defined via Docker labels in `docker/compose.yaml`
-- ACME storage: `/mnt/data/services/traefik/acme/acme.json`
-- Access-log redaction: `docker/configs/traefik/redact-access-log.awk` (ADR-034)
-
-## Data
-
-| Path                               | Content                    |
-|------------------------------------|----------------------------|
-| `/mnt/data/services/traefik/acme/` | Let's Encrypt certificates |
-| `/run/traefik/access.log`          | Raw access log — tmpfs, root-only, not backed up (ADR-034) |
-
-## Troubleshooting
-
-Check logs. **Traefik's own log and the access log are two different containers**
-since ADR-034 — the access log is written to a tmpfs, masked, and shipped by
-`traefik-log-redactor`, so `docker logs traefik` shows startup, ACME and routing
-only:
+Traefik's own log and the access log are in two containers:
 
 ```bash
-ssh homelab "docker logs traefik --tail 20 2>&1"                 # Traefik itself
-ssh homelab "docker logs traefik-log-redactor --tail 20 2>&1"    # access log, masked
+ssh homelab "docker logs traefik --tail 20 2>&1"
+ssh homelab "docker logs traefik-log-redactor --tail 20 2>&1"
 ```
 
-Credential values in a query string read as `***`. That is the redaction, not a
-truncation — the parameter name and the rest of the query survive. If you need
-the unmasked line for a live incident, it is on the host, in RAM, root-only:
+- `traefik`: startup, ACME, routing.
+- `traefik-log-redactor`: the access log, masked. Credential values in a query string show as
+  `***`; the parameter name and the rest of the query are kept.
+
+The unmasked line, for a live incident (RAM only, gone after a reboot or the daily rotation):
 
 ```bash
 ssh homelab "sudo tail -20 /run/traefik/access.log"
 ```
 
-It does not survive a reboot or the daily rotation, and that is deliberate.
+## Troubleshooting
 
-**Before reaching for `acme.json`, read the health message.** Since #157 the health
-script parses that file directly and reports `certs Nd/C` — the days left on the
-nearest expiry, over the number of certificates the file holds. That names the failing certificate without destroying anything.
+**Certificate problem.** Read the health message first: it reports `certs Nd/C`, the days left on
+the nearest expiry over the number of certificates in `acme.json`, and names the failing one.
 
-Deleting the file is a **last resort**, and it is no longer free:
+**Last resort: delete `acme.json`.** Expect `Pi health` to go DOWN. It deletes the ACME account key
+and triggers one ACME order per certificate at once:
 
 ```bash
 ssh homelab "sudo rm -f /mnt/data/services/traefik/acme/acme.json && docker restart traefik"
 ```
 
-It holds the ACME **account key** and every certificate the proxy serves, not a
-cache. Removing it triggers one simultaneous ACME order per certificate — the
-health message names the current count — and makes the health check push a problem
-until they are reissued: `certificate expiry unreadable` while Traefik's freshly
-rewritten file holds no certificate yet, then `N certificate(s) gone` until the
-count is back to its previous high (`no certificate expiry is being watched` only
-if the file is still absent when the check runs). Expect `Pi health` to go DOWN
-during the operation.
+The health check then reports, in order: `certificate expiry unreadable` (file holds no certificate
+yet), then `N certificate(s) gone` until the count is back to its previous high.
+`no certificate expiry is being watched` appears only if the file is still absent.
 
 ## Restore
 
-Traefik is stateless except for `acme.json`, which is in the restic set with the
-rest of `/mnt/data/services`. Restoring it is the fast path; letting Let's Encrypt
-reissue every certificate also works, but it is not free — see the warning above,
-and note that rate limits apply to a set this size if it has to be repeated.
+Traefik is stateless except for `acme.json`. Restore it from restic with the rest of
+`/mnt/data/services`. Letting Let's Encrypt reissue everything also works, but see the warning
+above, and rate limits apply if it has to be repeated.

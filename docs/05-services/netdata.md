@@ -1,62 +1,39 @@
 # Netdata
 
-Real-time system monitoring dashboard.
+Real-time metrics dashboard for the Pi and its containers. Use it to investigate after Kuma has
+flagged something; its alarms reach Kuma only through the adapter (see
+[observability](../07-observability/README.md)).
 
-## Access
+## At a glance
 
-- URL: `https://system.example.com` (VPN only)
+| Item       | Value                                                                                                   |
+|------------|---------------------------------------------------------------------------------------------------------|
+| URL        | `https://system.example.com` (VPN only)                                                                 |
+| Config     | `netdata.conf` (retention tiers), the `go.d` Docker collector, six curated `health.d` alarms — all rendered by Ansible |
+| Data       | `/mnt/data/services/netdata/lib` and `/mnt/data/services/netdata/cache` (ADR-019)                        |
+| Supervision | Kuma HTTP monitor `Netdata` on `/api/v1/info`                                                          |
 
-## What It Does
-
-- Real-time metrics: CPU, RAM, disk, network, temperature
-- Docker container monitoring
-- Per-process resource usage
-- Automatic anomaly detection
-- Collects out of the box; what this lab adds — `netdata.conf` (retention tiers), the `go.d` Docker collector and six curated `health.d` alarms — is rendered from the repository by Ansible
-
-## First Steps
-
-1. Open `https://system.example.com`
-2. Explore the dashboard — metrics are collected automatically
-3. Key sections to check:
-   - **System Overview**: CPU, RAM, swap
-   - **Disks**: SD card and HDD usage, IOPS
-   - **Sensors**: SoC temperature (throttling at 80°C)
-   - **Docker containers**: per-container CPU/RAM usage
-   - **Network**: bandwidth, connections
-
-## Useful Metrics for Home Lab
+## Where to look
 
 | Metric          | Where             | Why                                |
 |-----------------|-------------------|------------------------------------|
-| SoC temperature | Sensors > thermal | Ensure < 80°C                      |
+| SoC temperature | Sensors > thermal | Keep < 80°C (throttling starts)    |
 | RAM usage       | System > RAM      | Track if Immich is too hungry      |
 | Disk space      | Disks > space     | HDD filling up                     |
 | Docker CPU      | Containers        | Identify heavy services            |
 | Network traffic | Network > eth0    | Unusual activity = potential issue |
 
-## Data
+## Data and backup
 
-**Netdata has state, and a fair amount of it.** Two bind mounts carry it:
+| Path                               | Content                                                                  | In the backup |
+|------------------------------------|--------------------------------------------------------------------------|---------------|
+| `/mnt/data/services/netdata/lib`   | Registry and agent identity — a few tens of KB                           | yes           |
+| `/mnt/data/services/netdata/cache` | The metrics database (`dbengine` tiers 0-2), ML models, context metadata | **no**        |
 
-| Path                               | Content                                                                    | In the backup |
-|------------------------------------|----------------------------------------------------------------------------|---------------|
-| `/mnt/data/services/netdata/lib`   | Registry and agent identity — a few tens of KB                             | yes           |
-| `/mnt/data/services/netdata/cache` | The metrics database (`dbengine` tiers 0-2), ML models, context metadata   | **no**        |
-
-`cache/` is about **1.8 GB** and is excluded from restic on purpose: it churned
-roughly 400 MiB a night — half the nightly delta — for data that regenerates
-itself (commit 78372e1, 2026-08-31).
-
-This page used to say the opposite — stateless, everything in RAM, lost on restart.
-That described the state **before** ADR-019, which moved the database off the
-container's writable layer precisely because history was being destroyed on every
-recreation.
+`cache/` (about 1.8 GB) is excluded from restic because it churns heavily and regenerates itself.
 
 ## Restore
 
-**A restore does NOT bring back the metric history.** The metrics database lives
-in `cache/`, which no snapshot contains. A restic restore of `/mnt/data/services`
-returns `lib/` only — the registry — and re-running the deploy role brings the
-container up with an empty history. That costs the graphs, not the service: it
-starts collecting again immediately.
+A restore does not bring back metric history. Restoring `/mnt/data/services` returns `lib/` only;
+re-running the deploy role starts the container with an empty history, and it collects again
+immediately.

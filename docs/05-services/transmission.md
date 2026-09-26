@@ -1,43 +1,53 @@
 # Transmission
 
-Headless BitTorrent client.
+Headless BitTorrent client seeding official resources on a public IPv4. Web UI over
+the VPN.
 
-## Access
+## At a glance
 
-- URL: `https://share.example.com`
-- Login: `admin` / password set in `local.yml` (`transmission_password`)
+| Item    | Value                                                                        |
+|---------|------------------------------------------------------------------------------|
+| URL     | `https://share.example.com`, user `admin`, password `transmission_password` (`local.yml`) |
+| Port    | 51413 TCP+UDP, forwarded by hand on the SFR box to `<pi-lan-ip>:51413`       |
+| Config  | `/mnt/data/services/transmission/config/` (`settings.json`, resume state)    |
+| Watch   | `/mnt/data/services/transmission/watch/`: a dropped `.torrent` is added      |
+| Data    | `/mnt/data/library/downloads/` (ADR-035)                                     |
+| Monitor | Kuma keyword monitor, [uptime-kuma.md](uptime-kuma.md#monitors-configured)   |
 
-## What It Does
+## How it works
 
-- Seeds official ressources on a public IPv4
-- Watch folder for auto-add: drop a `.torrent` in `/watch`, it's loaded automatically
-- WebUI accessible over WireGuard VPN for management
+- Transmission rewrites `settings.json` on shutdown: stop it before editing.
+- DHT/PEX/LSD: on for public trackers and WebTorrent; off per torrent on
+  semi-private ones; off globally only for private-only use.
 
-## Client Setup
+### Accepted exposure: RPC password in argv
 
-### Browser
-Connect to `https://share.example.com` (VPN required).
+The image's stop hook, run on every stop, puts the password on a command line
+that any local account can read (`/proc` has no `hidepid`):
 
-### Native (optional, Linux)
-```bash
-sudo apt install transmission-remote-gtk
 ```
-Configure to point at `share.example.com:443` (HTTPS) with the same admin credentials.
+/etc/s6-overlay/s6-rc.d/svc-transmission/finish
+    /usr/bin/transmission-remote 127.0.0.1:${PORT:-9091} -n "$USER":"$PASS" --exit
+```
 
-## First Steps
+`/app/blocklist-update.sh` does the same if `blocklist-enabled` is turned on. Not
+fixed: the files are upstream's, and this repo's own calls use `TR_AUTH`. No
+assertion: it would pin upstream code (audit class C86). `hidepid` would break
+netdata. Re-open if Transmission leaves the VPN or an untrusted local account appears.
 
-Transmission writes back to `settings.json` on shutdown, so **stop the daemon before editing**.
+## Common tasks
 
-1. Remove the container — `compose down`, never `docker stop`: the heal timer
-   restarts within 2 min a container that exited non-zero (only exit 0 is left
-   alone), and Transmission would then rewrite `settings.json` from memory, over
-   the edit being made (ADR-007). `down` takes it out of the timer's view
-   whatever the exit code.
+Use `compose down`, never `docker stop`: the heal timer restarts a container that
+exited non-zero, and Transmission would overwrite your edit (ADR-007).
+
+Edit settings:
+
+1. Stop it:
    ```bash
    cd /opt/homelab && docker compose down transmission
    ```
-
-2. Edit `/mnt/data/services/transmission/config/settings.json`:
+2. Edit `/mnt/data/services/transmission/config/settings.json`. Upload cap: ~70 %
+   of upstream, 1 Mbps = 125 KB/s (700 Mbps: `700 × 0.70 × 125 ≈ 61 250 KB/s`).
    ```json
    {
      "watch-dir": "/watch",
@@ -46,88 +56,26 @@ Transmission writes back to `settings.json` on shutdown, so **stop the daemon be
      "speed-limit-up-enabled": true
    }
    ```
-
-   **Upload cap calculation** (target ~70% of real upstream). Example for a 700 Mbps fibre:
-   `700 × 0.70 × 125 ≈ 61 250 KB/s` (1 Mbps = 125 KB/s).
-
-3. Bring it back:
+3. Start it:
    ```bash
    docker compose up -d transmission
    ```
 
-4. **Port forwarding (manual, one-time)**: on the SFR box admin, forward TCP+UDP 51413 → `<pi-lan-ip>:51413`.
+Kuma monitor: type **Keyword**, URL `https://share.example.com/transmission/web/`,
+keyword `Transmission Web Interface`, HTTP Basic auth. A plain HTTP check proves
+nothing: without auth every path answers 401.
 
-5. Add the Uptime Kuma monitor — **not** a plain HTTP check on the root. The
-   specification is in [uptime-kuma.md](uptime-kuma.md#monitors-configured):
-   type **Keyword**, URL `https://share.example.com/transmission/web/`, keyword
-   `Transmission Web Interface`, with HTTP Basic auth.
-
-   Unauthenticated, this service answers 401 to every path, so a path that does
-   not exist is indistinguishable from a working interface — which is how `401`
-   ended up in the accepted status codes in the first place (#191). Recreating
-   the bare monitor recreates that pressure.
-
-## Data
-
-| Path                                         | Content                                   |
-|----------------------------------------------|-------------------------------------------|
-| `/mnt/data/services/transmission/config/`    | `settings.json`, resume state, torrent DB |
-| `/mnt/data/services/transmission/watch/`     | Drop zone for `.torrent` files (auto-add) |
-| `/mnt/data/library/downloads/`               | Actual data files being seeded (ADR-035)  |
-
-## Tracker Notes
-
-- **Semi-private trackers**: consider disabling DHT/PEX/LSD per torrent to keep ratio counting honest. Set them off globally in `settings.json` only if you exclusively use private trackers.
-- **Public trackers** and **WebTorrent**: keep DHT/PEX/LSD on for swarm discovery.
-
-## Known exposure: the image's own stop hook puts the RPC password in an argv
-
-Found by the audit of 2026-09-13, **accepted rather than fixed**, and written
-down here so nobody rediscovers it as if it were new.
-
-The image ships its own s6 stop hook, which runs on **every container stop** —
-so on every deploy, every crash-heal restart, every `compose down`:
-
-```
-/etc/s6-overlay/s6-rc.d/svc-transmission/finish
-    /usr/bin/transmission-remote 127.0.0.1:${PORT:-9091} -n "$USER":"$PASS" --exit
-```
-
-`$PASS` is the live RPC password. `/proc` carries no `hidepid`, so any local
-account can read that command line for the duration of the call. The same form
-sits in `/app/blocklist-update.sh`, inert only because `blocklist-enabled` is
-false — one checkbox away, and its window is seconds rather than milliseconds.
-
-**Why it is not fixed.** Both files are inside the image. This repository
-already removed the `-n` form from everything it controls: the healthcheck in
-`compose.yaml` and the Ansible task both use `TR_AUTH`, which puts the value in
-the process's environment where `/proc/<pid>/environ` is 0400 owner-only (#198).
-What remains is upstream's, and editing a file inside an image is undone by the
-next pull.
-
-**Why there is no assertion for it either**, which is the less obvious half.
-A check that pins the contents of an upstream script fires on any benign
-refactor and tells you nothing about the property you care about — that is audit
-class C86, *a configuration value written to restate an upstream default in
-order to freeze it*, and this repository has already paid for it three times. A
-permanently-red monitor or a tripwire on someone else's code is worse than a
-written-down acceptance.
-
-**What would change the decision.** Mounting `/proc` with `hidepid` would close
-it, and was rejected on cost: netdata reads `/proc` for every container's
-metrics and would need the exemption, which is a larger change than the exposure
-warrants on a LAN-only host reached through a VPN. If Transmission is ever
-exposed beyond the tunnel, or if an untrusted local account is ever created on
-this host, re-open this.
-
-## Restore
+Native client: point it at `share.example.com:443` with the admin credentials.
 
 ```bash
-cd /opt/homelab   # `compose down`, never `docker stop`: the heal timer restarts a
-                  # container that exited non-zero within 2 min (ADR-007); only exit 0 is left down
+sudo apt install transmission-remote-gtk
+```
+
+Restore (resume state included, torrents resume seeding):
+
+```bash
+cd /opt/homelab
 docker compose down transmission
 restic restore latest --target / --include /mnt/data/services/transmission
 docker compose up -d transmission
 ```
-
-Resume state (`.resume` files in `config/`) is included — torrents restart seeding from where they stopped.

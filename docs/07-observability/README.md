@@ -1,186 +1,53 @@
 # Observability
 
-## Philosophy
-
-Lightweight and actionable monitoring. We watch what requires human
-intervention, nothing more. One alert = one action needed. Anything that is
-merely interesting belongs on a dashboard, not in a notification.
+What watches the lab, what each alert means, and how the pieces fit. One alert = one action
+needed; anything merely interesting belongs on a dashboard.
 
 ## Stack
 
-| Tool            | Role                                                                                                |
-|-----------------|-----------------------------------------------------------------------------------------------------|
-| **Netdata**     | System metrics, forensic dashboard, and **curated** alarms — its 59 stock alarms still reach nobody |
-| **Uptime Kuma** | Availability monitoring + alerting (Discord)                                                        |
+| Tool                 | Role                                                                                                   |
+|----------------------|--------------------------------------------------------------------------------------------------------|
+| **Netdata**          | Metrics, forensic dashboard, six **curated** alarms. Its stock alarms (59 at last count) reach nobody |
+| **Uptime Kuma**      | Availability checks, push monitors, and the only alerting channel (Discord)                           |
+| **homelab-health**   | Host checks every 5 min, pushed to `Pi health` and `Pi pending action`                                 |
+| **goss**             | Declared assertions, run by the health, posture, backup and offsite scripts                           |
+| **Lynis**            | Weekly audit, pushed to its own monitor                                                                |
 
-Netdata is not notification-free — that wording was wrong and it mattered. It
-ships **59 stock alarms and runs them** (counted 2026-09-26; the figure moves
-with the collectors, so read it from `/api/v1/alarms`). They are tuned for a
-generic server — the disk-backlog one alone would fire on every nightly
-backup — so wiring them to Discord would produce exactly the noise this stack
-refuses. They address the `silent`, `sysadmin` and `root` recipients, and
-**none of those is routed**.
+Use Netdata to investigate after Kuma has said something is wrong. A quiet Netdata is not evidence
+that nothing is wrong.
 
-That was, and remains, a deliberate choice. What used to happen next was the
-part worth correcting: any signal worth acting on was added to
-`homelab-health.sh` instead. Six scripts ended up following that pattern, and
-the one that mattered most aggregated 17 unrelated conditions into a single
-signal — which then latched DOWN for a whole day on the least urgent of them
-(issue #216), muting the rest. That contradicts the philosophy above: one alert,
-one action.
+## Netdata alarms, and how they reach Kuma
 
-**Since ADR-030 there is a third option, and it is now the default one.**
-Alarms we curate live in this repository under `health.d/` and carry a threshold
-chosen and justified here — the same place the bash thresholds were justified,
-just declared instead of coded.
+- Netdata's stock alarms (count them from `/api/v1/alarms`) address `silent`, `sysadmin` and
+  `root`; none is routed. They are tuned for a generic server and would be noise here.
+- Curated alarms live in the repository under `health.d/`, each with a threshold justified on this
+  page (ADR-030). They are also `to: silent`: Netdata notifies nobody.
+- `homelab-netdata-kuma.sh` (every 5 min) reads them and pushes each into the Kuma monitor of its
+  group — six alarms, two monitors. The notification channel is configured only in Kuma.
+- It pushes on **every** run, whatever the state, so each curated monitor is also a dead-man's
+  switch: a dead netdata, stopped adapter or absent host turns it red. (A Kuma push monitor with no
+  beat reports "No heartbeat in the time window", so pushing only on transitions would not work.)
+- A curated alarm replaces a check in `homelab-health.sh` only after it has been observed firing;
+  until then both run.
+- Metric history lives on `/mnt/data/services/netdata` and survives recreation (ADR-019).
 
-**Netdata still notifies nobody, and that has not changed at all.** Its
-notification configuration is untouched: curated alarms are written `to: silent`
-exactly like the stock ones. What reads them is a host-side adapter
-(`homelab-netdata-kuma.sh`, every 5 minutes) which pushes each curated alarm
-into the Uptime Kuma monitor of **its group** — six alarms, two monitors, grouped
-by the action they call for (see below). Kuma then decides where that goes, so the
-notification channel stays configured in exactly one place — replace Discord one
-day and only Kuma changes.
+**Startup grace (the one exception to "whatever the state").** A freshly started netdata answers
+HTTP 200 with an empty `alarms` object: 25 s to ~4 min on a warm restart; on a cold boot its API
+first answered ~301 s after start and the first verdict came at 779 s. The adapter therefore uses a
+**1200 s** grace based on netdata's own start time:
 
-Polling rather than being notified is deliberate, and it buys two things a
-transition-driven wiring could not:
+| netdata answer                    | netdata up < 1200 s                                    | netdata up ≥ 1200 s |
+|-----------------------------------|--------------------------------------------------------|---------------------|
+| empty `alarms`                    | UP, message names the window                           | DOWN, with an actionable message |
+| unreachable                       | UP only if docker reports the container running and younger than the grace | DOWN |
+| container stopped or absent       | DOWN                                                   | DOWN                |
 
-- **it fits what a Kuma push monitor actually is.** Those monitors expect a
-  heartbeat and mark themselves down when one does not arrive. An alarm that
-  stays healthy produces no transition, no push, and would eventually report a
-  failure that never happened. Not a fear — monitor 20 (`Pi health`) still holds
-  33 heartbeats reading "No heartbeat in the time window" (2026-09-26; older
-  ones have been pruned);
-- **every curated monitor is also a dead-man's switch.** A beat goes out on
-  every run whatever the state, so a dead netdata, a stopped adapter or an
-  absent host turns the monitor red on its own. Notification on transition would
-  have left it green forever.
+The grace defers the switch, never disarms it. A netdata restarting faster than the grace is caught
+by `netdata-health-engine-has-verdicts` in the posture spec.
 
-## Evidence, and how long it outlives the event
+## One monitor per action, not per condition
 
-A monitor that is green tells you the job ran. It does not tell you **what the
-job did** — and for a job with more than one mode, those are different
-questions. The rule this lab now applies:
-
-> Every periodic job must leave a distinguishable result in a store that
-> outlives its own period.
-
-Two halves, both load-bearing. *Distinguishable*: a message that a different
-mode of the same job could not have produced. *Outlives its period*: if the
-evidence expires before the job runs again, there is never a moment when you can
-compare this run to the last one.
-
-The census, taken 2026-08-30 over the 16 periodic jobs then on the two hosts:
-
-| Evidence | Jobs | Retention | Against a period of |
-|----------|------|-----------|---------------------|
-| A Kuma push monitor whose message carries readings | 14 | per-monitor row budget | 5 minutes to 8 days |
-| The journal alone | 2 — `homelab-stack-heal`, `offsite-wg-reresolve` | ~59 days at saturation (21 held on 2026-09-21) | see below |
-| Nothing at all | 1 — `homelab-image-retention` | — | monthly |
-
-The third row was added 2026-09-19 and it is the reason to distrust this table's
-own method. The census was built by walking the evidence channels, so a job with
-no channel could not appear in it — `homelab-image-retention` was deployed
-2026-09-13, is scheduled for the first Sunday of each month at 04:30, and was
-absent from every count until someone enumerated the timers instead of the
-monitors. Take the live figure from `systemctl list-timers 'homelab-*'` and
-`systemctl list-timers 'offsite-*'`, not from the number in this sentence.
-
-Fourteen of sixteen were already correct, and not by accident: the messages
-carry readings — `dumps ok (19 checks), snapshot c8f63e2a`, `hardening index 73
-(best 73)`, `disk 17%, hdd 49C (peak 54C), pending 2` — so a run that did
-nothing cannot produce the message of a run that did something.
-
-**One was not, and it is the one that mattered most.** The weekly
-`prune + check` runs in two modes: in the first week of each month it re-reads
-one twelfth of the repository's actual bytes, and every other week it lists
-metadata. It is the **only** operation in the whole backup chain that reads
-backed-up bytes back. Both modes pushed the same message, `prune and check
-completed`, so nothing durable distinguished a verification from an inventory.
-
-The distinction had existed and was lost. The shell job that ADR-031 replaced
-pushed `local prune + deep check (8/12) passed` against `local prune + metadata
-check passed`, and Kuma still holds both — 2026-08-02 and 2026-08-09. The
-migration collapsed them, and the only remaining trace of which mode ran was the
-journal, which held 16 days against a 30-day period.
-
-Now:
-
-| Mode | Message |
-|------|---------|
-| deep | `prune ok, deep check re-read data subset 8/12` |
-| metadata | `prune ok, metadata check only (no data re-read)` |
-| mode not passed | `prune and check completed, mode not reported` |
-
-The third exists because a message that quietly claims a mode it was not told is
-the same defect one level down.
-
-### The silent degradation, and what catches it
-
-resticprofile decides the mode from the day of the month. If the host is off for
-the first week, the catch-up fires on a day the branch no longer matches, the
-run degrades to metadata only, and the monitor stays green — a twelfth of the
-repository then goes unverified for another year. resticprofile cannot know what
-ran last month, so nothing inside the job can notice.
-
-`restic-deep-check-not-stale` catches it from outside: it reads Kuma's heartbeat
-history for the most recent beat saying a data subset was re-read, and fails
-past 45 days. Consecutive deep runs are 24 to 37 days apart on a healthy
-schedule, so one missed month trips it and a normal one never does.
-
-The margin it has is NOT the `keepDataPeriodDays` setting of 180 days. That
-number is true as configuration and false as a promise: raw heartbeats are
-pruned against a per-monitor row budget, measured 2026-09-21 at 45.6 h for an
-ordinary beat on the 5-minute health monitor. This assertion survives because
-its monitor is weekly — all of its beats back to 2026-07-19 are present, which
-is 63 days against the 45-day threshold, a margin of 18 days and growing. The
-same correction was made in three template comments on 2026-09-19 and did not
-reach this page.
-
-### The access log, and a weekly writer
-
-The same rule applies outside the backup chain. The redacted access log
-(ADR-034) grows 6.17 MB/day measured, so the daemon's default 3 x 10 MB spanned
-**4.86 days** — while the second host, for which a request through the proxy is
-the only trace it leaves there, writes **once a week**. A census taken mid-week
-concludes it is absent. That log now carries its own `logging:` block, 10 x
-20 MB — about 32 days of capacity, which is not the same as 32 days of history.
-The ring belongs to the CONTAINER: every recreation starts it empty. Measured
-2026-09-21, 14 h after a recreation: one file of ten, 4.07 MB of 200, holding
-12 h 17. So a weekly writer is only answerable from this log when the redactor
-has been running longer than a week, and the `window=48h` of
-`traefik-access-log-carries-no-credential` is satisfied by a floor of
-`seen>=1`, not by the window.
-
-
-There is exactly one deliberate exception to "whatever the state", added by #289
-and worth stating because the sentence above would otherwise be false. A netdata
-that has just restarted answers HTTP 200 with an empty `alarms` object for
-somewhere between 25 s and roughly 4 minutes on a warm restart — measured, by
-restarting it and polling. A cold boot is longer: on 2026-09-24 its HTTP API
-first answered ~301 s after the container started, and the first verdict came
-779 s after. The adapter used to read that as "unreachable" and
-push every group DOWN, which is how 14 non-actionable notifications were sent in
-14 days. It now discriminates on netdata's own start time, with a 1200 s grace:
-an empty answer from a netdata up **longer** than that is DOWN and says
-so in words anyone can act on, and an empty answer from one inside it is UP with
-a message naming the window. Since 2026-09-25 the grace also covers
-"unreachable", but only while docker reports the container running and younger
-than the grace; a stopped or absent container is still DOWN. The switch is deferred by at
-most that grace, never disarmed — and the one way to hide behind it, a netdata
-restarting faster than the grace, is closed from outside by
-`netdata-health-engine-has-verdicts` in the posture spec.
-
-The side effect is worth as much as the design: a curated alarm that fires turns
-one monitor red on the dashboard, with history and an uptime figure, instead of
-leaving a line in a chat log. That is what makes the rule below cheap to
-respect.
-
-### One monitor per action, not per condition
-
-"One alert = one action needed" is about an **action**. Conditions that would
-send you to the same place therefore share a monitor:
+Conditions that send you to the same place share a monitor:
 
 | Monitor                  | What it carries                                                                                                             | Fed by                              | What you would do        |
 |--------------------------|-----------------------------------------------------------------------------------------------------------------------------|-------------------------------------|--------------------------|
@@ -190,72 +57,72 @@ send you to the same place therefore share a monitor:
 | **Pi pending action**    | reboot pending, services on replaced libraries, journal skew under pressure, security updates, certificate expiry           | `homelab-health.sh`                 | schedule an intervention |
 | **Netdata — containers** | containers down, containers unhealthy                                                                                       | curated alarms via the Kuma adapter | look at the stack        |
 
-Five to create by hand, not thirty — and that matters because Kuma v2 monitors
-are created by hand, so folding host-level signals into one push keeps the
-alerting surface flat (issue #13; the reasoning used to sit in a comment in
-`health.yml`, see `git show 4b1c7c7^:ansible/roles/observability/tasks/health.yml`).
+- Few monitors keeps the hand-built Kuma surface flat.
+- **Group by lifetime, not subject.** A condition waiting for a human stays red for days; folded in
+  with acute checks it mutes them. That is why `Pi pending action` exists.
+- **Grouping needs resend.** Kuma notifies only on a state change, so a second condition inside an
+  already-red group reaches nobody. Set "Resend Notification if Down X times" on each (values in
+  [uptime-kuma.md](../05-services/uptime-kuma.md)).
 
-**The line that must not be crossed is lifetime, not subject.** `pending` exists
-because a condition that waits for a human stays red for days by construction.
-Folded in with the acute checks it occupies the signal permanently and mutes
-them — which is exactly what happened for a whole day (#216).
+## Evidence that outlives the run
 
-And grouping is only safe with **resend enabled** on these monitors. Kuma
-notifies on a state change; a monitor already down says nothing more, so a
-second condition appearing inside a group would reach nobody. #200 measured 54
-hours of continuous outage for one message. Set "Resend Notification if Down X
-times" on each.
+Rule: **every periodic job must leave a distinguishable result in a store that outlives its own
+period.** A green monitor says the job ran, not what it did.
 
-Each curated alarm is one condition with its own signal, and it replaces a check
-in `homelab-health.sh` only **after it has been observed firing** — the two
-layers overlap on purpose until then. The first one is swap utilisation, chosen
-because it is this page's own cautionary tale: `used_swap` sat CRITICAL for
-5 days 19 hours in August 2026 and reached no one.
+| Evidence                                           | Jobs                                            | Retention                           |
+|----------------------------------------------------|-------------------------------------------------|-------------------------------------|
+| A Kuma push monitor whose message carries readings | most jobs                                       | per-monitor row budget              |
+| The journal alone                                  | `homelab-stack-heal`, `offsite-wg-reresolve`    | ~59 days at saturation              |
+| Nothing at all                                     | `homelab-image-retention` (monthly)             | —                                   |
 
-So: use Netdata to investigate *after* Kuma has told you something is wrong, and
-never treat a quiet Netdata as evidence that nothing is wrong.
+Enumerate the timers, not the monitors — a job with no channel never shows up in a list of
+channels:
 
-Netdata's history now survives a restart. Until 2026-07-27 its registry and its
-metrics database sat in the container's writable layer with no volume, so every
-recreate — every image bump, every configuration test — silently restarted the
-history from zero. Both now live on `/mnt/data/services/netdata` (ADR-019).
+```bash
+systemctl list-timers 'homelab-*'
+systemctl list-timers 'offsite-*'
+```
 
-### The daily posture check
+Messages carry readings, e.g. `dumps ok (19 checks), snapshot c8f63e2a`, `hardening index 73
+(best 73)`, `disk 17%, hdd 49C (peak 54C), pending 2`.
 
-`homelab-posture.sh` (daily, its own Kuma push monitor) asserts that the
-container hardening is still in place — `cap_drop: ALL`, the exact capability
-set per service, `read_only`, `no-new-privileges`, the AppArmor profile the
-kernel actually applied, and netdata's three axes below (issue #33). Nothing
-else would notice a drift: an image update whose entrypoint starts writing
-somewhere new, or a container recreated without its `user:`, looks exactly like
-a healthy stack from the outside.
+**Prune + check.** The weekly job re-reads one twelfth of the repository's bytes in the first week
+of the month and checks metadata otherwise. It is the only step that reads backed-up bytes back.
 
-The expected values are **generated from `docker/compose.yaml`** rather than
-maintained by hand, so the check cannot drift from the file it checks: adding a
-service or changing a capability updates the expectation. Verified by regressing
-a real service (navidrome, `read_only` removed and recreated) and confirming the
-report caught it.
+| Mode            | Message                                           |
+|-----------------|---------------------------------------------------|
+| deep            | `prune ok, deep check re-read data subset 8/12`   |
+| metadata        | `prune ok, metadata check only (no data re-read)` |
+| mode not passed | `prune and check completed, mode not reported`    |
 
-### goss — where the assertions actually live
+**Missed deep check.** resticprofile picks the mode from the day of the month, so a host off during
+the first week silently degrades that month to metadata only. `restic-deep-check-not-stale` reads
+Kuma's heartbeat history for the last "data subset re-read" beat and fails past **45 days** (healthy
+gaps are 24–37 days). It works because this monitor is weekly and keeps all its beats; do not count
+on Kuma's `keepDataPeriodDays` (180): raw beats are pruned by a per-monitor row budget (~45.6 h for
+an ordinary beat on the 5-minute health monitor).
 
-ADR-032 moved the assertions out of shell and into declared specs. Four of them
-run across the two hosts, and until #263 they appeared in no runbook and nowhere
-on this page — while Kuma is able to display `goss spec … missing` to someone
-with nothing to look it up in.
+**Access log.** The redacted access log (ADR-034) is the only trace the offsite host leaves here,
+and it writes once a week. The log carries its own `logging:` block, 10 x 20 MB (~32 days of
+capacity at ~6 MB/day). The ring belongs to the container and restarts empty on every recreation,
+so a weekly writer is answerable only once the redactor has run for more than a week. The
+`window=48h` of `traefik-access-log-carries-no-credential` is met by its `seen>=1` floor.
 
-| Spec | Host | Run by | When |
-|------|------|--------|------|
-| `/etc/goss/posture.yaml` | homelab | `homelab-posture.sh` | daily, 11:00 + up to 10 min jitter |
-| `/etc/goss/units.yaml` | homelab | `homelab-health.sh` | every 5 min |
-| `/etc/goss/backup-dumps.yaml` | homelab | a resticprofile hook, result read by `backup-notify.sh` | nightly, inside the 03:00 backup |
-| `/etc/goss/offsite-health.yaml` | offsite | `offsite-health.sh` | daily, 08:00 + jitter |
+## goss — where the assertions live
 
-**There is deliberately no check count in that table, and there must not be
-one.** It has been written down three times — 376, then 387 — and been wrong
-three times, twice reaching eight agent briefs before anyone measured. Every
-spec is templated from `docker/compose.yaml` and group_vars and grows with the
-stack, so any number here is stale on the next deploy that adds an assertion.
-The machine owns the figure; ask the machine:
+ADR-032 moved assertions from shell into declared specs:
+
+| Spec                          | Host    | Run by                                                  | When                              |
+|-------------------------------|---------|---------------------------------------------------------|-----------------------------------|
+| `/etc/goss/posture.yaml`      | homelab | `homelab-posture.sh`                                    | daily, 11:00 + up to 10 min jitter |
+| `/etc/goss/units.yaml`        | homelab | `homelab-health.sh`                                     | every 5 min                       |
+| `/etc/goss/backup-dumps.yaml` | homelab | a resticprofile hook, result read by `backup-notify.sh` | nightly, inside the 03:00 backup  |
+| `/etc/goss/offsite-health.yaml` | offsite | `offsite-health.sh`                                   | daily, 08:00 + jitter             |
+
+- Binary: `/usr/local/bin/goss` on both hosts. Specs are not world-readable: use `sudo`.
+- `sudo goss -g /etc/goss/*.yaml` expands the glob unprivileged and matches nothing — use `sudo sh -c`.
+- Never write a check count down; specs grow with the stack. Read `1..N` from the machine (the TAP
+  line count follows declared attributes, not assertions, so it cannot be derived):
 
 ```bash
 for h in homelab offsite; do
@@ -265,419 +132,192 @@ for h in homelab offsite; do
 done
 ```
 
-Read the `1..N` and never derive it. The old rule that *"one assertion emits two
-TAP lines"* was **measured false** on 2026-08-29: six assertions declaring only
-`exit-status` added six lines, while one declaring `exit-status` and `stdout`
-added two. The line count follows the number of **attributes** declared, not the
-number of assertions — which is precisely why deriving it has never worked.
-
-The binary is `/usr/local/bin/goss` on both hosts. The specs are not
-world-readable — every command above and below needs `sudo`, and note that
-`sudo goss -g /etc/goss/*.yaml` expands the glob in the *unprivileged* shell and
-silently matches nothing, which is why the loop above uses `sudo sh -c`.
-
-**Running one by hand** — on the **homelab**, which is the only host that has
-`posture.yaml`. The binary is on both hosts and the specs are not: `offsite` has
-`offsite-health.yaml` and nothing else, so these two commands return "file does
-not exist" there. The table above is what says which spec lives where.
+Run one by hand on the homelab (the offsite host has only `offsite-health.yaml`, so these return
+"file does not exist" there):
 
 ```bash
-sudo goss -g /etc/goss/posture.yaml validate              # human-readable, ends in "Count: N, Failed: 0"
-sudo goss -g /etc/goss/posture.yaml validate --format tap # what the scripts consume
+sudo goss -g /etc/goss/posture.yaml validate
+sudo goss -g /etc/goss/posture.yaml validate --format tap
 ```
 
-**One trap, and it looks like a disaster.** `backup-dumps.yaml` asserts the
-database dumps, and **the dump directory only exists during a backup run**
-(ADR-031). Run by hand at any other time it fails one assertion per dump —
-`dump-nextcloud-present`, `dump-miniflux-complete` and the rest. The two counts
-are deliberately not written here: they grow with the databases, and the pair
-frozen into this page until 2026-09-20 (`Count: 19, Failed: 13`) had drifted to
-less than half the real figure, so a page written to prevent a false alarm was
-causing one. Derive them instead — `grep -cE '^  dump-' /etc/goss/backup-dumps.yaml`
-for the assertions, and the run's own trailer for the rest. That is the correct
-answer to the question asked at the wrong moment, not a broken backup.
-It is only meaningful as the hook, where `backup-notify.sh` reads its TAP.
+The first ends in `Count: N, Failed: 0`; the second is what the scripts consume.
 
-**Why the consumers all look for the plan line.** goss failing to *start* — an
-unreadable spec, a missing binary, a parse error — and goss finding nothing
-wrong both produce output with no `not ok` line in it. A consumer that greps
-only for `not ok` reads the first as the second. So each one checks, in order:
-spec readable → binary present → a `1..N` plan line with N > 0, and only then
-counts failures. The rule: the plan
-line is goss's own count, its absence means goss failed to parse the spec
-rather than found nothing wrong, and those must not read alike. Any new
-consumer must do the same three checks.
+**`backup-dumps.yaml` fails by hand — that is normal.** The dump directory exists only during a
+backup run (ADR-031), so outside one it fails one assertion per dump (`dump-nextcloud-present`,
+`dump-miniflux-complete`, …). Count the dump assertions with
+`grep -cE '^  dump-' /etc/goss/backup-dumps.yaml`. The spec is only meaningful as the hook.
 
-**Where the specs come from.** Never edit `/etc/goss/*.yaml` on the host — they
-are templated and the next deploy overwrites them:
+**Consumers check the plan line.** goss failing to start and goss finding nothing both print no
+`not ok`. Every consumer checks, in order: spec readable → binary present → a `1..N` plan line with
+N > 0, and only then counts failures. Any new consumer must do the same.
 
-| Spec | Template | Deployed by |
-|------|----------|-------------|
-| `posture.yaml` | `roles/observability/templates/goss-posture.yaml.j2` | `--tags observability` |
-| `units.yaml` | `roles/observability/templates/goss-units.yaml.j2` | `--tags observability` |
-| `backup-dumps.yaml` | `roles/deploy/templates/goss-backup-dumps.yaml.j2` | `--tags deploy` |
+**Never edit `/etc/goss/*.yaml` on the host** — the next deploy overwrites them:
+
+| Spec                  | Template                                                     | Deployed by                                  |
+|-----------------------|--------------------------------------------------------------|----------------------------------------------|
+| `posture.yaml`        | `roles/observability/templates/goss-posture.yaml.j2`         | `--tags observability`                       |
+| `units.yaml`          | `roles/observability/templates/goss-units.yaml.j2`           | `--tags observability`                       |
+| `backup-dumps.yaml`   | `roles/deploy/templates/goss-backup-dumps.yaml.j2`           | `--tags deploy`                              |
 | `offsite-health.yaml` | `roles/offsite-backup/templates/goss-offsite-health.yaml.j2` | `playbooks/offsite.yml --tags offsite-backup` |
 
-The consequence is the one `container-config-changes.md` spells out: changing a
-capability, `read_only` or `security_opt` in `compose.yaml` means deploying
-`--tags deploy,observability`, not `--tags deploy`. Deploy only the stack and
-the spec keeps yesterday's expectations, so a container that is exactly right is
-reported as drifted.
+## The daily posture check
 
-### The hourly notify_push self-test
+`homelab-posture.sh` runs `posture.yaml` daily and pushes `Pi security posture`. It asserts:
 
-`homelab-notify-push.sh` (hourly, its own Kuma push monitor) runs Nextcloud's
-`occ notify_push:self-test` and reports what it says. It exists because
-notify_push is the one service here that fails without a symptom: when the push
-server breaks, the desktop and mobile clients fall back to polling every 30s,
-files keep syncing, nothing logs an error, and the only trace is a Pi quietly
-doing more work than it should.
+- container hardening: `cap_drop: ALL`, the exact capability set per service, `read_only`,
+  `no-new-privileges`, the AppArmor profile the kernel applied, and netdata's three axes (below);
+- netdata and Collabora must **not** have `no-new-privileges` (setuid plugins, file capabilities —
+  ADR-018, ADR-021), so an accidental addition is caught too;
+- every fail2ban jail in `jail.local` is loaded (`fail2ban-client status`) — a broken jail vanishes
+  silently while fail2ban reports healthy;
+- `every-declared-service-has-a-container` — an expected container gone from the engine;
+- every `homelab-*` control timer is `enabled` and `active`.
 
-An HTTP monitor cannot stand in for it. The binary answers 404 on `/` and 400 on
-`/test/cookie` whether or not it can reach Redis, load mount info from the
-database, or be trusted as a reverse proxy — so a status-code check stays green
-through exactly the failures worth catching. The six steps it verifies are the
-ones that have actually broken here: the 403 through the DNS hairpin, the
-untrusted proxy, the missing trusted domain
-(`knowledge/runbooks/notify-push-troubleshooting.md`).
+How it behaves:
 
-The failing step travels in the push message, so the Discord alert names it
-instead of only saying something is wrong. The active connection count rides
-along as context and never alarms — zero is the normal state when every client
-is asleep.
+- Expectations are generated from `docker/compose.yaml` when the `observability` role templates
+  the spec — a snapshot, not a live read. **A hardening change needs `--tags deploy,observability`**;
+  `--tags deploy` alone leaves yesterday's expectations and flags a correct container
+  (see `container-config-changes.md`).
+- Separate from `Pi health`: a drift is not an outage.
+- Skips entirely while `/mnt/data` is locked.
 
-The same push also watches Nextcloud's **background-job runner**: it reads
-`core lastcron` and goes DOWN when `cron.php` has not completed for more than
-**3600 s**, or when the value cannot be read. `nextcloud-cron` fails the same
-silent way — busybox `crond` can stay Up while never executing a job (#28) — and
-the jobs run every 5 minutes, so an hour of silence is a stopped runner, not a
-slow one. It rides this monitor because the hourly cadence and the `occ` access
-are already there.
+## The hourly notify_push self-test
 
-### The daily disk-health report
+`homelab-notify-push.sh` (hourly, its own push monitor `Nextcloud notify_push`) runs
+`occ notify_push:self-test` and pushes the result.
 
-`homelab-disk.sh` (daily at 07:00, its own Kuma push monitor) watches the 5 TB
-drive: SMART early-warning counters, capacity, temperature, and the result of
-the weekly extended self-test started by `homelab-smart-test.timer`.
+- Why: when notify_push breaks, clients fall back to polling every 30s and nothing else notices.
+  An HTTP check cannot help: the binary answers 404 on `/` and 400 on `/test/cookie` either way.
+- The failing step is in the push message, so the alert names it. Past failures are in
+  `knowledge/runbooks/notify-push-troubleshooting.md`.
+- The active connection count is context only; zero is normal.
+- It also reads `core lastcron` and goes DOWN when `cron.php` has not completed for more than
+  **3600 s**, or the value is unreadable. `nextcloud-cron` can stay Up without running jobs, and jobs
+  run every 5 min.
 
-It exists because until 2026-08-15 nothing watched that disk at all — while the
-offsite Pi, which holds only a *copy*, had a weekly SMART report and a monthly
-self-test since July. **The copy was better monitored than the original.** The
-only self-test ever run on the drive was a short one at 16 power-on hours; it
-had reached 2363.
+## The daily disk-health report
 
-The overall `smartctl -H` verdict is deliberately not trusted on its own: it
-stays PASSED until a drive is nearly dead. The counters that predict failure
-early are checked individually — reallocated sectors, offline uncorrectable,
-end-to-end errors, and the interface CRC count that catches a bad cable or
-bridge — and any of them leaving zero reports DOWN. The self-test result is
-checked for failure *and* for staleness, comparing its power-on-hour stamp
-against the drive's current one, so a silently dead timer surfaces instead of
-leaving an eternally green result from a year ago.
+`homelab-disk.sh` (daily at 07:00, push monitor `Pi disk health`) watches the 5 TB drive: SMART
+counters, capacity, temperature, and the weekly **extended** self-test started by
+`homelab-smart-test.timer`.
 
-**`Current_Pending_Sector` is the exception, and it is deliberate.** It does not
-mean what the others mean: it counts sectors the drive judged *unstable* — ones
-that needed unusual effort to read. Such a sector still returns its data, so a
-full-surface read walks straight over it, and **only a write retires it**. On
-2026-08-26 the extended self-test completed without error across the whole
-4.6 TB while the counter sat at 2, and nothing read-only could move it. Treating
-that like a reallocated sector produced a monitor that was correct and useless:
-permanently red, and a permanently red monitor stops being read. That is not a
-worry, it is a measurement — the count went from 1 to 2 on 2026-08-24 behind an
-already-red monitor and nobody saw it.
+| Check                                     | Alarms when                                                           |
+|-------------------------------------------|-----------------------------------------------------------------------|
+| Reallocated, offline uncorrectable, end-to-end errors, interface CRC | any leaves zero                        |
+| `Current_Pending_Sector`                  | it **rises** since the last run, or the last completed self-test was not clean |
+| Newest self-test entry                    | status unknown (abort and interruption are reported, not alarmed)    |
+| Last completed self-test                  | failed, or stale by power-on hours                                   |
 
-So the count is always *reported* and alarms on the two things that mean
-something: a **rise** since the previous run (unconditionally — that is the case
-above, and without it this would just be painting the red green), or a last
-completed self-test that was not clean. The steady state — a non-zero count with
-a clean full-surface scan behind it — is "weak sectors, act at leisure", and it
-reads green so that a change can be seen.
+- `smartctl -H` alone is not trusted: it stays PASSED until a drive is nearly dead.
+- A non-zero pending count with a clean full-surface scan behind it is green ("weak sectors, act at
+  leisure"). Only a write retires a pending sector; reads walk over it.
+- The log is read twice: the newest entry (what the last run did) and the newest `Completed` entry
+  (the last verdict). Staleness is measured on the completed one, so repeated aborts cannot reset it.
+- A `Completed: read failure` from the extended test is a true positive, not a bridge artefact —
+  host reads can succeed through retries while a sector is failing. Do not switch to `-t short`.
+- The extended test is the only control that reads cold bytes; it runs in the background, no
+  maintenance window needed.
+- Repair of a pending sector: rewrite the affected file in place (`dd conv=notrunc` onto the same
+  extents) after verifying the replacement bytes, then read the LBA back with `O_DIRECT`.
+- Separate from `Pi health`: a reallocated sector is a countdown, not an outage.
 
-**The self-test log is read twice, on purpose**, because it answers two
-questions. The newest entry says what the last recorded run *did*; the newest
-entry containing `Completed` says what the last real *verdict* on the surface
-was. They differ exactly when the top of the log is an abort, an interruption,
-or a run still going.
+## Git mirror
 
-An abort is not bad news — it is the absence of news — and treating the two
-alike shipped a defect for one day. The status check briefly read "anything that
-is not a clean completion **or a run in progress**", and this drive never logs a
-run in progress at all: a test was live on 2026-08-26 while entry #1 still read
-`Aborted by host` from hours earlier. So a reboot during the four-to-eight-hour
-weekly scan would have held the monitor red until the following week. Aborts and
-interruptions are reported now, not alarmed; an unknown status still alarms,
-because a status a future smartctl invents must be loud rather than assumed
-benign.
+The health push carries `mirror ok`, or `mirror Nh overdue`, alerting once a sync is more than an
+hour late. A frozen mirror looks healthy everywhere else.
 
-The staleness check moved with it, and that is what stops the two silences
-becoming a third: it measures against the last **completed** run. An abort
-stamps recent power-on hours, so reading the newest entry there would let a scan
-aborted every single week reset the clock forever while the status check stayed
-quiet about it.
+- It reads `next_update_unix`, which only advances when a sync **completes**. `mirror.updated_unix`
+  moves on every attempt and hides an outage.
+- The interval is **8 h** and `MIRROR_GRACE` is 3600 s, so the earliest alarm is ~9 h after the last
+  good sync. Faster detection means a shorter mirror interval.
 
-Daily. That used to contrast with the offsite's weekly report; the offsite went
-daily on 2026-09-12, so the cadences now match and only the reason differs — this
-drive takes writes from the 32 containers on it continuously, while the offsite
-one is read once a night. It is separate
-from `homelab-health.sh` for the same reason the posture check is: a reallocated
-sector is not an outage, it is a countdown, and it would be buried inside a
-five-minute signal carrying CPU temperature.
+## Checking that Netdata itself is not lying
 
-**The self-test is extended, and it was short for nine days because a true
-positive was read as a bug.** On 2026-08-15 the extended test was tried and
-returned `Completed: read failure` at LBA 730424728 within seconds — twice, at
-the identical LBA — while that sector and the 64 MiB around it read without
-error from the host, every SMART counter sat at zero and dmesg was silent. That
-was read as a USB-native SMR bridge returning a canned verdict, and the test was
-replaced with `-t short` to avoid a permanently red monitor.
-
-Every one of those observations was correct and the conclusion was wrong. A
-marginal sector looks exactly like that: the host path succeeds through retries
-and ECC, the self-test reads strictly and fails, and the pending counter cannot
-clear because only a **write** retires a pending sector. Nine days later a
-second sector was throwing unrecoverable read errors into the kernel log and a
-third had made a live Nextcloud file unreadable (#207). The control that found
-the defect first was the one that got removed for finding it.
-
-The three regions were repaired on 2026-08-25 by rewriting each affected file in
-place — `dd conv=notrunc` onto the same extents, which is what forces the drive
-to rewrite or reallocate a pending sector — after verifying the replacement
-bytes (restic packs against their own name-hash, the jpg against the snapshot).
-All three LBAs then read cleanly with `O_DIRECT` from the raw device, and
-`Reallocated_Sector_Ct` stayed 0: the drive rewrote in place rather than
-retiring anything.
-
-**What made the gap invisible for those nine days is worth stating on its own**,
-because this page used to assert the opposite: *the media is not read in full
-anyway*. The nightly backup skips a file whose metadata has not changed, so it
-had not re-read the damaged jpg since 27 July and reported `snapshot saved`
-without error every night. `restic check --read-data-subset` reads the
-repository, not the live tree. The daily superblock read reports errors the
-kernel has **already** noticed. None of them read cold bytes. The extended
-self-test is the only control here that does, which is why it is back — and it
-costs nothing that needs a maintenance window: the drive scans in the
-background, no volume is unmounted and nothing is stopped.
-
-**The posture expectations are generated when the `observability` role
-templates `/etc/goss/posture.yaml`, not when the stack is deployed** — the spec
-holds a snapshot, it does not read `compose.yaml`. So a hardening change needs `--tags deploy,observability`:
-deploy only the stack and the check keeps yesterday's expectations and accuses a
-container that is exactly right. Seen on 2026-07-28 after the wg-easy 15
-migration dropped `SYS_MODULE` (ADR-020).
-
-Because the expectations are generated per service, a container that legitimately
-carries *fewer* hardening options is described accurately rather than needing an
-exemption list: netdata and Collabora are the only two without
-`no-new-privileges` (both run binaries that must gain privilege after `exec` —
-setuid plugins and file capabilities respectively), and the check now asserts
-they must **not** have it, catching an accidental addition just as readily as a
-removal. Their reasons live in ADR-018 and ADR-021.
-
-Separate from `Pi health` on purpose — a posture drift is not an outage, and it
-should not compete with temperature and disk alerts for attention. It also
-skips entirely while `/mnt/data` is locked, since the whole stack is
-legitimately down in that window.
-
-It also asserts that **every fail2ban jail configured is actually loaded**. A
-jail with a broken filter or action is not reported as broken — fail2ban starts,
-declares itself healthy, and protects one door less (measured: a single
-misindented line made two jails vanish). The check compares `jail.local` against
-`fail2ban-client status`, so it needs no list of its own to keep in sync.
-
-The posture spec also covers the complementary case, once a day:
-**expected containers that are not running at all** —
-`every-declared-service-has-a-container`. A container that exists but is not
-running is the netdata alarm `homelab_container_down` (10 min), and none of it
-is in `homelab-health.sh` any more. `docker ps --filter health=unhealthy` cannot
-see such a container, and the heal timer only resurrects containers that
-*exited* — one that fails to come back was invisible to both (issue #34).
-
-### Checking that the git mirror is still mirroring
-
-The health push carries a `mirror ok` field, and it exists because a mirror that
-stops mirroring is invisible everywhere else: the container is healthy, the web
-UI answers, every page loads, and the repository it serves is simply frozen. On
-2026-08-16 it had been 22 hours behind for a day before anyone noticed, killed by
-the previous day's own `SECRET_KEY` fix, which left the remote address
-undecryptable (issue #123).
-
-The field reads `mirror ok`, or `mirror Nh overdue` with an alert once a sync is
-more than an hour late. One hour of grace because a sync in flight leaves the
-schedule seconds overdue, never an hour.
-
-What it reads matters, and the obvious choice is wrong. `mirror.updated_unix`
-moves on every **attempt**, so it looked current throughout the outage — four
-hours in, it still carried a timestamp from that morning. Forgejo records no
-last-successful-sync at all. `next_update_unix` is the real signal: it only
-advances when a sync **completes**, so during that outage it sat two and a half
-hours in the past and sinking.
-
-### Checking that Netdata itself is not lying
-
-Netdata is the one service whose breakage is invisible from the outside: the
-container stays `healthy` and the dashboard keeps answering while a plugin is
-dead or the agent has silently fallen back to running as root. Any change to its
-container — image bump, capability, AppArmor profile (ADR-017, ADR-018) — is
-verified on three axes, never on status:
+Netdata's container stays `healthy` while a plugin is dead or the agent runs as root. After any
+change to its container (image, capability, AppArmor — ADR-017, ADR-018), check three axes:
 
 ```bash
-# 1. the agent must have dropped to uid 201; 0 means it gave up and runs as root
 docker exec netdata awk '/^Uid:/' /proc/1/status
-
-# 2. every plugin must be running — NETWORK-VIEWER's absence shows nowhere else
 docker exec netdata ps -eo comm | sort
-
-# 3. the chart contexts must still be there, per family
 docker exec netdata curl -s http://127.0.0.1:19999/api/v3/contexts \
 | python3 -c 'import sys,json,collections; c=json.load(sys.stdin)["contexts"]; \
 p=collections.Counter(k.split(".")[0] for k in c); print(len(c), dict(p.most_common(8)))'
 ```
 
-Reference, re-measured on this host 2026-09-03 with the three commands above:
-uid **201**, **11** distinct plugin processes (`NETWORK-VIEWER`, `apps.plugin`,
-`debugfs.plugin`, `go.d.plugin`, `netflow-plugin`, `otel-plugin`,
-`scripts.d.plugin`, `sd-jrnl.plugin`, `sd-unit.plugin`, `spawn-plugins`,
-`spawn-setns`), **383** contexts — netdata 137, system 43, ipv6 26, cgroup 25,
-ipv4 24, mem 23, app 14, user 14. AppArmor denials, if any, land in
-`dmesg | grep apparmor`.
+| Axis        | Expected                                                                                                   |
+|-------------|------------------------------------------------------------------------------------------------------------|
+| 1. uid      | **201** (0 means it fell back to root)                                                                     |
+| 2. plugins  | **11**: `NETWORK-VIEWER`, `apps.plugin`, `debugfs.plugin`, `go.d.plugin`, `netflow-plugin`, `otel-plugin`, `scripts.d.plugin`, `sd-jrnl.plugin`, `sd-unit.plugin`, `spawn-plugins`, `spawn-setns` |
+| 3. contexts | **383** — netdata 137, system 43, ipv6 26, cgroup 25, ipv4 24, mem 23, app 14, user 14                      |
 
-The previous reference here read 10 plugins and 278 contexts, listed
-`otel-signal-viewer` — which is not running — and omitted `netflow-plugin` and
-`scripts.d.plugin`. The image had not changed, so the numbers had drifted under
-it. **That is the failure mode of a reference value, and it is worth naming: a
-baseline nobody re-measures turns the check it serves into a boy who cried
-wolf.** Axis 2 exists precisely because `NETWORK-VIEWER`'s absence shows nowhere
-else; it can only do that job against a list that is current. Re-measure these
-three numbers whenever you change the container, and update this paragraph in
-the same commit — the point of the axis is the comparison, not the ritual.
+AppArmor denials land in `dmesg | grep apparmor`. Re-measure these values whenever you change the
+container and update this table in the same commit; a stale baseline makes the check useless.
 
 ## What is actually monitored
 
-The authoritative inventory is the Kuma database itself; export it with
-`ops/kuma-dump.sh` (read-only, WAL-safe). Being authoritative is also why that
-database is dumped nightly with `sqlite3 .backup` before the Restic snapshot
-(`docs/06-backup/README.md`): Kuma v2 has no configuration export and every
-monitor below was entered by hand in the web UI, so `kuma.db` is the only place
-this inventory exists. Restoring it comes early in a recovery, not late — until
-Kuma is back, none of the dead-man's switches below are watching. Broad shape:
+The authoritative inventory is the Kuma database: export it with `ops/kuma-dump.sh` (read-only,
+WAL-safe). Every monitor was entered by hand, so `kuma.db` is dumped nightly with `sqlite3 .backup`
+before the Restic snapshot (`docs/06-backup/README.md`). Restore it early in a recovery: until Kuma
+is back, no dead-man's switch is watching. Monitor list and settings:
+[uptime-kuma.md](../05-services/uptime-kuma.md#monitors-configured).
 
 ### Reachability (Kuma active checks)
 
-Real health endpoints rather than a bare `200 on /`, so a service that is up
-but broken still trips: Nextcloud `/status.php`, Vaultwarden `/alive`,
-Jellyfin `/health`, Navidrome `/ping`, SearXNG `/healthz`, Dozzle
-`/healthcheck`, Calibre-Web `/login`, Collabora `/hosting/capabilities`,
-Transmission `/transmission/web/` (authenticated, keyword — #191), plus
-IT-Tools, Immich, wg-easy, Traefik on :443, Pi-hole on :53, an ICMP
-ping of the Pi and the BitTorrent peer port.
+- Real health endpoints, not `200 on /`: Nextcloud `/status.php`, Vaultwarden `/alive`, Jellyfin
+  `/health`, Navidrome `/ping`, SearXNG `/healthz`, Dozzle `/healthcheck` (ADR-023), Calibre-Web
+  `/login`, Collabora `/hosting/capabilities`, Transmission `/transmission/web/` (authenticated,
+  keyword), plus IT-Tools, Immich, wg-easy, Traefik on :443, Pi-hole on :53, an ICMP ping of the Pi
+  and the BitTorrent peer port.
+- Checks run from the Pi itself (ADR-014): they prove the service works, not that it is reachable
+  from the internet.
 
-Dozzle is where that rule stopped being a principle and became a measurement.
-Stop its socket-proxy and it keeps serving `/` exactly as before — container
-`Up`, page loading, and nothing in it — while `/healthcheck` turns 500
-(ADR-023). The first version of that ADR pointed the monitor at `/`, which would
-have stayed green through the one failure worth catching.
+Limits of the pattern:
 
-**Two services reach the limit of this pattern**, and it is worth naming them
-rather than pretending the rule is universal.
+- **Collabora**: the endpoint stays green while no document opens. Covered instead by the image
+  healthcheck (→ `homelab_container_unhealthy` after 10 min, pushed on the adapter's next 5-min
+  tick: 15 min worst case) and by the conversion every deploy runs. The monitor covers reachability
+  and TLS expiry (ADR-021).
+- **Calibre-Web**: its own healthcheck can report `healthy` with a broken library. The compose
+  healthcheck probes `/login`, and the monitor covers reachability only (ADR-025).
+- **Nextcloud**: `/status.php` returns 200 with `"maintenance":true` or `"needsDbUpgrade":true`, so
+  the monitor is a keyword check.
 
-**Collabora** is the first. Its
-`/hosting/capabilities` endpoint is answered by the main process, so a monitor
-on it stays green while no document can open — the failure mode described in
-ADR-021. The real probe is a document conversion, which is a multipart POST and
-does not fit a Kuma HTTP check. Two other things cover the gap instead: the
-image's own healthcheck flips the container `unhealthy`, which the netdata alarm
-`homelab_container_unhealthy` raises after 10 min and the adapter pushes to Kuma
-on its next 5-minute tick — 15 min worst case, and every deploy runs the conversion itself
-and fails if it does not produce a PDF. A Kuma monitor on `/hosting/capabilities`
-was added on 2026-08-05 — it had been described here for months without existing,
-which the `ops/kuma-dump.sh` inventory exposed. It covers reachability and TLS
-expiry; it is not the thing that proves editing works.
+**Nextcloud keyword monitor (monitor #1).** It lives only in `kuma.db`; re-enter it whenever the
+monitor is recreated, as part of restoring Kuma:
 
-**Calibre-Web** is the second, and worse in one respect: its own healthcheck
-lies. While measuring its capability requirements, two variants that could not
-create `/app` caches or install `/config/processed_books/*` still reported
-`healthy` and still served the login page — so neither `docker ps` nor an
-unauthenticated HTTP monitor would have noticed. The web app and the library
-fail independently, and proving the library is readable needs an authenticated
-request, which a Kuma HTTP check cannot make without storing credentials. The
-compose healthcheck therefore probes `/login` explicitly instead of trusting the
-image's, and the monitor is understood to cover reachability only (ADR-025).
-
-**Nextcloud** is a third case, and a different one: the endpoint is right and the
-*acceptance criterion* was too loose. `/status.php` returns **HTTP 200** with
-`"maintenance":true`, and again with `"needsDbUpgrade":true` — precisely the two
-states where Nextcloud is up, answering, and unusable, and precisely the states a
-bad upgrade leaves behind. A monitor accepting `200-299` is green throughout.
-
-The fix is a keyword match. **It is not a field on an `HTTP(s)` monitor** — in
-Kuma, keyword matching is a separate *monitor type*, so the change is:
-
-1. Monitor Type: `HTTP(s)` → **`HTTP(s) - Keyword`** (`type='keyword'` in the
-   database). The Keyword field only appears once the type is changed.
+1. Monitor Type: `HTTP(s)` → **`HTTP(s) - Keyword`** (`type='keyword'` in the database). The
+   Keyword field appears only after the type change.
 2. Keyword:
 
    ```
    "maintenance":false,"needsDbUpgrade":false
    ```
 
-Everything else stays — URL, `Accepted Status Codes` at `200-299`, and the
-heartbeat history, since the monitor id does not change. The keyword is checked
-*in addition to* the status code, not instead of it. Monitor #6 (Immich,
-keyword `pong`) is a working example of the same type in this instance.
+3. Keep the URL, `Accepted Status Codes` at `200-299` and the monitor id. The keyword is checked in
+   addition to the status code. Monitor #6 (Immich, keyword `pong`) is a working example.
 
-Kuma searches for the string literally, and the two fields are adjacent in the
-payload — verified against the live response rather than the source:
+Kuma matches the string literally; the two fields are adjacent in the live payload:
 
 ```json
 {"installed":true,"maintenance":false,"needsDbUpgrade":false,"version":"34.0.2.1",…}
 ```
 
-**This lives only in `kuma.db`.** Kuma v2 has no configuration import, so a
-rebuilt Kuma comes back with the monitor green and the keyword gone — which is
-why the exact string is written here rather than left in the UI alone. Re-enter
-it whenever monitor #1 is recreated, and treat that as part of restoring Kuma,
-not as an optional refinement.
+**Certificates.**
 
-TLS certificate expiry notification is enabled on **15 of the 18 active HTTPS
-monitors**. Traefik renews automatically, so this is normally moot — it exists to
-catch a *silent* renewal failure (ACME error, bad API token, rate limit), which
-would otherwise only surface as an outage on expiry day.
-
-That mechanism reaches **15 of the 21 certificates**, and the six it misses now
-fail for TWO different reasons, where this paragraph used to name only one.
-Three hostnames have no HTTPS monitor at all, which is the original reason. The
-other three — Prowlarr, Sonarr and Radarr, created 2026-09-13 — have a monitor
-with `expiry_notification` switched off, so the count coincidentally stayed at
-15 while its cause changed underneath. Since #157, `homelab-health.sh` parses
-`acme.json` directly instead, so all **21** are watched
-from the store Traefik actually writes — the push carries e.g. `certs 31d/21`,
-naming the soonest expiry and the count. It alarms at **21 days**: Traefik renews
-at 30, so the alarm means renewal has been failing for over a week — long enough
-that one unreachable night is retried and never seen, short enough to act on
-calmly.
-
-Reading the log was not an option and that is worth recording: Traefik's log
-filter is at WARN, and renewal lines are below it, so a log-based watch was
-structurally blind. The parse is indifferent to *why* a renewal stopped.
-
-An absent `acme.json` reports rather than skips — while `/mnt/data` is locked the
-file is legitimately missing and the disk report already says so, but on a
-mounted volume its absence means nothing is being watched at all (#177).
-
-Since the public HTTP surface was closed (ADR-014, issue #12), these checks
-run **from the Pi itself** — they prove the service works, not that it is
-reachable from the internet. Nothing is meant to be reachable from the
-internet except WireGuard.
+- Kuma TLS-expiry notification is on for 15 of the 18 active HTTPS monitors (off for Prowlarr,
+  Sonarr, Radarr); three hostnames have no HTTPS monitor. So Kuma sees 15 of 21 certificates.
+- `homelab-health.sh` parses `acme.json` directly and watches all **21**. The push carries e.g.
+  `certs 31d/21` (soonest expiry, count).
+- It alarms under **21 days**: Traefik renews at 30, so the alarm means renewal has failed for over
+  a week. Traefik's WARN log level hides renewal lines, so the log cannot be used.
+- An absent `acme.json` alarms on a mounted volume (while `/mnt/data` is locked the disk report
+  already says so).
 
 ### Host health (push, every 5 min)
 
-`homelab-health.sh` pushes two monitors covering the host-level signals that
-need a human — `Pi health` for acute conditions, `Pi pending action` for the
-ones that wait on the operator (reboot, stale libraries, boot record, security
-updates, certificate expiry). Nine of the conditions below are no longer
-evaluated by that script — ADR-030 moved them to curated Netdata alarms and ADR-032 to a goss
-spec — so the third column names what actually watches each one. Without it the
-table reads as coverage, which is how a deleted check sat in it unnoticed:
+`homelab-health.sh` pushes `Pi health` (acute) and `Pi pending action` (waits on the operator). The
+third column says what actually evaluates each condition:
 
 | Signal               | Alarms when                                                                                                                                                        | Watched by                            |
 |----------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------|
@@ -705,366 +345,125 @@ table reads as coverage, which is how a deleted check sat in it unnoticed:
 | Crash-heal silent    | the heal timer is active but logged no `checked` line in **15 min**, or saw fewer or more services than are declared                                               | `homelab-health.sh`                   |
 | Timer disarmed       | a `homelab-*` control timer is present but not `enabled` and `active`                                                                                              | goss `posture.yaml` ³                 |
 
-¹ Both, deliberately. ADR-030's migration rule is that no bash line is deleted
-until its replacement has been **observed** firing, and an undervoltage alarm
-cannot be observed on demand. The script's check stays until it is.
-² Evaluated by the goss spec, reported by `homelab-health.sh`, which reads its
-TAP output — so the condition still arrives on the host-health monitor.
-³ Evaluated by `posture.yaml`, which `homelab-posture.sh` runs **daily** and
-reports on `Pi security posture` — not on this monitor, and not every 5 min.
+¹ Both until the netdata alarm has been observed firing (ADR-030); undervoltage cannot be triggered
+on demand.
+² Evaluated by the goss spec; `homelab-health.sh` reads its TAP, so it arrives on `Pi health`.
+³ Evaluated daily by `posture.yaml`, reported on `Pi security posture`.
 
-> **`Unit restarted` was removed from this table on 2026-08-29.** It read *"a
-> watched unit's `NRestarts` moved since the last run — held across a second
-> beat"*, and nothing has watched that since ADR-030. It was **deleted, not
-> moved**: the NRestarts snapshot, its state file and its latch went with it,
-> and nothing in `homelab-health.sh.j2` or `goss-units.yaml.j2` replaced them. Its own measurement retired it: sixty days, one real
-> detection, zero notifications. The row sat directly above `systemd restart
-> loop`, which is real and implemented — the #201 shape, an unwatched condition
-> reading as watched because a watched one is next to it.
+The table is maintained by hand. To check it, compare against `problems+=(` in
+`homelab-health.sh.j2`, `ansible/roles/observability/templates/netdata-health-*.conf.j2` and
+`goss-units.yaml.j2`.
 
-> The mirror row said "> 4 h" until it was checked against the machine. The
-> alarm cannot fire that early and never could: `next_update_unix` is set to
-> *now + interval* on each **completed** sync, the interval is **8 h**, and
-> `MIRROR_GRACE` is 3600 s — so the earliest possible alarm is nine hours after
-> the last good sync. Nothing was broken; the promise was. Shortening the
-> detection window means shortening the mirror interval, which is a decision
-> about how fresh the copy has to be, not a threshold to tune here.
+**Threshold notes**
 
-The table is generated from nothing, and it now spans three mechanisms rather
-than one. Keeping it honest means checking all three by hand: `problems+=(` in
-`homelab-health.sh.j2`, the alarm files in
-`ansible/roles/observability/templates/netdata-health-*.conf.j2`, and
-`goss-units.yaml.j2`. It drifted to eleven rows against twenty-one conditions
-before #178, and the gap was made of exactly the two mechanisms added most
-recently. It drifted the other way for #263 — a row surviving its own deletion —
-and the mechanism that made that possible is a table with no column saying who
-does the watching.
-
-**Why 800 MiB.** `MemAvailable` rather than free memory: the page cache is
-reclaimable and `/mnt/data` churns hundreds of MB a night, so free memory reads
-alarmingly low on a perfectly healthy Pi. The threshold was measured against 19
-days of Netdata retention — the hourly minimum never went below 800 MiB, and the
-lowest instantaneous dip (756 MiB) is absorbed by the alarm's own 5-minute
-window (`lookup: max -5m`), so it would have been silent throughout.
-
-**Why the swap file was doubled before it could be alarmed on.** At 2 GiB it did
-not sit at a high percentage — it ran *saturated*, mostly on cold pages
-(Collabora's pre-forked kits, `immich-server`) that will never be touched again:
-
-| Window                  | `used` peak            | `free` peak in the same bucket        |
-|-------------------------|------------------------|---------------------------------------|
-| 2026-08-09 → 2026-08-12 | 2047.996 MiB of 2048.0 | never above ~60 MiB, down to 1.76 MiB |
-
-An occupancy that is already full in the steady state carries no information. A
-threshold below it would have been red for six days with nothing to do about it,
-the same trap that retired the extended SMART self-test; one above it could
-never fire. So the file went to 4 GiB (2 GiB more on a disk with 3.6 TiB free,
-no RAM, no CPU).
-
-**What the new steady state should be — and why it is not 46 %.** A swap pinned
-at its ceiling does not tell you how much it wanted, only that it wanted *at
-least* 2 GiB. Halving the observed figure would be arithmetic on a truncated
-value: the measurement was censored by the size of the file, so it cannot be
-scaled. Reconstructing instead from the refill rate after the 2026-08-03 reset —
-+500, +901, +205, +181, +66 MiB per night, driven by the 03:00 backup, a concave
-curve — puts the real steady state around **2.1–2.3 GiB, i.e. 52–57 %** of the
-new file. That is the number that makes occupancy mean something again.
-
-It is worth being clear about what a full swap does and does not mean. It is
-**not** evidence that the machine is short of memory — nothing here has ever
-been OOM-killed. It means the kernel has nowhere left to evict *to*, which only
-matters on the day available memory also runs short. The two lows have never
-coincided; the alarm exists so that they are not discovered coinciding.
-
-> **85 % is provisional.** It is the one threshold on this page not backed by
-> measurement: every observation available was capped by the old 2 GiB size, so
-> how much the kernel would have evicted with more room is an inference, not
-> data. With `swappiness=10` it should stay conservative. Revisit after a few
-> weeks of the new steady state — and if it settles above 85 %, raise the
-> threshold rather than delete it.
-
-Resizing the swap file is a **manual** operation: `creates:` guards it, so
-changing `swap_size_mb` alone does nothing. The procedure, and the reason
-`swapoff` deserves care, are in `ansible/roles/storage/tasks/swap.yml`.
-
-**Why the DNS check queries a random name.** A dead DoH upstream is the failure
-this stack was least equipped to notice, because everything that looks like it
-should catch it is answering from cache or from the wrong side of the path:
-
-| Would-be check         | Why it cannot see a dead upstream                                                                                                                                                             |
-|------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Kuma `Pi-hole DNS`     | asks for the A record of the domain every 60 s, which FTL serves from cache — **10 084 queries over 7 days produced 2 upstream forwards**, both of them container restarts flushing the cache |
-| `dnsproxy` healthcheck | there isn't one                                                                                                                                                                               |
-| Pi-hole healthcheck    | uses `+norecurse` against a local name, so it cannot reach the upstream by construction                                                                                                       |
-
-So if `dnsproxy` dies, Pi-hole keeps answering cached names, both containers read
-green, and the LAN loses resolution for everything else — a failure `compose.yaml`
-already documents and, until now, only prescribed an operational workaround for.
-
-A random label under the domain cannot be served from cache, so it walks the
-whole path. Verified rather than assumed: a probe query landed in the FTL
-database as `status=2 forward=127.0.0.1#5053` and took 656 ms, where a cached
-answer returns in ~0 ms with no forward at all.
-
-**`NXDOMAIN` counts as success.** The question is whether the upstream *answered*,
-not whether the name exists. `SERVFAIL`, `REFUSED` and silence are the failures —
-they are what a dead `dnsproxy` produces. The alarm needs the failure to hold
-for **240 s** — `gate dns-upstream 240` — because this probe deliberately removes
-the cache from the path and so has no cushion of its own. (Not "the same gate as
-the memory check": that check left this script for netdata, where the equivalent
-is `lookup: max -5m`.)
-
-The last two close the gaps the rest of the stack cannot see: Netdata graphs
-disk fill but delivers no notification, and the heal timer only resurrects
-containers that *exited* — one that stays up while failing its healthcheck
-would otherwise be invisible. `nextcloud-notify-push`, whose death silently
-kills mobile push, is not one of them: it declares no healthcheck, so the
-hourly self-test above is what watches it.
-
-**The unit checks exist because a service can die for hours in silence** (issue
-#52): `claude-remote-control` looped 1 112 times over 5h47 on 2026-07-27 while
-work was going on continuously on this host, and `fail2ban` — sshd jail included
-— was down for six minutes the same morning. Neither was noticed by anything but
-a human happening to look.
-
-`systemctl --failed` alone would have caught **neither**. A unit with
-`Restart=on-failure` and `StartLimitIntervalSec=0` restarts forever and never
-reaches the failed state: it sits in `activating/auto-restart` while `--failed`
-stays empty. That is why the loop check looks at the sub-state instead, and
-reports once the sub-state has held for **240 s** so a single legitimate restart
-does not page.
-
-Timer-driven services rest at `inactive/dead`, so their state says nothing — for
-those the signal is the **result of the last run**, and the timer list is
-enumerated rather than hard-coded so a new timer is covered without editing the
-script.
-
-That last alert only reaches containers that *declare* a healthcheck, so a
-missing one is a blind spot rather than a green light. `socket-proxy` was one,
-and its failure is invisible without help: freezing HAProxy inside it was
-measured to leave Traefik answering 200 from its in-memory routes, so no page
-breaks — Traefik has merely gone blind to container changes, and would come up
-with an empty routing table whenever it next restarts. The check flips to
-unhealthy ~105 s after the proxy stops answering. It probes `/_ping` through
-the proxy rather than testing the port, since a HAProxy still listening but no
-longer reaching the Docker socket would pass a port test.
+- **Memory, 800 MiB**: `MemAvailable`, not free memory (the page cache is reclaimable). Over 19 days
+  the hourly minimum never went below 800 MiB; the 5-min window absorbs short dips.
+- **Swap, 85 % (provisional)**: the swap file is 4 GiB because at 2 GiB it sat saturated with cold
+  pages and occupancy meant nothing. The expected steady state is ~2.1–2.3 GiB (52–57 %). A full
+  swap is not memory shortage; it matters only if available memory is also low. If occupancy settles
+  above 85 %, raise the threshold rather than delete it.
+- **Resizing swap is manual**: `creates:` guards it, so changing `swap_size_mb` alone does nothing.
+  Procedure and `swapoff` caveats: `ansible/roles/storage/tasks/swap.yml`.
+- **DNS, random name**: Kuma's `Pi-hole DNS` and Pi-hole's healthcheck are answered from cache or
+  locally, so a dead `dnsproxy` leaves them green. A random label under the domain must go upstream
+  (`forward=127.0.0.1#5053`). `NXDOMAIN` counts as success; `SERVFAIL`, `REFUSED` and silence fail.
+  The gate is `gate dns-upstream 240` because the probe has no cache cushion.
+- **Restart loop, sub-state**: a unit with `Restart=on-failure` and `StartLimitIntervalSec=0` never
+  reaches `failed`; it sits in `activating/auto-restart`, so `systemctl --failed` misses it. 240 s
+  lets a single legitimate restart pass.
+- **Timers, last result**: timer services rest at `inactive/dead`; the check reads the last run's
+  result and enumerates timers, so new ones are covered automatically.
+- **Unhealthy container** only covers containers that declare a healthcheck. `socket-proxy` probes
+  `/_ping` through the proxy (unhealthy ~105 s after it stops answering) because Traefik keeps
+  serving from memory while blind to container changes. `nextcloud-notify-push` has no healthcheck;
+  the hourly self-test watches it.
 
 ### The weekly Lynis audit
 
-A weekly Lynis run pushes its hardening score to a separate monitor. The alarm
-is not the score itself — an absolute floor of 65 is decorative when the index
-has measured 73-74 for months — but a **ratchet on the best index ever
-recorded**, so a fall from 74 to 66 reports red instead of sitting above the
-floor.
+`homelab-lynis-report.sh` pushes `Pi Lynis audit` weekly.
 
-**The ratchet is tied to the Lynis version**, and that is not a refinement. The
-index is computed by Lynis, so an upgrade that adds tests lowers it for
-everybody — permanently, with no path back to green, for a change of ruler
-rather than a change in what is being measured. A new version therefore resets
-the baseline and says so in the message; a drop under the same version is a real
-regression. The floor is still checked first, so a version bump that genuinely
-takes the posture below 65 still alarms.
-
-**The message names the warning test IDs, and a regression names what is new.**
-On 2026-08-23 it said `index 71 (best 73), 4 warnings — regression, was 73` and
-there was no way to find out which four: Lynis rewrites
-`/var/log/lynis-report.dat` on every run, including a manual one, and a manual
-run two hours later had already destroyed the evidence. The cause turned out to
-be `KRNL-5830`, *"reboot of system is most likely needed"* — a legitimate,
-temporary, operator-actionable condition that held the monitor red for three
-days and would have held it there until the following Monday even after the
-reboot, because the audit only runs weekly. The report behind each green verdict
-is now kept, so the next regression can be told what changed.
-
-**`PKGS-7388` is a known false positive on this host and is deliberately NOT
-skipped.** Lynis 3.0.9 (Ubuntu 24.04's version, built 2023-08-03) looks for a
-security repository by reading `/etc/apt/sources.list` and `.list` files; this
-host declares its channel in the deb822 format Ubuntu moved to —
-`/etc/apt/sources.list.d/ubuntu.sources`, `Suites: noble-security` — which that
-version cannot parse. The channel works: `apt-check` tracks security updates and
-`unattended-upgrades` installs them.
-
-It is left in rather than added to a skip list on purpose. An exemption outlives
-the reason for it and becomes a blind spot — the same shape as the wg-easy
-exemption removed from the posture check in #235 — and skipping the test would
-raise the index, moving the ratchet for a reason unrelated to hardening. It
-costs one test ID in a weekly message, and that ID now appears in the message,
-which is what makes this paragraph findable.
+- Alarms below an absolute floor of **65**, checked first.
+- Alarms on a fall below the **best index ever recorded** (ratchet), per Lynis version: a new version
+  resets the baseline and says so in the message.
+- The message names the warning test IDs, and a regression names what is new. The report behind
+  each green verdict is kept (`/var/log/lynis-report.dat` is rewritten by every run, manual ones
+  included).
+- `KRNL-5830` ("reboot … needed") is a legitimate, temporary warning; it clears only at the next
+  weekly run after the reboot.
+- **`PKGS-7388` is a known false positive; do not skip it.** Lynis 3.0.9 cannot parse the deb822
+  source `/etc/apt/sources.list.d/ubuntu.sources` (`Suites: noble-security`); security updates work.
+  Skipping it would raise the index and move the ratchet.
 
 ### DDNS (push dead-man's switch)
 
-`cloudflare-ddns.sh` keeps the `vpn.<domain>` A record pointing at the current
-public IP, every 15 minutes. It pushes on **every** run, including the common
-no-change one, and pushes `down` with a specific reason on each failure path —
-no public IP, and, for each of the four Cloudflare calls, one message when the
-transport failed and a different one when an answer arrived unusable. Heartbeat
-1080 s — the 900 s period plus a 180 s grace, the same period-plus-margin shape
-the other push monitors use — with retries **off**, like `Pi health`.
+`cloudflare-ddns.sh` (`homelab-ddns.service`, every 15 min) keeps the `vpn.<domain>` A record on the
+current public IP.
 
-Zero retries is deliberate and is the opposite of what it looks like: on a push
-monitor a retry does not buy patience, it **replaces the message the script sent
-with a generic `"No heartbeat in the time window"`**, so the alert then names the
-wrong thing. Measured over every notifying beat before #179 changed it. The
-reasoning is in [uptime-kuma.md](../05-services/uptime-kuma.md); this line said
-"one retry" until #203.
+- Pushes on **every** run. Pushes `down` with a specific reason on each failure: no public IP, and
+  for each of the four Cloudflare calls one message for a transport failure and another for an
+  unusable answer, with curl's exit code as in `journalctl`.
+- Monitor: heartbeat 1080 s, retries **0** (reason in [uptime-kuma.md](../05-services/uptime-kuma.md)).
+- Cloudflare calls use `--retry 2`, except the create (a replayed POST can duplicate the A record).
+  This is independent of the monitor's retries.
+- A failing run is caught within 5 min by the timer check in `Pi health`; this monitor adds the case
+  of a timer that stopped running (its last result stays `success`).
+- Neither proves the public record is correct; that needs a probe from outside the LAN. The
+  WireGuard HTTP monitor does not help: Kuma's `extra_hosts` pins `vpn.<domain>` to the LAN IP.
+- A stale record breaks remote access at once and silently.
 
-**The script's own retries are a different knob, and postdate that paragraph.**
-Three runs died on a single 10-second timeout to `api.cloudflare.com` —
-2026-08-31 20:00, 2026-09-02 16:30, 2026-09-03 12:45 — out of 4364 since
-2026-07-20, each healing unaided at the next tick 15 minutes later. Each one
-reddened two monitors rather than one: DDNS, and `Pi health`, which reports the
-last systemd unit that failed. The A record was correct throughout; only the
-confirmation of it was lost. The Cloudflare calls now carry `--retry 2`, the
-same flags the push in `notify` had all along — except the create, deliberately
-left at one attempt, because a POST replayed after a lost answer is how a
-duplicate A record appears. That is curl retrying one HTTP call inside a run and
-does **not** touch the monitor's retry count, which stays at zero for the reason
-above.
+**Offsite tunnel recovery (ADR-029).** `offsite-wg-reresolve.timer` re-resolves the endpoint name
+and calls `wg set` when the peer's handshake goes stale, within four minutes.
 
-The messages were the other half. `curl -f` reports an expired token and an
-unreachable network with the same exit code, and the old guards could not tell a
-body that never arrived from one that arrived saying nothing useful — so on
-2026-09-02 the log read `zone 'example.com' not found (token scope?)` for what
-was a network timeout, sending the reader to audit a token that was never
-involved. Each call now names which of the two happened, and prints curl's exit
-code so the message matches the line above it in `journalctl`.
-
-**What it adds is narrower than it looks, and worth stating.** A DDNS run that
-*fails* was already caught within 5 minutes: the host-health timer check
-enumerates `homelab-*` timers and reports any whose last run did not end in
-`success`, and `homelab-ddns.service` is one of them. An expired token, a
-Cloudflare API change, a rate limit — all of those exit non-zero and were
-covered, faster than this monitor's 36-minute worst case.
-
-What was **not** covered is the timer that stops running at all. A disabled,
-stopped or masked timer leaves the last recorded result at `success`
-indefinitely, so the result check stays green over a job that no longer
-happens. Silence is the only signal for that, and only a dead-man's switch
-reads silence.
-
-Neither check proves the published record is *correct*. Verifying that the A
-record matches the real public IP needs a probe from outside the LAN, which is
-a different piece of work. Note also that the WireGuard HTTP monitor does not
-help here despite watching `vpn.<domain>`: Kuma's `extra_hosts` pins that name
-to the LAN IP, so the monitor tests the internal path and is structurally blind
-to the public record DDNS maintains.
-
-The cost of a stale record is asymmetric. Remote access breaks immediately and
-silently — a device off the LAN resolves the old address and the tunnel never
-comes up.
-
-The offsite Pi used to share that fate, and worse: its `Endpoint` is a hostname
-`wg-quick` resolves once at bring-up, so a change in the home address partitioned
-it *permanently*. The failure was caught, but indirectly — a backup alarm up to
-a day later, pointing at the wrong subsystem — and since SSH to that host runs
-through the same tunnel, the only repair left was a trip.
-
-It now recovers on its own (#180). `offsite-wg-reresolve.timer` re-resolves the
-name and calls `wg set` when the peer's handshake goes stale, bounded to under
-four minutes. Two properties make it safe on a host nobody can reach: it fires
-on the *handshake*, so a working tunnel is never touched, and it hands the name
-to `wg set` rather than resolving itself, so a resolution failure aborts instead
-of clearing an endpoint. It works at all only because that tunnel is split —
-the offsite Pi resolves through its own LAN router, not through the link it is
-repairing.
-
-Detection follows the same asymmetry. The offsite health report now carries the
-handshake age, but that message travels through the tunnel, so it can only
-describe a tunnel that is *alive* — one that needed repairing, or one whose
-handshake is ageing. A tunnel that is truly down is still read from silence, by
-the dead-man's switch.
-
-One caveat, measured rather than assumed. A deliberate break on the live tunnel
-recovered in under ten seconds — by WireGuard's **roaming**, not by the timer,
-which never reached its gate. A peer adopts the source address of any
-authenticated packet it receives, so the homelab's next rekey taught the offsite
-host where home was.
-
-That covers a broken endpoint while the home address is *unchanged*, which is
-not the failure this guards against. When the address changes, the homelab's
-packets reach the parents' NAT from a source it has never seen, and the common
-consumer filtering behaviours drop them (RFC 4787); upstream states the same
-conclusion directly — a moved server cannot reach a client behind NAT, the
-client must initiate. Which is what re-resolving does: the offsite host sends
-first, reaching the peer and opening the return path in the same packet. The
-timer is therefore the recovery, not a redundancy — and it works under any
-filtering behaviour, because it never asks that NAT to accept an unsolicited
-source. See ADR-029.
+- It fires only on a stale handshake, so a working tunnel is never touched.
+- It hands the name to `wg set`, so a resolution failure aborts instead of clearing the endpoint.
+- It works because the offsite Pi resolves through its own LAN router, not the tunnel.
+- After a home address change, only the offsite side can reopen the path through its NAT, so this
+  timer is the recovery, not a redundancy. WireGuard roaming covers only an unchanged address.
+- The offsite health report carries the handshake age. A tunnel that is truly down shows only as
+  silence on the dead-man's switch.
 
 ### Backups (push dead-man's switches)
 
-Every leg of the backup chain pushes on success, and the Kuma monitor alarms
-on *silence* — so a job that never ran is caught, not just one that failed:
-local backup (26 h window), local repository prune + check, offsite copy,
-offsite repository check, and the offsite Pi's own disk/SMART health. See
-`knowledge/runbooks/backup-monitoring.md`.
+Every leg pushes on success and Kuma alarms on silence: local backup (26 h window), local prune +
+check, offsite copy, offsite check, offsite Pi disk/SMART health. See
+[backup-monitoring.md](../../knowledge/runbooks/backup-monitoring.md).
 
 ## Alerting
 
-Discord webhook, wired to every monitor.
+Discord webhook on every monitor. Known limitations, accepted (issue #13):
 
-**Known limitations, accepted for now** (issue #13):
-
-- **Nothing watches the watcher.** Kuma runs on the Pi, so a power loss, SD
-  corruption or kernel panic takes the alerting down with the services: a total
-  outage produces *silence*, not an alert. Closing this needs an off-Pi checker
-  (the offsite Pi over the WireGuard tunnel, since there is no longer a public
-  endpoint to poll externally).
-- **Single channel.** A broken or muted Discord webhook means no alerts at all.
-- **Notification storm.** Monitor dependencies are not chained (`parent` is
-  null everywhere — Kuma v2's chaining is limited), so a single Pi or Traefik
-  outage trips nearly every monitor at once. Each monitor then re-notifies on its
-  own `resend_interval` — `max(1, round(21600 / interval))` beats, so roughly
-  every 6 h per monitor for the length of the incident (see
-  `docs/05-services/uptime-kuma.md`). This is tolerated rather than worked
-  around; it is **not** the single burst this paragraph claimed until
-  2026-08-29, and alert-fatigue reasoning should start from the 6 h figure.
+- **Nothing watches the watcher.** Kuma runs on the Pi; a total outage produces silence.
+- **Single channel.** A broken or muted webhook means no alerts.
+- **Notification storm.** Monitors are not chained (`parent` is null), so a Pi or Traefik outage
+  trips nearly every monitor, and each re-notifies about every 6 h (`resend_interval`) for the
+  length of the incident.
 
 ## Log retention
 
-Both write sources are bounded so they can never fill the SD card:
-
-- Docker: `json-file` driver, `max-size 10m` × `max-file 3`
-  (`ansible/roles/docker/tasks/install.yml`) — the DAEMON default. A container
-  whose log is itself the durable evidence overrides it in `compose.yaml`;
-  `traefik-log-redactor` carries `20m` × `10` for that reason (ADR-034), and
-  the ring is emptied by every recreation of the container.
-- journald: persistent but capped at `SystemMaxUse=1500M`, via a drop-in
-  (`ansible/roles/base/tasks/logging.yml`). Since 2026-09-20 the persistent
-  store is on the encrypted volume, mounted at the unlock
-  (`ansible/roles/storage/tasks/journal.yml`): before the unlock only the
-  volatile current-boot journal is readable, so the "unexplained poweroff"
-  runbook cannot rely on previous boots' logs when it decides.
+- Docker: `json-file`, `max-size 10m` × `max-file 3` daemon default
+  (`ansible/roles/docker/tasks/install.yml`). `traefik-log-redactor` overrides it with `20m` × `10`
+  in `compose.yaml` (ADR-034); its ring empties on every recreation.
+- journald: persistent, `SystemMaxUse=1500M` via a drop-in (`ansible/roles/base/tasks/logging.yml`).
+  The persistent store is on the encrypted volume, mounted at unlock
+  (`ansible/roles/storage/tasks/journal.yml`): before unlock, only the current boot is readable, so
+  the "unexplained poweroff" runbook cannot rely on previous boots.
 
 ## Reading the UFW log
 
-`UFW BLOCK` lines are the closest thing this host has to an intrusion signal, and
-they are readable — which was not true until 2026-08-02, when Transmission's
-NAT-PMP was emitting 3 739 blocked packets a day, 86% of the log, and burying
-everything else.
+`UFW BLOCK` lines are the closest thing to an intrusion signal here.
 
 ```bash
 sudo journalctl --since "24 hours ago" -k | grep "UFW BLOCK" \
   | grep -oP 'SRC=\K[0-9.]+' | sort | uniq -c | sort -rn
 ```
 
-What is normal, so that what is not stands out:
+Normal entries:
 
-| Source        | Port | Why it is there                                              |
-|---------------|------|--------------------------------------------------------------|
-| `192.168.1.1` | —    | the router's IGMP multicast to 224.0.0.1. Constant, harmless |
-| `10.8.0.x`    | 853  | a VPN client probing DoT. See below                          |
-| LAN addresses | misc | occasional device chatter                                    |
+| Source        | Port | Why it is there                                                                                   |
+|---------------|------|---------------------------------------------------------------------------------------------------|
+| `192.168.1.1` | —    | the router's IGMP multicast to 224.0.0.1. Constant, harmless                                      |
+| `10.8.0.x`    | 853  | Android Private DNS probing DoT, then falling back to 53 — filtered normally. Do not re-investigate |
+| LAN addresses | misc | occasional device chatter                                                                         |
 
-**Do not re-investigate the port 853 entries.** They are Android's Private DNS in
-automatic mode: the device probes its DNS server on 853, gets nothing, and falls
-back to plain DNS on 53. Measured on 2026-08-02 — the same client had made 2 135
-queries to Pi-hole over the previous 24 h, so filtering applies to it in full.
-It is noise, not a bypass. Offering DoT on the Pi would silence it and encrypt
-that hop, but that is a feature, not a fix.
-
-**The baseline.** Over 24 h on 2026-08-02, after the Transmission fix: two packets
-from the internet, both from a Meta range. fail2ban held zero failures and zero
-bans across its three jails, and seven days of SSH logs contained no failed
-attempt. Almost nothing hostile reaches this host, because almost nothing is
-forwarded to it — see the amended attack-surface note in ADR-013.
+Almost nothing from the internet reaches the host, because almost nothing is forwarded to it
+(ADR-013).

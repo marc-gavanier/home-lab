@@ -1,82 +1,33 @@
 # Runbook: notify_push self-test fails
 
-`occ notify_push:setup https://drive.<domain>/push` runs a 6-step self-test.
-Each failure points at a specific misconfiguration. This runbook lists the ones
-hit on this homelab and their fixes. All fixes live in `docker/compose.yaml` and
-`ansible/roles/deploy/tasks/nextcloud.yml` — re-deploy with `--tags deploy`. (The
-role's `main.yml` has been a thin orchestrator since the July 2026 split; it imports
-twenty-one files and contains none of this.)
+Use this page when the notify_push Kuma monitor goes red or `occ notify_push:setup`
+fails. Clients silently fall back to 30 s polling.
 
-## Quick diagnosis
+## Before you start
+
+- Fixes live in `docker/compose.yaml` and `ansible/roles/deploy/tasks/nextcloud.yml`;
+  redeploy with `--tags deploy`.
+- `homelab-notify-push.timer` runs the self-test hourly; the Discord alert names the
+  failing step.
+
+## Steps
+
+1. Run the setup test; it stops at the first failing step:
+   ```bash
+   docker exec -u www-data nextcloud php occ notify_push:setup https://drive.<domain>/push
+   ```
+2. Match the message in [If it fails](#if-it-fails) and apply the fix.
+
+## Check it worked
+
+Run the self-test, then re-push the result to Kuma:
 
 ```bash
-docker exec -u www-data nextcloud php occ notify_push:setup https://drive.<domain>/push
+docker exec -u www-data nextcloud php occ notify_push:self-test
+sudo systemctl start homelab-notify-push.service
 ```
 
-The test stops at the first failing step. Map the message to a cause below.
-
-## Symptom → cause → fix
-
-### "can't connect to push server: 403 Forbidden"
-**Cause:** DNS hairpin. From inside the `nextcloud` container, `drive.example.com`
-resolves to the **public IP**, so the self-test leaves the LAN, comes back through
-NAT with a public source IP, and notify_push's `/test/*` endpoints reject it.
-
-Check:
-```bash
-docker exec nextcloud getent hosts drive.<domain>   # shows the PUBLIC ip = bug
-```
-**Fix:** pin the name to the Pi over the LAN in `compose.yaml` (nextcloud service):
-```yaml
-extra_hosts:
-  - "drive.${DOMAIN}:${PI_LAN_IP}"
-```
-> Note: `dns: ${PI_LAN_IP}` (Pi-hole) does **not** work — UDP/53 hairpin to the
-> host's published port fails from the container, while TCP/443 to the LAN IP works.
-
-### "can't connect to push server: Could not resolve host"
-**Cause:** a `dns:` override pointing at Pi-hole that the container can't reach.
-**Fix:** remove the `dns:` entry, use `extra_hosts` as above.
-
-### "nextcloud is not configured as a trusted domain"
-**Cause:** notify_push reaches Nextcloud via `NEXTCLOUD_URL=http://nextcloud`, but
-`nextcloud` isn't in `trusted_domains`.
-**Fix:** redeploy — the `deploy` role's `occ config:system:set trusted_domains`
-task writes `localhost`, `drive.<domain>` and `nextcloud` on every run. Check with:
-```bash
-docker exec -u www-data nextcloud php occ config:system:get trusted_domains
-```
-Do not edit `NEXTCLOUD_TRUSTED_DOMAINS` in `compose.yaml` for this: the image
-reads it only on the first install, so on an existing instance it changes nothing.
-
-### "<ip> is not trusted as a reverse proxy by Nextcloud"
-**Cause:** the notify_push container's IP (on the internal Docker subnet, e.g.
-172.19.x) isn't in `trusted_proxies`, which only covered the proxy subnet.
-**Fix:** widen it to cover all Docker subnets in `compose.yaml`:
-```yaml
-TRUSTED_PROXIES: 172.16.0.0/12
-```
-
-### Setup still fails after changing trusted_proxies / trusted_domains
-**Cause:** notify_push reads `config.php` **once at startup**. Config changes
-aren't seen until it restarts.
-**Fix:** restart the container (the deploy playbook does this automatically after
-installing apps / changing config):
-```bash
-docker restart nextcloud-notify-push
-```
-
-### Container log stuck on "waiting for notify_push binary"
-**Cause:** the companion started before the `notify_push` app (which ships the
-binary) was installed. The entrypoint waits for the binary; old log lines are
-stale. A restart picks it up.
-**Fix:** the playbook installs the app then restarts the container. Manually:
-```bash
-docker restart nextcloud-notify-push
-docker exec nextcloud-notify-push cat /proc/1/cmdline   # should show .../notify_push ...
-```
-
-## Success looks like
+Expected:
 
 ```
 ✓ redis is configured
@@ -87,23 +38,57 @@ docker exec nextcloud-notify-push cat /proc/1/cmdline   # should show .../notify
 ✓ push server is running the same version as the app
 ```
 
-## You should not be reading this because you noticed
+## If it fails
 
-`homelab-notify-push.timer` runs `occ notify_push:self-test` every hour and
-pushes the result to its own Kuma monitor, precisely because this failure has no
-symptoms — the clients drop to 30s polling and everything keeps working. The
-failing step travels in the push message, so the Discord alert names it and the
-section above maps it to a fix.
-
-To check by hand, or straight after applying one:
+**"can't connect to push server: 403 Forbidden"**: DNS hairpin, the name resolves to
+the public IP inside `nextcloud`. Confirm (a public IP is the bug):
 
 ```bash
-docker exec -u www-data nextcloud php occ notify_push:self-test
-sudo systemctl start homelab-notify-push.service   # re-push the result now
+docker exec nextcloud getent hosts drive.<domain>
 ```
 
-## Reverse proxy reminder
+Pin the name in `compose.yaml` (nextcloud service). Not `dns: ${PI_LAN_IP}`: UDP/53
+to the host fails from the container.
 
-Traefik routes `Host(drive.example.com) && PathPrefix(/push)` to the
-notify-push service on port 7867, **stripping the `/push` prefix** (middleware
-`notify-push-strip`), priority 100 so it wins over the main Nextcloud router.
+```yaml
+extra_hosts:
+  - "drive.${DOMAIN}:${PI_LAN_IP}"
+```
+
+**"can't connect to push server: Could not resolve host"**: a `dns:` override points
+at an unreachable Pi-hole. Remove it, use `extra_hosts`.
+
+**"nextcloud is not configured as a trusted domain"**: redeploy; the role writes
+`localhost`, `drive.<domain>`, `nextcloud` to `trusted_domains`. Editing
+`NEXTCLOUD_TRUSTED_DOMAINS` does nothing after first install. Check:
+
+```bash
+docker exec -u www-data nextcloud php occ config:system:get trusted_domains
+```
+
+**"`<ip>` is not trusted as a reverse proxy by Nextcloud"**: the container's
+subnet (e.g. 172.19.x) is outside `trusted_proxies`. In `compose.yaml`:
+
+```yaml
+TRUSTED_PROXIES: 172.16.0.0/12
+```
+
+**Still failing after a trusted_proxies/trusted_domains change**: notify_push reads
+`config.php` only at startup. The deploy restarts it; by hand:
+
+```bash
+docker restart nextcloud-notify-push
+```
+
+**Log stuck on "waiting for notify_push binary"**: the container started before the
+app installed its binary. Restart it as above, then check the command line shows
+`.../notify_push ...`:
+
+```bash
+docker exec nextcloud-notify-push cat /proc/1/cmdline
+```
+
+## Reverse proxy
+
+Traefik routes `Host(drive.example.com) && PathPrefix(/push)` to port 7867, strips
+`/push` (middleware `notify-push-strip`), priority 100 over the main Nextcloud router.

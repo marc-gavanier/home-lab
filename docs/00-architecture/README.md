@@ -1,16 +1,15 @@
 # Architecture Overview
 
-## Summary
-
-This home lab is built on a Raspberry Pi 4 Model B with the goal of providing a secure, fully automated, and documented self-hosting platform.
+A secure, fully automated self-hosting platform on a single Raspberry Pi 4
+Model B. This page shows the layout and the principles every change follows.
 
 ## Guiding Principles
 
-1. **Full automation**: a single `ansible-playbook` provisions everything, from bare metal to running services
-2. **Defense in depth**: each layer (OS, network, Docker, application) is hardened independently
-3. **Simplicity**: Docker Compose on a single node, no Kubernetes, no over-engineering
-4. **Reproducibility**: all configuration is version-controlled, the Pi can be rebuilt from scratch
-5. **Documentation**: every decision is explained and documented
+1. **Full automation**: one `ansible-playbook` provisions everything, bare metal to running services.
+2. **Defense in depth**: OS, network, Docker and application are each hardened independently.
+3. **Simplicity**: Docker Compose on one node, no Kubernetes.
+4. **Reproducibility**: all configuration is in git; the Pi can be rebuilt from scratch.
+5. **Documentation**: every decision is recorded (`knowledge/decisions/`).
 
 ## Architecture Diagram
 
@@ -22,7 +21,7 @@ This home lab is built on a Raspberry Pi 4 Model B with the goal of providing a 
 ┌──────────────────────┴──────────────────────────┐
 │              ISP Router (NAT/Firewall)            │
 │      Forwarded: 51820/udp (WG), 51413 (peer)     │
-│      80/443: NOT forwarded since late July 2026   │
+│      80/443: NOT forwarded                        │
 └──────────────────────┬──────────────────────────┘
                        │ Ethernet
 ┌──────────────────────┴──────────────────────────┐
@@ -55,8 +54,6 @@ This home lab is built on a Raspberry Pi 4 Model B with the goal of providing a 
 ```
 
 ## Implementation Phases
-
-See the `project-manager` agent for the detailed plan.
 
 | Phase                  | Content                               | Status |
 |------------------------|---------------------------------------|--------|

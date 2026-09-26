@@ -1,24 +1,21 @@
 # Installation Guide
 
-Step-by-step installation of the home lab from scratch.
+Use this page to build the homelab Pi from a blank SD card to a running stack.
 
-## Prerequisites (workstation)
+## Before you start
 
-- Linux workstation with SSH key pair (`~/.ssh/id_ed25519`)
+On the workstation:
+
+- SSH key pair (`~/.ssh/id_ed25519`)
 - Raspberry Pi Imager (`sudo apt install rpi-imager`)
 - Ansible (`pipx install ansible --include-deps`)
-- nmap for network discovery (`sudo apt install nmap`)
-- SD card reader
+- nmap (`sudo apt install nmap`)
+- An SD card reader
 
 ## Step 1 — Flash the SD Card
 
-Using Raspberry Pi Imager:
-
-1. **Device**: Raspberry Pi 4
-2. **OS**: Ubuntu Server 24.04 LTS (64-bit)
-3. **Storage**: 64 GB SD card
-
-Customization settings (click "Edit Settings" before flashing):
+In Raspberry Pi Imager choose Raspberry Pi 4, Ubuntu Server 24.04 LTS (64-bit),
+the 64 GB card. Click "Edit Settings" before flashing:
 
 | Setting         | Value                                             |
 |-----------------|---------------------------------------------------|
@@ -31,11 +28,10 @@ Customization settings (click "Edit Settings" before flashing):
 | Telemetry       | Disabled                                          |
 | Wi-Fi           | Not configured (Ethernet only)                    |
 
-> **Important**: "Set username and password" must be enabled for the user account to be created. Without it, the SSH key has no user to attach to.
+"Set username and password" must be enabled, or no user exists for the SSH key.
 
-Flash and wait for write + verification to complete.
+Wait for write and verification, then eject:
 
-Eject the SD card:
 ```bash
 sudo umount /dev/mmcblk0p1 /dev/mmcblk0p2 2>/dev/null
 sync
@@ -44,16 +40,13 @@ sync
 
 ## Step 2 — First Boot
 
-1. Insert the SD card into the Pi
-2. Connect: Ethernet cable, 5TB HDD (USB 3.0 blue port), power supply (last)
-3. Wait ~2 minutes for first boot to complete
-4. Find the Pi's IP address:
+1. Insert the SD card.
+2. Connect Ethernet, the 5 TB HDD (blue USB 3.0 port), then power last.
+3. Wait ~2 minutes, then find the host named `homelab`:
 
 ```bash
 nmap -sn 192.168.1.0/24
 ```
-
-Look for the host named `homelab`.
 
 ## Step 3 — Verify SSH Access
 
@@ -61,22 +54,17 @@ Look for the host named `homelab`.
 ssh pi@<pi-lan-ip>
 ```
 
-Should connect without password prompt (key-based auth). If it works, you'll see the Ubuntu welcome message with system info.
+Expected: no password prompt, then the Ubuntu welcome message.
 
 ## Step 4 — Configure Static IP
 
-Set a DHCP static lease on the ISP router to ensure the Pi always gets the same IP address.
-
-1. Open the router admin panel (192.168.1.1)
-2. Navigate to **LAN > Baux statiques** (static leases)
-3. Add a new static lease:
-   - **MAC address**: get it from the Pi with `ip link show eth0 | grep ether`
-   - **IP address**: choose an IP outside the dynamic DHCP range (e.g. `192.168.1.10`)
-4. Reboot the Pi to apply: `sudo reboot`
-5. Verify the new IP: `ssh pi@<pi-lan-ip>`
-6. Clean up old SSH host key: `ssh-keygen -R <OLD_IP>`
-
-> **Note**: if the router says "IP already in use", pick an IP outside the dynamic pool (lower range like .10-.50 or use .100).
+1. Open the router admin panel (192.168.1.1), **LAN > Baux statiques**.
+2. Add a static lease: MAC from `ip link show eth0 | grep ether`, IP outside the
+   dynamic range (e.g. `192.168.1.10`). If the router says "IP already in use",
+   pick one outside the dynamic pool (.10–.50 or .100).
+3. Reboot the Pi: `sudo reboot`
+4. Verify: `ssh pi@<pi-lan-ip>`
+5. Remove the old host key: `ssh-keygen -R <OLD_IP>`
 
 ## Step 5 — Verify Ansible Connectivity
 
@@ -85,7 +73,8 @@ cd ~/Storage/Workspace/learn/home-lab/ansible
 ansible homelab -m ping
 ```
 
-Expected output:
+Expected:
+
 ```
 homelab | SUCCESS => {
     "changed": false,
@@ -93,16 +82,15 @@ homelab | SUCCESS => {
 }
 ```
 
-Verify HDD is detected:
+Check the HDD is detected (expected: `/dev/sda` with a `sda1` partition, ~4.5T):
+
 ```bash
 ansible homelab -m command -a "lsblk"
 ```
 
-Expected: `/dev/sda` with a `sda1` partition (~4.5T).
-
 ## Step 6 — Configure Secrets
 
-All secrets are stored in a local file, encrypted with Ansible Vault:
+All secrets live in `local.yml`, encrypted with Ansible Vault.
 
 ```bash
 cd ~/Storage/Workspace/learn/home-lab/ansible/inventory/host_vars/homelab
@@ -110,25 +98,27 @@ cp local.example.yml local.yml
 # Edit local.yml — fill in real values (domain, username, passwords)
 ```
 
-Generate passwords in your password manager and paste them in `local.yml`. Then encrypt the file:
+Generate the passwords in your password manager, then encrypt:
 
 ```bash
 cd ~/Storage/Workspace/learn/home-lab/ansible
 ansible-vault encrypt inventory/host_vars/homelab/local.yml
 ```
 
-The file is now encrypted at rest. Ansible decrypts it on the fly during deployment with `--ask-vault-pass`. To edit later:
+Edit or read it later:
 
 ```bash
 ansible-vault edit inventory/host_vars/homelab/local.yml
 ansible-vault view inventory/host_vars/homelab/local.yml  # read-only
 ```
 
-> **Important**: Save the vault password in your password manager. Without it, the secrets are unrecoverable.
+**Save the vault password in your password manager.** Without it the secrets
+are unrecoverable.
 
 ## Step 7 — Provision
 
-All commands require `--ask-vault-pass` to decrypt secrets. Run phase by phase:
+Run phase by phase; every command needs `--ask-vault-pass`:
+
 ```bash
 cd ~/Storage/Workspace/learn/home-lab/ansible
 
@@ -158,11 +148,14 @@ ansible-playbook playbooks/site.yml --tags deploy --ask-vault-pass --extra-vars 
 ansible-playbook playbooks/site.yml --tags claude-code,killswitch,usb-tamper,stack-startup --ask-vault-pass
 ```
 
-> **Note**: The `storage` role creates the data tree (`roles/storage/tasks/directories.yml`): the top-level `services/`, `media/`, `library/` and `backups/`, the `media/` and `library/` subtrees, and a few per-service directories with an explicit owner and mode. Other per-service subdirectories are created by Docker via volume mounts at first start (root, 0755), except those `roles/deploy/tasks/data_dirs.yml` creates first with an explicit mode (e.g. `vaultwarden`, `traefik/acme`, `wireguard` at 0700).
+Data directories come from `roles/storage/tasks/directories.yml` (top-level
+tree, `media/` and `library/` subtrees, a few per-service dirs),
+`roles/deploy/tasks/data_dirs.yml` (e.g. `vaultwarden`, `traefik/acme`,
+`wireguard` at 0700), and Docker for the rest (root, 0755).
 
 ## Step 8 — SSH Client Configuration
 
-After the security role changes the SSH port, configure your workstation for easy access:
+Once the security role has changed the SSH port:
 
 ```bash
 cat > ~/.ssh/config << 'EOF'
@@ -182,184 +175,154 @@ EOF
 chmod 600 ~/.ssh/config
 ```
 
-Then connect with just:
 ```bash
 ssh homelab
 ssh offsite    # jumps through homelab; needs homelab-unlock done first
 ```
 
-The `offsite` alias only applies once the backup Pi lives at its remote
-location — see [offsite backup runbook](../../knowledge/runbooks/offsite-backup.md)
-for why the tunnel is the only management path and what a refused jump means.
+The `offsite` alias applies once the backup Pi is at its remote location; see
+the [offsite backup runbook](../../knowledge/runbooks/offsite-backup.md).
 
 ## Step 9 — Post-Reboot Unlock
 
-After every reboot, the Pi boots normally but services are stopped and the data volume is locked. To unlock:
+After every reboot the volume is locked and services are stopped. The first
+unlock must come from the LAN (the VPN config is on the locked volume). Full
+procedure: [boot & unlock runbook](../../knowledge/runbooks/boot-and-unlock.md).
 
 ```bash
 ssh homelab "sudo homelab-unlock"
 # Enter LUKS passphrase when prompted → /mnt/data mounted → Docker starts
 ```
 
-To lock the volume and stop services:
+Lock the volume and stop services:
+
 ```bash
 ssh homelab "sudo homelab-lock"
-```
-
-### Boot Flow
-
-```
-Power on → Ubuntu boots (SD, unencrypted) → SSH available ON THE LAN ONLY
-                                                 │   (wg0.conf is a symlink onto
-                                                 │    the locked volume, so the
-                                                 │    VPN cannot come up yet)
-                                        From the LAN: ssh homelab "sudo homelab-unlock"
-                                                 │
-                                        Enter passphrase → /mnt/data mounted → Docker starts
-                                                 │
-                                        WireGuard starts → remote SSH works again
 ```
 
 ## Step 10 — Network Configuration (Phase 2)
 
 ### ISP — IPv4 Full Stack
 
-SFR/Red boxes are often behind CGNAT (WAN IP in `10.x.x.x` range), which prevents port forwarding. Contact Red by SFR support via chat and request an **"IPv4 full stack rollback"** to get a dedicated public IPv4 address. This is free and takes a few hours.
+SFR/Red boxes are often behind CGNAT (WAN IP in `10.x.x.x`), which blocks port
+forwarding. Ask Red by SFR support (chat) for an **"IPv4 full stack rollback"**:
+free, a few hours. Then check:
 
-Verify after rollback:
 ```
 WAN > IPv4 > Adresse IP → should be a public IP (not 10.x.x.x)
 ```
 
 ### DNS (Cloudflare)
 
-Certificates are issued via the ACME **DNS-01** challenge (ADR-014), so service
-subdomains need **no public A record** — they resolve internally via Pi-hole
-split DNS (below) and stay out of public DNS. Two things to set up:
+Certificates use ACME **DNS-01** ([ADR-014](../../knowledge/decisions/ADR-014-acme-dns01-cloudflare.md)),
+so service subdomains need no public record; Pi-hole resolves them internally.
 
-1. **One public A record** — `vpn` only (WireGuard; the one host a remote client
-   must resolve before the tunnel exists). DNS only, not proxied.
-2. **A scoped API token** for DNS-01: My Profile → API Tokens → Create Custom
-   Token, permissions `Zone:DNS:Edit` + `Zone:Read`, zone `example.com`. Put it
-   in `local.yml` as `cloudflare_dns_api_token` (Traefik solves the challenge
-   with it).
+1. Create **one public A record**: `vpn` (WireGuard), DNS only, not proxied.
+2. Create a scoped API token: My Profile → API Tokens → Create Custom Token,
+   permissions `Zone:DNS:Edit` + `Zone:Read`, zone `example.com`. Store it in
+   `local.yml` as `cloudflare_dns_api_token`.
 
-Homelab subdomains resolved internally (split DNS) include `drive` (Nextcloud),
-`vault` (Vaultwarden), `videos` (Jellyfin), `music` (Navidrome), `photos`
-(Immich), `dns` (Pi-hole), `services` (Uptime Kuma), `system` (Netdata),
-`search` (SearXNG), `share` (Transmission), `proxy` (Traefik dashboard). The
-full set is `ansible/roles/deploy/templates/pihole-05-homelab.conf.j2`; the
-canonical list of served names is `docs/04-network/README.md`.
-
-> **Important**: No wildcard — per-host certs, so other subdomains (personal
-> site, mail/Proton, a static site on GitHub Pages) are unaffected. Do NOT use
-> Cloudflare proxy (orange cloud) — it breaks direct TLS and WireGuard.
+- No wildcard: per-host certs leave other subdomains (personal site, Proton
+  mail, GitHub Pages) untouched.
+- **Do not enable the Cloudflare proxy (orange cloud)**: it breaks direct TLS
+  and WireGuard.
 
 ### Port Forwarding (ISP Router)
 
-All service access is via the VPN and certs use DNS-01, so no HTTP/HTTPS port is
-public. Forward only:
+Forward only:
 
 | Port  | Protocol | Destination   | Purpose                                             |
 |-------|----------|---------------|-----------------------------------------------------|
 | 51820 | UDP      | <pi-lan-ip> | WireGuard tunnel                                    |
 | 51413 | TCP/UDP  | <pi-lan-ip> | Transmission BitTorrent peer (optional — P2P connectivity) |
 
-> Ports **80 and 443 are deliberately not forwarded**: HTTP-01 is gone (DNS-01),
-> and public 443 would only ever return 403 (vpn-only). The homelab is invisible
-> on HTTP/HTTPS from the internet — all access is via the tunnel (ADR-014). If a
-> service ever needs public exposure, put it on a separate, isolated system, not
-> on this data-bearing host.
-
-### Disable systemd-resolved
-
-Ubuntu's `systemd-resolved` listens on port 53, conflicting with Pi-hole. The `base` role disables its stub listener automatically.
+**Do not forward 80 or 443**: DNS-01 needs no inbound port and vpn-only would
+answer 403. Public services belong on a separate, isolated system.
 
 ### Split DNS (Pi-hole)
 
-Pi-hole resolves homelab subdomains to the Pi's LAN IP (<pi-lan-ip>) instead of the public IP. This ensures VPN clients reach services directly without going through the public internet.
-
-Configured via dnsmasq custom config (`ansible/roles/deploy/templates/pihole-05-homelab.conf.j2`), requires `FTLCONF_misc_etc_dnsmasq_d: "true"` in the Pi-hole environment (Pi-hole v6 ignores `/etc/dnsmasq.d/` by default).
+- The `base` role disables `systemd-resolved`'s stub listener, which would
+  otherwise hold port 53.
+- Pi-hole resolves homelab subdomains to the Pi's LAN IP (<pi-lan-ip>), so VPN
+  clients reach services directly.
+- Config: `ansible/roles/deploy/templates/pihole-05-homelab.conf.j2`. It needs
+  `FTLCONF_misc_etc_dnsmasq_d: "true"`, because Pi-hole v6 ignores
+  `/etc/dnsmasq.d/` by default.
+- The canonical list of served names is `docs/04-network/README.md`.
 
 ### WireGuard VPN — Initial Setup
 
-The wg-easy web UI (port 51821) has no LAN-facing host binding, but Traefik serves it at `https://vpn.example.com` from the LAN or over the VPN. An SSH tunnel reaches it too, and is the path that still works when Traefik is down:
+The wg-easy UI (port 51821) is served by Traefik at `https://vpn.example.com`
+(LAN or VPN). When Traefik is down, use an SSH tunnel:
 
 ```bash
 ssh -L 51821:127.0.0.1:51821 homelab
 # Then open http://localhost:51821 in your browser
 ```
 
-Create a new client, scan the QR code with the WireGuard mobile app. Install the [WireGuard app](https://www.wireguard.com/install/) on your phone first.
+Install the [WireGuard app](https://www.wireguard.com/install/) on your phone,
+create a client in the UI and scan its QR code.
 
-### Verify VPN Access
-
-1. Connect to VPN from mobile (4G, not WiFi)
-2. Open `https://dns.example.com/admin/login` — should show Pi-hole login page
+Check: on mobile data (not Wi-Fi), connect the VPN and open
+`https://dns.example.com/admin/login`. Expected: the Pi-hole login page.
 
 ### Backup (Restic)
 
-Automated encrypted backups run daily at 3 AM via systemd timer (`homelab-backup.timer`).
+`homelab-backup.timer` runs an encrypted backup daily at 3 AM. Retention: 7
+daily, 4 weekly, 6 monthly.
 
-What gets backed up:
-- Database dumps (MariaDB for Nextcloud, PostgreSQL for Miniflux, SQLite copies
-  of the small databases; Immich's own PostgreSQL dumps ride along in its data)
-- Service data (`/mnt/data/services`)
-- Media (`/mnt/data/media` — not `/mnt/data/library`, which is re-downloadable, ADR-035)
-- Secrets (`/mnt/data/secrets`, ADR-011)
-- Deployment configs (`/opt/homelab`)
+| Included | Source |
+|----------|--------|
+| Database dumps | MariaDB (Nextcloud), PostgreSQL (Miniflux), SQLite copies of small databases; Immich's own PostgreSQL dumps ride in its data |
+| Service data | `/mnt/data/services` |
+| Media | `/mnt/data/media` (not `/mnt/data/library`, re-downloadable, ADR-035) |
+| Secrets | `/mnt/data/secrets` (ADR-011) |
+| Deployment configs | `/opt/homelab` |
 
-Retention: 7 daily, 4 weekly, 6 monthly snapshots.
-
-Manual backup:
 ```bash
 ssh homelab "sudo systemctl start homelab-backup.service"
 ```
 
-Check snapshots:
 ```bash
 ssh homelab "sudo restic -r /mnt/data/backups/restic-repo snapshots"
 # Enter restic password when prompted
 ```
 
-> **Note**: The primary backup repository is on the same HDD as the data, so it does not by itself protect against disk failure. A second Pi at another site has held an append-only offsite copy since 2026-07-25 (ADR-010); `restic snapshots` on that host is the authority on what it holds.
+This repository shares the HDD with the data; the append-only offsite copy
+(ADR-010) covers disk loss.
 
 ### Services Access Summary
 
-All HTTPS services are **VPN/LAN-only** (Traefik `vpn-only` middleware applied globally on the `websecure` entrypoint). Access them from the local network or via WireGuard from anywhere.
+All HTTPS services are VPN/LAN-only (`vpn-only` middleware on Traefik's
+`websecure` entrypoint). Install-time subset; the full list is
+`docs/04-network/README.md`.
 
-| Service      | URL                            | Notes                |
-|--------------|--------------------------------|----------------------|
-| Nextcloud    | `drive.example.com`            | VPN/LAN              |
-| Vaultwarden  | `vault.example.com`            | VPN/LAN              |
-| Jellyfin     | `videos.example.com`           | VPN/LAN              |
-| Navidrome    | `music.example.com`            | VPN/LAN              |
-| Immich       | `photos.example.com`           | VPN/LAN              |
-| Pi-hole      | `dns.example.com/admin`        | VPN/LAN              |
-| Uptime Kuma  | `services.example.com`         | VPN/LAN              |
-| Netdata      | `system.example.com`           | VPN/LAN              |
-| WireGuard UI | `vpn.example.com`              | VPN/LAN (SSH too)    |
-
-The canonical list of every served name is `docs/04-network/README.md`; this
-table is the install-time subset, not the full set.
+| Service      | URL                     |
+|--------------|-------------------------|
+| Nextcloud    | `drive.example.com`     |
+| Vaultwarden  | `vault.example.com`     |
+| Jellyfin     | `videos.example.com`    |
+| Navidrome    | `music.example.com`     |
+| Immich       | `photos.example.com`    |
+| Pi-hole      | `dns.example.com/admin` |
+| Uptime Kuma  | `services.example.com`  |
+| Netdata      | `system.example.com`    |
+| WireGuard UI | `vpn.example.com` (SSH tunnel too) |
 
 ## Decisions Made
 
-- **OS**: Ubuntu Server 24.04 LTS over 26.04 LTS (more mature, 2 years of bug fixes, better ARM64 community support)
-- **Username**: set in `local.yml` (masked in repo as `pi`)
-- **Encryption**: LUKS on HDD (data) only, not on SD card (OS). No keyfile stored anywhere — passphrase required via SSH after each reboot. Trade-off: requires manual intervention after power loss, but no key material on disk. No crypttab/fstab entries — `systemd-cryptsetup-generator` ignores `noauto` on Ubuntu, so `homelab-unlock` handles everything explicitly.
-- **Fan**: Connected to 5V/GND (pins 4/6), runs at full speed. No software control possible without rewiring to a GPIO pin with transistor.
-- **Telemetry**: Disabled (Canonical telemetry opt-out)
-- **SSH**: Public-key only (ed25519), non-standard port (`ssh_port_hardened`, vaulted). Not exposed to internet — remote access via WireGuard VPN only.
-- **SSH port**: non-standard, kept out of the public repo (avoids bot noise on 22; classic alternatives like 2222 are also scanned; a published port would cancel the obscurity it buys). Real security comes from key-only auth + fail2ban, not the port.
-- **IP assignment**: Static DHCP lease on router (<pi-lan-ip>)
-- **Docker**: Does not auto-start at boot. Started by `homelab-unlock` after LUKS volume is opened.
-- **Remote access**: All remote access goes through WireGuard VPN (port 51820/udp). SSH is LAN/VPN only, never directly exposed to internet.
-- **ISP (SFR/Red)**: Required IPv4 full stack rollback to exit CGNAT. Without it, port forwarding is impossible (WAN IP is private 10.x.x.x).
-- **DNS**: Only `vpn` has a public A record (Cloudflare, not proxied); service subdomains resolve via Pi-hole split DNS and get certs via ACME DNS-01, so they stay out of public DNS. No wildcard — per-host certs preserve existing site, Proton mail, and GitHub-served subdomains (ADR-014).
-- **Secrets**: All secrets in Ansible Vault-encrypted `local.yml` (gitignored). Passwords generated in Bitwarden, WireGuard password hashed via bcrypt on Pi.
-- **TLS**: Let's Encrypt via DNS-01 challenge (Traefik ACME + scoped Cloudflare token). Per-host certs, no inbound needed. Certificates auto-renewed (ADR-014).
-- **Split DNS**: Pi-hole resolves homelab subdomains to LAN IP. Required `FTLCONF_misc_etc_dnsmasq_d: "true"` for Pi-hole v6 to read custom dnsmasq configs.
-- **VPN-only by default**: `vpn-only` middleware applied globally on Traefik's `websecure` entrypoint. ipAllowList includes LAN (192.168.1.0/24), the `proxy` Docker network (172.18.0.0/16 — this is how full-tunnel VPN clients arrive, hairpin-NATed), and WireGuard (10.8.0.0/24 — the offsite Pi's unmasqueraded push path). All services protected automatically; new services inherit the protection. Trade-off: VPN must be active on mobile for sync (Bitwarden, Nextcloud, Immich), but attack surface is minimized. Internet sees only `403 Forbidden`.
-- **wg-easy Web UI**: No LAN-facing host binding (127.0.0.1:51821), and also routed by Traefik at `vpn.example.com` behind `vpn-only`. The SSH tunnel is what breaks the chicken-and-egg problem (reaching VPN admin when the VPN is what is broken); the Traefik route is the convenient path when it is not.
-- **Backup**: Restic with AES-256 encryption. Daily at 3 AM via systemd timer. DB dumps before snapshot. Retention: 7d/4w/6m. Copied nightly to an append-only offsite repository on a second Pi (ADR-010).
+- **OS**: Ubuntu 24.04 LTS rather than 26.04 LTS (more mature on ARM64).
+- **Username**: set in `local.yml`, masked as `pi` in the repo.
+- **Encryption**: LUKS on the HDD only, no keyfile anywhere; the passphrase is
+  typed after each reboot. No crypttab/fstab entries:
+  `systemd-cryptsetup-generator` ignores `noauto` on Ubuntu, so
+  `homelab-unlock` does everything explicitly.
+- **Fan**: on 5V/GND (pins 4/6), full speed; no software control without a GPIO
+  transistor.
+- **SSH**: key-only (ed25519), vaulted non-standard port
+  (`ssh_port_hardened`), LAN/VPN only. The port only cuts bot noise.
+- **WireGuard UI password**: hashed with bcrypt on the Pi.
+- **VPN-only allow-list**: LAN (192.168.1.0/24), `proxy` Docker network
+  (172.18.0.0/16, where full-tunnel VPN clients arrive, hairpin-NATed),
+  WireGuard (10.8.0.0/24, the offsite Pi's push path). Mobile sync needs the VPN
+  on.

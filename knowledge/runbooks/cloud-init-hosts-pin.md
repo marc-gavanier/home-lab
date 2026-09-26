@@ -1,22 +1,22 @@
 # Runbook: LAN host pins disappear after a reboot
 
-Some host-side services must resolve a homelab domain to an **address inside
-the allow-list** — the Pi's LAN IP on the homelab, its WireGuard address on the
-offsite host — not the public IP, to avoid the DNS hairpin (out through NAT,
-back to Traefik with an external source IP → rejected **403** by the vpn-only
-`ipAllowList`, see [ADR-002](../decisions/ADR-002-vpn-only-by-default.md)). Two
-domains need it on the homelab (a third pin, on the offsite host, is in the
-table under Fix):
+Use this page when a host-side service works after a deploy but fails after a
+reboot with a 403 or a mount error.
 
-| Domain              | Who needs it    | Why                                    |
-|---------------------|-----------------|----------------------------------------|
-| `drive.<domain>`    | rclone (claude) | vault WebDAV mount → Claude Code       |
-| `services.<domain>` | `backup-notify.sh` | Uptime Kuma push for backup monitoring |
+Some host services must resolve a homelab domain to an address inside the
+allow-list (the Pi's LAN IP on the homelab, its WireGuard address on offsite).
+Resolved to the public IP, the request hairpins through NAT and the `vpn-only`
+`ipAllowList` rejects it with **403** ([ADR-002](../decisions/ADR-002-vpn-only-by-default.md)).
+
+| Pin        | Host        | Who needs it                    | Defined in                                          |
+|------------|-------------|---------------------------------|-----------------------------------------------------|
+| `drive`    | homelab     | rclone vault mount (claude)     | `ansible/roles/claude-code/tasks/vault.yml`         |
+| `services` | homelab     | `backup-notify.sh` (Kuma push)  | `ansible/roles/deploy/tasks/backup.yml`             |
+| `services` | **offsite** | —                               | `ansible/roles/offsite-backup/tasks/wireguard.yml`  |
 
 ## Symptom
 
-Works right after a deploy, then **breaks after a reboot** (e.g. a power cut): the
-vault mount fails / Claude Code won't start, or the backup Kuma push 403s.
+The vault mount fails / Claude Code won't start, or the backup Kuma push 403s.
 
 ```bash
 getent hosts drive.<domain>      # shows the PUBLIC ip = the pin was wiped
@@ -24,31 +24,14 @@ getent hosts drive.<domain>      # shows the PUBLIC ip = the pin was wiped
 
 ## Cause
 
-This host is **cloud-init managed** (`manage_etc_hosts: True`). cloud-init
-**regenerates `/etc/hosts` from a template on every boot**, wiping any plain
-`lineinfile` pin written directly into `/etc/hosts`.
+cloud-init (`manage_etc_hosts: True`) rebuilds `/etc/hosts` from a template on
+every boot, wiping any pin written only to `/etc/hosts`.
 
 ## Fix
 
-Pin in **two** places (both roles already do this):
-
-1. `/etc/cloud/templates/hosts.debian.tmpl` — the template cloud-init rebuilds from,
-   so the pin **survives reboots**.
-2. `/etc/hosts` directly — **immediate**, no reboot needed.
-
-Both mechanisms above are applied for **three** pins, on **two hosts** — the third was
-missing from this page until #178, and the re-apply command below never reached it:
-
-| Pin | Host | Defined in |
-|---|---|---|
-| `drive` | homelab | `ansible/roles/claude-code/tasks/vault.yml` |
-| `services` | homelab | `ansible/roles/deploy/tasks/backup.yml` |
-| `services` | **offsite** | `ansible/roles/offsite-backup/tasks/wireguard.yml` |
-
-None of these live in a role's `main.yml`; those have been thin orchestrators since the
-July 2026 split, and this page pointed at them.
-
-Re-apply — **two playbooks**, because the offsite host is not in `site.yml`:
+Each role pins in two places: `/etc/cloud/templates/hosts.debian.tmpl`
+(survives reboots) and `/etc/hosts` (immediate). Re-apply with **two
+playbooks**, because offsite is not in `site.yml`:
 
 ```bash
 ansible-playbook playbooks/site.yml --ask-vault-pass --tags claude-code,deploy
@@ -57,16 +40,16 @@ ansible-playbook playbooks/site.yml --ask-vault-pass --tags claude-code,deploy
 ansible-playbook playbooks/offsite.yml --ask-vault-pass --tags offsite-backup
 ```
 
-## Verify
+## Check it worked
 
-On the homelab:
+On the homelab (both must be the Pi LAN IP):
 
 ```bash
 getent hosts drive.<domain> services.<domain>    # both must be the Pi LAN IP
 grep -E 'drive|services' /etc/cloud/templates/hosts.debian.tmpl
 ```
 
-And on the offsite host, which is the half that used to be forgotten:
+On offsite, the half that is easy to forget:
 
 ```bash
 ssh offsite "getent hosts services.<domain>; grep services /etc/cloud/templates/hosts.debian.tmpl"
@@ -74,6 +57,5 @@ ssh offsite "getent hosts services.<domain>; grep services /etc/cloud/templates/
 
 ## Related
 
-- [ADR-002](../decisions/ADR-002-vpn-only-by-default.md) — why the hairpin 403s.
-- `notify-push-troubleshooting.md` — the same hairpin hitting Nextcloud's notify_push,
-  fixed differently (container `extra_hosts`, since it's resolved *inside* a container).
+- `notify-push-troubleshooting.md` — the same hairpin inside a container, fixed
+  with `extra_hosts` instead.

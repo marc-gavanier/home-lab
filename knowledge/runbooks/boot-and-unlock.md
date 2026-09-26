@@ -1,34 +1,22 @@
 # Runbook: Boot & Unlock (after any reboot or power cut)
 
-What to expect and do when the Pi comes back up. Design rationale in
-[ADR-007](../decisions/ADR-007-staged-container-startup.md).
+Use this page every time the homelab Pi comes back up: reboot, power cut,
+[kill-switch](kill-switch.md) or [usb-tamper](usb-tamper.md) poweroff.
 
-> **A reboot cannot be undone from outside the LAN — plan for that before you
-> cause one.** `/etc/wireguard/wg0.conf` is a symlink onto the encrypted volume
-> (ADR-011). Before the unlock it dangles, so `wg-quick@wg0` cannot start and
-> neither can `wg-easy` — and `ssh homelab` travels through that tunnel. There
-> is no unlock without the tunnel and no tunnel without the unlock, so **the
-> first `homelab-unlock` after any reboot has to be typed from the LAN**, at the
-> machine or from something already inside the network. Everything below assumes
-> you are.
->
-> The offsite Pi is not in this position: it has no LUKS volume, and it comes
-> back on its own — 50 seconds, measured 2026-08-26, WireGuard rejoined without
-> help. "Reboots on its own at 04:00" used to be written here and reads as
-> nightly; it is not. It is `Unattended-Upgrade::Automatic-Reboot "true"` with
-> `Automatic-Reboot-Time "04:00"` — it reboots *when an update requires one*, at
-> that hour. Measured boot durations: 28, 24, 42 and 23 days. Roughly monthly.
+## Before you start
 
-## Normal sequence
+- **The first unlock after a reboot must be typed from the LAN.**
+  `/etc/wireguard/wg0.conf` is a symlink onto the encrypted volume (ADR-011), so
+  `wg-quick@wg0`, `wg-easy` and `ssh homelab` stay down until the unlock. Do not
+  cause a reboot unless someone can reach the LAN.
+- Before the unlock there is no Docker, swap, `/mnt/data` or LAN DNS. Point a
+  client at `1.1.1.1` for internet meanwhile.
+- The offsite Pi has no LUKS volume; it comes back alone in about 50 s.
 
-1. **Boot (~2 min; SSH listens ~107 s after power-on).** The Pi boots from the unencrypted SD. SSH is available
-   **on the LAN**, and only there — the VPN is down until step 2 finishes, for
-   the reason in the box above. **Nothing else is up either** — no Docker, no
-   swap, no `/mnt/data`, no LAN DNS (point a client at `1.1.1.1` if you need
-   internet meanwhile).
+## Steps
 
-   This is the expected pre-unlock state — worth glancing at, it proves the
-   guards hold:
+1. **Wait for the boot.** SSH listens on the LAN about 107 s after power-on.
+   Check the pre-unlock state; it proves the guards hold:
 
    ```bash
    systemctl is-active docker.service   # inactive
@@ -38,73 +26,48 @@ What to expect and do when the Pi comes back up. Design rationale in
    swapon --show                        # empty
    ```
 
-   > **Corrected 2026-09-11.** This block said `docker.socket` is ACTIVE before
-   > the unlock and branded `inactive` a past error. The opposite is true, and
-   > the previous correction of 2026-08-26 must have been measured after an
-   > unlock rather than before one.
-   >
-   > `docker.socket` is **disabled**, deliberately and by this repo
-   > (`roles/docker/tasks/unlock-integration.yml`, ADR-007). Socket activation
-   > would start dockerd on the first `docker` CLI call — including before the
-   > unlock, which is exactly how the ghost store got initialised on 2026-07-04,
-   > where a single `docker ps` was enough. So nothing starts the socket at boot;
-   > `docker.service` pulls it in itself when `homelab-services.target` starts it
-   > after the unlock.
-   >
-   > Measured over the last three boots: the socket went active 249 s, 117 s and
-   > 1467 s after boot — in each case when the unlock ran, not before. So at the
-   > moment you are reading this page, it is inactive, and that is correct.
-   > Reading it as a regression is what the old note would have made you do.
-   >
-   > The second guard is still there and still matters: a drop-in on the SERVICE
-   > carries `RequiresMountsFor=/mnt/data`, so even an activation attempt cannot
-   > succeed while the volume is locked.
+   - `docker.socket` is disabled on purpose
+     (`roles/docker/tasks/unlock-integration.yml`): socket activation would
+     start dockerd on the SD before the unlock (ghost store). A drop-in on
+     `docker.service` adds `RequiresMountsFor=/mnt/data`.
+   - **Stop if `docker ps` responds**: the guards have regressed. Do not unlock;
+     investigate (see [If it fails](#if-it-fails)).
 
-   > A **responding** `docker ps` before the unlock means the guards have
-   > regressed — do NOT unlock; investigate first (see ghost store below).
+2. **Was the poweroff expected?** The SD is unencrypted and can only be pulled
+   while the Pi is off, so an unexplained poweroff means the unlock path may be
+   backdoored to capture the passphrase.
+   - Expected (your shutdown, a power cut, a kill-switch or usb-tamper trigger
+     you remember): go to step 3.
+   - Unexplained: **do not unlock.** Reflash the SD and re-provision with
+     Ansible (~1 h, nothing is lost), then reboot once so `config.txt` and
+     `cmdline.txt` apply (`Pi pending action` flags it until then).
+   - The journal cannot decide: before the unlock only this boot's volatile
+     journal is readable.
 
-2. **Before unlocking — was this poweroff expected?** The SD card is
-   unencrypted: anyone who can pull it can backdoor the unlock path and capture
-   the passphrase you are about to type (evil maid). Pulling the SD requires
-   the Pi to be off — so an **unexplained poweroff is the tamper signal**.
-   Expected causes: your own shutdown, a power cut, a [kill-switch](kill-switch.md)
-   or [usb-tamper](usb-tamper.md) trigger *that you remember* — since
-   2026-09-20 the persistent journal lives on the encrypted volume, so before
-   the unlock only the current boot's volatile journal is readable, and it
-   proves nothing about the downtime. If you cannot account for the
-   downtime, do **not** unlock: reflash the SD and re-provision with Ansible
-   first (~1 h; all service state lives on the encrypted HDD, nothing is lost).
-   Then reboot once: boot settings (`config.txt`, `cmdline.txt`) only apply at
-   the next boot, and the `Pi pending action` monitor flags it until then.
-
-3. **Unlock:**
+3. **Unlock.**
 
    ```bash
    sudo homelab-unlock     # asks for the LUKS passphrase
    ```
 
-   The unlock also **arms the USB tamper response** ([ADR-008](../decisions/ADR-008-usb-tamper-poweroff.md)):
-   from this point, any USB plug/unplug powers the Pi off — disarm before
-   touching cables (see the [usb-tamper runbook](usb-tamper.md)).
-
-   Mounting `/mnt/data` also pulls in the units whose secrets live on the
-   encrypted volume ([ADR-011](../decisions/ADR-011-secrets-off-sd.md)):
-   `wg-quick@wg0` (host tunnel to the offsite Pi), `vault-mount` (claude's
-   rclone mount) and `homelab-ddns` (Cloudflare token) — plus
-   `homelab-journal-persist`, which moves the journal onto the volume. None
-   runs before the unlock — that is by design
-   (`ls /etc/systemd/system/mnt-data.mount.wants/` is the authority).
-
-   The command returns immediately; the orchestrator keeps running its
-   health-gated waves in the background (~5–8 min). Follow along:
+   - **From now on any USB plug/unplug powers the Pi off.** Disarm before
+     touching cables ([usb-tamper runbook](usb-tamper.md),
+     [ADR-008](../decisions/ADR-008-usb-tamper-poweroff.md)).
+   - The mount starts the units that need the volume
+     ([ADR-011](../decisions/ADR-011-secrets-off-sd.md)): `wg-quick@wg0`,
+     `vault-mount`, `homelab-ddns`, `homelab-journal-persist`. Authority:
+     `ls /etc/systemd/system/mnt-data.mount.wants/`.
+   - Every 30 days `Checking data volume integrity...` runs a full scan with a
+     progress bar for minutes. **Do not interrupt it.**
+   - The command returns at once; the startup waves run in the background
+     (~5–8 min):
 
    ```bash
    journalctl -t homelab-startup -b -f
    ```
 
-4. **DNS is back ~1–3 min in.** Tier 0 starts with the daemon rather than with a
-   wave; the members are the services carrying `restart: unless-stopped`, and
-   the list is not repeated here on purpose — read it from the source of truth:
+4. **Wait for DNS (~1–3 min).** Tier 0 (the services with
+   `restart: unless-stopped`) starts with the daemon. To list its members:
 
    ```bash
    cd /opt/homelab || echo "wrong path — the command below will lie"
@@ -112,43 +75,35 @@ What to expect and do when the Pi comes back up. Design rationale in
      '.services | to_entries[] | select(.value.restart=="unless-stopped") | .key'
    ```
 
-   **An empty result is not an answer, it is a wrong directory.** Run from
-   anywhere but `/opt/homelab`, `docker compose config` fails, `jq` reads its
-   empty output as an empty list, and the pipeline exits 0 having printed
-   nothing — a pipeline reports its LAST command's status, so jq's success
-   masks the failure ahead of it. Measured both ways: six names from
-   `/opt/homelab`, zero lines and exit 0 from `$HOME`. Since the section
-   "If the orchestrator aborts" below sends you back here to rebuild missing
-   Tier 0 containers by hand, an empty list read as "nothing to rebuild" is the
-   expensive way to get this wrong. **If you see no names, fix your directory
-   and run it again — do not conclude anything about the stack.**
+   **Empty output means a wrong directory, not an empty tier**: `jq` exits 0
+   even when `docker compose config` fails. Rerun from `/opt/homelab`.
 
-   This line used to name five containers and claim they had been "enumerated on
-   the host by restart policy", which made prose read as a derived fact. It was
-   six: `traefik-log-redactor` joined Tier 0 and neither this runbook nor
-   ADR-007 followed. That omission is expensive precisely here — §"If the
-   orchestrator aborts" below tells you to recreate a missing Tier 0 container
-   by hand, and an operator rebuilding the tier from a list of five brings
-   Traefik back **without its redactor**. `tail -F` opens the file where it is,
-   so every access line written in the meantime is gone from the durable log,
-   silently, during the part of boot that #252, #253, #260 and #292 were all
-   opened about.
+   Then come light services, the Nextcloud stack, the heavy tier. Done at
+   `staged startup complete — all waves dispatched`.
 
-   The waves then bring up light services → Nextcloud stack → heavy tier, ending
-   with `staged startup complete — all waves dispatched`.
+## Check it worked
 
-5. **Verify** (optional):
+```bash
+docker compose -f /opt/homelab/compose.yaml config --services | wc -l   # expected count
+docker ps -q | wc -l                                    # must match
+docker ps --filter health=unhealthy --filter health=starting   # must be empty
+swapon --show                                         # /mnt/data/swapfile (HDD)
+```
 
-   ```bash
-   docker compose -f /opt/homelab/compose.yaml config --services | wc -l   # expected count
-   docker ps -q | wc -l                                    # must match
-   docker ps --filter health=unhealthy --filter health=starting   # must be empty
-   swapon --show                                         # /mnt/data/swapfile (HDD)
-   ```
+## If it fails
 
-## If the orchestrator aborts (`FATAL` in the journal)
+### The orchestrator aborts (`FATAL` in the journal)
 
-The script is fail-fast on purpose; the message says which guard fired:
+A FATAL retries twice more, 60 s apart, then the unit stays `failed`. Check
+first:
+
+```bash
+systemctl status homelab-stack-startup.service   # activating = a retry is pending
+journalctl -t homelab-startup -f
+```
+
+Transient causes (WAL replay, saturated disk) clear on retry. Structural ones
+fail three times:
 
 | FATAL message                              | Meaning & fix                                                              |
 |--------------------------------------------|----------------------------------------------------------------------------|
@@ -158,125 +113,82 @@ The script is fail-fast on purpose; the message says which guard fired:
 | `container X does not exist`               | Store/compose problem — `docker compose up -d X` by hand and inspect       |
 | `compose up failed for: ...`               | The compose error is logged right above it                                 |
 
-> **Never wipe `/mnt/data/docker` on a "ghost store" diagnosis.** The real
-> store is intact on the HDD; the daemon just started against the bare SD
-> directory. Restarting Docker *after* the mount reloads the real store with
-> all containers and images (the 2026-07-04 wipe was an avoidable full re-pull).
+- Recreating Tier 0 by hand: use the list from step 4. Forgetting
+  `traefik-log-redactor` loses Traefik access lines from the durable log.
+- The crash-heal only acts on existing containers, and waits while the unit is
+  `activating`.
 
-> Since 2026-09-13 a thinned image list has a **second**, benign cause:
-> `homelab-image-retention.timer` runs `docker image prune -af --filter
-> until=720h` on the first Sunday of each month at 04:30, so images no container
-> references and older than 30 days are gone on purpose. A *ghost* store shows
-> an empty list; retention leaves the images in use. Check `docker images | wc -l`
-> against `docker ps -q | wc -l` before concluding anything.
+### Ghost store or thinned image list
 
-Since #241 a FATAL is no longer terminal: the unit retries **twice more, 60 s
-apart**, then stays `failed`. So before intervening, check whether it is still
-trying:
+- **Never wipe `/mnt/data/docker` on a ghost-store diagnosis.** The real store
+  is intact; restart Docker after the mount and it comes back.
+- A thinned (not empty) list is `homelab-image-retention.timer`
+  (`docker image prune -af --filter until=720h`, first Sunday of the month,
+  04:30; images in use are kept). Compare `docker images | wc -l` with
+  `docker ps -q | wc -l`.
 
-```bash
-systemctl status homelab-stack-startup.service   # activating = a retry is pending
-journalctl -t homelab-startup -f
-```
+## Maintenance: stopping a container
 
-A transient cause — a database still replaying its WAL, a disk still saturated
-by the previous wave — is usually gone by the second attempt. A structural one
-(the table above) will fail all three times and needs the fix in the table.
+`homelab-stack-heal.timer` (every 2 min) restarts containers that exited
+non-zero or are `created`/`dead` (max once per 10 min), and those unhealthy for
+15 min (max once per hour). Exit 0 is left alone. Log:
+`journalctl -t homelab-heal`.
 
-Do not confuse the retries with the crash-heal: `homelab-stack-heal` acts on
-containers the engine already knows about — `exited`, `created` or `dead` since
-2026-09-05, and `running` but unhealthy since 2026-09-12 — so it can do nothing
-about a wave that never dispatched and whose containers therefore do not exist.
-Note that `created` and `dead` carry exit code 0, so for those two "exited
-non-zero" is not the test, and a container the heal run finds mid-deploy is one it will restart. That was the
-gap on 2026-08-26, and the retry is what closes it. Heal deliberately stays out
-of the way while the unit is `activating`, and starts working once it is
-`failed`.
-
-## Crash recovery & maintenance
-
-While unlocked, `homelab-stack-heal.timer` (every 2 min) restarts any compose
-container that exited with a non-zero code or is `created`/`dead` (one that
-exited 0 is left alone), and any that has been
-unhealthy for 15 min, at most once per 10 min and per hour respectively — traces
-in `journalctl -t homelab-heal`.
-
-Consequence: a manually **stopped** container often exits 137/143 and will be
-resurrected within 2 minutes. For maintenance, either:
+**A `docker stop` comes back within 2 minutes** (exit 137/143). Instead:
 
 ```bash
 docker compose down <svc>                    # removes it — nothing to heal
 systemctl stop homelab-stack-heal.timer     # or pause healing (restart after)
 ```
 
-`docker compose down` (no service named) also removes the Tier 0 containers, and
-a restart policy cannot bring back a container that no longer exists. The
-orchestrator recreates the missing ones itself since #253, so the stack comes
-back from `homelab-unlock` unaided — but nothing recreates them if you only
-restart Docker.
+`docker compose down` with no service also removes Tier 0. `homelab-unlock`
+recreates it; restarting Docker alone does not.
 
 ## Checking the data volume
 
-`e2fsck` on a mounted filesystem corrupts it, so every check below needs the
-stack down and `/mnt/data` unmounted, with the LUKS mapper still open.
+**Never run `e2fsck` directly**: if anything mounts the volume mid-scan, it
+corrupts it. `homelab-fsck` blocks mounting for the duration.
 
-Never run `e2fsck` directly. Use the wrapper, which raises the mount gate so
-nothing — systemd, a queued Docker job, or someone else's `homelab-unlock` —
-can mount the volume underneath the scan:
+Before you start: stack down, `/mnt/data` unmounted, LUKS mapper still open.
+
+1. Run the read-only check (~3 min 30 s). Exit code 4 means it found
+   something; that is a normal result.
+2. Read the output, then repair if needed.
 
 ```bash
 homelab-fsck            # read-only, forcing: e2fsck -fn (the default)
 homelab-fsck -fy        # repair, once you have READ the read-only output
 ```
 
-Budget about 3 min 30 s (measured 2026-08-26: 4.6 TB, 730 GB used, metadata
-only, over USB). The gate is cleared on exit, including when the check reports
-errors — `-fn` exits 4 whenever it finds anything, which is a normal result and
-not a reason to leave the volume unmountable.
-
-Running `e2fsck` by hand without the gate is what destroyed a diagnosis on
-2026-08-26: `homelab-unlock` was started mid-scan, mounted the volume
-read-write underneath it, and the resulting Pass 5 output was read as real
-corruption for half an hour. `homelab-unlock` now refuses to start while a gate
-it did not place is up.
-
-**Automatic checks.** Since #254 the volume carries a 30-day interval in its
-superblock, honoured by the `e2fsck -p` that `homelab-unlock` already runs. On
-the first unlock past that interval, `Checking data volume integrity...` takes
-minutes instead of a second and shows a progress bar. That is expected — DNS
-returns later than the usual 1–3 minutes on that boot, and interrupting it is
-the one thing not to do.
+The gate clears on exit, even on errors. `homelab-unlock` refuses to run
+while it is up.
 
 ## Security-update reboot cadence
 
-Security updates install automatically but **never auto-reboot** the homelab (a
-reboot = locked volume + outage until you unlock — ADR-011/013). `needrestart`
-restarts most host daemons on a patched library without a reboot. The ones it
-is told to leave alone (dbus, logind, docker and the rest of its exclusion list)
-keep the old library until the next reboot, and only **kernel / core-init**
-updates write `/var/run/reboot-required`. The "Pi pending action" Kuma monitor
-goes DOWN in both cases: on that file, and when `needrestart -b` lists a service
-still running a replaced library (checked only once a package has been installed
-since boot). Schedule the reboot+unlock
-by *reachability*, not raw CVSS:
+- Security updates install automatically; the homelab **never auto-reboots**
+  (a reboot is an outage until someone on the LAN unlocks).
+- `needrestart` restarts most daemons; its exclusions (dbus, logind, docker, …)
+  wait for a reboot. Kernel / core-init updates write
+  `/var/run/reboot-required`.
+- `Pi pending action` goes DOWN on that file, or when `needrestart -b` lists a
+  stale service (checked once a package was installed since boot).
+- Pending: `cat /var/run/reboot-required.pkgs`.
+
+Schedule by reachability, not raw CVSS, and by when someone can be on the LAN:
 
 | Situation | Reboot+unlock within |
 |-----------|----------------------|
 | Routine kernel bump — no active exploitation, or an LPE with no reachable foothold | **≤ 14 days** (next maintenance window) |
 | Actively exploited **and** reachable — CISA KEV / public PoC in the netstack, WireGuard, or an unauth-reachable path | **≤ 48 h** |
 
-A reboot is power-cycle-then-`homelab-unlock` (this runbook) — but it is not
-*just* that: it can only be finished from the LAN, so the window is bounded by
-someone being able to reach the machine, not only by the CVSS. Schedule it
-accordingly. Check what's pending with `cat /var/run/reboot-required.pkgs`. The offsite Pi has no LUKS and
-reboots itself when an update needs it (unattended-upgrades, at 04:00 — roughly
-monthly, not nightly), so this cadence is homelab-only. Rationale:
-[ADR-013](../decisions/ADR-013-update-patching-strategy.md).
+Offsite reboots itself when an update needs it, at 04:00
+(`Unattended-Upgrade::Automatic-Reboot "true"`), roughly monthly.
+
+Why: [ADR-007](../decisions/ADR-007-staged-container-startup.md) (staged
+startup), [ADR-013](../decisions/ADR-013-update-patching-strategy.md) (patching).
 
 ## Related
 
-- [ADR-007](../decisions/ADR-007-staged-container-startup.md) — design & alternatives.
-- [ADR-013](../decisions/ADR-013-update-patching-strategy.md) — update & patching strategy (reboot cadence).
 - [kill-switch runbook](kill-switch.md) — the remote poweroff lands on this boot path.
 - [usb-tamper runbook](usb-tamper.md) — the local poweroff (USB events) lands here too.
 - `homelab-lock` — stops the target (containers, heal timer, swap), unmounts and
