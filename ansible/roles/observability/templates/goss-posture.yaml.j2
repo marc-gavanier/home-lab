@@ -1128,21 +1128,24 @@ command:
   no-container-came-back-recovering:
     exec: |
       bad=""
+      crashed=""
       for c in immich-db miniflux-db nextcloud-db pihole; do
         [ -n "$(docker ps --filter "name=^${c}$" --filter status=running -q)" ] || continue
         started=$(docker inspect "$c" 2>/dev/null |
                   sed -n 's/.*"StartedAt": *"\([^"]*\)".*/\1/p' | head -1)
         [ -n "$started" ] || continue
-        if docker logs --since "$started" "$c" 2>&1 |
-             grep -qE 'was not properly shut down|Starting crash recovery|recovered [0-9]+ frames from WAL'; then
+        log=$(docker logs --since "$started" "$c" 2>&1)
+        printf '%s\n' "$log" |
+          grep -qE 'was not properly shut down|Starting crash recovery|recovered [0-9]+ frames from WAL' || continue
+        if printf '%s\n' "$log" | grep -q 'all server processes terminated; reinitializing'; then
+          crashed="$crashed $c"
+        else
           bad="$bad $c"
         fi
       done
-      [ -z "$bad" ] || {
-        echo "came back recovering rather than starting:$bad"
-        echo "the shutdown budget did not cover them — see #288"
-        exit 1
-      }
+      [ -z "$bad" ] || echo "came back recovering rather than starting:$bad — the shutdown budget did not cover them, see #288"
+      [ -z "$crashed" ] || echo "a process died after start and forced a recovery:$crashed — the shutdown was clean, see #391"
+      [ -z "$bad$crashed" ] || exit 1
     timeout: 90000
     exit-status: 0
 

@@ -691,7 +691,7 @@ services:
     networks:
       - internal
     healthcheck:
-      test: ["CMD-SHELL", "psql -U ${IMMICH_DB_USER} -d ${IMMICH_DB_NAME} -tAc 'select 1' >/dev/null"]
+      test: ["CMD-SHELL", "exec psql -U ${IMMICH_DB_USER} -d ${IMMICH_DB_NAME} -tAc 'select 1' >/dev/null"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -1110,7 +1110,7 @@ services:
     networks:
       - internal
     healthcheck:
-      test: ["CMD-SHELL", "psql -U ${MINIFLUX_DB_USER} -d ${MINIFLUX_DB_NAME} -tAc 'select 1' >/dev/null"]
+      test: ["CMD-SHELL", "exec psql -U ${MINIFLUX_DB_USER} -d ${MINIFLUX_DB_NAME} -tAc 'select 1' >/dev/null"]
       interval: 10s
       timeout: 5s
       retries: 3
