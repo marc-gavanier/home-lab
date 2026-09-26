@@ -88,9 +88,11 @@ the mount, so an unsorted heap never reaches the library or Navidrome's scanner.
 ## Alternatives Considered
 
 - **NFSv4** — the fastest option on the LAN, rejected for the cost: a new service
-  on the Pi, port 2049 in UFW, and uid/gid mapping to reconcile (the workstation
-  user is gid 1000, the music directory is group `gpio`/1003). A large permanent
-  concession for a convenience that sshfs delivers.
+  on the Pi, port 2049 in UFW, and uid/gid mapping to reconcile (the music
+  directory is group `gpio`, gid 1000 on the Pi, while the operator's own group
+  there is 1003 and on the workstation is 1000 — the ids line up only by
+  coincidence). A large permanent concession for a convenience that sshfs
+  delivers.
 - **Samba/CIFS** — the same costs as NFS and more moving parts. It would earn its
   place if other clients (a TV, a Windows machine) needed the library; none do.
 - **Nextcloud External Storage made writable** — rejected: it contradicts ADR-003

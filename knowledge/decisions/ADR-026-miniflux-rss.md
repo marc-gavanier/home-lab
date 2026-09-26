@@ -33,7 +33,7 @@ stack that ran the 132 migrations, created the admin account and served traffic:
 |-----------------------|--------------------------------------------|
 | `docker diff` write set | **0 entries** |
 | Default image uid | 65534 (`nobody`), already set upstream |
-| Image contents | distroless — no shell, no `curl`, no `wget` |
+| Image contents | Alpine — busybox `sh` and `wget`, no `curl` |
 | Capabilities needed | none |
 
 An empty write set makes `read_only: true` free. Everything Miniflux owns lives in
@@ -42,7 +42,7 @@ Postgres.
 This said "**no tmpfs at all** — the only service in the stack with neither" until
 #274. It was true when written and was reversed by #265: every read-only service
 carries `/tmp:size=8m` now, insurance rather than measurement, because `docker
-diff` cannot see a code path that has not run yet. Zero of the 22 read-only
+diff` cannot see a code path that has not run yet. Zero of the 23 read-only
 containers is without one.
 
 The absence of a shell is what fixes the healthcheck: a `CMD-SHELL` probe cannot run in
@@ -123,7 +123,8 @@ than truncating. The first deploy hit exactly that with a 128-byte password-mana
 passphrase, and the failure mode is worth knowing because it misdirects: the migrations
 succeed first, so `miniflux-db` reports **healthy** while `miniflux` exits 1 in a loop —
 it reads as a database problem and is an input-validation one. Dozzle documents the same
-ceiling (ADR-023); the warning now lives in `local.example.yml` for both.
+ceiling (ADR-023); the warning now lives in the deploy role's `meta/argument_specs.yml` and on
+both service pages (`docs/05-services/miniflux.md`, `docs/05-services/dozzle.md`).
 
 ### One Kuma monitor, not two — the second was specified on a wrong assumption
 
@@ -150,10 +151,11 @@ The same test also showed `docker ps` reporting `healthy` while the service retu
   budget, and both are in wave 1 of the staged startup.
 - The Postgres 18 datadir layout is now a documented trap. **Do not copy `immich-db`'s
   volume line** when adding a Postgres 16+ database.
-- Feeds are backed up as part of the restic set through `${SERVICES_DATA_DIR}/miniflux`,
-  and OPML export remains the portable escape hatch.
-- The `claude -p` digest is still unbuilt and still worth building; it is not blocked by
-  anything in this ADR.
+- Feeds are backed up as a nightly `pg_dump` into the restic set (the live datadir under
+  `${SERVICES_DATA_DIR}/miniflux/db` is excluded), and OPML export remains the portable
+  escape hatch.
+- The `claude -p` digest was left out of this ADR and has since been built — ADR-027,
+  `homelab-feed-digest.timer`.
 
 ## Related
 

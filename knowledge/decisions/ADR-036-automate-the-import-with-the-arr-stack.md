@@ -61,9 +61,10 @@ them as evidence:
   had sonarr, radarr and prowlarr healthy within ≤383, ≤450 and ≤440 s.
 
 The version pins are measured: 2.5.2, 4.0.19 and 6.3.0 were each confirmed to
-publish a `linux/arm64` manifest before being written here. Radarr's stable tag
-is 6.3.0 — its recent tags on the registry are nightly and develop builds, which
-this repository does not run.
+publish a `linux/arm64` manifest before being written here, and Renovate has since
+moved them to 2.6.5, 4.0.20 and 6.4.4. Radarr's stable tags are the plain
+`x.y.z` ones — its other recent tags on the registry are nightly and develop
+builds, which this repository does not run.
 
 ## The API keys, which cannot be templated
 

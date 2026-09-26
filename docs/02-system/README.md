@@ -6,7 +6,7 @@ Chosen for its stability (10-year LTS), excellent ARM64 support on Raspberry Pi 
 
 ## Base Configuration
 
-- Locale: `fr_FR.UTF-8`
+- Locale: `fr_FR.UTF-8` generated; the system default stays `C.UTF-8`
 - Timezone: `Europe/Paris`
 - NTP: synchronized via `systemd-timesyncd`
 - Hostname: defined during provisioning
@@ -65,7 +65,8 @@ removes is the beginning of the **current** boot: kernel, initramfs, the
 filesystem check, sysctl, udev, the encrypted-volume wait — the part of boot
 that has already produced #252, #253 and #260.
 
-`fake-hwclock` is what closes it: it saves the time hourly and at shutdown, and
+`fake-hwclock` is what closes it: it saves the time every 5 minutes (the
+package's hourly timer is overridden in the `base` role) and at shutdown, and
 restores it in early boot, so the pre-NTP clock becomes *roughly the last time
 this machine was running* instead of *the day systemd was built*. It cannot make
 those timestamps correct — nothing without an RTC can — but it makes them close
@@ -82,9 +83,11 @@ ring buffer before the clock was set carry `2026-09-05 22:56:10`, a skew of
 
 One detail is worth keeping because it contradicts what the code expected:
 `systemd-journald.service` still starts with the wrong clock — its
-`ExecMainStartTimestamp` reads 2026-07-28 17:05:14, about two monotonic seconds
-before `fake-hwclock-load` — so `load` does **not** win the race the ordering
-comment worried about. The result is right regardless, and why that is has not
+`ExecMainStartTimestamp` read 2026-07-28 17:05:14 on 2026-08-30, and on the boot
+of 2026-09-26 it read 2026-09-24 22:19:40 (the previous boot's start, the same
+pre-NTP clock the initramfs uses — see below), 13 ms of monotonic time before
+`fake-hwclock-load` — so `load` does **not** win the race the ordering was
+written to win. The result is right regardless, and why that is has not
 been measured, so it is not asserted here.
 
 Three checks report on it, and they fire at different moments — the third is
@@ -95,7 +98,7 @@ the control rather than a second patient:
 |-------|-------|
 | journal-vs-boot skew over 600 s | reported in `Pi health` from the first second of a bad boot; alarms in `pending` only once the journal reaches 80 % of its cap |
 | `Booting Linux on physical CPU` missing from this boot | only once the records are already gone |
-| `fake-hwclock-data-is-fresh`, on both hosts | when nothing has saved the time in two hours |
+| `fake-hwclock-data-is-fresh`, on both hosts | when nothing has saved the time in 15 minutes |
 
 **Both hosts carry the skew; only the homelab has paid for it**, because the
 offsite has never reached its journal cap and so has never vacuumed. That is
@@ -125,10 +128,13 @@ See `docs/06-backup/` for backup strategy.
 / (SD 64 GB)
 ├── /boot/firmware/    # Bootloader, kernel, config.txt
 ├── /etc/              # System configurations
-├── /var/lib/docker/   # Docker images (or moved to HDD)
-└── ...
+└── ...                # no Docker store: data-root is /mnt/data/docker
 
 /mnt/data (HDD 5 TB, ext4)
+├── docker/            # Docker data-root (images, layers, containers)
+├── secrets/           # Credential files, symlinked from their old paths (ADR-011)
+├── log/journal/       # Persistent journal, bind-mounted on /var/log/journal
+├── library/           # Importer-written media: movies, shows, downloads (ADR-035)
 ├── services/          # Container persistent data
 │   ├── nextcloud/
 │   ├── jellyfin/
@@ -138,10 +144,12 @@ See `docs/06-backup/` for backup strategy.
 │   ├── wireguard/
 │   ├── traefik/
 │   └── uptime-kuma/
-├── media/             # Media files
+├── media/             # Operator-written media
 │   ├── music/
 │   ├── videos/
-│   └── photos/
+│   ├── photos/
+│   ├── books/
+│   └── books-ingest/
 ├── backups/           # Restic repositories
 └── swapfile           # Swap (4 GiB)
 ```

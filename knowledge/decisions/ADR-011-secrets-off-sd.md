@@ -28,6 +28,7 @@ docs are unchanged:
 |---------------------------------------------|------------------------------------------|
 | `/opt/homelab/.env`                         | `/mnt/data/secrets/homelab.env`          |
 | `/opt/homelab/backup.env`                   | `/mnt/data/secrets/backup.env`           |
+| `/opt/homelab/ddns.env`                     | `/mnt/data/secrets/ddns.env`             |
 | ~~`/opt/homelab/configs/searxng/settings.yml`~~ (see note) | `/mnt/data/secrets/docker/searxng_settings` |
 | `/etc/wireguard/wg0.conf`                   | `/mnt/data/secrets/wg0.conf`             |
 | claude rclone config (`RCLONE_CONFIG`)      | `/mnt/data/secrets/claude/rclone.conf`   |
@@ -47,11 +48,18 @@ in the operator's shell profile.
 > rule: a symlink is fine for host-side consumers, never for a path a container
 > reads through a directory mount.
 
-Units that consume these files are gated on the volume
-(`RequiresMountsFor=/mnt/data`) and, when they must start at unlock rather
-than at boot, pulled in by `mnt-data.mount` via `systemctl add-wants`
-(wg-quick@wg0, vault-mount). Everything here only runs after `homelab-unlock`
+Units that consume these files are gated on the volume — `RequiresMountsFor=/mnt/data`
+(wg-quick@wg0, vault-mount), or `After=mnt-data.mount` plus
+`ConditionPathExists` on the secret (homelab-ddns) — and, when they must start
+at unlock rather than at boot, pulled in by `mnt-data.mount` via
+`systemctl add-wants` (wg-quick@wg0, vault-mount, homelab-ddns; the same
+directory also holds homelab-journal-persist, which carries no secret but moves
+the journal onto the volume). Everything here only runs after `homelab-unlock`
 anyway — inside a running system the change costs nothing.
+
+*Amended 2026-09-26: the `ddns.env` row and the homelab-ddns /
+homelab-journal-persist wants were added — both units arrived after this ADR
+and followed its pattern without being listed here.*
 
 It costs one thing at the boundary, and it is worth stating plainly because a
 runbook was written as though it did not: `wg0.conf` is one of these files, so

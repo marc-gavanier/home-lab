@@ -115,26 +115,28 @@ Sync working on PC (Linux) and mobile (/e/OS) via the Remotely Save plugin → N
 Claude Code runs on the Pi, reads/writes the vault, and is pilotable from mobile.
 
 ### How it works
-- Claude Code installed natively on the Pi (~316 MB while working — viable on the 4GB Pi).
+- Claude Code installed natively on the Pi (~316 MB while working — measured on the 4GB Pi, the host is now the 8GB one).
 - The vault is **not** edited in Nextcloud's datadir directly (the datadir is `www-data`,
   and external writes need an `occ files:scan`). Instead, rclone mounts `nextcloud:Notes`
   (WebDAV, admin app-password) at `~/vault` via a systemd service (`vault-mount`). Claude
   works there as a **Nextcloud client** → writes go through WebDAV → Nextcloud indexes them
   (no scan) → notify_push pushes to clients in real time.
 - Mobile control via **Remote Control** as a systemd service (`claude-remote-control`,
-  always-on). Pairing URL: `journalctl -u claude-remote-control | grep claude.ai/code`.
+  always-on). The unit sends stdout to `null`, so the pairing URL is not in the journal:
+  pair from the app's own environment list.
 
 ### Key findings
 - **Auth**: Remote Control requires `claude auth login` (claude.ai; creds in `~/.claude`).
   A `setup-token` / `CLAUDE_CODE_OAUTH_TOKEN` is **inference-only and cannot do Remote
   Control** — must NOT be set in the service env.
-- **Headless**: `claude remote-control` runs fine without a TTY under systemd; it just
-  re-renders the QR prompt into the journal (noisy but harmless).
+- **Headless**: `claude remote-control` runs fine without a TTY under systemd. It
+  re-renders the QR prompt on stdout, which the unit discards (`StandardOutput=null`).
 - **Stable pairing**: the `environment` ID survives a service restart → the mobile app
   reconnects without re-scanning after a reboot.
-- **DNS hairpin (host side)**: `drive.<domain>` resolves to the public IP from the Pi too,
-  so `/etc/hosts` pins it to the Pi's LAN IP for rclone (same issue as the nextcloud
-  container's `extra_hosts`).
+- **Split DNS (host side)**: `drive.<domain>` has no public record and exists only in
+  Pi-hole, which the host does not use as its resolver, so the role pins it to the Pi's
+  LAN IP for rclone — in the cloud-init hosts template and in `/etc/hosts` (same need as
+  the containers' `extra_hosts`).
 
 ### Gotcha — stale duplicate environments (the "mobile spins forever" trap)
 

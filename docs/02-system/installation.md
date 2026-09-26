@@ -113,6 +113,7 @@ cp local.example.yml local.yml
 Generate passwords in your password manager and paste them in `local.yml`. Then encrypt the file:
 
 ```bash
+cd ~/Storage/Workspace/learn/home-lab/ansible
 ansible-vault encrypt inventory/host_vars/homelab/local.yml
 ```
 
@@ -139,6 +140,7 @@ ssh homelab "sudo reboot"
 ansible-playbook playbooks/site.yml --tags storage --ask-vault-pass
 ansible-playbook playbooks/site.yml --tags security --ask-vault-pass
 ansible-playbook playbooks/site.yml --tags docker --ask-vault-pass
+ansible-playbook playbooks/site.yml --tags observability --ask-vault-pass
 
 # Phase 2 — Network infrastructure
 ansible-playbook playbooks/site.yml --tags deploy --ask-vault-pass --extra-vars "deploy_services='traefik pihole wg-easy'"
@@ -151,9 +153,12 @@ ansible-playbook playbooks/site.yml --tags deploy --ask-vault-pass --extra-vars 
 
 # Phase 5 — Observability
 ansible-playbook playbooks/site.yml --tags deploy --ask-vault-pass --extra-vars "deploy_services='uptime-kuma netdata'"
+
+# Boot orchestration and physical protections — without stack-startup the unlock brings up Tier 0 only
+ansible-playbook playbooks/site.yml --tags claude-code,killswitch,usb-tamper,stack-startup --ask-vault-pass
 ```
 
-> **Note**: The `storage` role only creates top-level directories (`services/`, `media/`, `backups/`). Per-service subdirectories are created by Docker via volume mounts at first start (root, 0755), except those `roles/deploy/tasks/data_dirs.yml` creates first with an explicit mode (e.g. `vaultwarden`, `traefik/acme`, `wireguard` at 0700).
+> **Note**: The `storage` role creates the data tree (`roles/storage/tasks/directories.yml`): the top-level `services/`, `media/`, `library/` and `backups/`, the `media/` and `library/` subtrees, and a few per-service directories with an explicit owner and mode. Other per-service subdirectories are created by Docker via volume mounts at first start (root, 0755), except those `roles/deploy/tasks/data_dirs.yml` creates first with an explicit mode (e.g. `vaultwarden`, `traefik/acme`, `wireguard` at 0700).
 
 ## Step 8 — SSH Client Configuration
 
@@ -239,10 +244,12 @@ split DNS (below) and stay out of public DNS. Two things to set up:
    in `local.yml` as `cloudflare_dns_api_token` (Traefik solves the challenge
    with it).
 
-Homelab subdomains resolved internally (split DNS): `drive` (Nextcloud), `vault`
-(Vaultwarden), `videos` (Jellyfin), `music` (Navidrome), `photos` (Immich),
-`dns` (Pi-hole), `services` (Uptime Kuma), `system` (Netdata), `search`
-(SearXNG), `share` (Transmission), `proxy` (Traefik dashboard).
+Homelab subdomains resolved internally (split DNS) include `drive` (Nextcloud),
+`vault` (Vaultwarden), `videos` (Jellyfin), `music` (Navidrome), `photos`
+(Immich), `dns` (Pi-hole), `services` (Uptime Kuma), `system` (Netdata),
+`search` (SearXNG), `share` (Transmission), `proxy` (Traefik dashboard). The
+full set is `ansible/roles/deploy/templates/pihole-05-homelab.conf.j2`; the
+canonical list of served names is `docs/04-network/README.md`.
 
 > **Important**: No wildcard — per-host certs, so other subdomains (personal
 > site, mail/Proton, a static site on GitHub Pages) are unaffected. Do NOT use
@@ -295,8 +302,11 @@ Create a new client, scan the QR code with the WireGuard mobile app. Install the
 Automated encrypted backups run daily at 3 AM via systemd timer (`homelab-backup.timer`).
 
 What gets backed up:
-- Database dumps (MariaDB for Nextcloud, PostgreSQL for Immich)
+- Database dumps (MariaDB for Nextcloud, PostgreSQL for Miniflux, SQLite copies
+  of the small databases; Immich's own PostgreSQL dumps ride along in its data)
 - Service data (`/mnt/data/services`)
+- Media (`/mnt/data/media` — not `/mnt/data/library`, which is re-downloadable, ADR-035)
+- Secrets (`/mnt/data/secrets`, ADR-011)
 - Deployment configs (`/opt/homelab`)
 
 Retention: 7 daily, 4 weekly, 6 monthly snapshots.

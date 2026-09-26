@@ -30,16 +30,16 @@ free. It runs as uid 65534 with **zero
 capabilities**; 65534 is already the image's own default, restated in `compose.yaml` so a
 base-image change cannot move it silently.
 
-The image is **distroless**: no shell, no `curl`, no `wget`. That is not a limitation to
-work around, it decides the healthcheck for us:
+The image is Alpine-based (busybox `sh` and `wget` are present), but the healthcheck does not
+go through a shell anyway — the binary checks itself:
 
 ```yaml
 test: ["CMD", "/usr/bin/miniflux", "-healthcheck", "auto"]
 ```
 
 The binary's own subcommand issues a real HTTP request against the listener, so a Miniflux
-that is up but no longer serving fails it. A `CMD-SHELL` probe could not run in this image
-at all.
+that is up but no longer serving fails it, with no dependency on what the base image happens
+to ship.
 
 One setting is easy to miss: `LISTEN_ADDR` defaults to `127.0.0.1:8080`, which inside a
 container means the process answers only itself and Traefik gets connection refused. It is
@@ -127,17 +127,17 @@ All three are composed by the deploy role from two vault variables
 
 ## Data and Restore
 
-Everything lives in Postgres under `${SERVICES_DATA_DIR}/miniflux/db`, inside the restic
-set like the rest of `/mnt/data`. There is no separate application volume.
+Everything lives in Postgres under `${SERVICES_DATA_DIR}/miniflux/db`, which is **excluded**
+from the restic set (`resticprofile.yaml.j2`). There is no separate application volume.
 
 The portable escape hatch is **OPML export** (*Settings → Export*): it carries the
 subscription list, not the read/unread state or starred entries.
 
 **Do not restore the datadir.** The nightly backup writes a plain-SQL `pg_dump` to
-the dump directory, and that is what a restore loads. restic walks
-`services/miniflux/db` file by file while Postgres is writing to it, so the copy in
-a snapshot can be a torn cluster — it is in the restic set because everything under
-`/mnt/data` is, not because it is restorable.
+the dump directory, and that is what a restore loads — the only restorable form. The
+datadir is excluded because restic would walk it file by file while Postgres writes to
+it, and the copy in a snapshot could be a torn cluster; a snapshot restores
+`services/miniflux` as an empty directory.
 
 Full procedure: `knowledge/runbooks/restore-from-backup.md` → "Restore Miniflux
 (PostgreSQL)". It is not repeated here, for the reason the other service pages give:
@@ -175,5 +175,6 @@ a procedure duplicated in two places drifts in one of them.
 - [ADR-026](../../knowledge/decisions/ADR-026-miniflux-rss.md) — why Postgres 18, the
   moved datadir, and the DSN-as-secret split.
 - Issue #15 — services shortlist. The `claude -p` morning digest is part of that entry and
-  is **not** built: it is a separate Ansible role with a long-lived OAuth token, out of
-  scope here.
+  is built in the `claude-code` role, with no OAuth token — see
+  [claude-code.md, Daily Feed Digest](claude-code.md#daily-feed-digest) and
+  [ADR-027](../../knowledge/decisions/ADR-027-feed-digest.md).

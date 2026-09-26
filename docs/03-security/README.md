@@ -15,11 +15,11 @@ Defense in depth — each layer is secured independently. If one layer falls, th
   which ADR-013 calls the more serious of the two errors: an attack-surface
   summary that leaves out an open port
 - **UFW**: firewall on the Pi, deny by default, explicit whitelist. Note:
-  Docker-published ports (53, 51413) insert their own iptables rules that
-  bypass UFW's INPUT policy — so the *internet*-exposure boundary is enforced
-  by the **ISP router's forward list**, not by UFW. Published ports are only
-  LAN-reachable because the router does not forward them — with the single
-  exception of 51413, which it does.
+  Docker-published ports (53, 80, 443, 51413, 51820/udp) insert their own
+  iptables rules that bypass UFW's INPUT policy — so the *internet*-exposure
+  boundary is enforced by the **ISP router's forward list**, not by UFW.
+  Published ports are only LAN-reachable because the router does not forward
+  them — with the two exceptions of 51820/udp and 51413, which it does.
 
   > **`ufw status` is not evidence about container-facing ports, and since
   > 2026-09-02 `DOCKER-USER` is where the answer lives.** The rules ufw prints
@@ -144,10 +144,11 @@ Defense in depth — each layer is secured independently. If one layer falls, th
   and loaded by the deploy role; if it is missing the container refuses to
   start, which is the loud failure rather than a silent fall back to
   unconfined.
-- **Docker socket never mounted raw** — both Traefik and Netdata reach it only
-  through a read-only `docker-socket-proxy` (CONTAINERS read-only, POST denied,
+- **Docker socket never mounted raw** — Traefik, Netdata and Dozzle reach it
+  only through a read-only `docker-socket-proxy` (CONTAINERS read-only, POST denied,
   on an internal-only network), so a container RCE can't pivot to host root via
-  the socket. (Netdata uses it solely to resolve container names.)
+  the socket. (Netdata uses it solely to resolve container names; Dozzle reads
+  container logs through it.)
 - No `privileged` mode, and **`cap_drop: ALL` on every service**, each re-adding
   only what its image was *observed* to need (issue #24). Docker hands 14
   capabilities to every container by default; sixteen of the thirty-two keep none.
@@ -208,10 +209,16 @@ Defense in depth — each layer is secured independently. If one layer falls, th
   own; an owned tmpfs is `noexec`; with `exec` set, `/app` is root-owned in the
   image and the app never serves). Removing this root phase needs an upstream
   change, not a compose setting (ADR-025).
+
+  **Radarr, Sonarr and Prowlarr also hold it — eight in all — and they are not
+  in the structural list.** They carry the calibre-web/transmission capability
+  set by inheritance, because they are linuxserver s6 images of the same shape;
+  it has not been narrowed for them, so their state is "unmeasured", not
+  "structural" (ADR-036).
 - **Secrets injected as files, not environment variables** — the socket-proxy
   still allows `GET /containers/{id}/json`, whose response carries every
   container's `Env` array, so an env-injected password would be readable by a
-  compromised Traefik or Netdata. DB and app passwords are mounted at
+  compromised Traefik, Netdata or Dozzle. DB and app passwords are mounted at
   `/run/secrets/` via each image's own convention (`*_FILE`, `FILE__*`), leaving
   only a path in `inspect` (ADR-016). This covers the Cloudflare DNS-01 token
   too — a `Zone:DNS:Edit` token being worth more than any DB password, since
@@ -220,14 +227,15 @@ Defense in depth — each layer is secured independently. If one layer falls, th
   admin password now sits in `/mnt/data/secrets/wg-easy-setup.env`
   (`0600 root:root`), read by the host and never by a container (ADR-020). It
   is plaintext there, because v15 hashes with argon2 itself and accepts no
-  precomputed hash; keeping it out of `homelab.env`, which is group-readable by
-  docker and mounted into containers, is what limits the exposure
+  precomputed hash; keeping it out of `homelab.env` — which feeds Compose
+  interpolation for every service — is what limits the exposure
 - **Security headers + rate-limit on every HTTPS router** — HSTS, SAMEORIGIN,
   nosniff and a per-IP rate cap applied at the Traefik entrypoint
 - Isolated Docker networks (`proxy` / `internal` / `socketproxy`); the DB tier
   lives on `internal` only — never proxied, never published
 - No web UI published directly — every one routes through Traefik (vpn-only); the only
-  published ports are DNS, WireGuard and Transmission's peer port
+  published ports are Traefik's 80/443, DNS, WireGuard and Transmission's peer
+  port, plus wg-easy's admin UI bound to the host loopback only
 - **Read-only rootfs on 23 of the 32 services** (ADR-019, issue #32) — a
   compromised process cannot rewrite the code it runs, drop a binary, or persist
   anything outside the paths we declared. Every writable path is explicit: a
@@ -243,8 +251,9 @@ Defense in depth — each layer is secured independently. If one layer falls, th
   (`/run/mysqld`), never the parent, or the image's own runtime directories
   disappear and the server aborts; and Docker mounts `tmpfs` `noexec`, which
   breaks any init system that stages executables there.
-- **Four of the six exceptions write into directories the image itself
-  populates**, and each is stated in its own block: pihole (`setcap` on its own
+- **Four of the nine exceptions write into directories the image itself
+  populates** (the reason for each is in ADR-019, not in `compose.yaml`, which
+  carries no comments since #390): pihole (`setcap` on its own
   binary — read-only leaves the container *Up* with the resolver dead, the
   failure mode we most want to avoid), nextcloud (`redis-session.ini` among 21
   shipped `.ini` files), socket-proxy (`haproxy.cfg` beside its template),
@@ -266,6 +275,9 @@ Defense in depth — each layer is secured independently. If one layer falls, th
   Python bytecode caches under `/app` on every start. There is no polite
   degradation to weigh, as there is with transmission — it simply cannot run
   read-only.
+- **The seventh to ninth, Radarr, Sonarr and Prowlarr, were never attempted**
+  (ADR-036): their state is "unknown", not "structural", and no `docker diff`
+  has been taken for them yet.
 
 ### 4. Application
 - Strong passwords generated via Vaultwarden
@@ -300,10 +312,11 @@ Defense in depth — each layer is secured independently. If one layer falls, th
 - Encrypted backups (Restic)
 - Sensitive data encrypted at rest
 - Secret rotation — with the caveat that a deploy rotates only some of them.
-  Four are read once at database initialisation or first run and need a written
-  procedure instead: `knowledge/runbooks/rotate-a-secret.md`. The daily posture
-  check asserts that each database secret still opens its database, so a
-  rotation that did not land reports itself.
+  Eleven are not rotated by a deploy and need a written procedure instead —
+  three of them destructively if rotated in the vault alone (both restic
+  passwords and the LUKS passphrase): `knowledge/runbooks/rotate-a-secret.md`.
+  The daily posture check asserts that each database secret still opens its
+  database, so a rotation that did not land reports itself.
 
 ### 6. Physical
 While the LUKS volume is unlocked, its key lives in RAM — the physical layer

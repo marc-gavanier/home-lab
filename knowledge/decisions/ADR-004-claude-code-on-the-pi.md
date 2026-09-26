@@ -34,8 +34,9 @@ axes — all automated by the `claude-code` Ansible role:
 
    Until 2026-08-24 the list held one entry while this line claimed "credential reads are
    denied"; two files the `claude` account owns were outside it (#203, #219).
-3. **Vault-only view**: Claude sees the notes vault and nothing else of the host. The vault
-   is an **rclone WebDAV mount** of `nextcloud:Notes` at `~/vault`, so Claude acts as a
+3. **Vault-only writes**: Claude writes only to the notes vault. It reads whatever the
+   `claude` account can read, which by decision includes the world-readable media under
+   `/mnt/data`; only the deny list above is withheld. The vault is an **rclone WebDAV mount** of `nextcloud:Notes` at `~/vault`, so Claude acts as a
    Nextcloud *client* — writes go through WebDAV and Nextcloud indexes them immediately, with
    no `occ files:scan` needed (unlike writing into the datadir directly).
 
@@ -61,7 +62,7 @@ the system, secrets, Docker, or other data.
 - **Residual DoS risk**: no `MemoryMax`/`CPUQuota`/`TasksMax` on the service (accepted) — a
   misused session could exhaust resources. Mitigation: stop the service via SSH.
 - **Manual one-time auth**: the `claude` login can't be automated (by design).
-- **Memory**: ~300 MB while working on a 4 GB Pi — viable but adds to the budget.
+- **Memory**: ~300 MB while working on the 8 GB Pi — viable but adds to the budget.
 
 ## Alternatives Considered
 

@@ -46,11 +46,13 @@ weekly in the local maintenance job, not in the backup window.
 > age out. Changing the backup source leaves the last snapshot of the old shape
 > behind **permanently**.
 >
-> There is one such snapshot today, taken 2026-09-13 03:00, the last before
-> `library/` left the source. It is the only snapshot in the repository that
-> still holds films and series, and it will stay. The consequence worth knowing
-> is not the disk it occupies but that **both ways of asking for a film exit 0
-> and neither tells you what happened**:
+> There are three such groups today (measured 2026-09-26): 9 snapshots from
+> before `media/` joined the source (2026-05-14 to 05-25), 12 from before
+> `secrets/` did (2026-05-25 to 07-13), and one taken 2026-09-13 03:00, the last
+> before `library/` left the source. That last one is the only snapshot in the
+> repository that still holds films and series, and it will stay. The
+> consequence worth knowing is not the disk it occupies but that **both ways of
+> asking for a film exit 0 and neither tells you what happened**:
 >
 > - `restic restore latest --include /mnt/data/library/...` resolves `latest` to
 >   the newest snapshot overall, which no longer carries that path — so it
@@ -110,9 +112,12 @@ LUKS header — the prerequisite for reaching *any* of `/mnt/data` — has its o
 - Orchestration: `resticprofile`, configured by
   `ansible/roles/deploy/templates/resticprofile.yaml.j2` (ADR-031). The database
   dump COMMANDS are `run-before` hooks in that profile and the assertions that
-  check them are `/etc/goss/backup-dumps.yaml`, both generated from
-  `backup_sql_dumps` and `backup_sqlite_dumps` in group_vars — so a database
-  added there gets dumped AND checked, and cannot get one without the other.
+  check them are `/etc/goss/backup-dumps.yaml`. For SQLite, both are generated
+  from `backup_sqlite_dumps` in group_vars, so a database added there gets
+  dumped AND checked. For SQL, only the assertions come from `backup_sql_dumps`:
+  the Nextcloud and Miniflux dump commands are written out in the profile, so a
+  SQL database added to that list is checked but NOT dumped until its hook is
+  added too — and the check then fails, which is how you find out.
   This replaced a 373-line script (ADR-031 kept it saying "resticprofile has no
   equivalent"; ADR-032 installed goss, which has). `backup-notify.sh` remains
   and builds the Kuma message, because resticprofile's hooks receive no restic
@@ -120,7 +125,7 @@ LUKS header — the prerequisite for reaching *any* of `/mnt/data` — has its o
   assertions.
 - Weekly: `resticprofile -n homelab prune` then `check`
 - Scheduling (systemd timers):
-  - `homelab-backup.timer` — daily 03:00 (dumps → backup → offsite copy → forget)
+  - `homelab-backup.timer` — daily 03:00 (dumps → backup → forget → offsite copy)
   - `homelab-local-maintenance.timer` — Tuesday 01:00 (weekly prune + metadata check; deep read-data on the run that falls in the first 7 days of the month)
   - `homelab-offsite-check.timer` — Tuesday 02:00 (offsite repo check)
 - Monitoring: Uptime Kuma **Push** monitors (dead-man's switches) — the scripts ping on

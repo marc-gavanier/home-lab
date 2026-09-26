@@ -97,8 +97,13 @@ No document can open, and `docker ps` looks perfect. The image's healthcheck
 does catch it, so the "unhealthy > 10 min" alert covers it — but a human
 checking status by eye would not.
 
-Three `ERR` lines about `coolmount` and `CAP_SYS_ADMIN` at every start are
-**expected**: they are the bind-mount fallback described in ADR-021.
+A burst of `ERR` lines about `coolmount` and `CAP_SYS_ADMIN` after every start
+is **expected** — about twenty over the first minutes of the start of
+2026-09-26, one per jail attempt: they are the bind-mount fallback described in
+ADR-021. So are three `ERR` lines about user namespaces (`CLONE_NEWUSER unshare
+failed`, then "AppArmor is restricting unprivileged user namespaces"): jails are
+built by `coolforkit-caps` instead. The sysctl that log line suggests is not the
+fix — nothing is broken.
 
 ## Verify it actually works
 

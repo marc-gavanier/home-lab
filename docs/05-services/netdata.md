@@ -12,7 +12,7 @@ Real-time system monitoring dashboard.
 - Docker container monitoring
 - Per-process resource usage
 - Automatic anomaly detection
-- No configuration needed — works out of the box
+- Collects out of the box; what this lab adds — `netdata.conf` (retention tiers), the `go.d` Docker collector and six curated `health.d` alarms — is rendered from the repository by Ansible
 
 ## First Steps
 
@@ -37,16 +37,16 @@ Real-time system monitoring dashboard.
 
 ## Data
 
-**Netdata has state, and a fair amount of it.** Two bind mounts carry its registry
-and its metrics database:
+**Netdata has state, and a fair amount of it.** Two bind mounts carry it:
 
-| Path | Content |
-|---|---|
-| `/mnt/data/services/netdata/lib` | Registry and the on-disk metrics database |
-| `/mnt/data/services/netdata/cache` | Collector caches |
+| Path                               | Content                                                                    | In the backup |
+|------------------------------------|----------------------------------------------------------------------------|---------------|
+| `/mnt/data/services/netdata/lib`   | Registry and agent identity — a few tens of KB                             | yes           |
+| `/mnt/data/services/netdata/cache` | The metrics database (`dbengine` tiers 0-2), ML models, context metadata   | **no**        |
 
-About **2 GB** together, and roughly half the nightly backup delta. Both are inside
-the restic set like the rest of `/mnt/data`.
+`cache/` is about **1.8 GB** and is excluded from restic on purpose: it churned
+roughly 400 MiB a night — half the nightly delta — for data that regenerates
+itself (commit 78372e1, 2026-08-31).
 
 This page used to say the opposite — stateless, everything in RAM, lost on restart.
 That described the state **before** ADR-019, which moved the database off the
@@ -55,7 +55,8 @@ recreation.
 
 ## Restore
 
-Nothing service-specific: the two directories come back with a restic restore of
-`/mnt/data/services`, and re-running the deploy role brings the container up.
-Losing them costs the metric history, not the service — it starts collecting again
-immediately either way.
+**A restore does NOT bring back the metric history.** The metrics database lives
+in `cache/`, which no snapshot contains. A restic restore of `/mnt/data/services`
+returns `lib/` only — the registry — and re-running the deploy role brings the
+container up with an empty history. That costs the graphs, not the service: it
+starts collecting again immediately.

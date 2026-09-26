@@ -37,7 +37,9 @@ the usual one. Exclude it:
 The devices exempted on a given installation are listed in
 `ansible/inventory/host_vars/<host>/private.yml` (gitignored), not here: a MAC
 address identifies a piece of hardware in someone's home and this repository is
-public. `private.example.yml` shows the shape.
+public. The key is `pihole_bypass_clients`, a list of `{ mac, label }` entries;
+`private.example.yml` carries a placeholder. Nothing reads that key — it is the
+record, and the rule itself lives in Pi-hole.
 
 **Why the MAC and not the IP.** This is the only per-client rule Pi-hole holds,
 and it is stored as an address the router hands out on a lease. Read from the
@@ -60,7 +62,8 @@ the device instead of the lease.
 **Changing it is a UI action, not a deploy.** The client table lives in
 `gravity.db`, which is runtime state and not managed by Ansible: edit the client
 in Pi-hole admin, replacing the IP with the MAC, then re-run the query above to
-confirm it now reads the MAC.
+confirm it now reads the MAC. As of 2026-09-26 it has not been done: the query
+still returns an IP for the `Bypass` group.
 
 ## Pi-hole v6 Gotchas
 

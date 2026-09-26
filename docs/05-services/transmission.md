@@ -29,8 +29,10 @@ Configure to point at `share.example.com:443` (HTTPS) with the same admin creden
 Transmission writes back to `settings.json` on shutdown, so **stop the daemon before editing**.
 
 1. Remove the container — `compose down`, never `docker stop`: the heal timer
-   brings a stopped container back within 2 min, and Transmission would then
-   rewrite `settings.json` from memory, over the edit being made (ADR-007).
+   restarts within 2 min a container that exited non-zero (only exit 0 is left
+   alone), and Transmission would then rewrite `settings.json` from memory, over
+   the edit being made (ADR-007). `down` takes it out of the timer's view
+   whatever the exit code.
    ```bash
    cd /opt/homelab && docker compose down transmission
    ```
@@ -121,8 +123,8 @@ this host, re-open this.
 ## Restore
 
 ```bash
-cd /opt/homelab   # `compose down`, never `docker stop`: a stopped container
-                  # is resurrected by the heal timer within 2 min (ADR-007)
+cd /opt/homelab   # `compose down`, never `docker stop`: the heal timer restarts a
+                  # container that exited non-zero within 2 min (ADR-007); only exit 0 is left down
 docker compose down transmission
 restic restore latest --target / --include /mnt/data/services/transmission
 docker compose up -d transmission

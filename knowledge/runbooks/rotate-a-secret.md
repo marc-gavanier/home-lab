@@ -178,7 +178,7 @@ authenticated.
 This coupling is six days younger than the table above, which is why the table
 did not mention it. **A change that makes a service authenticate creates a
 credential copy wherever it is monitored from**; that is the general form, and
-Transmission is currently the only monitor of the thirty-one that authenticates.
+Transmission is currently the only monitor of the thirty-seven that authenticates.
 
 ### Warning about `forgejo_secret_key`
 
@@ -347,10 +347,11 @@ because compose injects `ADMIN_TOKEN_FILE` while the file holds `admin_token`.
 
 The daily posture check (`homelab-posture.service`) is the proof that a rotation
 landed. It asserts that the password in each secret file still opens its
-database, addressing the server **by container name** rather than the loopback —
-`initdb` writes `host all all 127.0.0.1/32 trust` into `pg_hba.conf`, so over
-127.0.0.1 Postgres accepts any password at all. It also compares Miniflux's DSN
-against the database's own secret, since those two can drift apart without
+database. The two Postgres probes address the server **by container name**
+rather than the loopback — `initdb` writes `host all all 127.0.0.1/32 trust`
+into `pg_hba.conf`, so over 127.0.0.1 Postgres accepts any password at all.
+MariaDB has no such rule, so its probe uses 127.0.0.1 and still checks the
+password. It also compares Miniflux's DSN against the database's own secret, since those two can drift apart without
 either side noticing until the next restart.
 
 To see the verdict without waiting for the timer:
@@ -360,7 +361,7 @@ sudo systemctl start homelab-posture.service
 sudo journalctl -u homelab-posture.service -n 20 --no-pager
 ```
 
-A clean run prints nothing in the journal but systemd's own lines; the verdict is the Kuma
+A clean run prints nothing in the journal but systemd's and PAM's own lines; the verdict is the Kuma
 "Pi security posture" beat, which reads `posture OK — N checks (…)`. A failed rotation prints
 `<container>: /run/secrets/<name> no longer opens the database` in the journal and turns that
 beat red.

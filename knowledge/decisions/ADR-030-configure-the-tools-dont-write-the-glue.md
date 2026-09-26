@@ -50,7 +50,9 @@ decision rests on.**
 What was written: Netdata defines 57 alarms, no recipient is configured, so the
 work "was redone in bash" — framed as an oversight.
 
-What `docs/07-observability/README.md` actually says, and has said all along:
+What `docs/07-observability/README.md` actually said, and had said all along
+(*Amended 2026-09-26:* the README has since been rewritten around this ADR — it now
+calls that last sentence "what used to happen", see its "third option" section):
 
 > "Leaving it that way is a **deliberate choice, not an oversight**. The stock
 > alarms are tuned for a generic server — the disk-backlog one alone would fire
@@ -166,12 +168,12 @@ the same justified threshold.
 
 ### The target
 
-| Engine | Its one job | What it absorbs |
-|--------------------|---------------------------------------------------------|--------------------------------|
-| **Netdata** | collection, thresholds, and routing of **curated** alarms | `health.sh`, `disk.sh`, `offsite-health.sh`, `lynis-report.sh`, `notify-push.sh` |
-| **Uptime Kuma** | external reachability + dead-man's switch for scheduled jobs | already correct, keep |
-| **Goss** | assertions Netdata cannot express (container config) | `posture.sh` |
-| **resticprofile** | backup orchestration | `backup.sh`, `local-maintenance.sh`, `offsite-check.sh` |
+| Engine            | Its one job                                                                              | What it absorbs                                                                  |
+|-------------------|------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------|
+| **Netdata**       | collection and thresholds of **curated** alarms (routing: Kuma, see the amendment below) | `health.sh`, `disk.sh`, `offsite-health.sh`, `lynis-report.sh`, `notify-push.sh` |
+| **Uptime Kuma**   | external reachability + dead-man's switch for scheduled jobs                             | already correct, keep                                                            |
+| **Goss**          | assertions Netdata cannot express (container config)                                     | `posture.sh`                                                                     |
+| **resticprofile** | backup orchestration                                                                     | `backup.sh`, `local-maintenance.sh`, `offsite-check.sh`                          |
 
 ### The routing design, which is what makes this compatible with the README
 
@@ -206,8 +208,9 @@ firing is not ready to be taken — which is the same standard that demoted the
 ### Sequence
 
 **Phase 1 — build the path, prove it end to end, change no behaviour.**
-Mount a config directory into the Netdata container (today only `lib` and
-`cache` are mounted, so any configuration would be lost on recreate), template
+Mount a config directory into the Netdata container (on 2026-08-22 only `lib` and
+`cache` were mounted, so any configuration would have been lost on recreate;
+`netdata.conf`, `health.d` and `go.d` are mounted since), template
 `health_alarm_notify.conf`, set the webhook from the secret store, define the
 `homelab` role, and ship **one** curated alarm whose threshold already exists in
 `homelab-health.sh`. Observe it fire. Nothing is deleted in this phase.
@@ -255,7 +258,7 @@ ordered by what cannot become wrong.
 **Cannot be invalidated by anything learned later.**
 
 1. Delete the 277-line wg-easy 14→15 migration. It has run; wg-easy is on
-   `15.3.0` and the script's own first guard makes it a no-op — as does its
+   15 (`15.4.0` today) and the script's own first guard makes it a no-op — as does its
    fresh-install branch. *Shipped 2026-08-22 (PR #223): 322 lines removed.*
 2. Phase 1 above, up to and including the single proving alarm: it adds a path
    and changes no existing behaviour, and if it does not work, nothing has been
@@ -264,7 +267,7 @@ ordered by what cannot become wrong.
 **Revertible in one PR.** `ddclient` in place of `cloudflare-ddns.sh`; Goss in
 place of `posture.sh`; each phase-2 alarm.
 
-**`offsite-wg-reresolve.sh` (74 lines) → wireguard-tools' upstream
+**`offsite-wg-reresolve.sh` (74 lines then, 39 since the comment purge of #390) → wireguard-tools' upstream
 `reresolve-dns.sh`.** This was drafted as tier 0 and **demoted the same evening,
 on inspection**. The upstream script is the better artefact — a real `[Peer]`
 parser, maintained by the WireGuard project, same fail-closed property (the
@@ -276,13 +279,16 @@ fails the "cannot become wrong" test twice:
   where upstream hardcodes 135 s — exactly the observed boundary. Harmless per
   ADR-029's own analysis, but *different*, not neutral;
 - and a failure would be **invisible**. ADR-029 is still "pending the
-  deliberate-break test", `offsite-health.sh` contains no systemd unit check and
-  no mention of `reresolve`, and this sits on the only route to a host nobody
+  deliberate-break test", `offsite-health.sh` then contained no systemd unit check
+  and no mention of `reresolve` (it does now, through goss — see below), and this sits on the only route to a host nobody
   can reach. The cost of getting it wrong is a car journey, not 74 lines.
 
 Two prerequisites make it cheap and verifiable, in this order: the break test
-ADR-029 already owes, then unit-state monitoring on the offsite host — which
-phase 2 delivers via `systemdunits`. It is therefore *scheduled*, not shelved.
+ADR-029 already owes, then unit-state monitoring on the offsite host. *Amended
+2026-09-26:* not via `systemdunits` — there is no Netdata agent there (see below);
+`offsite-health.sh` now runs a goss spec (`/etc/goss/offsite-health.yaml`) that
+asserts the units, the `offsite-wg-reresolve.timer` included, so the second
+prerequisite is met. It is therefore *scheduled*, not shelved.
 
 **Its own decision.** `backup.sh` → resticprofile, phase 4.
 
@@ -312,14 +318,17 @@ hardware access. Read the line-count estimate with that in mind.
 Stated explicitly so that a future session does not read this ADR as a mandate:
 
 - whether Goss can express the assertions `posture.sh` makes about
-  `docker inspect` fields (capabilities, read-only rootfs);
+  `docker inspect` fields (capabilities, read-only rootfs) — *settled since:*
+  yes, ADR-032;
 - whether resticprofile handles the append-only offsite repository and the
-  ordering of database dumps;
+  ordering of database dumps — *settled since:* yes, ADR-031 (accepted and
+  complete);
 - whether Netdata's Discord routing works on this installation. The *mechanism*
   is verified — per-role recipients with arbitrary role names, `SEND_DISCORD`
   already `YES` — but no notification has been sent end to end. That is exactly
   what phase 1's single proving alarm exists to establish, before anything is
-  deleted;
+  deleted — *moot since:* the 2026-08-23 amendment routes curated alarms through
+  Uptime Kuma, and Netdata notifies nobody;
 - which conditions in `homelab-health.sh` have no collector equivalent. The
   earlier estimate of "60–70 %" was made before the 133 available go.d
   collectors were enumerated and should not be quoted; the honest answer is that
@@ -346,7 +355,7 @@ the spike for the biggest one**, which is why it deletes nothing.
 - Audits keep their value but change their question. `/full-audit` currently
   hunts defects in the glue, which guarantees a yield and feeds the loop it is
   meant to close. The question worth asking next is **what can be deleted**.
-- The 1 223 lines of `settled.md` are a symptom, not an asset: they are the
+- The 1 223 lines of `settled.md` (on 2026-08-22; 5 414 on 2026-09-26) are a symptom, not an asset: they are the
   amount of tacit knowledge now required to touch this machine safely. Shrinking
   the glue should shrink them.
 

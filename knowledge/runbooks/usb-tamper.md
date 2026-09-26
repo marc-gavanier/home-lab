@@ -45,9 +45,15 @@ plug a USB stick, watch the Pi shut down, then recover via
 ## Known false positive
 
 A spontaneous USB reset of the HDD registers as `remove`+`add` and powers the
-Pi off while armed. If the Pi is found off with `TRIGGER while armed` in the
-journal and nobody touched it, check the disk's cabling/PSU before suspecting
-an intruder — then unlock as usual.
+Pi off while armed. The `TRIGGER while armed` line cannot tell you that before
+the unlock: since 2026-09-20 the persistent journal lives on the encrypted
+volume, so the boot that powered off is unreadable until `homelab-unlock` has
+run. Decide on what you know instead, as in step 2 of
+[boot & unlock](boot-and-unlock.md): a trigger you can account for (you or
+someone you know touched a cable, or the disk's cabling/PSU is visibly at
+fault) — unlock as usual; an **unexplained poweroff** — treat it as tampering,
+reflash the SD and re-provision **before** unlocking. Once unlocked, read
+`journalctl -t usb-tamper -b -1` to confirm the false positive after the fact.
 
 ## Related
 

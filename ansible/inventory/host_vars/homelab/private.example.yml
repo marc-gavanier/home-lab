@@ -7,3 +7,7 @@ feed_digest_label_carried: "beyond the cap, carried over to the next run"
 feed_digest_note_footer: "Generated automatically, see [[%s]]."
 
 homelab_ip: "192.168.1.10"
+
+pihole_bypass_clients:
+  - mac: "00:00:00:00:00:00"
+    label: "TV decoder"

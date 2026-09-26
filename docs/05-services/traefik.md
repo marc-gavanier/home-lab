@@ -63,8 +63,11 @@ ssh homelab "sudo rm -f /mnt/data/services/traefik/acme/acme.json && docker rest
 It holds the ACME **account key** and every certificate the proxy serves, not a
 cache. Removing it triggers one simultaneous ACME order per certificate — the
 health message names the current count — and makes the health check push a problem
-(`no certificate expiry is being watched`) until they are reissued, so expect
-`Pi health` to go DOWN during the operation.
+until they are reissued: `certificate expiry unreadable` while Traefik's freshly
+rewritten file holds no certificate yet, then `N certificate(s) gone` until the
+count is back to its previous high (`no certificate expiry is being watched` only
+if the file is still absent when the check runs). Expect `Pi health` to go DOWN
+during the operation.
 
 ## Restore
 

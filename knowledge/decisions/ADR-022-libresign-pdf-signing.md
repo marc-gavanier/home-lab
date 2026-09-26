@@ -177,7 +177,11 @@ exactly when Nextcloud is, and that is already monitored. The failure modes it
 does have are configuration ones, and the deploy is what checks those.
 
 **Renovate does not see this.** Nextcloud apps come from the appstore, not from
-an image tag, so LibreSign updates arrive through Nextcloud's own app updater
-rather than through a pinned version in this repository. The version its
-binaries must match travels with the app, which is why `libresign:install` is
-conditioned on the binaries being *usable* rather than merely present.
+an image tag. The version its binaries must match travels with the app, which is
+why `libresign:install` is conditioned on the binaries being *usable* rather than
+merely present.
+
+*Amended 2026-09-26: this said updates "arrive through Nextcloud's own app
+updater". Since 2026-09-18 `appstoreenabled` is `false`, so that updater cannot
+see one: LibreSign (like `richdocuments`, both in `custom_apps`) is today updated
+by nothing, and that remedy is an open decision rather than a mechanism.*

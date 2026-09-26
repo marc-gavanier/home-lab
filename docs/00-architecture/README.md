@@ -38,12 +38,12 @@ This home lab is built on a Raspberry Pi 4 Model B with the goal of providing a 
 │  │                                            │  │
 │  │  Nextcloud  Vaultwarden                   │  │
 │  │  Jellyfin   Navidrome    Immich           │  │
-│  │  Uptime Kuma                              │  │
+│  │  Uptime Kuma  Netdata                     │  │
 │  └────────────────────────────────────────────┘  │
 │                                                  │
 │  ┌────────────────────────────────────────────┐  │
 │  │        Docker Network (internal)           │  │
-│  │  Pi-hole  Netdata  Databases              │  │
+│  │  Pi-hole  Databases                       │  │
 │  └────────────────────────────────────────────┘  │
 │                                                  │
 │  ┌──────────────┐  ┌─────────────────────────┐  │

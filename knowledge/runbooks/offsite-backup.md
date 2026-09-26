@@ -8,7 +8,7 @@ append-only mode. The repo password is deliberately NOT stored on it.
 
 - 03:00 — `homelab-backup.service` runs resticprofile twice: a local backup, then
   an offsite copy of **every** snapshot not already there (Kuma push monitor
-  "offsite copy").
+  "Offsite backup").
   It is a retry window, not a single `restic copy latest`: a night that failed its copy
   is picked up by the following nights instead of being lost (#158). Re-offering
   snapshots already present creates no duplicates. So a red copy monitor that goes
@@ -22,14 +22,14 @@ append-only mode. The repo password is deliberately NOT stored on it.
   reading the beat:
 
   ```bash
-  ls /mnt/data/backups/restic-repo/snapshots | wc -l            # local
+  sudo ls /mnt/data/backups/restic-repo/snapshots | wc -l       # local
   ssh offsite 'sudo ls /mnt/backup/restic/snapshots | wc -l'    # offsite, filesystem only
   ```
 
-  The `sudo` on the offsite side is load-bearing: `snapshots/` is `0700
-  rest-server`, so without it `ls` is denied and `wc -l` still prints a small
-  number rather than an error. A count that looks like an almost-empty
-  repository is the worst possible answer on this page.
+  The `sudo` is load-bearing on both sides: `snapshots/` is `0700 root` here and
+  `0700 rest-server` offsite, so without it `ls` is denied and `wc -l` still
+  prints a small number rather than an error. A count that looks like an
+  almost-empty repository is the worst possible answer on this page.
 - Tuesday 02:00 — homelab `homelab-offsite-check.timer`: `restic check` of the
   offsite repo through the tunnel (Kuma push monitor "offsite check").
 - Daily 08:00 — offsite `offsite-health.timer`: disk/SMART/power self-report,
@@ -131,8 +131,9 @@ means `homelab-unlock` is still pending, not that the offsite Pi is down.
 
 ## If the offsite Pi is stolen
 
-The SSD holds only restic ciphertext, the htpasswd hash and the WireGuard
-client key. The WG key is the only live credential:
+The backup disk holds only restic ciphertext and the htpasswd hash. The
+system card holds the two live credentials: the WireGuard client key and the
+Kuma push URL of the health report:
 1. wg-easy UI → delete/disable client `offsite-backup` (revokes VPN access).
 2. Rotate `rest_server_auth_password` (vault) — it only guards bandwidth, not
    data confidentiality.
@@ -167,7 +168,7 @@ resticprofile -c /opt/homelab/resticprofile.yaml -n homelab copy
 > logged one line to `/var/log/homelab-backup.log` and exited 0. Measured on a
 > real hand-run: `[14:41:24] no push URL for copy — nothing pushed`. The copy
 > itself completed; nothing announced it, and the dead-man's window on the
-> offsite monitor is 25 h, so a *failed* hand-run would have been just as quiet
+> offsite monitor is 26 h, so a *failed* hand-run would have been just as quiet
 > for just as long. `backup-notify.sh` now emits the lost-report marker in that
 > case, which is the half that survives the next runbook omission.
 
@@ -207,14 +208,14 @@ it.** There is no timer, no unit and no schedule behind the deep read: it
 happens when someone runs the commands below, and as of 2026-09-19 nobody had.
 The journal is not what establishes that: measured 2026-09-21, the offsite
 journal reaches back to 2026-07-05 (the host's own birth) and the homelab's to
-2026-08-30. 2026-05-14 is the date of the oldest local restic snapshot, which
-is a different thing entirely. The scheduled
-`homelab-offsite-check.service` is a **metadata** check by design — the
-`offsite` profile in `resticprofile.yaml` carries no `read-data` flag and says
-why: reading the data back would pull hundreds of gigabytes across a domestic
-uplink to verify bytes the remote host can verify itself. Automating the deep
-read sits next to the declined restore drill and is not proposed. Treat what
-follows as a procedure available on demand, not as a cadence anyone is keeping.
+2026-08-30. 2026-05-14 is the date of the oldest local restic snapshot, which is
+a different thing entirely. The scheduled `homelab-offsite-check.service` is a
+**metadata** check by design — the `offsite` profile in `resticprofile.yaml`
+carries no `read-data` flag, and the reason is this one: reading the data back
+would pull hundreds of gigabytes across a domestic uplink to verify bytes the
+remote host can verify itself. Automating the deep read sits next to the
+declined restore drill and is not proposed. Treat what follows as a procedure
+available on demand, not as a cadence anyone is keeping.
 
 > **Disable the backup timer for the duration. The profile locks do NOT cover
 > this.** The two facts that make it necessary, both verified 2026-09-13:
@@ -312,7 +313,9 @@ a half hours.
    hands over the plaintext of every snapshot, and the design's promise that a
    stolen disk yields only ciphertext (ADR-010) quietly stops being true.
 3. Re-provision a new Pi from the git repo (`ansible/`), reinject
-   `/restore/mnt/data/...` and the `.env` files from `/restore/opt/homelab`.
+   `/restore/mnt/data/...` — the `.env` files included: they are in
+   `/restore/mnt/data/secrets`, and `/restore/opt/homelab` holds only the
+   symlinks pointing at them (ADR-011).
 4. Follow "Full disaster recovery" in `restore-from-backup.md`.
 
 See also: ADR-010, `backup-monitoring.md`, `restore-from-backup.md`.

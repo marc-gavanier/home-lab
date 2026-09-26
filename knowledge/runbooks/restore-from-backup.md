@@ -1,7 +1,9 @@
 # Runbook — Restore from backup (Restic)
 
-> **Last tested: 2026-07-19** — Immich built-in dump restored end-to-end into a throwaway
-> VectorChord postgres (search_path transform + `--single-transaction --set ON_ERROR_STOP=on`):
+> **Last tested: 2026-08-15** — on site, homelab cut off (see *Drill record* below, which
+> also holds the 2026-07-27 offsite drill). On 2026-07-19: Immich built-in dump restored
+> end-to-end into a throwaway VectorChord postgres (search_path transform +
+> `--single-transaction --set ON_ERROR_STOP=on`):
 > 66 tables, `vector`/`vchord`/`vectors` extensions, 9 283 `asset` rows + 9 247 `smart_search`
 > embeddings. Vaultwarden `.backup` restored from the snapshot (`PRAGMA integrity_check` = ok).
 > Local prune+check timer exercised (deep read-data + metadata paths).
@@ -112,10 +114,13 @@ restic ls latest /mnt/data/media/photos | grep -F 2019-08-15
 
 ## Restore one service
 
-`compose down`, never `docker stop`. The heal timer brings a stopped
-container back within two minutes — on top of the files being restored,
-with the service reading them as they change (ADR-007). Removing the
-container takes it out of the timer's view entirely.
+`compose down`, never `docker stop`. Every two minutes the heal timer
+restarts any compose container that exited with a non-zero code, is
+`created` or `dead`, or has been unhealthy for 15 minutes; it skips only a
+clean exit 0. Whether `docker stop` ends in 0 or in 143/137 depends on how the
+image handles SIGTERM, so a stopped container may come back on top of the
+files being restored, with the service reading them as they change (ADR-007).
+Removing the container takes it out of the timer's view entirely.
 
 ```bash
 cd /opt/homelab
@@ -158,10 +163,11 @@ docker compose up -d <service>
 > reaches production.
 >
 > How this got here is worth one sentence, because it is the shape to watch for:
-> `resticprofile.yaml` states the rule that makes an exclusion safe — *"exclude
-> nothing that a documented restore procedure reads"* — and the rule was checked
-> against the per-service procedures further down this file and not against the
-> generic one right here. One file was edited; its sibling was not.
+> `resticprofile.yaml` stated the rule that makes an exclusion safe — *"exclude
+> nothing that a documented restore procedure reads"*, in a comment removed by
+> #390 (`git show 4b1c7c7^:ansible/roles/deploy/templates/resticprofile.yaml.j2`)
+> — and the rule was checked against the per-service procedures further down
+> this file and not against the generic one right here. One file was edited; its sibling was not.
 
 `<service>` is the **compose service name**, not the container name. They
 are identical for every service here except `immich-machine-learning`,
@@ -320,8 +326,9 @@ cd /opt/homelab
 
 # 2. Remove Immich's containers and reset the DB dir so the container re-runs
 #    initdb (fresh, empty `immich` database owned by the `immich` superuser).
-#    `down`, not `stop`: a stopped container is resurrected by the heal timer
-#    within two minutes, and here that lands on a datadir being deleted.
+#    `down`, not `stop`: a stopped container that exited non-zero is resurrected
+#    by the heal timer within two minutes, and here that lands on a datadir
+#    being deleted.
 #    `immich-machine-learning` is the COMPOSE SERVICE; `immich-ml` is only its
 #    container_name, and compose rejects the whole command with "no such
 #    service" if you pass it. That matters more here than anywhere else in this
@@ -392,8 +399,8 @@ dump carries no `--clean`, so it has to be loaded into a freshly-initialised
 database.
 
 > `down`, not `stop`: the crash-heal timer brings back containers it finds
-> exited, so a merely stopped service can return mid-restore
-> (`homelab-stack-heal.sh`).
+> exited with a non-zero code, which a `docker stop` can leave, so a merely
+> stopped service can return mid-restore (`homelab-stack-heal.sh`).
 
 ```bash
 sudo rm -rf /mnt/data/tmp/restore   # ALWAYS, first — see "The staging directory" above
@@ -528,13 +535,16 @@ restic restore latest --target /mnt/data/tmp/restore \
   --include /mnt/data/backups/dumps
 
 cd /opt/homelab
-docker compose down wg-easy    # `down`, never `stop`: the heal timer brings a
+docker compose down wg-easy    # `down`, never `stop`: the heal timer can bring a
                                # stopped container back within 2 min (ADR-007)
 
 # The store is `wg-easy.db`, NOT the `wg0.json` sitting beside it. That file is
 # the pre-v15 peer store (ADR-020's rollback copy is the one in the v14 rollback
 # directory, not this one); copying it over the database, or leaving the database missing so wg-easy finds only it,
 # is how a restore silently rebuilds the wrong generation of peers.
+# Drop any stale WAL/SHM so SQLite reopens cleanly against the restored file.
+rm -f /mnt/data/services/wireguard/wg-easy.db-wal \
+      /mnt/data/services/wireguard/wg-easy.db-shm
 cp /mnt/data/tmp/restore/mnt/data/backups/dumps/wg-easy.sqlite3 \
    /mnt/data/services/wireguard/wg-easy.db
 
@@ -547,11 +557,9 @@ docker compose up -d wg-easy
 Two traps that are documented elsewhere and were not here, which is where they
 are needed:
 
-- **wg-easy cannot write its own database (#138).** That is why the copy above
-  is enough and why no `-wal`/`-shm` cleanup is needed — unlike Forgejo or Kuma,
-  there is no live writer to have left a torn journal. It also means the
-  restored file is what the container will use unchanged: if you restore the
-  wrong one, nothing overwrites your mistake.
+- **wg-easy writes its own database** since #138 was closed (2026-08-26), so it
+  is a live writer like Forgejo or Kuma: hence the `-wal`/`-shm` cleanup above.
+  Until then it could not, and this bullet said no cleanup was needed.
 - **The host's own admin tunnel is not in this file.** `wg-easy.db` holds the
   peers wg-easy serves. The interface configuration the Pi itself brings up
   lives at `/mnt/data/secrets/wg0.conf` on the encrypted volume and comes back
@@ -600,7 +608,7 @@ restic restore latest --target /mnt/data/tmp/restore \
   --include /mnt/data/services/$svc
 
 cd /opt/homelab
-docker compose down $svc       # `down`, never `stop`: the heal timer brings a
+docker compose down $svc       # `down`, never `stop`: the heal timer can bring a
                                # stopped container back within 2 min (ADR-007)
 
 # Config and everything that is not the database — skip if only the database
@@ -715,6 +723,12 @@ that answers is not an application that kept its state:
    ```bash
    ansible-playbook playbooks/site.yml --ask-vault-pass
    ```
+   > ⚠️ **This order cannot be followed as written, and the fix is untested.**
+   > The imports above `docker exec` into `nextcloud-db`, `immich-db` and the
+   > other database containers, which nothing has started at this point. The
+   > likely order is: start only the database containers, let them initialise,
+   > import, then run the full playbook. It has never been run on the Pi — treat
+   > it as a lead, not a procedure, and check each database before going on.
 4. Sanity-check services; re-run `occ files:scan` if media browsing looks stale.
 5. **Re-enable the timers stopped at the top of this section**, and confirm they
    are actually armed rather than merely enabled:
@@ -722,9 +736,10 @@ that answers is not an application that kept its state:
    sudo systemctl enable --now homelab-backup.timer homelab-stack-heal.timer
    systemctl list-timers homelab-backup.timer homelab-stack-heal.timer
    ```
-   A restore that leaves the backup timer disabled is a host with no backups and
-   a green dashboard — `homelab-health.sh` asserts the timers' last run, not
-   their enablement.
+   A restore that leaves the backup timer disabled is a host with no backups.
+   `homelab-health.sh` asserts the timers' last run, not their enablement; the
+   posture spec does (`offsite-parity-register-covers-every-control-timer`), so
+   "Pi security posture" turns red at its next run — do not wait for it.
 
 ## Drill record
 
@@ -835,8 +850,14 @@ Verified by *loading*, never by listing:
    rather than the policy:
 
    ```bash
-   resticprofile -n homelab snapshots --compact
+   sudo -i
+   set -a; . /opt/homelab/backup.env; set +a
+   resticprofile -c /opt/homelab/resticprofile.yaml -n homelab snapshots --compact
    ```
+
+   The `-c` is not optional: the profile is not at any path resticprofile
+   searches by default, and without it the command fails with "configuration
+   file 'profiles' … was not found".
 3. **The passphrase survives the house.** The offsite repo password is
    deliberately absent from the offsite Pi, and every copy that lives at home
    is taken by the same fire — so the recovery chain rests on it existing in at

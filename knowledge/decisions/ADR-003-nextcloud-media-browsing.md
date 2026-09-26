@@ -29,8 +29,15 @@ backend:
 volumes:
   - ${MEDIA_DIR}/photos:/external/photos:ro
   - ${MEDIA_DIR}/music:/external/music:ro
-  - ${MEDIA_DIR}/videos:/external/videos:ro
+  - ${LIBRARY_DIR}/movies:/external/videos/movies:ro
+  - ${LIBRARY_DIR}/shows:/external/videos/shows:ro
+  - ${MEDIA_DIR}/videos/home-videos:/external/videos/home-videos:ro
+  - ${MEDIA_DIR}/videos/music-videos:/external/videos/music-videos:ro
 ```
+
+*Amended 2026-09-26: `/external/videos` was one mount of `${MEDIA_DIR}/videos`. Since
+the tree split (ADR-035/036) films and series live under `${LIBRARY_DIR}`, so the
+single `Videos` storage is assembled from four read-only sub-mounts.*
 
 Ansible declares the three mounts idempotently and forces them read-only:
 ```

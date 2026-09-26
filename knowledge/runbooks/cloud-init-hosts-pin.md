@@ -1,9 +1,12 @@
 # Runbook: LAN host pins disappear after a reboot
 
-Some host-side services must resolve a homelab domain to the **Pi's LAN IP**, not
-the public IP, to avoid the DNS hairpin (out through NAT, back to Traefik with an
-external source IP → rejected **403** by the vpn-only `ipAllowList`, see
-[ADR-002](../decisions/ADR-002-vpn-only-by-default.md)). Two such pins exist:
+Some host-side services must resolve a homelab domain to an **address inside
+the allow-list** — the Pi's LAN IP on the homelab, its WireGuard address on the
+offsite host — not the public IP, to avoid the DNS hairpin (out through NAT,
+back to Traefik with an external source IP → rejected **403** by the vpn-only
+`ipAllowList`, see [ADR-002](../decisions/ADR-002-vpn-only-by-default.md)). Two
+domains need it on the homelab (a third pin, on the offsite host, is in the
+table under Fix):
 
 | Domain              | Who needs it    | Why                                    |
 |---------------------|-----------------|----------------------------------------|

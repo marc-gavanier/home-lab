@@ -139,15 +139,16 @@ not the root" runs out of road.
 ## Consequences
 
 - **353 MB of RAM** at idle, against the 150-250 MB the shortlist estimated, and
-  a **1.74 GB** image — the largest in the stack, because it bundles a full
-  Calibre for format conversion. Both land on `/mnt/data`, not the SD card:
+  a **1.74 GB** image — the largest in the stack when adopted (Uptime Kuma 2.5.5
+  now edges it by a few MB), because it bundles a full Calibre for format conversion. Both land on `/mnt/data`, not the SD card:
   Docker's data root is `/mnt/data/docker`.
 - Wave 3 of the staged startup, with the other slow starters.
 - The library and CWA's own `app.db` are both already inside the restic set.
 - The desktop Calibre library becomes read-only by policy, enforced by nothing
   but this document.
-- The lab now has five `DAC_OVERRIDE` services instead of four, and the security
-  README says so explicitly.
+- The lab went from four `DAC_OVERRIDE` services to five, and the security
+  README says so explicitly. *Amended 2026-09-26: eight today — Prowlarr, Sonarr
+  and Radarr took the same capability set in ADR-036.*
 
 ## Alternatives considered
 

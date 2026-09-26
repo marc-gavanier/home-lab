@@ -144,7 +144,7 @@ container is fixed and the album still does not appear. Bump the folder's
 timestamp and the watcher does the rest:
 
 ```bash
-touch "~/Music/Artist/Album"
+touch ~/Music/"Artist/Album"
 ```
 
 Measured 2026-08-27: `tracksImported=5` a second after the touch, on the folder
@@ -168,8 +168,8 @@ docker exec navidrome sqlite3 'file:/data/navidrome.db?mode=ro' \
 ## Restore
 
 ```bash
-cd /opt/homelab   # `compose down`, never `docker stop`: a stopped container
-                  # is resurrected by the heal timer within 2 min (ADR-007)
+cd /opt/homelab   # `compose down`, never `docker stop`: the heal timer restarts a
+                  # container that exited non-zero within 2 min (ADR-007); only exit 0 is left down
 docker compose down navidrome
 restic restore latest --target / --include /mnt/data/services/navidrome
 docker compose up -d navidrome

@@ -1,8 +1,8 @@
 # Calibre-Web-Automated
 
 The ebook library on the web, and over **OPDS** — so an e-reader can browse and
-download from it directly over the VPN, which is the reason it exists. 94 books,
-mostly technical, in MOBI/EPUB/PDF.
+download from it directly over the VPN, which is the reason it exists. 123 books
+(counted 2026-09-26), mostly technical, mostly in EPUB/MOBI/PDF.
 
 ## Access
 
@@ -64,7 +64,7 @@ New books get in two ways: uploaded through the web UI, or dropped into
 Both live inside the restic set already (`/mnt/data/media` and
 `/mnt/data/services` are backed up), so the library and the accounts are covered
 without any change to the backup configuration (`resticprofile.yaml`). It adds
-**2.1 GB** to every backup target,
+**2.5 GB** (measured 2026-09-26) to every backup target,
 local and offsite.
 
 Restore is the deploy role plus a restic restore of those paths.
@@ -93,8 +93,8 @@ version:
   `python3 /app/calibre-web-automated/cps.py` runs as uid 1000 — but four s6
   longruns stay root for the container's whole life: `cwa-ingest-service`,
   `metadata-change-detector`, `cwa-auto-zipper` and `svc-cron`. Transmission, by
-  comparison, keeps only its s6 *supervisors* as root; `transmission-daemon`
-  itself runs as uid 1000.
+  comparison, keeps its s6 supervisors, the `svc-transmission` run script and a
+  `crond` as root, while `transmission-daemon` itself runs as uid 1000.
 
   The consequence to keep in mind: a file dropped into
   `/mnt/data/media/books-ingest` is untrusted input parsed by root-owned code
