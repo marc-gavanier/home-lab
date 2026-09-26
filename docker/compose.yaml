@@ -275,7 +275,7 @@ services:
       - "traefik.http.services.wireguard.loadbalancer.server.port=51821"
 
   nextcloud:
-    image: nextcloud:34.0.4-apache
+    image: nextcloud:35.0.1-apache
     container_name: nextcloud
     restart: "no"
     security_opt: *no-new-privs
@@ -384,7 +384,7 @@ services:
       retries: 3
 
   nextcloud-cron:
-    image: nextcloud:34.0.4-apache
+    image: nextcloud:35.0.1-apache
     container_name: nextcloud-cron
     restart: "no"
     security_opt: *no-new-privs
@@ -410,7 +410,7 @@ services:
       - internal
 
   nextcloud-notify-push:
-    image: nextcloud:34.0.4-apache
+    image: nextcloud:35.0.1-apache
     container_name: nextcloud-notify-push
     restart: "no"
     security_opt: *no-new-privs
