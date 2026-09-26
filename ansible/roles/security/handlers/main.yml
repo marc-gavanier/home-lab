@@ -33,6 +33,6 @@
   changed_when: true
 
 - name: Reload fail2ban after UFW
-  ansible.builtin.command: fail2ban-client reload
+  ansible.builtin.command: fail2ban-client reload --restart
   changed_when: true
   listen: Reload UFW

@@ -12,9 +12,14 @@ PENDING_PUSH_URL="${PENDING_PUSH_URL%%\?*}"
 push_to() {
     [ -n "$1" ] || return 0
     local rc=0
+    local msg="$3"
+    if [ "{% raw %}${#msg}{% endraw %}" -gt 1000 ]; then
+        echo "alert cut to fit Discord's 1024-character field — full text: $msg" >&2
+        msg="${msg:0:940}… +$(( {% raw %}${#msg}{% endraw %} - 940 )) characters, full text in the journal"
+    fi
     printf 'url = "%s"\n' "$1" |
         curl -fsS -m 10 --retry 2 -K - -G \
-            --data-urlencode "status=$2" --data-urlencode "msg=$3" >/dev/null || rc=$?
+            --data-urlencode "status=$2" --data-urlencode "msg=$msg" >/dev/null || rc=$?
     case "$rc" in
         0) ;;
         28) echo "kuma-push-unconfirmed: no reply within 10s, the beat may have landed — $3" >&2 ;;

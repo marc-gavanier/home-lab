@@ -4,6 +4,15 @@
   become: true
 
   pre_tasks:
+    - name: Refuse extra-vars words Ansible split off and dropped
+      ansible.builtin.assert:
+        that: _raw_params is not defined
+        fail_msg: >-
+          '{{ _raw_params | default('') }}' was split off an -e value at a space and would be
+          silently ignored. Quote the whole value: -e '{"deploy_services": "a b c"}'
+        quiet: true
+      tags: [always]
+
     - name: Wait for system to be reachable
       ansible.builtin.wait_for_connection:
         timeout: 60

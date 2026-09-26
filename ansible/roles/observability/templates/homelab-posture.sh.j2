@@ -9,9 +9,14 @@ KUMA_PUSH_URL="${KUMA_PUSH_URL%%\?*}"
 notify() {
     [ -n "$KUMA_PUSH_URL" ] || return 0
     local rc=0
+    local msg="$2"
+    if [ "{% raw %}${#msg}{% endraw %}" -gt 1000 ]; then
+        echo "alert cut to fit Discord's 1024-character field — full text: $msg" >&2
+        msg="${msg:0:940}… +$(( {% raw %}${#msg}{% endraw %} - 940 )) characters, full text in the journal"
+    fi
     printf 'url = "%s"\n' "$KUMA_PUSH_URL" |
         curl -fsS -m 10 --retry 2 -K - -G \
-            --data-urlencode "status=$1" --data-urlencode "msg=$2" >/dev/null || rc=$?
+            --data-urlencode "status=$1" --data-urlencode "msg=$msg" >/dev/null || rc=$?
     case "$rc" in
         0) ;;
         28) echo "kuma-push-unconfirmed: no reply within 10s, the beat may have landed — $2" >&2 ;;
