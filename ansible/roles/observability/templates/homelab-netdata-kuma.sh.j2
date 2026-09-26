@@ -66,10 +66,15 @@ esac
 
 push() {
     local url="${1%%\?*}"
+    local msg="$3"
+    if [ "${#msg}" -gt 1000 ]; then
+        log "alert cut to fit Discord's 1024-character field — full text: $msg"
+        msg="${msg:0:940}… +$(( ${#msg} - 940 )) characters, full text in the journal"
+    fi
 
     printf 'url = "%s"\n' "$url" |
         curl -fsS --max-time "$TIMEOUT" -K - -G \
-            --data-urlencode "status=$2" --data-urlencode "msg=$3" >/dev/null
+            --data-urlencode "status=$2" --data-urlencode "msg=$msg" >/dev/null
     local rc=${PIPESTATUS[1]}
     [ "$rc" -eq 0 ] && return 0
     if [ "$rc" -eq 28 ]; then
