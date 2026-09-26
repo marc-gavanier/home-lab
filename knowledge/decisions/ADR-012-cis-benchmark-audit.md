@@ -34,9 +34,9 @@ Use the benchmark as a **measuring stick, not an enforcer**.
 - Remediation shipped in six batches (sysctl + kernel, module blacklist, sshd
   polish, file perms + packages, /dev/shm + postfix + sudo log, and
   nullok + root umask + NTP + UFW loopback + sshd_config perms).
-- Assumed deviations are recorded twice — as a table in the research report and
-  per-line comments in the playbook vars — so the reason survives next to the
-  switch that acts on it.
+- Assumed deviations are recorded in the research report's table (§1). The
+  per-line comments that repeated them in the playbook vars were removed with
+  every code comment in #390.
 
 The full findings, batch detail, deviation rationale and lessons live in
 [knowledge/research/cis-audit-2026-07.md](../research/cis-audit-2026-07.md);

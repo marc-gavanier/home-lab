@@ -49,8 +49,9 @@ fixing** (real quick wins), **noise** (not applicable here).
 | 2.1.13                      | rsync package removed          | Required by knowledge/runbooks/restore-from-backup.md, `rsync -a --delete` at three steps of the restore                     |
 | 3.3.7                       | strict rp_filter (1)           | Loose (2) since 2026-08-18: strict dropped VPN client packets arriving on the `proxy` docker bridge — see below              |
 
-The full rule-by-rule list (with check-mode exclusions) lives as commented
-vars in `playbooks/cis-audit.yml`.
+The full rule-by-rule list (with check-mode exclusions) lives as vars in
+`playbooks/cis-audit.yml`; the per-line reasons it carried as comments were
+removed in #390 and survive in `git show 4b1c7c7^:ansible/playbooks/cis-audit.yml`.
 
 ## 2. Remediation batches
 
@@ -149,8 +150,8 @@ would install first (documented rule by rule in the playbook vars).
 A flagged count that is 90% noise is useless. Two categories are now set
 `false` in `cis-audit.yml` so the remaining count is *actionable work only*:
 
-- **Assumed deviations (§1)** — never actionable, silenced with a per-line
-  comment pointing here (ip_forward, overlayfs, sudo NOPASSWD, SSH forwarding,
+- **Assumed deviations (§1)** — never actionable, silenced in `cis-audit.yml`
+  (the per-line comment pointing here was removed in #390) (ip_forward, overlayfs, sudo NOPASSWD, SSH forwarding,
   password aging).
 - **False positives (§4)** — effective state is correct (proven by `sshd -T`,
   direct sysctl/stat reads); the role stays red only because it checks its own

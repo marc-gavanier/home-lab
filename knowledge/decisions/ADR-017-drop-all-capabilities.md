@@ -21,6 +21,8 @@ secrets migration (ADR-016) — the sibling follow-up issue #11 had left open.
 
 `cap_drop: ALL` on every service, aliased from one anchor, with each service
 re-adding only what it needs and a comment naming the behaviour that needs it.
+*Amended 2026-09-26: those comments were removed with every code comment in #390;
+the behaviour behind each cap is now in the commit that added it.*
 
 **Requirements are established empirically, not by reasoning about the image.**
 This is the same rule ADR-016 applied to `_FILE` conventions, and it earned its

@@ -298,9 +298,9 @@ unreadable spec, a missing binary, a parse error — and goss finding nothing
 wrong both produce output with no `not ok` line in it. A consumer that greps
 only for `not ok` reads the first as the second. So each one checks, in order:
 spec readable → binary present → a `1..N` plan line with N > 0, and only then
-counts failures. `homelab-posture.sh` says it in its own comment: *"The plan
-line is goss's own count. Its absence means goss failed to parse the spec
-rather than found nothing wrong, and those must not read alike."* Any new
+counts failures. The rule: the plan
+line is goss's own count, its absence means goss failed to parse the spec
+rather than found nothing wrong, and those must not read alike. Any new
 consumer must do the same three checks.
 
 **Where the specs come from.** Never edit `/etc/goss/*.yaml` on the host — they
@@ -691,10 +691,8 @@ TAP output — so the condition still arrives on the host-health monitor.
 > **`Unit restarted` was removed from this table on 2026-08-29.** It read *"a
 > watched unit's `NRestarts` moved since the last run — held across a second
 > beat"*, and nothing has watched that since ADR-030. It was **deleted, not
-> moved**, and both files say so in as many words —
-> `homelab-health.sh.j2:387` (*"What was DELETED rather than moved: the
-> NRestarts snapshot, its state file and its latch"*) and
-> `goss-units.yaml.j2:14`. Its own measurement retired it: sixty days, one real
+> moved**: the NRestarts snapshot, its state file and its latch went with it,
+> and nothing in `homelab-health.sh.j2` or `goss-units.yaml.j2` replaced them. Its own measurement retired it: sixty days, one real
 > detection, zero notifications. The row sat directly above `systemd restart
 > loop`, which is real and implemented — the #201 shape, an unwatched condition
 > reading as watched because a watched one is next to it.

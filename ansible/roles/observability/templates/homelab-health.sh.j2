@@ -46,7 +46,12 @@ for h in /sys/class/hwmon/hwmon*; do
 done
 [ "$uv_seen" = 0 ] && report+=("no rpi_volt sensor")
 
-[ -f /var/run/reboot-required ] && pending+=("reboot pending — schedule homelab reboot+unlock")
+if [ -f /var/run/reboot-required ]; then
+    pending+=("reboot pending — schedule homelab reboot+unlock")
+elif [ "$(stat -c %Y /var/lib/dpkg/status 2>/dev/null || echo 0)" -gt "$(date -d "$(uptime -s)" +%s 2>/dev/null || echo 0)" ]; then
+    stale_svc=$(needrestart -b -r l 2>/dev/null | grep -c '^NEEDRESTART-SVC:')
+    [ "$stale_svc" -gt 0 ] && pending+=("$stale_svc services still run replaced libraries — schedule homelab reboot+unlock")
+fi
 
 JOURNAL_PRESSURE_PCT=80
 

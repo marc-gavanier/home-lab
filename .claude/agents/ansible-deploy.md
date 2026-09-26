@@ -15,6 +15,7 @@ Two targets: **homelab** (Pi 4 8GB) and **offsite** (Pi 4 4GB, over WireGuard). 
 
 - **Targeted deploy is the norm**: full-stack `compose up` thrashes the Pi. Deploy one service with `-e deploy_services=<svc>`; several need the JSON form, `-e '{"deploy_services": "a b c"}'` — `-e deploy_services="a b c"` keeps only `a` (both playbooks now refuse it). Services sharing an image deploy together (`nextcloud nextcloud-cron nextcloud-notify-push`). Caveat: targeted deploy won't *create* a brand-new service — first deploy of a new service needs a full run
 - **Vault**: `inventory/host_vars/homelab/local.yml` is vault-encrypted, **no password file on disk**. Never ask for the passphrase and never write it anywhere: hand the operator ONE `--ask-vault-pass` command to run themselves from `ansible/` (no `-i`, `ansible.cfg` sets it), then verify the result over SSH
+- **An interrupted deploy can leave a service on its old config**: pending handlers die with the run (Ctrl-C, lost SSH, an earlier handler failing — `force_handlers` covers none of these), and the next run sees the files already written (`changed=0`) and restarts nothing. After an interrupted run, restart by hand what the run had changed
 - **Idempotence is the acceptance test**: run twice; second run must be `changed=0`. Report `ok/changed` counts honestly
 - Every role has `meta/argument_specs.yml` — keep it in sync when adding variables
 

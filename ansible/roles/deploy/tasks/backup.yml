@@ -37,12 +37,14 @@
 - name: backup | Pin services domain in the cloud-init hosts template (persists across reboots)
   ansible.builtin.lineinfile:
     path: /etc/cloud/templates/hosts.debian.tmpl
+    regexp: ' services\.{{ domain | regex_escape }}$'
     line: "{{ homelab_ip }} services.{{ domain }}"
     state: present
 
 - name: backup | Pin services domain in /etc/hosts now (immediate, until next cloud-init run)
   ansible.builtin.lineinfile:
     path: /etc/hosts
+    regexp: ' services\.{{ domain | regex_escape }}$'
     line: "{{ homelab_ip }} services.{{ domain }}"
     state: present
 
