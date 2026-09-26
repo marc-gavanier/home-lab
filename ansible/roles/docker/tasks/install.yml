@@ -72,7 +72,7 @@
   ansible.builtin.file:
     path: "{{ docker_data_root }}"
     state: directory
-    mode: "0711"
+    mode: "0710"
 
 - name: install | Add user to docker group
   ansible.builtin.user:
