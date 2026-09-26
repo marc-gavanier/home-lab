@@ -643,11 +643,11 @@ that answers is not an application that kept its state:
 > **Stop the scheduled timers first, and re-enable them in step 5.** This
 > procedure takes 7-33 hours, so it *will* span 03:00, and the nightly backup's
 > own `run-after` ends with `rm -rf /mnt/data/backups/dumps` — the directory
-> step 2 restores and step 3 reads. It fires on SUCCESS, so a backup that runs
-> happily over a half-restored host is exactly the case that destroys the dumps.
-> The next run's `run-before` then **recreates the directory empty**, so step 3
-> finds an empty directory rather than a missing one and the loss looks like a
-> successful restore.
+> step 2 restores and step 3 reads. Worse, its `run-before` **starts** with the
+> same `rm -rf` before recreating the directory empty, so ANY run destroys the
+> restored dumps at its first step — including one that then fails because the
+> databases are down. Step 3 then finds an empty directory rather than a missing
+> one, and the loss looks like a successful restore.
 >
 > ```bash
 > sudo systemctl disable --now homelab-backup.timer homelab-stack-heal.timer

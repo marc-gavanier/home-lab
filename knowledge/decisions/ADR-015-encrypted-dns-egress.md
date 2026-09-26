@@ -84,7 +84,9 @@ anycast plus `restart: unless-stopped` is deemed reliable enough.
   #219 as a separate decision.
 - cloudflared is now on the **critical path** for all external resolution: if it
   is down, Pi-hole has no working upstream. Mitigated by `restart: unless-stopped`
-  (Tier 0, same as Pi-hole) — but there is deliberately **no cleartext fallback**
+  (Tier 0, same as Pi-hole) — now dnsproxy, which no restart policy saves from
+  running healthy on a dead network namespace after Pi-hole is recreated; the
+  deploy and the heal timer re-attach it, and Kuma's `Pi-hole DNS` monitor sees it — but there is deliberately **no cleartext fallback**
   (it would defeat the encryption).
 - Quad9 sees the queries (trusted provider, encrypted transport) — the normal
   DoH trust model.

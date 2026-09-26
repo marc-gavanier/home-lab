@@ -2,12 +2,14 @@
 - name: vault | Pin drive domain in the cloud-init hosts template (persists across reboots)
   ansible.builtin.lineinfile:
     path: /etc/cloud/templates/hosts.debian.tmpl
+    regexp: ' drive\.{{ domain | regex_escape }}$'
     line: "{{ homelab_ip }} drive.{{ domain }}"
     state: present
 
 - name: vault | Pin drive domain in /etc/hosts now (immediate, until next cloud-init run)
   ansible.builtin.lineinfile:
     path: /etc/hosts
+    regexp: ' drive\.{{ domain | regex_escape }}$'
     line: "{{ homelab_ip }} drive.{{ domain }}"
     state: present
 

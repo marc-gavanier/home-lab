@@ -184,8 +184,8 @@ Do not confuse the retries with the crash-heal: `homelab-stack-heal` acts on
 containers the engine already knows about — `exited`, `created` or `dead` since
 2026-09-05, and `running` but unhealthy since 2026-09-12 — so it can do nothing
 about a wave that never dispatched and whose containers therefore do not exist.
-Note the first two of those carry exit code 0, so "exited non-zero" is not the
-test, and a container the heal run finds mid-deploy is one it will restart. That was the
+Note that `created` and `dead` carry exit code 0, so for those two "exited
+non-zero" is not the test, and a container the heal run finds mid-deploy is one it will restart. That was the
 gap on 2026-08-26, and the retry is what closes it. Heal deliberately stays out
 of the way while the unit is `activating`, and starts working once it is
 `failed`.
@@ -193,7 +193,8 @@ of the way while the unit is `activating`, and starts working once it is
 ## Crash recovery & maintenance
 
 While unlocked, `homelab-stack-heal.timer` (every 2 min) restarts any compose
-container that is not running — whatever its exit code — and any that has been
+container that exited with a non-zero code or is `created`/`dead` (one that
+exited 0 is left alone), and any that has been
 unhealthy for 15 min, at most once per 10 min and per hour respectively — traces
 in `journalctl -t homelab-heal`.
 
@@ -247,9 +248,13 @@ the one thing not to do.
 
 Security updates install automatically but **never auto-reboot** the homelab (a
 reboot = locked volume + outage until you unlock — ADR-011/013). `needrestart`
-restarts host daemons on a patched library without a reboot, so only **kernel /
-core-init** updates leave a pending reboot. When one does, the "Pi pending
-action" Kuma monitor goes DOWN (`/var/run/reboot-required`). Schedule the reboot+unlock
+restarts most host daemons on a patched library without a reboot. The ones it
+is told to leave alone (dbus, logind, docker and the rest of its exclusion list)
+keep the old library until the next reboot, and only **kernel / core-init**
+updates write `/var/run/reboot-required`. The "Pi pending action" Kuma monitor
+goes DOWN in both cases: on that file, and when `needrestart -b` lists a service
+still running a replaced library (checked only once a package has been installed
+since boot). Schedule the reboot+unlock
 by *reachability*, not raw CVSS:
 
 | Situation | Reboot+unlock within |

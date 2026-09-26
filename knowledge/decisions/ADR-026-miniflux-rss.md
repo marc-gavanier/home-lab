@@ -71,8 +71,8 @@ VOLUME /var/lib/postgresql
 ```
 
 The volume is now the **parent**. Copying Immich's line would have mounted a path that
-is no longer the datadir, leaving the real one inside the container — where it survives
-restarts and dies on the first `docker compose up --force-recreate`. Nothing would have
+is no longer the datadir, leaving the real one in the anonymous volume the image declares — which survives
+restarts and `--force-recreate`, and is orphaned on the first `docker compose down` or `rm`. Nothing would have
 looked wrong until the feeds silently came back empty.
 
 So the mount is the parent, and the 0700 ownership the storage role applies lands on the

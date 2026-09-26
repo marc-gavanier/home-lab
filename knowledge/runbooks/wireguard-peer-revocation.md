@@ -110,7 +110,10 @@ and worth verifying the first time you do rather than assuming.
    ```
 
    The revoked public key must be absent. If it is still listed, the interface
-   has not been reloaded: `docker restart wg-easy`, then check again.
+   has not been reloaded: `docker restart wg-easy`, then check again — but only
+   with someone able to reach the Pi physically: wg-easy is the only path to the
+   host, and a restart that does not come back cuts you off
+   ([rotate-a-secret.md](rotate-a-secret.md)).
 
 3. **Confirm the remaining peers still work** before walking away — recreation
    drops handshakes and they return at each client's own pace, so poll for a
@@ -121,8 +124,9 @@ and worth verifying the first time you do rather than assuming.
    ```
 
    `offsite-backup` (10.8.0.4) is the one to watch: it dials out on its own
-   schedule, so give it a few minutes, or force it with
-   `ssh offsite sudo systemctl restart wg-quick@wg0`.
+   schedule, so give it a few minutes — it keeps alive every 25 s and re-resolves every
+   minute. Do not restart its `wg-quick@wg0`: that goes through the very tunnel it
+   tears down (ADR-029).
 
 ## What the lost device still holds
 

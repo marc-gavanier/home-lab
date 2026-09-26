@@ -133,8 +133,7 @@ sudo -u claude sh -c 'cd ~/vault && ls'          # probe the function, not the u
 > `Requires=`) and gates startup on the vault actually being mounted (`ExecStartPre`),
 > retrying on failure. The rclone mount waits on Traefik/Nextcloud, so it can be slow at
 > boot; the service keeps retrying until it's ready instead of failing permanently (a hard
-> `Requires=` dependency-job failure is *not* covered by `Restart=`). See the comments in
-> the role's `tasks/main.yml`.
+> `Requires=` dependency-job failure is *not* covered by `Restart=`).
 >
 > **The two units move together.** Remote Control is `PartOf=vault-mount.service`, so it goes
 > down *with* the mount — and, thanks to `After=`, *before* it, which is what releases the

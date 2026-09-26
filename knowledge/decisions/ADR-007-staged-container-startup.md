@@ -56,7 +56,8 @@ encrypted disk, and stage the containers behind it — all automated by the
    waves into the void.
 4. **Crash recovery by timer.** Since `restart: "no"` also disables Docker's
    crash restarts, `homelab-stack-heal.timer` (every 2 min while the target is
-   up) restarts any compose container found exited with a non-zero code.
+   up) restarts any compose container found exited with a non-zero code, `created` or
+   `dead` (since 2026-09-05), or unhealthy for 15 min (since 2026-09-12).
 
 ## Consequences
 

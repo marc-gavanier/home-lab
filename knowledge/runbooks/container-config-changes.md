@@ -316,7 +316,7 @@ recreated pihole gets a new ID, so restarting dnsproxy re-runs it against the
 detached state the restart was meant to repair. Only recreating re-resolves
 `service:pihole`. Measured on a throwaway pair before it was written down
 (#215), and the measurement has been in
-`ansible/roles/deploy/tasks/compose.yml:103-109` ever since — this page gave the
+`ansible/roles/deploy/tasks/compose.yml:52-81` ever since — this page gave the
 restart form for both triggers until the audit of 2026-08-30 read the two side
 by side.
 

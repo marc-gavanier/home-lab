@@ -158,8 +158,9 @@ Defense in depth — each layer is secured independently. If one layer falls, th
   needs `NET_RAW` because the `ping` binary carries `cap_net_raw` as a file
   capability — without it the exec fails and every ping monitor reports
   "spawn EPERM" while the container stays healthy and its UI keeps answering.
-  Each cap in `compose.yaml` carries a comment naming the behaviour that needs
-  it. Netdata is the sharpest example of why this is measured rather than
+  The behaviour each cap exists for is in the commit that added it
+  (`git log -S <CAP> -- docker/compose.yaml`); `compose.yaml` carries no
+  comments since #390. Netdata is the sharpest example of why this is measured rather than
   reasoned: its plugins are setuid root, so dropping `CHOWN` stops the agent
   from preparing its directories and it silently runs **as root** instead of
   uid 201, and dropping `DAC_OVERRIDE` kills its network-viewer and service

@@ -832,7 +832,7 @@ command:
              awk '{print $4}' | cut -d/ -f1 | head -1)
       [ -n "$live" ] || { echo "eth0 holds no global IPv4 — the check cannot run"; exit 1; }
       [ "$live" = "{{ homelab_ip }}" ] || {
-        echo "the host holds $live while the configuration hardcodes {{ homelab_ip }} (change homelab_ip once and redeploy)"
+        echo "the host holds $live while the configuration hardcodes {{ homelab_ip }} (change homelab_ip once, redeploy, then re-import every VPN client config from wg-easy; if the subnet moved too, see docs/04-network)"
         exit 1
       }
     timeout: 60000

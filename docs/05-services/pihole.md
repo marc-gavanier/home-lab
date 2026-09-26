@@ -223,6 +223,6 @@ docker restart pihole && docker restart dnsproxy
 > `service:pihole`. Measured on a throwaway pair —
 > `knowledge/runbooks/container-config-changes.md` carries the full reasoning.
 
-Then re-run the Ansible deploy to set the password — and note that it recreates
-Pi-hole, so it is the `--force-recreate dnsproxy` branch above that applies
-afterwards, not the `docker restart` one.
+Then re-run the Ansible deploy to set the password. It does not recreate Pi-hole
+when `compose.yaml` is unchanged, and when it does recreate it, the deploy
+re-attaches dnsproxy itself (`roles/deploy/tasks/compose.yml`).

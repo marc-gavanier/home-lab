@@ -64,9 +64,10 @@ So the bind mount is the parent directory:
 ```
 
 Mounting `/var/lib/postgresql/data` instead — the path that is correct for Immich's
-Postgres 16 — would leave the real datadir *inside* the container. It would survive
-restarts and vanish on the first `--force-recreate`, with nothing looking wrong until the
-feeds came back empty.
+Postgres 16 — would leave the real datadir in the anonymous volume the image declares. Compose carries
+that volume over on restarts and on `--force-recreate`, but orphans it on the first
+`docker compose down` or `rm` — the maintenance route this repository recommends — with
+nothing looking wrong until the feeds came back empty.
 
 Both of its tmpfs mounts carry `uid=999,gid=999`, which `immich-db` does not need:
 

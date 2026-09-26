@@ -71,12 +71,14 @@ restic -r /mnt/data/backups/restic-repo key add
 RESTIC_PASSWORD='<new>' restic -r /mnt/data/backups/restic-repo snapshots | tail -3
 
 # 3. only now put the new value in the vault and deploy
-# 4. and only after a successful nightly run, remove the old key
+# 4. any offline copy of this password (ADR-010 recommends one) must be
+#    replaced now: after step 5 an old copy opens nothing, and nothing tells you
+# 5. and only after a successful nightly run, remove the old key
 restic -r /mnt/data/backups/restic-repo key list
 restic -r /mnt/data/backups/restic-repo key remove <old-id>
 ```
 
-The offsite repository is append-only, so step 4 there is not a cleanup you can
+The offsite repository is append-only, so step 5 there is not a cleanup you can
 redo casually — leave the old key in place unless there is a reason to remove
 it.
 

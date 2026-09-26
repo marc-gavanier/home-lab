@@ -83,6 +83,11 @@ old header restore would reinstate a superseded passphrase:
 
 (No change on ordinary unlock/mount cycles — the header is static then.)
 
+Nothing tells you the copy has gone stale, so check it whenever you have it in
+hand: `sudo cryptsetup luksDump <device>` and `cryptsetup luksDump <copy>` must
+print the same `Epoch` and the same keyslots. A different `Epoch` means the
+header changed after the copy was taken — re-take it.
+
 ## Restore a damaged header (disaster recovery)
 
 > ⚠️ Overwrites the on-disk header. Only do this when the current header is

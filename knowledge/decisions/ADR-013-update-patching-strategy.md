@@ -161,7 +161,10 @@ deliberate reboot posture.
    >
    > The fix assigns key by key. Its cost: services the vendor excludes are no
    > longer restarted after a library update, and wait for the next reboot like
-   > the kernel does.
+   > the kernel does. Unlike the kernel they write no `reboot-required`, so the
+   > homelab's pending monitor also asks `needrestart -b` once a package has been
+   > installed since boot. The offsite has no such check: its excluded services
+   > wait for its next kernel auto-reboot, accepted.
 3. **Bounded-latency reboot policy** for the irreducible kernel/core-lib residue,
    tiered by *reachability*, not raw CVSS:
    - **Routine** kernel/core-lib bump (no active exploitation, or an LPE with no
@@ -197,8 +200,8 @@ deliberate reboot posture.
 
 ## Consequences
 
-- **Userspace security fixes activate reboot-free** (needrestart); only the
-  kernel residue needs a reboot, and that residue is the *least-reachable* code
+- **Most userspace security fixes activate reboot-free** (needrestart); the
+  kernel and the services needrestart excludes need a reboot, and that residue is the *least-reachable* code
   on the box while the *most-reachable* (containers, host userspace) is patched
   fast.
 - The reboot-latency window is a **theoretical** exposure on this host, not a
