@@ -1,62 +1,13 @@
 #!/usr/bin/env bash
 # {{ ansible_managed }}
-# =============================================================================
-# Homelab Pi — container security posture check
-# =============================================================================
-# Asserts that the container hardening is still in place. Nothing else does,
-# and every failure this stack has produced was invisible from the outside:
-# Uptime Kuma stayed healthy with every ping monitor dead, SearXNG ran two weeks
-# on a stub config, netdata reported working charts while running as root. A
-# drifted posture would look exactly as normal (issue #33).
-#
-# The expected values are GENERATED FROM docker/compose.yaml at deploy time, so
-# this check cannot drift from the file it is checking: adding a service or
-# changing a capability updates the expectation on the next deploy, by
-# construction. Hand-maintaining that table would rot at the first new service.
-#
-# Runs daily rather than every five minutes: posture only changes when a
-# container is recreated, and the netdata assertions cost a docker exec each.
-# No-ops when no push URL is configured.
 
 set -uo pipefail
 
 KUMA_PUSH_URL='{{ homelab_posture_kuma_push_url | default("") }}'
-KUMA_PUSH_URL="${KUMA_PUSH_URL%%\?*}"   # strip a pasted example query (see homelab-health.sh)
+KUMA_PUSH_URL="${KUMA_PUSH_URL%%\?*}"
 
 notify() {
     [ -n "$KUMA_PUSH_URL" ] || return 0
-    # The push URL carries the monitor's own token, so it goes in on stdin
-    # instead of argv: /proc is mounted without hidepid, any local account can
-    # read another process's command line, and this runs unattended on a timer
-    # (#177). printf is a shell builtin, so the value never reaches an argv there
-    # either.
-    #
-    # The failure is KEPT, not discarded. This call used to end in `2>&1 || true`,
-    # which threw away curl's diagnosis AND its verdict, so a report that reached
-    # nobody was indistinguishable from one that landed. Measured on 2026-08-30:
-    # three runs of homelab-health finished green, having done their work, while
-    # their beats never reached Kuma and the monitor sat on a reading 16 min 55 s
-    # old. `|| echo` rather than a real failure because the caller must not abort
-    # on it — what failed is the report, not the check it carries. The marker
-    # string is what `no-kuma-report-was-lost-in-silence` reads in the posture
-    # spec; keep the two in step.
-    # A TIMEOUT IS NOT A LOSS. Until 2026-09-13 every non-zero curl status wrote
-    # `kuma-push-failed: this report reached nobody`, a sentence this side of the
-    # wire cannot justify: whether the beat LANDED is decided by the server, while
-    # curl only reports whether a reply came back inside its own budget. Measured
-    # on the netdata emitter that day — Kuma committed the beat at 23:25:29.334
-    # UTC, the script wrote "reached nobody" exactly TIMEOUT later, payloads
-    # byte-identical. The full reasoning lives once, in homelab-netdata-kuma.sh.
-    # curl exit 28 therefore gets `kuma-push-unconfirmed:`, which the live
-    # assertion's anchored `--grep '^kuma-push-failed:'` does NOT match. Every
-    # other status (22 on a 4xx/5xx, 7 refused, 6 DNS) is a beat that provably
-    # did not land and keeps the original marker and the original words.
-    #
-    # `|| rc=$?` rather than reading PIPESTATUS after a bare pipeline: two of the
-    # ten emitters run under `set -e`, where an unguarded failing pipeline would
-    # abort the whole script — the guard the old `|| echo` provided by accident.
-    # The verdict stays advisory, as it was: every branch leaves the status 0,
-    # because what failed is the report, not the check it carries.
     local rc=0
     printf 'url = "%s"\n' "$KUMA_PUSH_URL" |
         curl -fsS -m 10 --retry 2 -K - -G \
@@ -68,15 +19,6 @@ notify() {
     esac
 }
 
-# Which run produced this beat. A heartbeat carries no provenance, so a green
-# from a hand-run and a green from the scheduled one are the same line in Kuma —
-# which is how this monitor, having pushed DOWN on each of its three previous
-# SCHEDULED runs, was read as part of "37/37 green" on 2026-09-18. The timer
-# records when it last fired and systemd records when this service started;
-# within five seconds of each other means the timer started us, and a run
-# launched by hand — through systemd or straight from a shell — does not match.
-# Unparseable says so rather than guessing: a wrong provenance is worse than
-# none, because it would be believed.
 origin() {
     local started triggered delta
     started=$(systemctl show homelab-posture.service -P ExecMainStartTimestamp --timestamp=unix 2>/dev/null)
@@ -91,62 +33,22 @@ origin() {
 
 problems=()
 checked=0
-# --- What was COUNTED must be what was EXAMINED ------------------------------
-# `checked` is the number in "posture OK — N checks", and until 2026-09-05 it
-# was the only cardinal this script emitted. It is dominated by goss's own plan
-# line, and the derivation below added one per CONTAINER — so a run in which
-# every (container, mount) pair was filtered out still incremented it 23 times
-# and pushed the same sentence as a run that examined 14 mounts. Simulated live
-# on 2026-09-05: 23 containers reach the loop, 0 pairs survive, `checked` gains
-# 23.
-#
-# Each derivation now carries its own counter, the verdict prints them, and an
-# enumeration that visited nothing is a problem rather than a silence. This is
-# C10's floor — the one already deployed 200 lines from here, over this same
-# `docker inspect` population — applied where it was missing.
 goss_total=0
 goss_seen=0
 containers_seen=0
 mounts_seen=0
 creds_probed=0
 
-# The operator's uid. A service data directory owned by it, under a container
-# that does not itself run as it, is the signature of #138/#144 — see the
-# writability derivation below. Resolved once, and never guessed: an
-# unresolvable value makes the assertion report instead of silently passing.
 OPERATOR_UID=$(id -u '{{ ansible_user }}' 2>/dev/null)
 
-# /mnt/data is unlocked by hand after a reboot: until then the stack is
-# legitimately down and there is nothing to assert. The health report already
-# covers that window, and alarming here would cry wolf on every boot.
 if ! mountpoint -q /mnt/data; then
     notify up "/mnt/data locked — posture not checked ($(origin))"
     exit 0
 fi
 
-# No blanket raw block here (#261). One stood at this line and was closed by
-# the FIRST inner endraw, 58 lines below, so its own opening marker was emitted
-# literally into the deployed script and prefixed a Go template format string.
-# Nothing between here and there needs escaping; every Go template below carries
-# its own pair, which is the form to keep.
 inspect() { docker inspect -f "$2" "$1" 2>/dev/null; }
 
 
-# --- The declarative half runs first (ADR-032) -------------------------------
-# The declarative assertions live in /etc/goss/posture.yaml, generated from
-# compose.yaml at deploy time — 326 of them on this host today, a number that
-# moves with the compose file and is therefore read from goss rather than
-# written down here:
-# every container's privileged flag, dropped and added capabilities, read-only
-# rootfs, no-new-privileges, user, the AppArmor profile the kernel actually
-# applied, netdata's three axes, the fail2ban jails, and the credential store
-# modes.
-#
-# They are declared rather than looped over, and that is the point. Four of the
-# ten fixes this file has needed were controls that COULD NOT FAIL — "posture OK
-# on 0 containers" was a green push, ten controls could not report the failure
-# they named. A loop can visit nothing and return true; goss prints its count,
-# so "checked nothing" is not a state it can be in.
 GOSS_SPEC=/etc/goss/posture.yaml
 
 if [ ! -r "$GOSS_SPEC" ]; then
@@ -154,30 +56,7 @@ if [ ! -r "$GOSS_SPEC" ]; then
 elif ! command -v goss >/dev/null 2>&1; then
     problems+=("goss binary missing — the declarative assertions did not run")
 else
-    # --max-concurrent, and it is the fix for a red that means nothing.
-    #
-    # goss defaults to 50 concurrent tests. This spec holds about 400, most of
-    # which shell out to `docker inspect` or `docker exec`, on a board with 4
-    # cores and one dockerd. Isolated, `docker inspect` over every container
-    # takes 0.535 s; fifty of them at once queue on the daemon's API until the
-    # slowest crosses its deadline. 380 of the 400 assertions declare no
-    # `timeout:` and therefore sit on goss's 10 s default, so the ones that
-    # shell out are the ones that lose.
-    #
-    # Measured over 30 days: 15 of 121 posture beats (12.4 %) were red for
-    # `Error Command execution timed out`, across 13 DISTINCT assertions — the
-    # set moves run to run, which is the signature of contention rather than of
-    # a slow check. Four of them on 2026-09-13 alone. Each one turns monitor 23
-    # red and fires Discord, so the cost is not a missed check, it is a check
-    # whose colour carries no information about what it asserts.
-    #
-    # 8 and not 4: the tests are I/O-bound on the docker socket rather than
-    # CPU-bound, so a little oversubscription is free, and the whole run is
-    # budgeted in minutes by a daily timer. It does not lengthen the run to the
-    # point of mattering — the plan's own CPU time was 1 min 13.7 s at 50.
     goss_out=$(goss -g "$GOSS_SPEC" validate --max-concurrent 8 --format tap 2>&1) || true
-    # The plan line is goss's own count. Its absence means goss failed to parse
-    # the spec rather than found nothing wrong, and those must not read alike.
     goss_total=$(printf '%s\n' "$goss_out" | sed -n 's/^1\.\.\([0-9]*\)$/\1/p')
     goss_total=${goss_total:-0}
     goss_seen=$(printf '%s\n' "$goss_out" | grep -cE '^(not )?ok [0-9]+ ') || true
@@ -194,24 +73,11 @@ else
     fi
 fi
 
-# --- What goss cannot express: a derivation, not an assertion ----------------
-# Whether a container can create files in its own data directory is not a
-# property to look up, it is one to work out: resolve the read-write bind
-# mounts, compare each owner against the uid the container runs as. A container
-# holding DAC_OVERRIDE bypasses the bits anyway, so there is nothing to assert
-# for it (#144).
 if [ -z "$OPERATOR_UID" ]; then
     problems+=("operator uid unresolved — the writability check cannot run")
 else
     while read -r name; do
         [ -n "$name" ] || continue
-        # wg-easy was exempted here from 2026-08-17 to 2026-08-25 with the note
-        # "#138: cannot write, tracked". A known defect became a permanent hole
-        # in the control that would have caught it coming back — and #160, the
-        # deploy-path half of the same defect, was found by an audit rather than
-        # by this check, because this check had been told not to look. An
-        # exemption that outlives the ticket it names is indistinguishable from
-        # a blind spot. #138 is fixed; the exemption is gone with it.
         case " $(inspect "$name" '{% raw %}{{range .HostConfig.CapAdd}}{{.}} {{end}}{% endraw %}') " in
             *" CAP_DAC_OVERRIDE "*) continue ;;
         esac
@@ -228,10 +94,6 @@ else
         containers_seen=$((containers_seen + 1))
         checked=$((checked + 1))
     done < <(docker ps --format '{% raw %}{{.Names}}{% endraw %}' 2>/dev/null)
-    # Two different empties, and neither may read as a pass. No container at all
-    # means the daemon did not answer; containers but no mount means every
-    # inspect returned nothing, which is what a template change or a socket-proxy
-    # narrowing would look like.
     if [ "$containers_seen" -eq 0 ]; then
         problems+=("writability: no container was enumerated — the derivation asserted nothing")
     elif [ "$mounts_seen" -eq 0 ]; then
@@ -239,49 +101,13 @@ else
     fi
 fi
 
-# --- Vaultwarden: config.json must not contradict the compose environment ---
-# Vaultwarden's config.json takes precedence over the environment, and the
-# admin panel rewrites it in full every time it is saved. A setting declared in
-# compose.yaml is therefore free to be inert, and three of them were — from
-# 2026-05-15 until #124, icon downloads, Sends and password hints all ran
-# INVERTED while this repo said otherwise. The container printed the warning at
-# every start; nothing read it.
-#
-# Both sides are read from the running system, so like the fail2ban check above
-# there is no expectation list that can drift. Only a real contradiction counts:
-# a key held at the same value is redundant, not dangerous, and four of them are
-# (the panel writes back what it was given).
 if [ "$(docker inspect -f '{% raw %}{{.State.Status}}{% endraw %}' vaultwarden 2>/dev/null)" = "running" ]; then
     vw_src=$(docker inspect -f '{% raw %}{{range .Mounts}}{{if eq .Destination "/data"}}{{.Source}}{{end}}{{end}}{% endraw %}' \
              vaultwarden 2>/dev/null)
     vw_cfg="$vw_src/config.json"
-    # An ABSENT config.json is the ideal state — nothing to shadow, nothing to
-    # assert. An UNRESOLVABLE mount is not the same thing: it would make this
-    # check disappear without a word, which is the mechanism it exists to catch.
-    # Collapsing the two into one silent skip would reproduce the defect here.
     if [ -z "$vw_src" ]; then
         problems+=("vaultwarden: no /data mount — config.json check cannot run")
     elif [ -r "$vw_cfg" ]; then
-        # *_FILE indirections are resolved first, and that is not a refinement:
-        # compose injects ADMIN_TOKEN_FILE while config.json holds admin_token,
-        # so the raw comparison looked up "admin_token_file", never found it,
-        # and silently compared nothing (#159). The two values happen to be
-        # identical today; a rotation of the vaulted token would have been inert
-        # while this check went on reporting agreement.
-        #
-        # A file that cannot be read is reported rather than passed through —
-        # falling back to the raw KEY_FILE line would restore exactly the blind
-        # spot being fixed. The resolved value is a hash and is never printed:
-        # the comparison below emits key names only.
-        #
-        # Only paths under /run/secrets/, which is where this stack mounts them.
-        # Matching every *_FILE variable was too broad: vaultwarden also sets
-        # LOG_FILE=/data/logs/vaultwarden.log, and logrotate empties that file
-        # every week — so the check read 0 bytes and reported a secret it could
-        # not read, every run, from 2026-08-22 onward. Worse in the other
-        # direction: a NON-empty log would have been spliced into this
-        # line-oriented listing as LOG=<the whole log>, and any log line shaped
-        # like key=value could have raised a conflict out of nothing.
         vw_env=$(docker inspect -f '{% raw %}{{range .Config.Env}}{{println .}}{{end}}{% endraw %}' \
                  vaultwarden 2>/dev/null | while IFS= read -r line; do
             case "$line" in
@@ -300,13 +126,9 @@ if [ "$(docker inspect -f '{% raw %}{{.State.Status}}{% endraw %}' vaultwarden 2
         case "$vw_env" in
             *UNREADABLE_*) problems+=("vaultwarden: a *_FILE secret could not be read — the config.json comparison is incomplete") ;;
         esac
-        # An empty environment compares clean against any config.json, and the
-        # python below prints OK for it. Zero keys and no conflict are the same
-        # observable otherwise.
         if [ -z "$vw_env" ]; then
             problems+=("vaultwarden: no environment was read — the config.json comparison asserted nothing")
         fi
-        # Prints OK when clean, so a check that cannot run is not read as a pass.
         conflicts=$(printf '%s\n' "$vw_env" | python3 -c '
 import json, sys
 cfg = json.load(open(sys.argv[1]))
@@ -328,26 +150,6 @@ print(" ".join(sorted(bad)) if bad else "OK")
     fi
 fi
 
-# --- Database credentials: the file must still open the database -----------
-# POSTGRES_PASSWORD_FILE and MYSQL_PASSWORD_FILE are read by the image
-# entrypoint during initdb and never again — every later start prints "Skipping
-# initialization" and ignores them. So writing a new password into the secret
-# and restarting rotates NOTHING, while the deploy reports changed and a handler
-# visibly restarts the service (#159). The operation is impossible; the evidence
-# of work is not.
-#
-# An entrypoint's behaviour cannot be observed, but its consequence can: if the
-# file and the database ever stop agreeing, the credential in the file no longer
-# opens the database. That is what this asserts, and it is why the rotation
-# procedure in knowledge/runbooks/rotate-a-secret.md ends with a deploy — this
-# check is the acceptance test for having followed it.
-#
-# ADDRESSED BY CONTAINER NAME, not 127.0.0.1, and that detail is the whole
-# check: initdb writes `host all all 127.0.0.1/32 trust` into pg_hba, so over
-# the loopback Postgres accepts ANY password. Measured — a deliberately wrong
-# password returned 1. Over the docker network name the `host all all all
-# scram-sha-256` rule applies and a wrong password is refused. MariaDB refuses
-# on the loopback already, which is why the two families differ here.
 cred_probe() {
     local c="$1" engine="$2" secret="$3" out=""
     [ "$(inspect "$c" '{% raw %}{{.State.Status}}{% endraw %}')" = "running" ] || return 0
@@ -366,17 +168,8 @@ cred_probe immich-db    pg immich_db_password
 cred_probe miniflux-db  pg miniflux_db_password
 cred_probe nextcloud-db my nextcloud_db_password
 
-# Miniflux is the one service whose application side carries the password too:
-# it takes a whole connection string rather than a password to slot into one. So
-# the DSN can drift from the database's own secret without either probe above
-# noticing — and the symptom would be Miniflux failing to connect at the next
-# restart, not at the deploy that caused it.
 MINIFLUX_DSN=/mnt/data/secrets/docker/miniflux_database_url
 MINIFLUX_PW=/mnt/data/secrets/docker/miniflux_db_password
-# Unreadable is not agreeing. Both files are symlinks into the LUKS volume, so
-# the pair is unreadable exactly when /mnt/data is locked or a link dangles —
-# the two situations in which a drifted credential matters most — and the check
-# used to skip in silence.
 if [ ! -r "$MINIFLUX_DSN" ] || [ ! -r "$MINIFLUX_PW" ]; then
     problems+=("miniflux: the connection string or the database password is unreadable — the comparison did not run")
 elif [ -r "$MINIFLUX_DSN" ] && [ -r "$MINIFLUX_PW" ]; then
@@ -388,8 +181,6 @@ elif [ -r "$MINIFLUX_DSN" ] && [ -r "$MINIFLUX_PW" ]; then
     fi
 fi
 
-# --- Verdict ---------------------------------------------------------------
-{# bash ${#array[@]} reads as a Jinja comment opener — shield it #}
 if [ {% raw %}${#problems[@]}{% endraw %} -gt 0 ]; then
     printf '%s\n' "${problems[@]}" >&2
     notify down "$(printf '%s; ' "${problems[@]}")($(origin))"

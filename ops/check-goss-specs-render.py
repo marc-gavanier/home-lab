@@ -1,35 +1,4 @@
 #!/usr/bin/env python3
-"""Render every goss spec template the way ANSIBLE renders it, then reject the
-result if it is not the YAML goss will accept.
-
-Why parsing is not enough, which is what `check-jinja-templates.py` assumed.
-Both of the deploys on 2026-09-05 shipped a spec that parsed perfectly and that
-goss then refused, and both failures had the same shape: whitespace control
-around a tag swallowed the newline in front of a mapping key, so the key was
-absorbed into the line above it.
-
-    stdout: ["/^true$/"]socket-proxy-user:                     (12:39, `{#- ... -#}`)
-    # ... is acceptable.  credential-stores-derivation-nonempty:  (13:24, `{%- set %}`)
-
-TWO instrument traps are why they reached the host, and this script exists to
-close both.
-
-1.  **Ansible sets `trim_blocks=True`; a bare `jinja2.Environment()` does not.**
-    So `{%- set x = 1 %}` eats the newline BEFORE it (the `-`) and the newline
-    AFTER it (trim_blocks), while the same template rendered locally keeps the
-    second one and looks fine. The second failure rendered correctly on the
-    workstation and glued on the Pi, from the same bytes.
-
-2.  **PyYAML accepts duplicate mapping keys and keeps the last.** goss's Go
-    parser refuses them: `mapping key "exec" already defined at line 74`. So a
-    glued key — which produces exactly a duplicate `exec` in the block above —
-    loads cleanly under `yaml.safe_load` and fails on the host. A test that
-    cannot tell a broken spec from a good one is this repository's own defect
-    class, applied to the tool meant to catch it.
-
-The renderer here therefore uses Ansible's flags, and the loader below refuses a
-duplicate key the way goss does.
-"""
 
 import sys
 from pathlib import Path
@@ -54,7 +23,7 @@ VAR_FILES = [
 
 
 class StrictLoader(yaml.SafeLoader):
-    """Refuse duplicate mapping keys, the way goss's parser does."""
+    pass
 
 
 def _no_duplicates(loader, node, deep=False):
@@ -77,12 +46,6 @@ StrictLoader.add_constructor(
 
 
 class Loose(ChainableUndefined):
-    """Anything the inventory does not define renders as an inert scalar.
-
-    Never an empty string: an undefined value that renders to nothing can turn
-    `key: {{ x }}` into `key:` and change the SHAPE of the document, which would
-    make this script report a structural problem the deploy would not have.
-    """
 
     def __str__(self):
         return "PLACEHOLDER"
@@ -110,8 +73,6 @@ def context():
 
 
 def main():
-    # Ansible's own flags. trim_blocks is the one that matters and it is the one
-    # a bare Environment() gets wrong.
     env = Environment(
         undefined=Loose,
         trim_blocks=True,
@@ -127,7 +88,7 @@ def main():
         rel = path.relative_to(REPO)
         try:
             rendered = env.from_string(path.read_text(encoding="utf-8")).render(**ctx)
-        except Exception as exc:  # noqa: BLE001 - the message is the product
+        except Exception as exc:  # noqa: BLE001
             print(f"{rel}: does not render: {exc}", file=sys.stderr)
             failures += 1
             continue

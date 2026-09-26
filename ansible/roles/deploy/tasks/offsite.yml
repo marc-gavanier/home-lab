@@ -1,12 +1,4 @@
 ---
-# Offsite repo weekly check (ADR-010).
-# The homelab holds the offsite repo password, so integrity checks of the
-# offsite repo run from here, through the WireGuard tunnel. Tuesday 02:00:
-# well clear of the 03:00 backup+copy window (restic check takes an
-# exclusive lock — an overlap would fail one of the two).
-
-# offsite-check.sh is gone (ADR-031): the `offsite` profile is a repository of
-# its own with its own credentials, and `check` against it is the whole script.
 - name: offsite | Remove the superseded offsite check script
   ansible.builtin.file:
     path: /opt/homelab/scripts/offsite-check.sh
@@ -22,49 +14,10 @@
       Wants=network-online.target
       Requires=mnt-data.mount
       After=network-online.target mnt-data.mount
-      # The script opened with "offsite repo not configured — skipping check"
-      # and exited 0. systemd expresses the same thing without the shell: the
-      # password file is written only when offsite_restic_password is set, so
-      # its absence IS "not configured", and the unit is skipped rather than
-      # failing every week on a host that has no offsite repository.
       ConditionPathExists=/mnt/data/secrets/offsite_restic_password
 
       [Service]
       Type=oneshot
-      # --lock-wait for the same reason as the local maintenance, one repository
-      # further out: the nightly `copy` writes to this repository and takes
-      # restic's own lock on it. An overrunning copy must delay the check, not
-      # fail it.
-      # NO SuccessExitStatus HERE, and the reason is the one the 2026-09-13
-      # sweep got wrong. That sweep selected units by ExecStart COUNT and
-      # applied the line to the three carrying one, on the premise written into
-      # each: "this script REPORTS by pushing DOWN to its own Kuma monitor and
-      # then exiting 1", so the systemd failure is a duplicate worth
-      # suppressing.
-      #
-      # The premise is false for THIS unit, because the ExecStart below is not
-      # one of our scripts at all. It is resticprofile, and the DOWN push lives
-      # in `run-after-fail` (resticprofile.yaml, the `offsite` profile) — a HOOK,
-      # which only fires once resticprofile has actually run the command. When
-      # it aborts BEFORE that, nothing pushes anything.
-      #
-      # That is not hypothetical. On 2026-09-13 the sibling unit
-      # homelab-local-maintenance waited out its 2 h `--lock-wait` ceiling and
-      # exited 1 at 07:00:01 before the profile started: no hook ran, and its
-      # monitor received no beat at all, neither up nor down. With the line
-      # below present, systemd would ALSO have recorded that as a success.
-      #
-      # What caught it was `Pi health`, precisely because systemctl said the
-      # unit had failed — measured at +7 min 11 s with the cause named, against
-      # 72 DOWN beats over six hours. `homelab-health.sh` reads
-      # `systemctl show -p Result` and skips `success`, so SuccessExitStatus=1
-      # here does not remove a duplicate: it removes the ONLY fast detector this
-      # unit has, and leaves the Kuma silence fuse, which is days wide.
-      #
-      # The correct criterion is not "how many ExecStart lines" but "can the
-      # thing this unit runs always reach its own reporter". homelab-ddns can
-      # (notify() is defined at line 26, before anything touches the filesystem
-      # or the network). This unit cannot, because it does not own the code.
       ExecStart=/usr/local/bin/resticprofile --lock-wait 2h -c /opt/homelab/resticprofile.yaml -n offsite check
       EnvironmentFile=/opt/homelab/backup.env
       Environment=HOME=/root
@@ -78,13 +31,6 @@
       Description=Weekly offsite restic repo check (Tuesday 02:00)
 
       [Timer]
-      # Moved off Sunday 06:00 on 2026-09-13, with the rest of the weekly block.
-      # Sunday because the operator ingests media at the weekend; 06:00 because
-      # it sat downstream of the 03:00 backup and inherited its overruns.
-      # It takes the `offsite` profile lock, which is NOT the one the backup
-      # holds, so it was never starved the way the local maintenance was — but
-      # it does compete for the same uplink as the offsite copy, which is the
-      # real reason to keep it ahead of 03:00. Max measured 109 s.
       OnCalendar=Tue *-*-* 02:00:00
       Persistent=true
 

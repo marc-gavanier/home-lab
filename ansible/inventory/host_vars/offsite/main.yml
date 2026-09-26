@@ -1,79 +1,24 @@
-# =============================================================================
-# Offsite backup Pi — host variables (non-secret — secrets live in local.yml)
-# =============================================================================
-# Raspberry Pi 4 (4GB) + WD Blue 2TB SATA SSD (USB). Lives on the home LAN
-# during preparation, then at the offsite location as a WireGuard client.
-# Receives nightly `restic copy` from the homelab via rest-server append-only.
-
-# --- Firewall ---
-# Sources allowed to reach SSH. Measured on this host before the rule was scoped
-# (2026-09-13, 30 days of `Accepted publickey`): 1162 from 10.8.0.5 (the homelab,
-# which is how `ssh offsite` arrives — ProxyJump through the tunnel), 22 from
-# 10.8.0.3, and 3 from 192.168.0.41 on the local network here.
-#
-# Note this host's LAN is 192.168.0.0/24, NOT the homelab's 192.168.1.0/24 —
-# which is the whole reason this is a host variable and not a group one. Getting
-# it wrong on THIS machine is not a service outage: it is a Pi at another
-# address with no console, whose only other route is the tunnel it just lost.
 ssh_allowed_sources:
-  - 192.168.0.0/24 # LAN at the offsite location
-  - 10.8.0.0/24 # WireGuard — the route `ssh offsite` actually takes
+  - 192.168.0.0/24
+  - 10.8.0.0/24
 
-# --- System ---
 hostname: backup
-free_port_53: false # No Pi-hole here — keep stock systemd-resolved
-# No LUKS here, so an unattended reboot is safe and wanted — kernel security
-# updates self-clear (homelab keeps this false; see ADR-013). 04:00 is after
-# the nightly restic copy (03:00).
+free_port_53: false
 unattended_automatic_reboot: true
-tmp_tmpfs_size: 512M # Smaller /tmp cap on the 4GB node (homelab defaults to 1G)
-# No Docker stack here, so no Nextcloud or Vaultwarden jail — and above all no
-# /mnt/data. The unconditional version of those tasks touched log files under
-# it, failed, and stopped the play before `offsite-backup` ever ran: this host
-# last converged 2026-07-19 and could not be rebuilt for a month (issue #115).
-# The sshd jail is unaffected; it is unconditional in the role.
+tmp_tmpfs_size: 512M
 fail2ban_service_jails: false
-# zram compressed swap: this node has no HDD swapfile (it doesn't run the
-# storage role) and runs memory-spiky restic jobs, so compressed RAM swap is
-# real headroom kept off the SSD. The 8GB homelab leaves this off.
 zram_enabled: true
-# 52Pi ICE Tower NAS case: PWM fan on GPIO 14, thermostat at 60°C (vendor
-# wiki ZP-0141). Without this the fan runs full speed permanently.
 gpio_fan_pin: 14
 gpio_fan_temp: 60
 
-# --- Connection ---
-# The Pi moved to its offsite location on 2026-07-25, so the tunnel is now the
-# permanent management path — there is no LAN route to this host any more.
-# Only revert to a LAN IP (192.168.1.138 was the preparation one) if the Pi
-# comes back home for maintenance, or to bootstrap a fresh flash before its
-# WireGuard client config is installed.
 offsite_ip: "{{ offsite_wg_ip }}"
 
-# --- WireGuard ---
-offsite_wg_ip: "10.8.0.4" # Assigned by wg-easy to the offsite-backup client
-# `homelab_wg_ip` (the homelab host's own peer identity — wg0 lives in the
-# wg-easy container, so the host pushes backups through its own client) moved
-# to group_vars/all.yml in #259: the homelab needs it too, to probe its own
-# allow-list from that address.
+offsite_wg_ip: "10.8.0.4"
 
-# --- Backup storage ---
-# The 52Pi enclosure's ASMedia ASM1153 bridge is unstable in UAS mode on the
-# Pi (async write errors under load — bitten during first mkfs, 2026-07-12).
-# Force the plain usb-storage driver instead.
-# Consequence: usb-storage (BOT, no UAS) does not pass TRIM/UNMAP, so
-# `fstrim /mnt/backup` reports "discard not supported" — accepted. Integrity of
-# the backup target outranks TRIM; fstrim.timer skips it quietly
-# (--quiet-unsupported) and the SSD's own background GC handles wear.
 usb_storage_quirks: "174c:55aa:u"
 backup_disk_device: /dev/sda1
-# The whole drive, which is what SMART is queried on — the partition above is
-# what gets mounted. Spelled out rather than derived with a filter so the goss
-# spec renders outside Ansible too, which is how it gets tested.
 backup_disk_device_base: /dev/sda
 
-# SMART attributes that must stay at zero, each an assertion of its own in
-# goss-offsite-health.yaml so the failing NAME says which predictor moved.
 offsite_smart_counters:
   - {id: 5, name: realloc}
   - {id: 170, name: grown-bad-blocks}
@@ -84,32 +29,18 @@ offsite_smart_counters:
   - {id: 199, name: crc-err}
 backup_mount_point: /mnt/backup
 
-# Armed by the base role, which runs on both hosts — see #260 and the note in
-# base/tasks/filesystem-checks.yml. Same numbers as the homelab's data volume:
-# no mount count (0 -> the superblock's -1), a 30-day interval. The disk carries
-# `passno 2` and `nofail`, so a check that refuses to preen fails the mount
-# rather than the boot.
 extra_fsck_filesystems:
   - device: "{{ backup_disk_device }}"
     max_mounts: "{{ data_fsck_max_mounts | default(0) }}"
     interval_days: "{{ data_fsck_interval_days | default(30) }}"
-offsite_disk_force_format: false # Set true (once) to format a non-ext4 disk
+offsite_disk_force_format: false
 
-# --- rest-server ---
 rest_server_version: "0.14.0"
-# Upstream's own published SHA256SUMS for the arm64 tarball, not a hash computed
-# from the same unverified download. Without it the unarchive below trusts
-# whatever the network returns — on the host that holds the OFFSITE backups,
-# which is the stronger case of the sentence the resticprofile task already
-# carries. Update both lines together; Renovate proposes the pair.
 rest_server_sha256: "cef139cbe8b27b16bda731d17f093b0aa466b8c60b136c12d78b6f2bff3daf22"
 rest_server_port: 8000
 rest_server_data_dir: "{{ backup_mount_point }}/restic"
 rest_server_auth_user: homelab
 
-# --- Firewall ---
-# rest-server only accepts the homelab through the tunnel; SSH is handled by
-# the security role.
 ufw_service_rules:
   - port: "{{ rest_server_port }}"
     from_ip: "{{ homelab_wg_ip }}/32"

@@ -1,5 +1,4 @@
 ---
-# Input contract — validated automatically at run time (ansible-core >= 2.11).
 argument_specs:
   main:
     short_description: Append-only restic rest-server on the offsite Pi (ADR-010)

@@ -1,20 +1,3 @@
-#EXTM3U
-# Live TV playlist for Jellyfin's M3U tuner.
-#
-# THIS FILE IS AN EXAMPLE. Copy it to `iptv-fr.m3u` beside this one and put your
-# own channels in it; that name is gitignored, and the task below skips silently
-# when it is absent, so a clone without one deploys fine.
-#
-#   cp iptv-fr.m3u.example iptv-fr.m3u
-#
-# It is not committed because a channel list is a personal subscription: it names
-# the streams you are entitled to, and on most ISPs the URLs carry
-# operator-specific hosts that identify the provider.
-#
-# One line per channel, each #EXTINF followed by its stream URL:
-
-#EXTINF:-1 tvg-chno="1" tvg-id="Example1.fr" group-title="Example",Example Channel 1
 https://example.invalid/live/example1/index.m3u8
 
-#EXTINF:-1 tvg-chno="2" tvg-id="Example2.fr" group-title="Example",Example Channel 2
 https://example.invalid/live/example2/index.m3u8

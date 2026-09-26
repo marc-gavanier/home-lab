@@ -1,5 +1,4 @@
 ---
-# Input contract — validated automatically at run time (ansible-core >= 2.11).
 argument_specs:
   main:
     short_description: Deploy the Docker Compose stack (secrets on LUKS, ADR-011)

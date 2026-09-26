@@ -1,78 +1,17 @@
 # {{ ansible_managed }}
-# =============================================================================
-# Offsite Pi — daily health, declared (ADR-030, ADR-032)
-# =============================================================================
-# ADR-030 wrote this host off — "the offsite host has no Docker at all, so
-# nothing there moves to Netdata without a native install on a machine nobody
-# can reach physically". True of Netdata, and it was read as true of the whole
-# migration. goss is a single static binary: it never needed Docker.
-#
-# One assertion per failure MODE, named after it, for the reason measured on the
-# backup dumps: goss streams a command's stdout and never materialises it, so
-# every output format reports `object: *bytes.Reader` rather than the value. The
-# name is the only thing it always prints, so the name carries the diagnosis.
-#
-# What is NOT here: the pending-security-updates check. It needs to remember
-# when the count first went nonzero, and goss has no memory. It stays in the
-# runner, on the shared gate (ADR-030).
-#
-# POSIX sh, not bash: goss runs each command with /bin/sh, which is dash here.
-# The first draft used herestrings and process substitution and four assertions
-# came back with exit status 2 — a syntax error, which goss reports exactly like
-# a failed check. Measured on the offsite host before deploying anything, which
-# is the only reason it is not four permanently-red assertions on the machine
-# nobody can reach.
-#
-# Every check runs smartctl afresh. Twelve invocations a week on a drive that is
-# otherwise idle, against one shared parse in the script this replaces — paid
-# deliberately, because a shared variable is what let the 2026-08-17 defect hide:
-# smartctl wrote its refusal to STDOUT, the emptiness test never fired, every
-# attribute lookup came back empty and every check below was skipped in silence
-# while the run still reported success.
-# =============================================================================
 
-# --- Unit state, absent from this host until 2026-08-29 ----------------------
-# The homelab had three independent layers watching systemd; this file had NONE,
-# across 177 services and 18 timers. The gap was invisible for the usual reason:
-# what is not declared is not checked, so nothing was ever red about it.
-#
-# `running` and not `enabled`, for the same reason as the homelab's units spec:
-# these are RemainAfterExit oneshots or socket-activated, and asserting `enabled`
-# would fail forever on a correct machine.
-#
-# That sentence is where #332 went wrong, so read the rest of it: identifying a
-# unit as socket-activated rules out `enabled` on the SERVICE, and it rules out
-# `running` on the service just as hard — the service does not exist until the
-# first connection triggers it. The socket is the unit that is both enabled and
-# running from boot, and it is the one asserted below.
 service:
   rest-server.service:
-    # The reason this host exists. It answered on every probe anyway, which is
-    # precisely why nobody noticed nothing was asserting it.
     running: true
   wg-quick@wg0.service:
-    # The only route in. If this is down, every other assertion here is
-    # unreachable and the silence reads as health.
     running: true
   ssh.socket:
-    # The socket, not the service (#332). sshd is socket-activated: `ssh.service`
-    # is started by the first inbound connection and does not exist before it, so
-    # `ssh.service: running` was false on a correct machine and could only pass
-    # once somebody had logged in — which is what this daily, unattended check
-    # can never rely on. It went red on 2026-09-06 at 08:06, four hours after an
-    # unattended-upgrades reboot, on a host that was entirely healthy.
     running: true
-    # The one `enabled` in this file, on the argument that gave wg-quick@wg0 the
-    # same flag in the homelab's register: this socket is the SOLE activation path
-    # of the only remote access to a host nobody can walk up to. `running` reports
-    # its loss only after the reboot that has already cost the access.
     enabled: true
   fail2ban.service:
     running: true
 
 mount:
-  # Native resource rather than a command, and the first thing asserted: every
-  # other check on this file is meaningless if the volume is not there.
   {{ backup_mount_point }}:
     exists: true
     opts:
@@ -80,49 +19,14 @@ mount:
 
 command:
 
-  # The property `ssh.socket: running` cannot carry (#332): a socket that accepts
-  # is not a daemon that can start. Socket activation defers every configuration
-  # error to the first inbound connection, so a broken sshd_config sits invisible
-  # until the moment somebody needs to get in — on the offsite host, potentially
-  # for a week.
-  #
-  # `sshd -t` is the gate `ssh.service` already runs as its ExecStartPre, so
-  # this asserts what the activation itself would hit, without needing a
-  # connection to trigger it. Measured on both hosts 2026-09-06: rc=0. It is not
-  # the exact same run: the unit's RuntimeDirectory creates /run/sshd first, and
-  # outside it `sshd -t` fails on a missing /run/sshd until the first connection
-  # after a boot. The security role's tmpfiles.d entry creates it at boot.
   sshd-config-is-loadable:
     exec: /usr/sbin/sshd -t
     exit-status: 0
 
-  # The catch-all the four named units cannot provide: a unit NOBODY listed.
-  # `systemctl --failed` is one command and the same one the operator would run.
-  #
-  # The test is `[ -z "$(...)" ]` and NOT the bare command, because the bare form
-  # asserted nothing at all. `systemctl` returns 0 whether the list is empty or
-  # full — its exit status reports that the QUERY succeeded, not that the answer
-  # was empty. Control taken on this host on 2026-09-03:
-  #
-  #     systemctl list-units --state=active --no-legend --plain | wc -l  -> 433
-  #     echo $?                                                          -> 0
-  #
-  # and `stdout: []` is an empty list of patterns, which emits no assertion
-  # either. So the only unit-level safety net on the host with no physical
-  # access, probed once a week, was a check that could not fail. The homelab has
-  # carried the correct form since it was written (goss-units.yaml.j2): the
-  # command substitution is what turns the OUTPUT into the exit status.
-  #
-  # Keep the two hosts' forms identical. This one drifted precisely because it
-  # was written separately from its sibling rather than derived from it.
   offsite-no-failed-units:
     exec: '[ -z "$(systemctl --failed --no-legend --plain 2>/dev/null)" ]'
     exit-status: 0
 
-  # ufw is a oneshot and sits in `active (exited)` on a correct machine, so a
-  # service resource would assert the wrong thing about the component whose job
-  # is to keep enforcing after its unit exited. On this host UFW is the ONLY rule
-  # that filters — there is no Docker publishing ports around it.
   offsite-ufw-enforcing:
     exec: ufw status verbose
     exit-status: 0
@@ -155,25 +59,11 @@ command:
     timeout: 60000
     exit-status: 0
 
-  # The tunnel-recovery path, and settled.md calls it the only one that works
-  # after a home address change: roaming cannot repair that direction, so this
-  # timer sending first is what reopens the NAT mapping. It was unwatched.
   offsite-wg-reresolve-timer-active:
     exec: systemctl is-active offsite-wg-reresolve.timer
     exit-status: 0
     stdout: ["/^active$/"]
 
-  # --- Parity with the homelab, DERIVED rather than listed (#291, class C02) -
-  # The assertions below are generated from `homelab_control_timers`, one per
-  # distinct counterpart named there. They are not the gate on their own — a
-  # variable is still something a human writes. The gate is on the homelab side
-  # (`offsite-parity-register-covers-every-control-timer`), which fails when a
-  # deployed control timer is absent from that register, so the register cannot
-  # be shorter than reality and these cannot be shorter than the register.
-  #
-  # #285 closed C02 with seven hand-written assertions. They were correct and
-  # they were green; the eighth divergence appeared the same day anyway, which
-  # is what a list does and what this pair is meant to stop.
 {% for c in homelab_control_timers | selectattr('offsite', 'defined') | map(attribute='offsite') | unique | sort %}
   offsite-carries-{{ c }}:
     exec: systemctl is-active {{ c }}.timer
@@ -181,12 +71,6 @@ command:
     stdout: ["/^active$/"]
 {% endfor %}
 
-  # The decision of #291 made continuous. Both tools are ones THIS REPO installs
-  # or removes, so the list is closed by the roles rather than by memory: lynis
-  # is installed only where `lynis_scheduled` is set, and rkhunter was purged
-  # everywhere in #155. An audit tool that reappears here without a schedule is
-  # the exact shape that made C02 reopen — installed, masked, last report months
-  # old, and reading as coverage on any inventory.
   offsite-no-audit-tool-without-a-schedule:
     exec: |
       bad=""
@@ -198,25 +82,6 @@ command:
       [ -z "$bad" ] || { echo "installed with nothing scheduling it:$bad"; exit 1; }
     exit-status: 0
 
-  # --- The clock before the clock (#292, class C42) --------------------------
-  # This board has no RTC. Without fake-hwclock, systemd starts it at the mtime
-  # of its own binary — 2026-07-28 on both hosts, measured — and every entry
-  # written before the first NTP reply carries that date. The journal segment
-  # opened in that window is NAMED for it, becomes the oldest file on the host,
-  # and journald's vacuum removes it first: the beginning of the current boot,
-  # deleted before anything genuinely old.
-  #
-  # Asserted on freshness rather than on the package being installed, because
-  # installed-and-never-run is the shape this repo has already refused twice
-  # (#155, #291).
-  #
-  # 900 s, tracking the save interval — the drop-in in base/tasks/clock.yml puts
-  # BOTH hosts on a 5-minute save, so the old 7200 s would have meant 24 missed
-  # saves here too and let a dead timer stay green for most of a day. 900 s is
-  # three missed saves, the same slack the old number expressed against the old
-  # cadence. Changed with its homelab twin deliberately: the interval and the
-  # tolerance are one decision in two files, and splitting them is how the
-  # second one rots.
   fake-hwclock-data-is-fresh:
     exec: |
       for u in fake-hwclock-load.service fake-hwclock-save.timer; do
@@ -236,24 +101,11 @@ command:
     exec: '[ "$(df --output=pcent {{ backup_mount_point }} | tail -1 | tr -dc 0-9)" -lt 85 ]'
     exit-status: 0
 
-  # The assertion above this one is about the filesystem's CONTENT; this one is
-  # about the thing that claimed to verify it. e2scrub_all.timer was enabled and
-  # green here every week, and `e2scrub_all -n` returns nothing on this host —
-  # it scrubs LVM logical volumes and there is no LVM (#154). Masked by the base
-  # role, on both hosts, for the reason #155 taught: a fix applied to the
-  # homelab's roles leaves this machine running the no-op for another day.
-  #
-  # `is-enabled` prints `masked` and exits 1. Both are asserted — `enabled`
-  # exits 0, so the exit status alone would pass on the very state this forbids.
   offsite-e2scrub-timer-masked:
     exec: systemctl is-enabled e2scrub_all.timer
     exit-status: 1
     stdout: ["/^masked$/"]
 
-  # A clean filesystem prints NO "FS Error count" line, so its presence is
-  # itself the signal; `Filesystem state` reads "clean with errors" rather than
-  # "clean" once anything has been recorded. A loop that visited NOTHING must
-  # report rather than pass — the guard of #156, kept: `seen` is asserted.
   offsite-ext4-clean:
     exec: |
       findmnt -l -t ext4 -no SOURCE | {
@@ -269,25 +121,11 @@ command:
       }
     exit-status: 0
 
-  # --- The backup disk had no filesystem check of any kind (#260) -----------
-  # It holds the entire offsite restic copy and reached 48 days old with
-  # `Maximum mount count: -1`, `Check interval: 0` and `passno 0` — never
-  # checked since mkfs, and nothing that would ever check it. #254 armed the
-  # homelab's data volume and put the task in the `storage` role, which does not
-  # run here.
-  #
-  # Two halves again, and the fstab one carries the weight: only the boot-time
-  # fsck consults the superblock triggers, so `passno 0` made arming them pure
-  # decoration. Asserted separately because each can be lost on its own.
   offsite-backup-disk-has-fsck-pass:
     exec: awk '!/^#/ && $2 == "{{ backup_mount_point }}" { print $6 }' /etc/fstab
     exit-status: 0
     stdout: ["/^[1-9]$/"]
 
-  # The superblock half. Not a schedule — the frozen boot clock makes every
-  # superblock look future-dated to the initramfs, which then checks in full and
-  # rewrites these values backwards. They are asserted so the configuration is
-  # right the day the clock is; `passno` above is what does the work today.
   offsite-backup-disk-fsck-triggers-armed:
     exec: tune2fs -l {{ backup_disk_device }}
     exit-status: 0
@@ -295,65 +133,30 @@ command:
       - "/Maximum mount count:\\s+-1\\b/"
       - "/Check interval:\\s+{{ data_fsck_interval_days | default(30) | int * 86400 }}\\b/"
 
-  # smartctl's exit status is a bitmask: bit 3 (value 8) means the disk is
-  # failing. Bits 0-2 are command/device errors — USB bridge quirks, not a disk
-  # failure — so only bit 3 is asserted here.
   offsite-smart-verdict:
     exec: 'smartctl -H {{ backup_disk_device_base }} >/dev/null 2>&1; [ $(( $? & 8 )) -eq 0 ]'
     exit-status: 0
 
-  # Readability asserted on a VALUE, not on the output being non-empty.
-  # Measured on this host 2026-08-17: smartctl writes its refusals to stdout, so
-  # a device it cannot talk to returns rc=1 with 282 bytes of "Unable to detect
-  # device type" — non-empty. The old guard never fired, and a USB-SATA bridge
-  # that stops passing SAT commands fails exactly that way, on the host least
-  # likely to be looked at directly. Power-on hours is the instrument: present
-  # on every ATA drive, and it can only parse as a number if the attribute table
-  # was genuinely read.
   offsite-smart-readable:
     exec: |
       h=$(smartctl -A {{ backup_disk_device_base }} 2>/dev/null | awk '$1 == 9 { print $10; exit }')
       case "$h" in ''|*[!0-9]*) exit 1 ;; *) exit 0 ;; esac
     exit-status: 0
 
-  # Early failure predictors, each its own assertion so the name says which one
-  # moved: media decay (5/170/187), NAND wearout (171/172), data-path corruption
-  # (184), USB cable or bridge trouble (199). Any of them leaving zero reports
-  # long before the overall verdict flips — that verdict stays PASSED until the
-  # drive is nearly dead.
 {% for a in offsite_smart_counters %}
   offsite-smart-{{ a.name }}:
     exec: '[ "$(smartctl -A {{ backup_disk_device_base }} 2>/dev/null | awk ''$1 == {{ a.id }} { print $10; exit }'')" = 0 ]'
     exit-status: 0
 {% endfor %}
 
-  # Remaining spare-block reserve, normalized: 100 is full, the vendor floor is 4.
   offsite-smart-spare-blocks:
     exec: '[ "$(smartctl -A {{ backup_disk_device_base }} 2>/dev/null | awk ''$1 == 232 { print $4 + 0; exit }'')" -ge 50 ]'
     exit-status: 0
 
-  # Deliberately the CURRENT value and not the drive's Min/Max. This assertion
-  # runs daily at 08:00, so it samples a cool moment by construction — but the only
-  # maximum this drive exposes is the attribute line's own `(Min/Max 16/61)`,
-  # whose window is undocumented and most likely lifetime. A threshold on a
-  # figure that can never come back down latches red forever on one past event.
-  # The peak is REPORTED by offsite-health.sh instead, for a human to read. The
-  # homelab uses a `Power Cycle Min/Max` that resets at every boot, which is why
-  # it could take the other route.
   offsite-ssd-temperature:
     exec: '[ "$(smartctl -A {{ backup_disk_device_base }} 2>/dev/null | awk ''$1 == 194 { print $10; exit }'')" -lt 70 ]'
     exit-status: 0
 
-  # An abort is not bad news, it is the ABSENCE of news. This assertion carried
-  # the exact defect `homelab-disk.sh` documents as deliberately fixed: `grep -qiE
-  # 'fail|aborted'` turns a test interrupted by a reboot into a failure, and on a
-  # host sampled once a week that is a red monitor nobody can act on for up to a
-  # month — #207's lesson, inverted. Unknown statuses still alarm, which was the
-  # half that was right: a status a future smartctl invents must be loud.
-  #
-  # An EMPTY log now fails instead of passing. It used to `exit 0`, so a drive
-  # whose self-test had never run — the state this pair exists to catch — passed
-  # both assertions silently.
   offsite-smart-selftest-result:
     exec: |
       line=$(smartctl -l selftest {{ backup_disk_device_base }} 2>/dev/null | awk '/^# 1/ { $1=""; $2=""; print; exit }')
@@ -365,17 +168,6 @@ command:
       esac
     exit-status: 0
 
-  # A dead-man's check on the monthly self-test timer itself. The log stamps
-  # each test in drive power-on hours, so comparing with attribute 9 surfaces a
-  # silently dead timer instead of leaving an eternally green "Completed without
-  # error" from months ago. 840h is 35 days.
-  #
-  # Read from the last COMPLETED entry, not from entry `# 1`. Taking the newest
-  # entry meant an aborted test — which the assertion above deliberately does not
-  # treat as a failure — also RESET the staleness clock, so an abort could hide a
-  # dead timer indefinitely. `homelab-disk.sh` keeps the same two readings apart
-  # for exactly this reason and calls the difference "the whole of this block";
-  # this host had only ever had one of them.
   offsite-smart-selftest-fresh:
     exec: |
       out=$(smartctl -A -l selftest {{ backup_disk_device_base }} 2>/dev/null)
@@ -385,42 +177,10 @@ command:
       [ $((now - last)) -le 840 ]
     exit-status: 0
 
-  # 70, not the homelab's 80, and the difference is deliberate (#201). This board
-  # idles at ~49C doing nothing while the homelab averages 40C running 28
-  # containers, and its active cooling engages at 60C. So 70 means "the fan has
-  # been running for a while and it is still climbing" — a seized or unplugged
-  # fan — rather than "the SoC is already throttling", which is what 80 catches.
-  # On a host sampled once a week, in someone else's home, with a gpio_fan that
-  # has no tachometer, the warning has to come early enough to be worth having.
   offsite-cpu-temperature:
     exec: '[ $(( $(cat /sys/class/thermal/thermal_zone0/temp) / 1000 )) -lt 70 ]'
     exit-status: 0
 
-  # A sagging power supply silently corrupts disks. This used to read
-  # in0_lcrit_alarm directly, on the written premise that "the firmware latches
-  # undervoltage into the rpi_volt hwmon alarm". That premise is false, and it
-  # was the premise that made a low cadence look safe.
-  #
-  # raspberrypi-hwmon.c passes value = 0xffff to RPI_FIRMWARE_GET_THROTTLED
-  # under its own comment "Request firmware to clear sticky bits", on EVERY
-  # poll, and it polls every 2 * HZ. The show function returns
-  # !!(last_throttled & UNDERVOLTAGE_STICKY_BIT), i.e. the last poll only. So
-  # the attribute is a pulse at most 2 s wide, not a latch, and a daily sample
-  # of it had a 2/86400 chance of landing on an event: 0.002%. It is also why
-  # `vcgencmd get_throttled` reads 0x0 on a host that has throttled -- the
-  # driver cleared the bits before anything else could read them.
-  #
-  # The journal is the durable record of the same event: the driver logs on
-  # every TRANSITION, and both strings were verified present in the shipped
-  # 6.8.0-1064-raspi module rather than taken from upstream source. Note the
-  # absence of `-k`: it implies `-b`, which would hide an event that happened
-  # before the last reboot, and a power problem is a plausible cause of that
-  # reboot.
-  #
-  # Two guards, both there to stop this passing vacuously: `seen` (as for ext4,
-  # a kernel that stops exposing rpi_volt must not turn this green) and a
-  # journal that actually carries entries for the window it is being asked
-  # about.
   offsite-undervoltage:
     exec: |
       seen=0
@@ -434,12 +194,6 @@ command:
         | grep -q 'Undervoltage detected'
     exit-status: 0
 
-  # Reported, not relied on for detection: the push carrying this verdict
-  # travels THROUGH the tunnel, so a dead tunnel means nothing arrives and it is
-  # the monitor's dead-man window that fires. What this adds is the case that
-  # window cannot see — a tunnel alive but whose handshake is ageing. 600s means
-  # the re-resolve timer (150s gate, 1-minute period) has had four chances and
-  # did not recover it (#180).
   offsite-tunnel-handshake:
     exec: |
       hs=$(wg show wg0 latest-handshakes 2>/dev/null) || exit 1
@@ -448,29 +202,6 @@ command:
       [ $(( $(date +%s) - seen )) -le 600 ]
     exit-status: 0
 
-  # The one property that makes this host a BACKUP rather than a mirror: with
-  # --append-only the rest-server accepts new packs and refuses deletes, so a
-  # homelab that is compromised — or simply wrong — cannot erase what is here.
-  # It is the whole argument for the offsite copy existing.
-  #
-  # Nothing asserted it until now. This spec had 26 checks and not one of them
-  # about security, while the flag lives in exactly two places a routine change
-  # can drop it from: a unit file, and a running process. A rest-server upgrade
-  # that rewrites the unit, or an edit made while debugging a failed push, would
-  # take it away and every check here would stay green.
-  #
-  # The LIVE process, not the unit. The unit is what survives a restart, but the
-  # process is what enforces, and the two disagree exactly in the window that
-  # matters: a unit edited and not yet restarted is still running the old flags,
-  # and a process started before an edit keeps them. What is running is the
-  # question the operator actually has.
-  #
-  # An absent process must FAIL rather than pass — the trap this file already
-  # names twice, at `offsite-undervoltage` and at the ext4 counters. A
-  # rest-server that is not running is not append-only either. Verified under
-  # dash on the host before being written here, with both controls: a flag that
-  # is genuinely absent fails, and a pgrep that matches nothing fails instead of
-  # returning success over an empty loop.
   offsite-restserver-append-only:
     exec: |
       pid=$(pgrep -x rest-server | head -1)
@@ -478,30 +209,6 @@ command:
       tr '\0' '\n' < "/proc/$pid/cmdline" | grep -E -- '^--append-only(=|$)' | tail -1 | grep -qxE -- '--append-only(=(true|1))?'
     exit-status: 0
 
-  # --- A lock nobody will ever clear ----------------------------------------
-  # Added 2026-09-13 (audit class C90). The homelab has carried
-  # `restic-repo-has-no-stale-lock` since #331, and it scans
-  # `<backup_dir>/restic-repo/locks` — the LOCAL repository. This repository,
-  # the one where a collision is PERMANENT because append-only forbids the
-  # cleanup, had no lock assertion at all. The asymmetry was backwards: the
-  # guard sat on the repo that can be pruned.
-  #
-  # Why an age bound is safe here even though a deep check runs for hours:
-  # restic REFRESHES its lock while it holds it (every 5 minutes by default), so
-  # a live multi-hour `check --read-data-subset` keeps its lock's mtime moving.
-  # An hour of no refresh means the holder is gone, not slow. That is the same
-  # reasoning and the same 3600 s as the homelab sibling, and it is why this
-  # does not become the false positive that `no-kuma-report-was-lost-in-silence`
-  # just cost us.
-  #
-  # `pgrep -x restic` covers a restic started ON this host (a manual prune from
-  # the relative's LAN). It cannot see one running on the homelab — that one is
-  # covered by the refresh argument above, not by this line.
-  #
-  # The directory is asserted to EXIST before anything is counted, so an empty
-  # `locks/` proves the place is real rather than that the set is empty — a
-  # repository whose locks/ is gone fails instead of passing. Same floor as the
-  # sibling, same reason (class C83).
   offsite-restic-repo-has-no-stale-lock:
     exec: |
       d={{ rest_server_data_dir }}/locks
@@ -516,46 +223,14 @@ command:
       [ -z "$stale" ] || { echo "stale lock(s), no local restic running:$stale"; exit 1; }
     exit-status: 0
 
-  # --- A report that reached nobody: this host's half ------------------------
-  # `offsite-health.sh` used to end its push in `2>&1 || true`, so a beat that
-  # never arrived was indistinguishable from one that did — the run exited 0 and
-  # the monitor kept its previous reading. It now writes the same
-  # `kuma-push-failed:` marker as its seven homelab siblings, and this is what
-  # reads it here. See `no-kuma-report-was-lost-in-silence` in the posture spec.
-  #
-  # The floor is derived, but from a different fact: there is no Kuma container
-  # on this host to ask. Its beat travels to the homelab's Kuma over the tunnel,
-  # so the tunnel becoming active is the moment a push can start succeeding.
-  # Residual, stated rather than hidden: a push issued in the seconds between
-  # the tunnel coming up and traffic actually flowing would be counted as lost.
-  # This host's health job runs DAILY since 2026-09-12, so landing in that
-  # seconds-wide window is seven times likelier than when this was written and
-  # still a coincidence; the homelab's floor is tighter because it can be.
   offsite-no-report-was-lost-in-silence:
     exec: |
       ts=$(systemctl show wg-quick@wg0 -p ActiveEnterTimestamp --value 2>/dev/null)
       [ -n "$ts" ] || { echo "wg-quick@wg0 has no ActiveEnterTimestamp — no floor, refusing to judge"; exit 1; }
       floor=$(date -d "$ts" +%s 2>/dev/null)
       case "$floor" in ''|*[!0-9]*) echo "unparseable tunnel timestamp: [$ts]"; exit 1 ;; esac
-      # CAP THE LOOKBACK, for the reason its homelab twin now carries at length:
-      # the derived floor is correct but unbounded — it is the tunnel's uptime,
-      # and this tunnel is meant to stay up for months. 8 days was DERIVED from a
-      # weekly timer — the widest gap between two runs plus a day of margin. The
-      # timer became DAILY on 2026-09-12 and this constant did not move, so it is
-      # no longer derived from anything: it is a conservative cap that looks back
-      # eight times further than a run can need. Kept rather than retuned here
-      # because narrowing it is a behaviour change, not a documentation fix.
-      #
-      # `max(floor, now-8d)`, so a tunnel that came up an hour ago still wins
-      # and the check keeps refusing to judge a period in which no push to the
-      # homelab's Kuma could have landed.
       cap=$(( $(date +%s) - 8 * 86400 ))
       [ "$floor" -lt "$cap" ] && floor="$cap"
-      # Anchored --grep, for the reason spelled out in the homelab's twin: --grep
-      # tests MESSAGE alone, and the anchor rejects a line that merely mentions
-      # the marker. Without it, an operator grepping for the string trips the
-      # check — measured on the homelab, 7 phantom losses on a host that had
-      # lost nothing.
       hits=$(journalctl --since "@$floor" --no-pager -o cat \
              --grep '^kuma-push-failed:' 2>/dev/null)
       lost=$(printf '%s' "$hits" | grep -c . )
@@ -564,20 +239,5 @@ command:
         printf '%s\n' "$hits" | tail -5 | sed 's/^/  /'
         exit 1
       }
-    # This check declared NO timeout and therefore ran on goss's 10 s default —
-    # proven empirically on this host, `sleep 11` returns `timed out (10s)`.
-    # It passed only because the tunnel happened to be young: at 63 h of uptime
-    # the scan cost 5.88 s, and the window was the tunnel's uptime, so on a
-    # tunnel up for a month it would have failed with `not ok` and been read as
-    # a lost report.
-    #
-    # With the 8 day cap above, measured on this host on 2026-08-31: 14.5 s —
-    # which is already OVER the default it was silently running on. 60 s is ~4x
-    # that, and unlike the homelab twin this spec is 43 checks rather than 382,
-    # so it adds little self-load.
-    #
-    # As on the homelab: never filter this scan with `-p err`. Script stderr is
-    # journalled at priority 6, so the filter cannot see the marker and the
-    # check would go permanently, silently green.
     timeout: 60000
     exit-status: 0

@@ -1,18 +1,7 @@
 ---
-# goss — ADR-032.
-#
-# The binary lives in goss-install.yml, shared with the offsite host. This file
-# adds the homelab's own spec. homelab-posture.sh runs goss first and reports
-# its TAP output as its own findings, so this must land before the posture task
-# or the daily check reports the spec missing.
-
 - name: goss | Install the binary and the spec directory
   ansible.builtin.import_tasks: goss-install.yml
 
-# 0400 root: the spec names every container's expected capability set and the
-# modes of the credential stores. That is a map of where the secrets are and how
-# they are protected — not a secret itself, but not something an unprivileged
-# account needs either.
 - name: goss | Install the generated posture spec
   ansible.builtin.template:
     src: goss-posture.yaml.j2
@@ -22,8 +11,6 @@
     mode: "0400"
   tags: always
 
-# Read by homelab-health.sh every five minutes, not by posture.sh: unit state is
-# an acute signal and the posture spec runs daily. Same mode as the other specs.
 - name: goss | Install the systemd unit spec
   ansible.builtin.template:
     src: goss-units.yaml.j2

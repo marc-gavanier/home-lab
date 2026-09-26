@@ -1,32 +1,4 @@
 ---
-# Ownership of the data directories that a hardened container must be able to
-# WRITE. Runs before `compose up`, so a container recreated by this same play
-# finds its directory already usable.
-#
-# Why this file exists: `cap_drop: ALL` takes CAP_DAC_OVERRIDE away from a
-# container running as root, which then falls back under the permission bits it
-# used to bypass. A directory owned by the operator's uid stops accepting NEW
-# files — while every file already open keeps working. So the container stays
-# healthy, the service answers, and nothing fails until something has to be
-# created. Two bugs hid there for weeks:
-#
-#   #138  wg-easy could not write its database, so a VPN peer could not be
-#         REVOKED — and `wg_easy_config` could verify the VPN settings it
-#         claims to enforce and never write them (#160). Fixed here since
-#         2026-08-25; the hazard that kept it out is measured below.
-#   #144  Vaultwarden. Its vault is a SQLite database in WAL mode, and it wrote
-#         fine only because db.sqlite3-wal and -shm predated the capability
-#         drop by six days. SQLite deletes both on a clean shutdown and
-#         recreates them on the next open; it could not have. The first
-#         `compose down` would have left the vault read-only.
-#
-# Ownership, not mode: these containers run as uid 0, so root:root is the
-# minimum that works and it does not widen access to anything else. Each of the
-# three directories has exactly one consumer, verified on the host, and no other
-# container or service uid reads them.
-#
-# `cap_drop: ALL` is correct hardening and stays. The defect was the ownership.
-
 - name: data_dirs | Own the data of root containers that no longer hold DAC_OVERRIDE
   ansible.builtin.file:
     path: "{{ services_data_dir }}/{{ item.path }}"
@@ -36,39 +8,12 @@
     mode: "{{ item.mode }}"
   loop:
     - { path: vaultwarden, mode: "0700" }
-    # 0755 until 2026-08-24, and nothing had decided that — it was the mode the
-    # directory happened to have when this task was written to fix its OWNER.
-    # What it holds: the ACME account private key and eighteen certificates with
-    # their keys, in acme.json at 0600 under a directory any local account could
-    # traverse. Found by the derived assertion (#217) on its first run, not by
-    # anyone reading the list. 0700 costs Traefik nothing — it owns the
-    # directory and additionally carries CAP_DAC_READ_SEARCH — and the health
-    # script that parses acme.json since #157 runs as root.
     - { path: traefik/acme, mode: "0700" }
     - { path: immich/upload, mode: "0755" }
-    # The fourth, and it took #138 and #160 with it. Held out of this loop for
-    # eight days by a hazard that was reasoned rather than measured — see the
-    # block below — and out of the 0700 list further down for the same reason,
-    # which is why the mode moves here in the same change: this directory holds
-    # the interface private key, every client private key and every pre-shared
-    # key. It was the most sensitive store in the lab and the only credential
-    # store still world-traversable.
-    #
-    # 0700 verified on the running host before being written here: the container
-    # runs as root and OWNS the directory, so it loses nothing, and an
-    # unprivileged account is refused where it could previously list.
     - { path: wireguard, mode: "0700" }
   loop_control:
     label: "{{ item.path }} {{ item.mode }}"
 
-# Immich's Redis got a volume on 2026-09-05, because it is a job QUEUE and not a
-# cache: with no persistence every container stop discarded the jobs still to
-# run. It is pinned to `user: "999:999"` in compose and drops all capabilities,
-# so it cannot create or chown anything Docker hands it as root:root — and a
-# bind source that does not exist is created by the daemon as root:root. Without
-# this task the container starts, answers PING, reports healthy, and fails only
-# when it tries to append. Separate from the loop above because that one is
-# root-owned by design and this one must not be.
 - name: data_dirs | Own the Immich Redis append-only directory (uid 999, queue store)
   ansible.builtin.file:
     path: "{{ services_data_dir }}/immich/redis"
@@ -77,26 +22,11 @@
     group: "999"
     mode: "0700"
 
-# wg-easy writes its database with umask 022, so it lands 0644 — world-readable,
-# holding the interface private key, every client private key and pre-shared key,
-# and the admin bcrypt hash (#153). Its siblings in the same directory are 0600
-# and 0640; only this one is not, which is why it reads as the application's
-# default rather than a decision.
-#
-# The container runs as root and owns the file, so 0600 costs it nothing. This
-# stays a mode-only task now that the loop above owns the directory: the two are
-# not redundant, because the application rewrites this FILE with its own umask
-# and a directory mode cannot reach into that.
-#
-# Re-asserted every deploy rather than set once, because the application may
-# recreate the file on a restart and take its umask with it.
 - name: data_dirs | Look for wg-easy's database
   ansible.builtin.stat:
     path: "{{ services_data_dir }}/wireguard/wg-easy.db"
   register: wg_easy_db
 
-# Skipped rather than ignored: absent means the container has never started here,
-# which is a legitimate state on a fresh host. Any OTHER failure still fails.
 - name: data_dirs | Keep wg-easy's key material unreadable to other local uids
   ansible.builtin.file:
     path: "{{ services_data_dir }}/wireguard/wg-easy.db"
@@ -104,121 +34,6 @@
     mode: "0600"
   when: wg_easy_db.stat.exists
 
-# --- The hazard that kept wireguard out of the loop above, and what it was ---
-# This file used to say: not wireguard, deliberately — the first successful
-# write regenerates wg0.conf from the database and runs `wg syncconf`, the live
-# interface is IPv4-only while the database holds IPv6 for the interface and for
-# every peer, and that interface is the only path to this host.
-#
-# The premise was right and the conclusion was worse than the risk. Measured on
-# 2026-08-25, on the LAN, with wg0.conf and the database backed up first:
-#
-#   chown root:root       -> the container writes (`touch` in /etc/wireguard OK)
-#   idempotent POST of the CURRENT userconfig, to exercise the write path
-#                         -> HTTP 200, user_configs_table.updated_at moved
-#   wg0.conf              -> REWRITTEN (mtime moved) and byte-identical,
-#                            md5 eb8ac06c… before and after
-#   wg show wg0           -> the same four IPv4 /32 peers, no IPv6
-#   ssh offsite           -> answers through the tunnel
-#
-# So the regeneration path does run on a write, and `DISABLE_IPV6=true` is
-# honoured when it GENERATES, not only at startup as ADR-020 records. The IPv6
-# in the database is migration residue that never reaches the interface.
-#
-# What that leaves: the residue is still a drift nothing asserts, and it is no
-# longer the reason this task is absent — it is its own follow-up.
-#
-# The general lesson is the one this repository keeps relearning from the other
-# direction: an unmeasured hazard froze a one-line fix for eight days while the
-# defect it protected stayed live, and the measurement cost twenty minutes on a
-# LAN session with a backup in place.
-
-# --- Credential-bearing service data: gate the DIRECTORY, not each file (#177)
-#
-# The audit of 2026-08-19 found Vaultwarden's rsa_key.pem — the key that signs
-# session JWTs — and its vault database readable by any local unprivileged
-# account, along with Kuma's database and its twelve push tokens. Proven by
-# reading them as an unrelated uid, with /etc/shadow refused in the same call so
-# a refusal elsewhere means something.
-#
-# The fix mirrors what /mnt/data/secrets already does correctly, and what the
-# same audit verified sound: the files there are 0444 and unreachable anyway,
-# because the DIRECTORIES are `drwx--x--x` and `drwx--x---`. Two adjacent stores,
-# one closed by its directories, one wide open. This closes the second the same
-# way.
-#
-# Why the directory rather than the twenty files: SQLite recreates `-wal` and
-# `-shm` on every open, taking the process umask with them, so a mode set on
-# those files survives exactly until the next container restart. A directory
-# mode does not have that problem, and it covers files nobody has thought of yet.
-#
-# Safe because each of these directories is bind-mounted by exactly ONE
-# container — verified across all 28 — and every one of those containers reaches
-# its data as the directory's own owner: root for the first three, uid 1000 for
-# calibre-web and transmission's config. None of them depends on DAC_OVERRIDE to
-# get in, so this does not repeat #138.
-#
-# `mode` only, never `owner`, and now for the reason that actually holds rather
-# than the #138 one: every directory in this list is already owned by the uid
-# its container runs as. Setting an owner here would assert something that is
-# true by construction, and would be the wrong tool the day it stopped being.
-#
-# Pi-hole's store was the sixth, added by #189, and it was REMOVED from this list
-# on 2026-08-25 because the mode cannot hold. The image's prestart script runs
-#
-#     find /etc/pihole/ /var/log/pihole/ -type d -exec chmod 0755 {} +
-#
-# on EVERY container start. So this task set 0700, the next start put 0755 back,
-# and the only reason it ever looked applied is that this task runs before
-# `compose up` and Pi-hole restarts rarely. A restart for #202 turned the derived
-# assertion red within the minute — the assertion doing exactly what it was added
-# for.
-#
-# Setting a mode the application reverts on every start is worse than not setting
-# it: it reports as applied, stays green for as long as nobody restarts the
-# container, and hides the question of whether the data is actually protected.
-#
-# It is. The same prestart script sets every file to 0640 (0600 for keys) and
-# re-applies that on every start too. Verified from a genuinely different
-# unprivileged account, with controls, on 2026-08-25: /etc/passwd READABLE,
-# /etc/shadow refused, pihole.toml refused, pihole-FTL.db refused, cli_pw
-# refused. Only the listing of file NAMES is permitted.
-#
-# So what was asserted instead was the FILE modes — a blanket
-# `pihole-etc-no-world-readable-file`, which would also have caught #189's
-# original finding (pihole.toml at 0644) without depending on a directory mode
-# the image owns. It survived one day. See below.
-# --- And the gate that the image cannot reach (2026-08-30) -------------------
-# Everything above this line is the record of ONE argument: that pihole/etc's
-# mode cannot hold, so the FILE modes are the property to assert instead. That
-# replacement lasted one day. `pihole-etc-no-world-readable-file` was deployed
-# on 2026-08-29 at 11:42 and went red on 2026-08-30 at 03:26, the first time a
-# gravity rebuild ran under it:
-#
-#   23:04  container start   prestart chmods every file 0640
-#   03:26  gravity rebuild   writes gravity.db + listsCache/* back at 0664
-#
-# "The same script sets every file to 0640 … on every start" is true AT START
-# and says nothing about the four files a weekly job rewrites afterwards. So the
-# assertion did not report a posture, it reported which of two clocks ran last —
-# red after every gravity, green after every restart. The same defect as #189's,
-# one level down: a mode set by one mechanism and undone by another on a
-# different schedule.
-#
-# The directory that neither mechanism can reach is the PARENT. The image's find
-# is scoped to `/etc/pihole/` and `/var/log/pihole/` INSIDE the container, and
-# the bind mounts are this directory's children (`etc`, `dnsmasq`) — the parent
-# itself is mounted by nothing, verified against the running containers rather
-# than read off the compose file. It is the same argument line 223 below already
-# makes for immich/upload/backups: the directory is what denies the traversal,
-# and the application does not reset it.
-#
-# 0750, not the 0700 used below, and not an ownership change: the directory is
-# <user>:gpio, gpio has exactly one member, and Docker resolves the bind mounts
-# as root, so the traverse bit for OTHERS is the only thing that was ever load
-# bearing. What it closes is concrete rather than theoretical — this host has a
-# second unprivileged account (uid 1001, not in gpio) which could read
-# gravity.db, its one `client` row and the blocklist caches until this task.
 - name: data_dirs | Gate the Pi-hole store at the level the image cannot revert
   ansible.builtin.file:
     path: "{{ services_data_dir }}/pihole"
@@ -235,75 +50,13 @@
     - navidrome
     - calibre-web
     - transmission/config
-    # The eighth store (#217), and expected at the time to be the last one ever
-    # added here by hand — the ninth below proves that wrong, and names the
-    # reason: jellyfin.db was 0644 under two 0755 directories, holding six
-    # non-expiring device access tokens — bearer credentials with no expiry,
-    # full API as that user — and the admin password hash. Proven readable as an
-    # unprivileged account with /etc/shadow refused in the same call.
-    #
-    # Safe for the same reason as the five above: Jellyfin runs as root over a
-    # tree the storage role already owns root:root recursively, with
-    # `cap_add: []`, so it reaches its data as the owner and cannot be locked
-    # out by the bits — this cannot replay #138.
-    #
-    # It is listed rather than derived because this file ENFORCES; the spec
-    # DERIVES and would have failed on it either way. The two now disagree only
-    # while a new store is waiting to be closed, which is exactly when they
-    # should.
     - jellyfin/config
-    # The ninth (#272), and the one that shows why "derived from now on" was too
-    # strong. #218 closed the COPY of Immich's nightly dump under the
-    # backup root and never the directory the job WRITES it to: seven ~89 MB dumps at 0644,
-    # rewritten every night at 02:01, under a chain traversable end to end —
-    # password hashes, API keys, session tokens, share keys, and the EXIF/GPS of
-    # the whole library. Proven readable from the unprivileged `claude` account
-    # (uid 1001, member of neither docker nor sudo) with the Vaultwarden database
-    # refused in the same call.
-    #
-    # No derivation could have caught it, and none can catch the next one of this
-    # shape: `credential-stores-all-closed` walks bind mount SOURCES, and it only
-    # ever stats the source itself, never a child. `immich/upload` is the mount —
-    # and is additionally exempt, on the stated premise that it holds media.
-    #
-    # Safe for jellyfin/config's reason: immich-server runs as root (Config.User
-    # empty) with `cap_drop: ALL`, and OWNS this tree root:root, so it reaches the
-    # directory as its owner and cannot be locked out by the bits. This cannot
-    # replay #138. Restic and the backup hooks read it as root too.
-    #
-    # Mode only, and the DIRECTORY's: Immich writes the dumps under its own umask
-    # and this task cannot reach into that. The directory is what denies the
-    # traversal, and unlike pihole/etc the application does not reset it.
     - immich/upload/backups
 
-    # The tenth, eleventh and twelfth (2026-09-13), and the first to arrive as a
-    # CLASS rather than as a discovery. Every LinuxServer image creates /config
-    # at 755 and only ever `lsiown`s it afterwards: there is no chmod anywhere in
-    # their init beyond `g+rw` on device nodes, checked in all three images. So a
-    # service of that family lands open, STAYS open across restarts, and the next
-    # one added to this lab will do the same unless it is listed here on the day
-    # it is deployed. That is the sentence this entry exists to leave behind.
-    #
-    # What stood open for three hours on the night of the deploy: the three API
-    # keys — full API control of Prowlarr, Sonarr and Radarr, and with them the
-    # download-client credentials those hold — plus prowlarr.db and its indexer
-    # account. Proven readable from an unprivileged account with
-    # vaultwarden/db.sqlite3 refused in the same call, so the instrument was not
-    # simply blind.
-    #
-    # Safe, but NOT for the reason the entries above are safe: these containers
-    # run as uid 1000 rather than root, so they never had DAC_OVERRIDE to lose.
-    # They OWN the directory, which is what makes 0700 cost them nothing. All of
-    # it verified on the running host before being written here — mode set, the
-    # three APIs answered, and Radarr still created a file under /config.
     - prowlarr
     - sonarr
     - radarr
 
-# Belt as well as braces, on the files an application does NOT recreate: if a
-# directory mode ever regresses, these do not hand the contents over with it.
-# Deliberately not listing `-wal`/`-shm` — see the umask note above; the
-# directory is what protects those.
 - name: data_dirs | Look for the credential files that survive a restart
   ansible.builtin.stat:
     path: "{{ services_data_dir }}/{{ item }}"
@@ -327,16 +80,6 @@
     - sonarr/config.xml
     - radarr/config.xml
 
-# Skipped rather than ignored when absent: a fresh host legitimately has none of
-# these yet. Any OTHER failure still fails the play. Two of the Kuma files also
-# carry a spurious executable bit, which 0600 removes.
-# The count is REPORTED rather than asserted, and the difference matters: a
-# fresh host legitimately has none of these, so a floor here would fail the
-# first deploy. What must not happen is the other silence — every file
-# disappearing at once, which is what a locked /mnt/data or a moved data root
-# looks like, and which the loop below would greet with `ok` and no output.
-# goss-posture.yaml.j2 floors the identical population at run time; this says
-# out loud what the deploy actually touched.
 - name: data_dirs | Report how many credential files were found
   ansible.builtin.debug:
     msg: >-
@@ -354,7 +97,6 @@
     state: file
     mode: "0600"
   # floor: the assert directly above, which fails when the selectattr returns zero
-  # existing credential files and says the play is looking in the wrong place.
   loop: "{{ credential_files.results | selectattr('stat.exists') | list }}"
   loop_control:
     label: "{{ item.item }}"

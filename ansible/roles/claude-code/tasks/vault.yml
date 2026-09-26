@@ -1,17 +1,4 @@
 ---
-# Notes vault: rclone WebDAV remote (secrets on LUKS), FUSE mount unit,
-# sandbox settings confining Claude to the vault.
-
-# rclone runs on the HOST as `claude`; it must resolve drive.<domain> to the Pi's
-# LAN IP, NOT the public IP. Resolving to the public IP hairpins through NAT and
-# arrives at Traefik with an EXTERNAL source IP, which the global `vpn-only`
-# ipAllowList rejects with 403 — breaking the mount and thus Remote Control.
-#
-# This host is cloud-init managed (manage_etc_hosts: True), so cloud-init
-# REGENERATES /etc/hosts from a template on every boot, wiping a plain lineinfile
-# pin. We therefore pin in TWO places:
-#   1. the cloud-init template  -> survives reboots (cloud-init rewrites from it)
-#   2. /etc/hosts directly       -> takes effect immediately, without a reboot
 - name: vault | Pin drive domain in the cloud-init hosts template (persists across reboots)
   ansible.builtin.lineinfile:
     path: /etc/cloud/templates/hosts.debian.tmpl
@@ -24,8 +11,6 @@
     line: "{{ homelab_ip }} drive.{{ domain }}"
     state: present
 
-# The rclone config holds the (reversibly obscured) WebDAV app-password —
-# it lives on the encrypted volume, never on the SD card.
 - name: vault | Create claude secrets directory on the encrypted volume
   ansible.builtin.file:
     path: /mnt/data/secrets/claude
@@ -34,21 +19,6 @@
     group: claude
     mode: "0700"
 
-# Idempotence: `rclone config create` re-obscures the password with a fresh
-# nonce on every run (file changes even when nothing did). Reveal the deployed
-# password and compare before recreating.
-# The password arrives on STDIN, not through `environment:`. Ansible renders a
-# task's environment as an assignment on the command line it hands to sudo, and
-# sudo journals that line: this very task wrote the app-password into
-# /var/log/auth.log 27 times between 2026-08-13 and 2026-09-06, where the `adm`
-# group reads it without sudo. `no_log: true` never covered that — it suppresses
-# Ansible's output, not the wrapper's. `stdin:` is a module parameter and
-# travels inside the AnsiballZ payload, which is the same reason the obscure
-# task below uses it.
-#
-# `read` is the first statement so that the value is consumed before any
-# command runs, and an empty read falls through to REMOTE_DIFF — which merely
-# recreates a config that is already correct, and is the safe direction.
 - name: vault | Check the deployed rclone remote against the vault
   ansible.builtin.shell:
     cmd: >-
@@ -75,29 +45,6 @@
   failed_when: false
   no_log: true
 
-# `rclone config create` put the cleartext app-password in the argv of a process
-# on a /proc with no hidepid. The probe above used to pass the same value through
-# `environment:` — the form #177 and #188 settled on — which turned out to be
-# WORSE than argv rather than narrower: argv on a /proc without hidepid is
-# readable by a local uid while the process lives, and sudo's journal of the same
-# value is readable by the `adm` group for five weeks. Both are now closed, the
-# probe by `stdin:` above and this task by `stdin:` below.
-#
-# The guard made it worse rather than narrower: the probe carries
-# `failed_when: false`, so a probe that fails registers rc != 0 with an empty
-# stdout, and `'REMOTE_MATCH' not in ''` is TRUE. The guard opens on failure
-# instead of closing.
-#
-# So the password is now obscured through STDIN — verified on the host, `rclone
-# obscure -` reads standard input — and the config file, five lines of INI, is
-# written by Ansible over the SSH transport, where no command line is involved.
-#
-# What this does NOT fix, stated rather than left to be rediscovered: the probe
-# above still passes the OBSCURED value on a command line. rclone's own help
-# calls obscuring "not a secure way of encrypting", so that string is equivalent
-# to the password. It is the same string this task writes into the 0600 file on
-# the encrypted volume, and taking it out of argv needs a `reveal` that reads
-# stdin — measured on this host, `rclone reveal` has no such form.
 - name: vault | Obscure the WebDAV password without it reaching a command line
   ansible.builtin.command:
     cmd: rclone obscure -
@@ -108,12 +55,6 @@
   register: rclone_obscured_pass
   changed_when: false
   check_mode: false
-  # Fail closed. Without this, an rclone that exited 0 with nothing on stdout
-  # would have the copy below write `pass = ` and break the vault mount that
-  # Claude Code reads through — silently, because the file would be perfectly
-  # well-formed INI. `rclone obscure -` was verified working as the `claude`
-  # user before this shipped; the guard is for the case that verification
-  # cannot cover, which is a future rclone.
   failed_when: rclone_obscured_pass.rc != 0 or rclone_obscured_pass.stdout | length == 0
   no_log: true
   when: "'REMOTE_MATCH' not in rclone_remote_check.stdout | default('')"
@@ -125,47 +66,14 @@
     group: claude
     mode: "0600"
     content: |
-      # Managed by Ansible — do not edit on the host.
       [nextcloud]
       type = webdav
       url = https://drive.{{ domain }}/remote.php/dav/files/admin/
       vendor = nextcloud
       user = admin
-      # GitGuardian flags the next line as a "Generic Password" and it is a
-      # FALSE POSITIVE, recorded here so nobody re-runs the ten-minute
-      # investigation. The value is a Jinja expression, not a credential: the
-      # secret lives in the vaulted `rclone_webdav_pass`, is obscured by the
-      # task above without ever reaching an argv, and reaches this template
-      # only at render time. Nothing secret is in this repository.
-      #
-      # Incident 37230384, raised on PR #351 on 2026-09-13 — and note HOW it
-      # surfaced: the line was untouched by that PR. A `notify:` added four
-      # lines below pulled it into the diff hunk's CONTEXT, and the scanner
-      # reads the whole hunk. Expect it again from any edit near here.
-      #
-      # The GitHub App is configured in the dashboard, not from this repository:
-      # a `.gitguardian.yaml` would be read by nothing (no ggshield step in
-      # .github/workflows). Mark the incident False positive there instead —
-      # `Unmonitor` does not close it.
       pass = {{ rclone_obscured_pass.stdout }}
   no_log: true
   when: "'REMOTE_MATCH' not in rclone_remote_check.stdout | default('')"
-  # Added 2026-09-13. Without it, rotating `rclone_webdav_pass` wrote a new
-  # credential to disk and left the RUNNING rclone authenticating with the old
-  # one until the next reboot — the mount reporting `active (running)` the
-  # whole time, because rclone's process does not exit when its credential
-  # stops being accepted. That is the trap the handler below already documents
-  # for the UNIT FILE ("a unit-file edit plus a bare daemon-reload leaves the
-  # RUNNING rclone on the old definition"); the same reasoning had never been
-  # applied to the secret, which is the thing that actually rotates.
-  #
-  # Found by the consequence rather than by review: on 2026-09-13 the vault
-  # mount answered `Input/output error` on every read for eighteen hours while
-  # `systemctl is-active` said `active`, and the only symptom that surfaced was
-  # the daily digest failing. Nextcloud was returning
-  # `PasswordLoginForbidden: 401` — the `admin` account has 2FA enabled, so an
-  # app-password that no longer matches is retried as an account password and
-  # refused.
   notify:
     - Restart vault mount
 
@@ -174,9 +82,6 @@
     path: /home/claude/.config/rclone/rclone.conf
     state: absent
 
-# A FUSE rclone mount owned by `claude` (no allow_other) is unreadable by root,
-# so `mountpoint`/`stat` fail. Detect it via /proc/mounts instead, and only
-# create the directory when it is NOT mounted (the module can't touch a live mount).
 - name: vault | Check if the vault is already mounted
   ansible.builtin.command: grep -q ' /home/claude/vault ' /proc/mounts
   register: vault_mounted
@@ -193,20 +98,6 @@
     mode: "0700"
   when: vault_mounted.rc != 0
 
-# denyRead is an enumeration, and ADR-004 described it as a policy — "credential
-# reads are denied" — while exactly one path was listed (#203, #219). Two files
-# the `claude` account owns sat outside it: its rclone configuration (0600) and
-# the Miniflux API key (0400), both under the secrets directory. Owned by that
-# account means the sandbox is the only thing that could have stopped a read.
-#
-# The DIRECTORY is denied rather than the two files, so a third secret added
-# there tomorrow is covered without anyone remembering this list — the same
-# reasoning as #217, where a hand-maintained enumeration kept producing an nth
-# entry.
-#
-# Nothing outside the sandbox is affected: the vault mount and the feed digest
-# both read these files from systemd units running as `claude`, not through
-# Claude Code's Bash tool. Verified after deploying.
 - name: vault | Deploy Claude Code sandbox settings
   ansible.builtin.copy:
     dest: /home/claude/.claude/settings.json
@@ -240,21 +131,7 @@
       Description=rclone mount of the Nextcloud Notes vault
       After=network-online.target mnt-data.mount homelab-stack-startup.service
       Wants=network-online.target
-      # Config on /mnt/data (secrets never on the SD card): started by
-      # mnt-data.mount (add-wants below), not at boot.
       RequiresMountsFor=/mnt/data
-      # Set EXPLICITLY, because the DEFAULT window makes `failed` unreachable
-      # and the unit then reads `active`/`success` while looping: measured
-      # 2026-09-20, 15 restarts and not one of the 59 283 Kuma beats saw it.
-      # The default window is 10 s and RestartSec is 10, so five attempts span
-      # 40 s, the burst counter resets between them, and the limiter can never
-      # fire. The rule, from stack-startup: the window must span BURST whole
-      # attempts. Type=notify with the inherited TimeoutStartSec of 1min30 puts
-      # one attempt on the HANG path at 90 + 10 = 100 s, which is the path that
-      # matters here (rclone hanging on a dead endpoint is the documented
-      # failure above), so the window must be at least 5 x 100 = 500 s. 600 s
-      # is that with room, and a first draft of 300 s would have left the hang
-      # path exactly as unreachable as the default did.
       StartLimitIntervalSec=600
       StartLimitBurst=5
 
@@ -263,29 +140,16 @@
       User=claude
       Group=claude
       Environment=RCLONE_CONFIG=/mnt/data/secrets/claude/rclone.conf
-      # When a stop could not unmount, the dead endpoint stays in /proc/mounts
-      # and rclone then refuses to start: "directory already mounted". Nothing
-      # ever cleared it, so the restart loop could not converge — Remote Control
-      # was down from 2026-07-31 06:39 until it was unmounted by hand. Clear a
-      # stale endpoint before every start; '-' so a clean start is not a failure.
-      # (--allow-non-empty is NOT the fix: it mounts over the dead endpoint.)
       ExecStartPre=-/bin/fusermount -uz /home/claude/vault
       ExecStart=/usr/bin/rclone mount nextcloud:Notes /home/claude/vault \
         --vfs-cache-mode writes --vfs-write-back 2s --dir-cache-time 30s
-      # A plain -u fails with EBUSY whenever a process sits inside the mount, and
-      # one always does: claude-remote-control holds its working directory there.
-      # An unattended-upgrades systemd restart is enough to hit it. Fall back to a
-      # lazy unmount so stopping always leaves a clean mount table.
       ExecStop=/bin/sh -c '/bin/fusermount -u /home/claude/vault || /bin/fusermount -uz /home/claude/vault'
       Restart=on-failure
       RestartSec=10
   notify:
-    # Remote Control too: its working directory lives inside this mount, so a
-    # replaced mount leaves the running process on a dead one.
     - Restart vault mount
     - Restart Claude Remote Control
 
-# noqa command-instead-of-module: the systemd module cannot manage add-wants links.
 - name: vault | Start the vault mount whenever the encrypted volume mounts  # noqa: command-instead-of-module
   ansible.builtin.command: systemctl add-wants mnt-data.mount vault-mount.service
   args:

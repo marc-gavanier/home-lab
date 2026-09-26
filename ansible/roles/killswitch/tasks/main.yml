@@ -1,17 +1,4 @@
 ---
-# =============================================================================
-# Role: killswitch — remote poweroff via a secret ntfy message
-# =============================================================================
-# A root systemd service subscribes (outbound) to a secret ntfy.sh topic and
-# powers the machine off when it receives the secret keyword. No inbound port.
-#
-#   Trigger:   curl -d '<keyword>' https://ntfy.sh/<topic>   (or the ntfy app)
-#   Recovery:  no remote power-on (no smart plug) → restore power physically,
-#              then SSH in and enter the LUKS passphrase (as on any boot).
-#
-# Secrets (host_vars/homelab/local.yml): killswitch_ntfy_topic, killswitch_keyword
-# =============================================================================
-
 - name: Ensure curl is installed
   ansible.builtin.apt:
     name: curl

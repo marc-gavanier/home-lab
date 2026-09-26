@@ -1,17 +1,4 @@
 ---
-# Wire Nextcloud's richdocuments app to the Collabora container (ADR-021).
-#
-# richdocuments is the Nextcloud-side connector; the Collabora container is the
-# document server. Neither is useful alone, and the connector keeps its settings
-# in Nextcloud's app config — so, exactly like wg-easy since ADR-020, this
-# repository stays the source of truth by re-asserting them on every deploy
-# rather than letting the admin UI own them.
-#
-# Two of the three values below are ones `richdocuments:activate-config` will
-# invent for itself if they are unset: it derives public_wopi_url from wopi_url
-# by swapping the scheme to https, which yields the *internal* container name in
-# the browser. Setting them explicitly is what stops that.
-
 - name: collabora | List the running containers this wiring needs
   ansible.builtin.command:
     cmd: docker ps --filter status=running --format '{% raw %}{{.Names}}{% endraw %}'
@@ -22,18 +9,6 @@
 - name: collabora | Skip the wiring unless both containers are up
   ansible.builtin.set_fact:
     collabora_up: "{{ ['collabora', 'nextcloud'] | difference(collabora_running.stdout_lines) | length == 0 }}"
-
-# A skipped block that says nothing is the defect ADR-030 names, and it is the
-# same one `observability/tasks/main.yml` guards against with its "no silent
-# caps" report: the run is CORRECT — there is genuinely nothing to do against a
-# container that is not running — but its silence is not. `ok=0 changed=0` for
-# this whole section is what a healthy no-op and a missed configuration pass
-# look like from the outside, and `changed=0` is exactly what an idempotence
-# check is looking for, so a re-run confirms the wrong thing too.
-#
-# No count in the message on purpose: a hardcoded number is what went stale in
-# boot-and-unlock.md and in ADR-007. The message names the CONSEQUENCES, which
-# do not drift when a task is added.
 
 - name: collabora | Report that the Collabora wiring was NOT applied
   ansible.builtin.debug:
@@ -48,10 +23,6 @@
   when: not collabora_up
 
 
-# Collabora publishes no port to the host and its image ships no shell, so the
-# probe runs from the Nextcloud container — which is on the same proxy network
-# and carries curl for its own healthcheck. That is also the exact path
-# activate-config will take, so a pass here means a pass there.
 - name: collabora | Wait for the Collabora document server to answer
   ansible.builtin.command:
     cmd: docker exec nextcloud curl -sf -m 5 http://collabora:9980/hosting/capabilities
@@ -64,9 +35,6 @@
   failed_when: false
   when: collabora_up
 
-# app:enable only flips an app that is already downloaded, so a fresh provision
-# — where richdocuments has never been fetched from the appstore — needs
-# app:install instead. Both are idempotent once the app is enabled.
 - name: collabora | Get the installed Nextcloud apps
   ansible.builtin.command:
     cmd: docker exec -u www-data nextcloud php occ app:list --output=json
@@ -102,18 +70,6 @@
   check_mode: false
   when: collabora_up
 
-# wopi_url must be the PUBLIC name, not the container name, even though this is
-# the URL Nextcloud itself calls. richdocuments fetches the WOPI discovery from
-# it (DiscoveryService::getDiscoveryEndpoint) and then hands the browser the
-# `urlsrc` found inside — verbatim, with no rewriting (WOPI\Parser). Collabora
-# builds that `urlsrc` from the Host header of the request, so pointing this at
-# `http://collabora:9980` makes Nextcloud serve the browser an internal name it
-# cannot resolve. Firefox reports it as its own CSP refusing the load:
-#   blocked form-action at https://collabora:9980/browser/…/cool.html
-#   because it violates: form-action 'self' https://office.<domain>
-# — the allowlist comes from public_wopi_url, the URL from wopi_url, and they
-# disagreed. Nextcloud reaches this name through Traefik thanks to the
-# office.<domain> pin in its compose block. Measured 2026-07-28, issue #16.
 - name: collabora | Re-assert the WOPI URL (public name, see comment)
   ansible.builtin.command:
     cmd: "docker exec -u www-data nextcloud php occ config:app:set richdocuments wopi_url --value=https://office.{{ domain }}"
@@ -123,47 +79,6 @@
     - collabora_up
     - ((collabora_conf.stdout | default('{}') | from_json).apps.richdocuments | default({})).wopi_url | default('') != 'https://office.' ~ domain
 
-# richdocuments serves the browser from a *cached* discovery and never fetches
-# it on demand: CachedRequestService::get() reads the cache and returns null if
-# it is empty. An empty cache therefore means `simplexml_load_string(null)`,
-# then `xpath()` on false — HTTP 500 on /apps/richdocuments/token, a document
-# that loads forever, and nothing wrong anywhere else.
-#
-# That is not hypothetical. A deploy whose activate-config failed (Nextcloud
-# could not yet resolve office.<domain>) left the cache empty; the next two
-# deploys skipped activate-config because the configuration no longer changed,
-# so the cache was never given a second chance. Both runs reported success over
-# a service that could not open a single file. Triggering only on config drift
-# means a *failed* refresh is never retried — so the cache's own contents are
-# part of the condition now.
-#
-# The durable copy lives in appdata (Redis is only a one-hour front), so reading
-# the file is the honest check. If Nextcloud ever moves appdata to object
-# storage this glob stops matching and activate-config runs on every deploy —
-# visible as a permanent `changed`, which is a nuisance rather than a silent
-# failure, and the right way round.
-# Testing the host alone is not enough, and an upgrade is what proved it. The
-# urlsrc carries a build hash — .../browser/<hash>/cool.html — that changes with
-# the Collabora version while the host does not. On 2026-08-12, upgrading
-# 26.04.2.4.1 to 26.04.3.1.1 left the cache advertising the old build: the host
-# check still passed, activate-config was skipped, and richdocuments kept handing
-# browsers a stale token. Documents still opened (coolwsd serves any hash and
-# rewrites its own asset paths to the current build — verified byte-identical),
-# but coolwsd logged `Client - server version mismatch, disabling browser cache`
-# on every request, so each document open re-downloaded the whole editor. Silent,
-# and invisible to all four probes below. So the build is part of the check now.
-#
-# Bash's own =~ rather than `grep -o … | head -1`: that pipe is the SIGPIPE race
-# this file already refuses twice, and a guard that fails at random would trigger
-# activate-config at random.
-#
-# Two deliberate asymmetries. A live discovery that cannot be fetched exits 0 —
-# the cache is not the thing that is broken, and the dedicated urlsrc probe below
-# fails loudly on a genuinely unreachable server, so churning activate-config on a
-# network blip would only add noise. A live discovery that parses no build at all
-# exits 1: if Collabora ever changes the URL shape, this runs activate-config on
-# every deploy, which is the same nuisance-over-silence trade the appdata glob
-# above already makes.
 - name: collabora | Check whether the cached WOPI discovery is usable
   ansible.builtin.shell:
     executable: /bin/bash
@@ -194,14 +109,6 @@
       or collabora_set is changed
       or collabora_discovery_cache.rc | default(1) != 0
 
-# AFTER activate-config, never before. activate-config derives public_wopi_url
-# from wopi_url and *overwrites* whatever is stored, so setting it earlier is
-# silently undone — an early version of this file did exactly that and the write
-# was reverted seconds later, in the same play, with `changed` reported for it.
-# Now that wopi_url is already the public name the derived value agrees, so this
-# is a guard rather than a correction; it stays because the derivation is the
-# app's business, not ours. public_wopi_url is what builds the CSP `form-action`
-# allowlist — a mismatch with the urlsrc is refused by the browser, not by us.
 - name: collabora | Re-read the configuration activate-config may have rewritten
   ansible.builtin.command:
     cmd: docker exec -u www-data nextcloud php occ config:list --output=json
@@ -218,37 +125,6 @@
     - collabora_up
     - ((collabora_conf2.stdout | default('{}') | from_json).apps.richdocuments | default({})).public_wopi_url | default('') != 'https://office.' ~ domain
 
-# A served /hosting/capabilities proves only that coolwsd is listening — it is
-# answered by the main process and says nothing about whether a document can be
-# opened, which happens in a separate chroot jail. Converting a file exercises
-# that jail end to end, so this is the probe that would have caught the silent
-# no-new-privileges failure described in compose.yaml.
-# No pipe here either, and for the same reason as the urlsrc probe below: this
-# one read `head -c 5 … | grep -q` under `set -o pipefail`, where grep exits on
-# the match and the writer can take SIGPIPE. It never fired in production, but
-# it is the identical race — and a probe that fails at random is worse than one
-# that fails, because the first instinct is to re-run it rather than read it.
-# Retried, because this probe is expensive by design and runs in the worst
-# possible window. Without CAP_SYS_ADMIN, Collabora cannot bind-mount a jail and
-# copies 759 MB of tree per document instead (a deliberate trade — see the
-# collabora block in compose.yaml and ADR-021). That copy takes ~21s on an idle
-# Pi, but this task runs in the same play as `docker compose pull`, and under
-# that disk contention coolwsd gave up and closed the connection at 65s on
-# 2026-08-02: curl 52, empty reply, deploy aborted — with backup/wireguard/
-# offsite/ddns left unrun behind it, while Collabora was in fact perfectly fine.
-# Raising the timeout alone would not have helped: the server hung up first, well
-# inside curl's own limit. A second attempt, once the pulls are done and the
-# systemtemplate is in page cache, is what actually converges.
-#
-# Scoped, because the cost above is paid whether or not the run has anything to do
-# with Collabora. On 2026-08-12 a dozzle-only deploy — `deploy_services=dozzle`,
-# Collabora untouched and up for nine days — still copied the tree, took 30% of all
-# container I/O, drove full I/O pressure to 59%, and failed its first attempt at the
-# 100s `per_document.limit_load_secs`. It converged on the retry, so the deploy
-# passed, but nothing about that work was useful: the probe was verifying a service
-# the run had not modified. A full deploy still runs it, and so does any run that
-# touches Collabora, Nextcloud, or rewrites the connector config — which is where an
-# end-to-end check earns its cost.
 - name: collabora | Decide whether the end-to-end conversion probe is worth its cost
   ansible.builtin.set_fact:
     collabora_convert_probe: >-
@@ -257,14 +133,6 @@
          or 'nextcloud' in deploy_services.split()
          or collabora_activate is changed }}
 
-# The ONE probe in this role deliberately left without `check_mode: false`
-# (#169). It is not a read: it writes a file on the host, copies it into the
-# container, POSTs it to Collabora for conversion and writes the result inside
-# the container. A dry run must not do that, and it would also spend up to four
-# minutes on the retry loop below. The consumer reads `.rc | default(0)`, so
-# skipping it means the conversion check does not run under --check rather than
-# running wrong — which is the honest answer: a dry run cannot verify that a
-# document converts without converting one.
 - name: collabora | Verify a document can actually be converted
   ansible.builtin.shell:
     executable: /bin/bash
@@ -277,9 +145,6 @@
       [ "$magic" = '%PDF-' ]
   register: collabora_convert
   until: collabora_convert.rc == 0
-  # Four attempts a minute apart, not three at thirty seconds. The 2026-08-12 run
-  # needed a second attempt; a minute of quiet is what lets the disk actually drain,
-  # and a healthy Collabora passes first time and pays none of it.
   retries: 3
   delay: 60
   changed_when: false
@@ -287,19 +152,6 @@
     - collabora_up
     - collabora_convert_probe
 
-# The conversion probe above talks to Collabora directly and would pass happily
-# while the browser gets an address it cannot reach — which is exactly what
-# happened on the first deploy. This one asks the question the *browser* asks:
-# fetch the discovery the way richdocuments does, from wopi_url, and check the
-# urlsrc it advertises is the public name. It fails if the office.<domain> pin
-# is missing from the Nextcloud container, if Traefik is not routing, or if
-# wopi_url has drifted back to a container name.
-# No pipe on purpose. `curl | grep | head` under `set -o pipefail` can return 141:
-# `head` closes the pipe on the match and the writer takes SIGPIPE. It is a
-# *race*, not a certainty — this exact probe, against this exact configuration,
-# failed at 22:00 and passed at 23:18 with nothing changed in between. That is
-# the worst kind of check to own: an intermittent red invites a re-run rather
-# than a read. Matching on a captured string has no such edge.
 - name: collabora | Verify the URL handed to the browser is publicly reachable
   ansible.builtin.shell:
     executable: /bin/bash
@@ -311,11 +163,6 @@
   check_mode: false
   when: collabora_up
 
-# The three probes above all look outward — at Collabora, at Traefik, at the
-# network. None of them reads what richdocuments actually holds, and that is
-# precisely where the last failure lived: every outward check green, the cached
-# discovery empty, and a 500 on the token endpoint. Re-checking the cache after
-# activate-config is what closes that gap.
 - name: collabora | Verify the cached discovery richdocuments will serve
   ansible.builtin.shell:
     executable: /bin/bash
@@ -336,30 +183,6 @@
   changed_when: false
   when: collabora_up
 
-# Deliberately after the cleanup, so a failed probe still leaves no litter.
-# The three verdicts below read `.rc | default(0)`, so a probe that never ran
-# supplies its own pass, and the deploy would conclude "Collabora serves
-# documents" from an absence. Asserting that the results EXIST costs one task
-# and keeps the `default(0)` in the three guards, which is what makes them
-# readable.
-#
-# --- But "did not run" has two meanings, and the first version of this assert
-# --- collapsed them, which is the exact defect it was written against.
-# The conversion probe carries `collabora_convert_probe` as well as
-# `collabora_up`: a run targeted at other services deliberately skips it,
-# because verifying a service the run did not touch is work that proves nothing
-# — the reasoning is thirty lines above. The other two carry only
-# `collabora_up`.
-#
-# Asserting all three under `collabora_up` alone therefore failed a legitimate
-# targeted deploy. Measured 2026-09-05 14:01 on
-# `deploy_services="traefik dnsproxy dozzle"`, which is the shape of run this
-# repository uses most: three images updated correctly, then the play aborted on
-# an assertion about a probe nobody had asked for.
-#
-# A probe skipped BY DESIGN is absent; a probe that ran and produced nothing is
-# unresolvable. Each condition below now mirrors the condition of the probe it
-# asserts, so the two cannot drift apart.
 - name: collabora | Refuse to conclude from the reachability probes if they did not run
   ansible.builtin.assert:
     that:

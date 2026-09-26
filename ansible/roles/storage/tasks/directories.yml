@@ -1,6 +1,4 @@
 ---
-# Directory structure on the encrypted volume.
-
 - name: directories | Create top-level data directories
   ansible.builtin.file:
     path: "{{ item }}"
@@ -15,61 +13,21 @@
     - "{{ media_dir }}/videos"
     - "{{ media_dir }}/videos/home-videos"
     - "{{ media_dir }}/videos/music-videos"
-    # movies/ and shows/ moved to library_dir on 2026-09-12: they are the two
-    # categories an importer writes into, and home-videos/ and music-videos/ are
-    # not. Splitting on ORIGIN rather than on media type is what keeps 20 GB of
-    # personal footage out of a directory a robot can write to.
     - "{{ library_dir }}"
     - "{{ library_dir }}/movies"
     - "{{ library_dir }}/shows"
-    # Both halves of the download path. `incomplete/` matters as much as
-    # `complete/`: a partial file that lands outside this tree is a partial file
-    # the importer cannot hard-link from.
     - "{{ library_dir }}/downloads"
     - "{{ library_dir }}/downloads/complete"
     - "{{ library_dir }}/downloads/incomplete"
-    # The per-importer category directories. Transmission creates these itself
-    # on the first download of each category, but Sonarr and Radarr check for
-    # them at startup and raise a health warning when they are missing — which
-    # reads like a broken path mapping and is not one. Creating them here makes
-    # a fresh provision quiet, and the names are not free choices: they are the
-    # `tvCategory` and `movieCategory` fields configured on the download client,
-    # so changing one here without changing it there re-creates the warning.
     - "{{ library_dir }}/downloads/complete/tv-sonarr"
     - "{{ library_dir }}/downloads/complete/radarr"
     - "{{ media_dir }}/photos"
     - "{{ backup_dir }}"
-    # Parents of the database datadirs below: without them Ansible (or Docker)
-    # would create them as root on a fresh provision, where today they belong
-    # to the host user like every other service directory.
     - "{{ services_data_dir }}/nextcloud"
     - "{{ services_data_dir }}/immich"
     - "{{ services_data_dir }}/miniflux"
-    # Forgejo's parent, created here rather than left to Docker: the rootless
-    # image is uid 1000 from PID 1 with no capability to chown anything, so a
-    # root-owned bind mount would leave it unable to write its own database. The
-    # 1000:1000 above is exactly what it needs (ADR-028). The mount itself is
-    # the task below — it needs a tighter mode than this loop applies.
     - "{{ services_data_dir }}/forgejo"
 
-# The seventh credential store (#199). `forgejo/data/data/forgejo.db` was 0644
-# under three 0755 directories, so any local unprivileged account could read the
-# operator's password hash, the access tokens, the TOTP secrets, the WebAuthn
-# credentials and the sessions. Proven by reading it as an unprivileged user,
-# with /etc/shadow refused and Vaultwarden's already-closed store refused in the
-# same call as controls. That is strictly more material than navidrome or
-# calibre-web, both of which the #177 sweep closed — Forgejo was simply outside
-# the list it worked from.
-#
-# The gate is the DIRECTORY, like the other six: SQLite recreates `-wal`/`-shm`
-# with the process umask, so a per-file mode goes stale on its own. Gating at
-# the mount root covers everything Forgejo keeps below it, including the git
-# object stores.
-#
-# 0700 costs this container nothing and cannot replay #138: it runs as 1000:1000
-# and OWNS this directory, so it traverses as the owner rather than through
-# DAC_OVERRIDE. Restic still reads it — root ignores directory permissions — so
-# the backup is unaffected, and no other container mounts this path.
 - name: directories | Close the Forgejo data directory to other local uids
   ansible.builtin.file:
     path: "{{ services_data_dir }}/forgejo/data"
@@ -78,18 +36,6 @@
     group: "1000"
     mode: "0700"
 
-# Ownership here is a capability decision, not housekeeping. Jellyfin and
-# Navidrome run as root *inside* the container, over trees that were created
-# 1000:1000 — so root was reading and writing files it did not own, which only
-# worked because Docker grants DAC_OVERRIDE by default. Dropping that capability
-# (ADR-017) made jellyfin fail its startup sanity check and navidrome report a
-# read-only database. Root-owned trees remove the need for the capability
-# instead of working around it (issue #28).
-#
-# recurse: the existing trees hold a mix of root- and 1000-owned files (the
-# containers created some, Ansible the rest), so the top directory alone is not
-# enough. ~8000 files, re-checked on each deploy and reported changed only while
-# something differs.
 - name: directories | Own the trees of services that run as root in-container
   ansible.builtin.file:
     path: "{{ item }}"
@@ -101,18 +47,6 @@
     - "{{ services_data_dir }}/jellyfin"
     - "{{ services_data_dir }}/navidrome"
 
-# The three databases run as uid 999 from PID 1 (`user: "999:999"` in
-# compose.yaml), which is what lets them hold no capability at all: there is no
-# root phase left to chown the datadir, so the datadir has to arrive already
-# owned by 999. On a fresh provision Docker would create these bind-mount
-# sources as root and Postgres would refuse to start ("data directory has wrong
-# ownership") while MariaDB would fail on its first write — neither has CHOWN
-# to repair it any more (issue #28).
-#
-# No `recurse`: the databases create their own files as 999, and walking a
-# 1.2 GB tree on every deploy would cost far more than it checks. Mode 0700
-# because Postgres requires it, and because a datadir holding every Nextcloud
-# file record has no reason to be world-readable.
 - name: directories | Own the database datadirs as the uid the servers run as
   ansible.builtin.file:
     path: "{{ item }}"
@@ -123,22 +57,8 @@
   loop:
     - "{{ services_data_dir }}/nextcloud/db"
     - "{{ services_data_dir }}/immich/db"
-    # Postgres 18 keeps its real datadir one level deeper, at 18/docker, and
-    # creates that subdirectory itself on first start. This is the bind-mount
-    # source — the parent Postgres 18 declares as its volume — so 0700 here is
-    # what the server checks, and it still has no capability to repair it.
     - "{{ services_data_dir }}/miniflux/db"
 
-# The two directories fail2ban's jails read from (#35). Both have to exist
-# before the security role restarts fail2ban: fail2ban refuses to start at all
-# when a jail's logpath is missing — it does not skip that jail, it exits, and
-# takes the sshd jail with it. Measured the hard way, since the security role
-# runs before deploy: on the first run the Vaultwarden log did not exist yet and
-# fail2ban stayed dead until restarted by hand.
-#
-# Ownership differs because the writers differ: Vaultwarden runs as root inside
-# its container, Nextcloud drops to www-data (uid 33) and could not write its
-# own log if the file arrived owned by root.
 - name: directories | Create the Vaultwarden log directory
   ansible.builtin.file:
     path: "{{ services_data_dir }}/vaultwarden/logs"
@@ -155,11 +75,6 @@
     group: "33"
     mode: "0770"
 
-# Netdata keeps its registry and its metrics database here rather than in the
-# container's writable layer, which is what lets it run with a read-only rootfs
-# (issue #32) — and incidentally means its history now survives a recreate. It
-# runs as uid 201 and has no CHOWN once started, so the directories must arrive
-# owned by 201.
 - name: directories | Own the netdata state directories as uid 201
   ansible.builtin.file:
     path: "{{ item }}"

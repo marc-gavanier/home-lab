@@ -1,11 +1,9 @@
 ---
-# Local restic backup: script, env on LUKS, Kuma DNS pin, repo init, timer.
-
 - name: backup | Install restic and sqlite3
   ansible.builtin.apt:
     name:
       - restic
-      - sqlite3   # host-side `sqlite3 .backup` for the Vaultwarden online backup
+      - sqlite3
     state: present
 
 - name: backup | Create scripts directory
@@ -16,10 +14,6 @@
     group: root
     mode: "0750"
 
-# backup.sh is gone (ADR-031 phase 3): resticprofile does the orchestration, its
-# dumps are run-before hooks and its assertions a goss spec. Removed from the host too —
-# a 594-line script that nothing invokes is not a safety net, it is something the
-# next reader has to work out.
 - name: backup | Remove the superseded backup script
   ansible.builtin.file:
     path: /opt/homelab/scripts/backup.sh
@@ -40,13 +34,6 @@
     state: link
     force: true
 
-# backup.sh pings Uptime Kuma at services.<domain>, which resolves to the public IP from
-# the Pi (DNS hairpin) and is rejected (403) through Traefik. Pin it to the Pi's LAN IP so
-# the push reaches Kuma directly over the LAN (same pattern as the claude-code role's pin).
-#
-# This host is cloud-init managed (manage_etc_hosts: True): cloud-init regenerates /etc/hosts
-# from a template on every boot, wiping a plain lineinfile pin (which silently breaks the Kuma
-# push after a reboot). Pin in the template (survives reboots) AND /etc/hosts (immediate).
 - name: backup | Pin services domain in the cloud-init hosts template (persists across reboots)
   ansible.builtin.lineinfile:
     path: /etc/cloud/templates/hosts.debian.tmpl
@@ -59,19 +46,6 @@
     line: "{{ homelab_ip }} services.{{ domain }}"
     state: present
 
-# RESTIC_PASSWORD_FILE, never RESTIC_PASSWORD. Ansible's become wrapper builds
-# `sudo ... /bin/sh -c 'echo BECOME-SUCCESS-… ; VAR=value …'`, and sudo journals
-# the command line it runs — so an inline value lands in cleartext in
-# /var/log/auth.log AND in the systemd journal, both readable without sudo by
-# any account in `adm`. Measured 2026-09-05: 82 lines carrying this repository's
-# password, across twelve days, on the SD card that ADR-011 exists to keep
-# secret-free. It is per-DEPLOY rather than per-night — the nightly job reads
-# backup.env, a file, and leaks nothing.
-#
-# `no_log: true` is NOT the fix and must not be proposed as one: it does not
-# mask `environment:`, which was measured on a previous run and recorded in the
-# audit's settled notes. The file below is written by secrets.yml, which runs
-# earlier in this same role.
 - name: backup | Initialize restic repository
   ansible.builtin.command:
     cmd: restic init
@@ -82,20 +56,6 @@
   failed_when: false
   changed_when: "'created restic repository' in restic_init.stdout"
 
-# The assertion `restic init` cannot make, and its absence cost a working
-# backup on 2026-09-06. `failed_when: false` is correct for the init itself —
-# on an existing repository it says "already initialized" and that is not an
-# error — but it also swallows `Fatal: wrong password or no key found`. So a
-# deploy that installs a password the repository does not know reports
-# 379 ok / 0 failed, and the first sign is the nightly run failing at 03:00.
-#
-# That is exactly what happened: a rotation was carried out in the wrong order
-# (the new password reached local.yml before `restic key add` had taught the
-# repository about it), the deploy was green, and the repository was
-# unreadable for forty minutes.
-#
-# `cat config` is the cheapest read that requires the key. No `failed_when`
-# here on purpose: this one MUST stop the play.
 - name: backup | Assert the deployed password actually opens the repository
   ansible.builtin.command:
     cmd: restic --repo {{ backup_dir }}/restic-repo cat config
@@ -117,9 +77,6 @@
       two keys, and only then change restic_password in the vaulted local.yml.
     quiet: true
 
-# HOME is unset for systemd services, so restic can't locate its cache
-# ("neither $XDG_CACHE_HOME nor $HOME are defined") and runs cache-less — slower
-# and re-reads more from the repo. Set HOME so it caches under /root/.cache/restic.
 - name: backup | Create backup systemd service
   ansible.builtin.copy:
     dest: /etc/systemd/system/homelab-backup.service
@@ -132,33 +89,6 @@
 
       [Service]
       Type=oneshot
-      # TWO commands, not one. `resticprofile backup` does NOT trigger `copy` —
-      # verified with a two-hook profile, only the backup hook fired — and
-      # resticprofile's groups assemble PROFILES rather than commands within
-      # one. Pointing this at `backup` alone would have stopped offsite
-      # replication while every run reported success.
-      #
-      # Type=oneshot runs them in order and stops at the first failure, which is
-      # what we want: there is nothing to replicate if the backup did not run.
-      # Each command carries its own notification hooks, so the two monitors stay
-      # independent — the copy fails for reasons of its own (the tunnel, the
-      # remote host) and must not hide behind the backup signal.
-      # --lock-wait, added 2026-09-13. This unit used to carry none, so a lock
-      # held by anything else made it fail INSTANTLY and the night was simply
-      # skipped. That never fired while the weekly maintenance ran at 05:00 —
-      # it could only ever wait for this one, not the reverse. The schedule is
-      # now the other way round (maintenance Tuesday 01:00, bounded at 27 min
-      # measured, against 03:00 here), which puts this unit downstream of a
-      # lock for the first time. 30m, not 2h: a backup has a deadline where the
-      # maintenance does not — the next one is 24 h away and the offsite copy
-      # rides on it — so it should wait through a surprise and then give up
-      # loudly rather than sit on the lock until morning.
-      #
-      # The boot catch-up does NOT need it, contrary to what this said until
-      # 2026-09-25: Persistent=true fires a missed run at boot, before the
-      # volume is unlocked, and Requires=mnt-data.mount fails it once the
-      # device job times out (90 s, measured 2026-09-01). A missed night is
-      # never caught up; the backup freshness monitor is what reports it.
       ExecStart=/usr/local/bin/resticprofile --lock-wait 30m -c /opt/homelab/resticprofile.yaml -n homelab backup
       ExecStart=/usr/local/bin/resticprofile --lock-wait 30m -c /opt/homelab/resticprofile.yaml -n homelab copy
       EnvironmentFile=/opt/homelab/backup.env
@@ -186,12 +116,6 @@
     state: started
     daemon_reload: true
 
-# Weekly local repo maintenance: prune (moved out of the nightly forget) + a
-# rotating read-data integrity check. Tuesday 01:00 — clear of the 03:00 nightly
-# backup (both touch the LOCAL repo) and the 02:00 offsite check (different repo).
-# local-maintenance.sh is gone (ADR-031): resticprofile's own `prune` and
-# `check` do the work, and the rotating one-twelfth deep check the script
-# computed in shell is now a Go template in the profile.
 - name: backup | Remove the superseded local maintenance script
   ansible.builtin.file:
     path: /opt/homelab/scripts/local-maintenance.sh
@@ -209,36 +133,6 @@
 
       [Service]
       Type=oneshot
-      # Two commands in order, as in the nightly unit and for the same reason:
-      # resticprofile groups assemble PROFILES, not commands within one.
-      # Type=oneshot stops at the first failure, which is what keeps a single
-      # monitor honest — see the prune section of resticprofile.yaml.j2.
-      #
-      # --lock-wait, because the profile lock is SHARED with the nightly backup.
-      # It is kept after the 2026-09-13 reschedule even though this unit now
-      # runs BEFORE the backup rather than after it: a run delayed into the
-      # backup's window still meets it, and the maintenance has no deadline,
-      # so waiting is free.
-      #
-      # Why the order was inverted. This used to fire at Sunday 05:00, two
-      # hours after the backup, on the assumption that two hours was enough.
-      # On 2026-09-13 the backup ran 8 h 37 — ADR-035 had changed the restic
-      # path set, so restic found no parent snapshot and re-read 418 GiB — and
-      # this unit waited its full two hours, exited 1, and lit the monitor red.
-      # A WEEKLY timer, so prune and check were then skipped for the week.
-      #
-      # The rule that fixes it is ordering, not a bigger number: the backup is
-      # the only unbounded operation here, and the spread is the argument.
-      # Measured over 30 days, from the journal's own Starting/Finished pairs:
-      #
-      #     homelab-backup             n=27  median 407 s  p90 973 s  MAX 31487 s
-      #     homelab-local-maintenance  n=4   median  84 s  p90 105 s  MAX  1595 s
-      #
-      # The backup's median is under 7 minutes and its maximum is 8 h 45 — a
-      # factor of 77. Nothing that has to finish should be scheduled behind it.
-      # This unit's own worst case is 27 minutes, so 01:00 clears by 01:27 with
-      # 93 minutes of headroom before 03:00, against a worst case never yet
-      # observed. Bounded work first, unbounded last.
       ExecStart=/usr/local/bin/resticprofile --lock-wait 2h -c /opt/homelab/resticprofile.yaml -n homelab prune
       ExecStart=/usr/local/bin/resticprofile --lock-wait 2h -c /opt/homelab/resticprofile.yaml -n homelab check
       EnvironmentFile=/opt/homelab/backup.env
@@ -253,10 +147,6 @@
       Description=Weekly local restic repo maintenance (Tuesday 01:00)
 
       [Timer]
-      # Tuesday, not Sunday: the operator does media ingest at the weekend, and
-      # a large ingest is exactly what makes the nightly backup overrun.
-      # 01:00, not 05:00: bounded work ahead of the unbounded backup at 03:00.
-      # Max measured 27 min, so it clears by 01:27 with 93 min of headroom.
       OnCalendar=Tue *-*-* 01:00:00
       Persistent=true
 

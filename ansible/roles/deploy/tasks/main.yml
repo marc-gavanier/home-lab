@@ -1,15 +1,4 @@
 ---
-# =============================================================================
-# Role: deploy — Deploy Docker Compose stacks
-# =============================================================================
-# All secrets must be set in host_vars/homelab/local.yml (gitignored)
-# or passed via --extra-vars.
-# =============================================================================
-# Thin orchestrator: one file per concern, task names prefixed with the file.
-# Order matters: hashes feed the env template (secrets), branding builds the
-# assets `compose up` bind-mounts, pihole/nextcloud post-configure running
-# containers, and the wireguard tunnel carries the offsite check.
-
 - name: Refuse to deploy while the encrypted volume is unmounted
   ansible.builtin.assert:
     that:
@@ -24,26 +13,8 @@
 
 - name: Compute WireGuard bcrypt and Vaultwarden Argon2 facts
   ansible.builtin.import_tasks: hashes.yml
-  # Tagged with secrets.yml below, and NOT separable from it: hashes.yml ends in
-  # a set_fact that secrets.yml consumes (vaultwarden_admin_token_hash, from
-  # hashes.yml:52 to secrets.yml:576). Tagging only the secrets import leaves
-  # that variable undefined — the dependency is one level indirect, so it does
-  # not show up in a search for a registered variable.
   tags: [secrets]
 
-# The `secrets` tag exists so a secret can be written or re-moded WITHOUT
-# dragging in compose.yml, whose `compose up` copies the whole stack definition
-# and arms every pending image pin for the heal timer. It changes nothing on a
-# full run — tags only filter when --tags is passed.
-#
-# It is NOT a rotation route, and the word "rotated" stood here until
-# 2026-09-20. The tag reaches secrets.yml alone — 19 of the 31 secret renders in
-# this role. The other 12 sit behind other tags: configs.yml (searxng_settings),
-# backup.yml (7 values), wireguard.yml (wg0.conf) and ddns.yml (ddns.env). That
-# gap is what let the Cloudflare rotation of 2026-09-12 reach Traefik and not
-# the DDNS for eight days, under one vault variable, with nothing able to
-# notice. A rotation has to cover the value's carriers: see
-# knowledge/runbooks/rotate-a-secret.md.
 - name: Deploy secrets on the encrypted volume (ADR-011)
   ansible.builtin.import_tasks: secrets.yml
   tags: [secrets]
@@ -54,12 +25,6 @@
 - name: Build the SearXNG Gerbier assets (before compose up)
   ansible.builtin.import_tasks: branding.yml
 
-# Tagged for the same reason `secrets` is, and stated here so the next reader
-# does not have to re-derive it: the profile is a copy of the daemon's own
-# policy and therefore needs shipping whenever the daemon moves, which has
-# nothing to do with the stack definition. Without a tag, correcting one
-# AppArmor rule drags in compose.yml, whose `compose up` copies the whole stack
-# and arms every pending image pin for the heal timer.
 - name: Install the netdata AppArmor profile (before compose up — see file)
   ansible.builtin.import_tasks: apparmor.yml
   tags: [apparmor]
@@ -91,35 +56,10 @@
 - name: Apply Transmission runtime settings the compose file cannot set
   ansible.builtin.import_tasks: transmission.yml
 
-# Tagged 2026-09-13, for the reason the `ddns` comment below invites: the
-# nightly timer, the weekly maintenance timer and their units are systemd
-# files that no container reads, and correcting a schedule should not cost a
-# `compose up`. This was found the hard way — a reschedule was committed,
-# deployed with `--tags backup`, reported changed=2, and the timers on the
-# host still said Sunday, because `--tags backup` reached resticprofile.yml
-# and nothing else.
-#
-# Verified independent before tagging, the same check resticprofile.yml
-# documents: `restic_init` and `restic_open` are registered AND consumed
-# inside this file, and nothing here reads a set_fact or a `when:` produced
-# elsewhere in the role.
 - name: Set up the local restic backup and nightly timer
   ansible.builtin.import_tasks: backup.yml
   tags: [backup]
 
-# ADR-031, and the migration is over. This announced "phase 1 … backup.sh keeps
-# running on its timer" on every single run until 2026-08-29, long after the
-# switch: resticprofile owns the nightly job and the two weekly ones, all three
-# ExecStart lines go through it, and backup.sh, local-maintenance.sh and
-# offsite-check.sh are deleted — by this same role, a few tasks further down.
-# The staging is kept in this sentence because it is the reusable part: install,
-# exercise by hand against the real repository including a RESTORE, then move
-# the timers.
-# Tagged for the same reason as `secrets` above: the profile, the dump
-# assertions and the notification adapter can all be corrected without a
-# `compose up`. Verified independent — nothing in resticprofile.yml or its
-# templates consumes a set_fact produced by another file in this role, so the
-# tag does not run it amputated the way `secrets` would have without hashes.yml.
 - name: "Install resticprofile and its profile (ADR-031)"
   ansible.builtin.import_tasks: resticprofile.yml
   tags: [backup]
@@ -127,28 +67,10 @@
 - name: Set up the host tunnel to the offsite Pi (ADR-010)
   ansible.builtin.import_tasks: wireguard.yml
 
-# Tagged with `backup` rather than a tag of its own: it carries the third of
-# the three restic timers, so `--tags backup` now deploys the whole restic
-# surface — profile, nightly, weekly maintenance, weekly offsite check —
-# rather than three quarters of it. It declares no register and no when:.
 - name: Set up the weekly offsite repo check
   ansible.builtin.import_tasks: offsite.yml
   tags: [backup]
 
-# Tagged, alone among the imports in this file, and the asymmetry is the point
-# rather than an oversight. This role mixes host-level concerns — secrets, the
-# AppArmor profile, systemd units — with the container stack, and only the
-# container half is expensive: `compose.yml` copies the whole compose.yaml on
-# every run, which arms every pending image pin for the crash-heal timer. That
-# is the right price for a service deploy and the wrong one for a change to a
-# 130-line shell script that no container reads.
-#
-# `--tags ddns` therefore installs the script, its environment file and the two
-# systemd units, and nothing else runs. Added 2026-09-03 alongside the retry fix
-# in cloudflare-ddns.sh, whose deploy is what wanted it. Other imports can be
-# tagged the same way when they need it — `backup.yml` and `offsite.yml` were,
-# on 2026-09-13, when a timer reschedule deployed cleanly and changed nothing on
-# the host because the tag did not reach them.
 - name: Install the Jellyfin Live TV playlist
   ansible.builtin.import_tasks: jellyfin.yml
   tags: [jellyfin]
@@ -157,49 +79,8 @@
   ansible.builtin.import_tasks: ddns.yml
   tags: [ddns]
 
-# A deploy is the moment the container posture is most likely to have changed,
-# and the posture check runs only once a day. Without this, a drift introduced
-# at 12:00 waits until 11:00 the next morning to be reported — and worse, a
-# drift that has just been FIXED leaves its monitor red for the rest of the day.
-# Re-asserting here makes detection and recovery both minutes rather than a day
-# (issue #33; seen for real on 2026-07-27, when a corrected finding stayed red).
-# ...but this task is the LAST of the role, and Ansible runs handlers at the end
-# of the PLAY. So until this flush, the re-assertion graded the stack BEFORE the
-# restarts the same deploy had just queued: 14 handlers in this role, and the
-# repo held exactly one `meta: flush_handlers`, in the security role. Combined
-# with the timer having no boot hook, the only two occasions on which the
-# posture could cover a day's changes both fell at the wrong moment — one before
-# the handlers, one before the reboot (audit of 2026-08-30, class C44/C53).
-#
-# One interaction, stated because it is not obvious: a flush runs EVERY handler
-# pending in the play, not only this role's. `Restart Docker` is the one that
-# matters, and it is notified from a single site — the daemon.json template in
-# the docker role — so it is pending only on the rare run that changes it. When
-# it is, Docker now restarts before the posture check rather than after, which
-# is the right order for the check even though it means containers are settling
-# while it runs. The check asserts container CONFIGURATION (user, read-only
-# rootfs, capabilities), which is readable the moment a container exists, not
-# health, which is not.
-#
-# UPDATE 2026-09-11: this flush can no longer have anything pending, and the
-# paragraph above now describes an ordering that does not occur here. A second
-# flush was added at deploy/tasks/pihole.yml:25 on 2026-09-06 (#333), and all 21
-# `notify:` sites in this role sit in apparmor.yml, secrets.yml and configs.yml —
-# every one of them imported BEFORE pihole.yml. The earlier flush drains them.
-#
-# Nothing is broken: the restarts still happen before the posture check, about
-# 180 tasks earlier than they used to. The statement is kept rather than deleted
-# because the reasoning is what makes the pihole.yml flush safe to keep, and
-# because a future task that notifies AFTER pihole.yml would make this flush live
-# again — at which point this paragraph is correct once more.
-# Installs a timer only; it never prunes during a run. Placed here, after the
-# stack is up, so the units land on a host whose docker is already configured.
 - name: Install the Docker image retention timer
   ansible.builtin.import_tasks: image_retention.yml
-  # Tagged for the reason `secrets` and `backup` are: this installs two unit
-  # files and touches nothing else, so it must be reachable WITHOUT compose.yml,
-  # whose `compose up` copies the whole stack definition and arms every pending
-  # image pin for the heal timer.
   tags: [image-retention]
 
 - name: Flush handlers so the posture check below sees the restarts, not the state before them

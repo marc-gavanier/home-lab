@@ -1,6 +1,4 @@
 ---
-# WireGuard client (outbound tunnel to the homelab wg-easy) + Kuma reachability.
-
 - name: wireguard | Install WireGuard
   ansible.builtin.apt:
     name: wireguard
@@ -20,13 +18,6 @@
     name: wg-quick@wg0
     enabled: true
     state: started
-
-# --- Recover from a home public-IP change ---
-# wg-quick resolves the peer's Endpoint name once, at `up`. When the home IPv4
-# changes, DDNS moves the record but this kernel keeps dialling the old address
-# forever — and SSH to this host runs through that tunnel, so the only repair
-# left is a trip. The timer below re-resolves the name when the handshake goes
-# stale, and does nothing while the tunnel works (#180).
 
 - name: wireguard | Install endpoint re-resolve script
   ansible.builtin.template:
@@ -49,21 +40,6 @@
     enabled: true
     state: started
     daemon_reload: true
-
-# --- Reach Uptime Kuma through the tunnel ---
-# Once offsite, services.<domain> does not resolve at all: it has no public
-# record, and this host's resolver is its own LAN router, not Pi-hole. Checked
-# rather than assumed — a public lookup returns nothing, while vpn.<domain>
-# returns an address, which is what proves the query itself works. So this pin
-# is not a routing preference, it is **the only reason the name resolves here**;
-# remove it and the Kuma push stops resolving rather than getting a 403.
-# (The 403 reasoning was the original comment and it was wrong: Traefik does
-# reject non-VPN sources, but nothing ever reaches Traefik.)
-# Pin it to the homelab host's
-# VPN address (Traefik listens on all host interfaces), NOT its LAN IP:
-# routing the homelab LAN IP into the tunnel breaks any direct-LAN traffic
-# while the Pi is prepared at home (bitten during the seed, 2026-07-12).
-# Same cloud-init-template pattern as the homelab's own pin.
 
 - name: wireguard | Pin services domain in the cloud-init hosts template (persists across reboots)
   ansible.builtin.lineinfile:

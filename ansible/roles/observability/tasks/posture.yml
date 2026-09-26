@@ -1,14 +1,4 @@
 ---
-# Container security posture -> its own Uptime Kuma push monitor.
-#
-# Separate from the health report on purpose: a drifted capability or a rootfs
-# that went back to writable is not an outage, and folding it into the signal
-# that carries temperature and disk alerts would bury it. Daily cadence, since
-# posture only changes when a container is recreated (issue #33).
-#
-# The script is generated from docker/compose.yaml, so the expected values
-# cannot drift from the file they check.
-
 - name: posture | Install the container posture-check script
   ansible.builtin.template:
     src: homelab-posture.sh.j2

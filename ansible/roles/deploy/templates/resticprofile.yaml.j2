@@ -1,285 +1,65 @@
 # {{ ansible_managed }}
-# =============================================================================
-# resticprofile — ADR-031
-# =============================================================================
-# The ORCHESTRATION half of backup.sh: what to back up, where to copy it, what
-# to keep. The database dumps and the assertions that check them are NOT here
-# and are not meant to be — no tool expresses them, and the assertions exist
-# because of #190. They keep their own script.
-#
-# It now drives all three timers: the nightly backup+copy, the weekly local
-# prune+check, and the weekly offsite check. backup.sh, local-maintenance.sh and
-# offsite-check.sh are gone.
-#
-# Repository paths come from the environment, so backup.env stays the single
-# place they are defined and no path is duplicated here.
 version: "1"
 
 homelab:
   repository: '{{ "{{ .Env.RESTIC_REPOSITORY }}" }}'
   password-file: /mnt/data/secrets/restic_password
-  # resticprofile writes the result AND the duration of the last restic command
-  # here. It exists so that `restic-deep-check-not-stale` can assert an OBSERVED
-  # deep check rather than a self-reported one: the Kuma message saying "deep
-  # check re-read data subset 9/12" is produced by the Jinja branch below, in the
-  # same expression that sets read-data-subset, so nothing in the chain observes
-  # that restic read any data. A 25-minute run and a 30-second one are separated
-  # by a factor of 51 and by nothing else.
-  #
-  # The path that makes this matter: `restic-arguments-filter: true` is live, and
-  # its entire job is to drop restic flags the detected version does not support,
-  # SILENTLY. That is exactly how --read-data-subset can stop being passed while
-  # the run still exits 0 and the beat still claims the subset was re-read.
-  #
-  # Three sentences in this repo said this file could not exist — here, in
-  # backup-notify.sh and in ADR-031 — and the installed resticprofile's own JSON
-  # schema says otherwise: `resticprofile generate --json-schema v1` documents
-  # status-file, its description, and its type. The claim was recorded as
-  # impossible rather than as declined.
   status-file: /var/lib/homelab-backup/status.json
-  # Concurrency protection, and it replaces something specific: backup.sh wrapped
-  # its copy step in `flock /var/lock/offsite-copy.lock` after a collision
-  # between the 2026-07-12 seed and the nightly copy put ~100 GB of duplicates
-  # on the append-only repository, reclaimable only by a manual prune.
-  #
-  # This lock is stronger than the one it replaces — it covers the WHOLE profile,
-  # backup and copy alike, not just the copy step. Verified: a second invocation
-  # during a running one is refused with "another process is already running
-  # this profile" and the first completes untouched.
-  #
-  # Any manual run must therefore go through resticprofile rather than restic
-  # directly, which is what makes the protection hold.
   lock: /run/lock/resticprofile-homelab.lock
 
-  # A repository on a LUKS volume that may not be mounted. Failing loudly beats
-  # initialising a second, empty repository on the mountpoint's own directory.
   initialize: false
 
-  # The offsite repository is a REST server behind HTTP auth, and restic reads
-  # those credentials from RESTIC_REST_USERNAME / RESTIC_REST_PASSWORD — names
-  # backup.env does not use. backup.sh set them inline on the copy command; here
-  # they are mapped once.
-  #
-  # Found the hard way: without this the copy dies with
-  #   Fatal: unable to open config file: unexpected HTTP response (401)
-  # which is at least a loud failure, and the notification hook reported it
-  # correctly — that half of the migration proved itself by breaking.
-  #
-  # Harmless on the local repository: it is a filesystem path, so REST
-  # credentials are ignored there.
   env:
     RESTIC_REST_USERNAME: '{{ "{{ .Env.OFFSITE_REST_USER }}" }}'
     RESTIC_REST_PASSWORD: '{{ "{{ .Env.OFFSITE_REST_PASSWORD }}" }}'
 
   backup:
-    # --- Dumps, and then their assertions (ADR-031, ADR-032) ---------------
-    # This was a 373-line script. ADR-031 kept it and said why: "resticprofile
-    # has no equivalent" for the assertions. True when written, and stale since
-    # ADR-032 installed goss — so the dump COMMANDS are hooks and the assertions
-    # are a declared spec, generated from the same two lists in group_vars. A
-    # database added there gets dumped AND checked, and cannot get one without
-    # the other, which is the defect #177 named wearing different clothes.
-    #
-    # The directory is emptied first, and that is not housekeeping. A `sqlite3
-    # .backup` that fails does NOT touch its destination — measured: 12288
-    # bytes, 2 tables, quick_check ok, byte-for-byte unchanged after a failed
-    # run. So a dump left by an earlier run passes every assertion while being a
-    # day old. It needs a run that ABORTED, and the log shows 103 "started"
-    # against 102 "completed", the orphan being 2026-07-12.
-    #
-    # 0700 explicitly, not the unit's umask (#199): under UMask=0022 `mkdir -p`
-    # gave 0755 and the dumps 0644, under parents 0755 all the way up — so for
-    # the length of every run, any local unprivileged account could read the
-    # complete Vaultwarden vault, the Kuma database with its push tokens,
-    # Nextcloud's password hashes and the Forgejo database. Read back out of a
-    # snapshot, so those are the modes that really existed. The #177 sweep closed
-    # the six LIVE stores and never looked at the copy made of them every night.
-    #
-    # Creating it here also keeps the snapshot's path set stable at five whether
-    # or not anything populated it: `restic forget` groups by `host,paths`, so a
-    # snapshot with four paths forms its own retention group and gets its own
-    # 7 daily / 4 weekly / 6 monthly. The first real run of this profile did
-    # exactly that.
-    #
-    # EVERY dump ends `|| true`, deliberately. A run-before that fails makes
-    # resticprofile abort the backup, and one bad dump must never cost the
-    # snapshot of everything else — the failure is deferred and reported by the
-    # notification hook instead. That is why the assertions exist: a dump command
-    # that fails silently is caught by the check that opens its file, not by an
-    # exit code, which is the lesson of #190 where the file existed and the guard
-    # was satisfied while the content was truncated.
     run-before:
       - rm -rf {{ backup_dir }}/dumps
       - install -d -m 0700 {{ backup_dir }}/dumps
 
-      # Nextcloud MariaDB. The password is read from the secret already mounted
-      # in the container and handed over through MYSQL_PWD — never through
-      # `-p"…"`, which put it in the argv of the host's `docker` client for the
-      # 6 to 9 seconds this takes, every night at a fixed and known hour (#198).
-      # /proc carries no hidepid here. The single quotes keep the expansion
-      # INSIDE the container: expanded on the host, the secret path does not
-      # exist and the dump would run with an empty password.
       - >-
         docker exec nextcloud-db sh -c 'MYSQL_PWD=$(cat /run/secrets/nextcloud_db_password)
         mariadb-dump --single-transaction --routines --triggers
         -u"${MYSQL_USER:-nextcloud}" "${MYSQL_DATABASE:-nextcloud}"'
         > {{ backup_dir }}/dumps/nextcloud.sql 2>> {{ backup_log }} || true
 
-      # SQLite, via the Online Backup API. Restic snapshotting a live database
-      # while the service runs can capture a torn WAL state; `.backup` writes a
-      # consistent copy under concurrent writes. Host-side because none of these
-      # images ships the sqlite3 CLI. Kuma gets a busy timeout on top: it is
-      # under constant write pressure (a heartbeat row per monitor per interval)
-      # so unlike the others it genuinely collides, and `.backup` returns
-      # SQLITE_BUSY on a locked source.
-      #
-      # Guarded on the source EXISTING, and that guard is load-bearing rather
-      # than defensive: `sqlite3 <missing> ".backup dest"` does not fail, it
-      # CREATES the missing database and copies the empty result. The dump would
-      # then satisfy the `-source` assertion that exists to catch a moved path,
-      # and leave an empty database sitting in the service's own directory.
-      # Found by rendering this block and reading it, before it ever ran.
 {% for d in backup_sqlite_dumps %}
       - >-
         test -f {{ d.source }} && sqlite3 -cmd '.timeout 5000' {{ d.source }}
         ".backup '{{ backup_dir }}/dumps/{{ d.file }}'" 2>> {{ backup_log }} || true
 {% endfor %}
 
-      # Miniflux PostgreSQL. services/miniflux/db is in the source list below,
-      # but restic walks it file by file while Postgres writes: the copy is not
-      # atomic and can restore to a torn cluster. Plain SQL rather than .gz on
-      # purpose — restic deduplicates a text dump from one day to the next, while
-      # a compressed one changes end to end on any edit and crosses the offsite
-      # link whole every night. No password: the image entrypoint writes
-      # `local all all trust` and docker exec connects over the unix socket.
       - >-
         docker exec miniflux-db pg_dump -U '{{ miniflux_db_user | default("miniflux") }}'
         '{{ miniflux_db_name | default("miniflux") }}'
         > {{ backup_dir }}/dumps/miniflux.sql 2>> {{ backup_log }} || true
 
-      # The assertions, run BEFORE the snapshot so what is asserted is what gets
-      # snapshotted. `|| true` for the same reason as the dumps: the verdict is
-      # deferred to the notification hook, which reads this TAP file. An ABSENT
-      # file therefore means the dump step did not run at all, which is not the
-      # same as "no failures" and must not read as success.
       - >-
         goss -g /etc/goss/backup-dumps.yaml validate --format tap
         > {{ dump_tap }} 2>&1 || true
 
-    # resticprofile SUCCESS hooks receive PROFILE_NAME and PROFILE_COMMAND and
-    # nothing else — no snapshot id, no summary. So the notification is built by
-    # a small adapter rather than reproduced from configuration.
-    # There IS a run status file, contrary to what this comment said until
-    # 2026-09-11: see `status-file` on the profile above. It does not carry a
-    # snapshot id, so it does not replace the adapter — it carries the duration,
-    # which is what the deep-check assertion needed.
     run-after:
       - /opt/homelab/scripts/backup-notify.sh up backup
-      # backup.sh removed the dumps once the snapshot held them, and so does
-      # this. On SUCCESS only, deliberately — `run-finally` would also fire on a
-      # failed backup and destroy the dumps that failure needs looking at. The
-      # next run's run-before recreates the directory, so the path set stays
-      # five either way.
       - rm -rf /mnt/data/backups/dumps
     run-after-fail:
       - /opt/homelab/scripts/backup-notify.sh down backup
 
-    # Identical to the list backup.sh passed, including the exclude: the
-    # libresign aarch64 blob is regenerated on demand and costs more to store
-    # than to rebuild.
     source:
       - /mnt/data/services
       - /mnt/data/media
-      # library/ is listed SUBDIRECTORY BY SUBDIRECTORY, deliberately, and the
-      # parent is never named. A category is outside the backup STRUCTURALLY
-      # rather than by an `exclude:` — an exclusion is a filter that can be
-      # mistyped, forgotten, or defeated by a later change to the source, and a
-      # path that was never in the source cannot be any of those.
-      #
-      # WHICH categories are in and which are out is declared ONCE, in
-      # `library_unbacked_categories` (group_vars/all.yml), and
-      # `library-backup-source-matches-the-declared-split` in the posture spec
-      # checks the deployed profile against that declaration IN BOTH
-      # DIRECTIONS: a category that should be backed up and is missing fails,
-      # and a category declared unbacked that appears here fails too.
-      #
-      # `movies` and `shows` left this list on 2026-09-13 and the reason is
-      # worth keeping, because the first version of ADR-035 decided the
-      # opposite. They hold torrent-sourced video, retained only until watched
-      # and to seed. It is re-downloadable, so its recovery value is the cost of
-      # fetching it again — and the LOCAL repository lives on the same LUKS
-      # volume as the data it backs up, so keeping them locally protected
-      # against an accidental delete and nothing else.
-      #
-      # What it cost while they were in: the first run after ADR-035 changed the
-      # path set, so restic found NO PARENT SNAPSHOT and re-read everything —
-      # 94 280 files, 418 GiB, 4 h 25 against a normal ~12 min. It stored
-      # 69.986 GiB (41 files: two TV seasons and five films, hard-linked from
-      # `downloads/`). Holding the profile lock for 8 h then starved
-      # homelab-local-maintenance, which waits 2 h for that lock and then FAILS
-      # — a weekly timer, so prune and check were skipped for the week.
-      # The `.torrent` files stay in the backup (ADR-035), so a restore still
-      # resumes seeding; it re-fetches the data rather than restoring it.
       - /mnt/data/backups/dumps
       - /mnt/data/secrets
       - /opt/homelab
-    # Everything below the libresign line was added on 2026-08-31, and the
-    # measurement is the argument. Seven consecutive nightly summaries, read out
-    # of Kuma:
-    #
-    #     769.0 / 745.4 / 803.2 / 784.5 / 814.1 / 750.9 / 773.5 MiB added
-    #
-    # ~770 MiB every night. Bytes actually CHANGED in the same 24 h, per subtree
-    # (`find -newermt '24 hours ago'`, 22 subtrees swept):
-    #
-    #     services/netdata    398.8 MiB    services/immich      105.1 MiB
-    #     services/pihole     320.9 MiB    services/nextcloud   101.5 MiB
-    #     services/miniflux   115.6 MiB    media/*                0.0 MiB
-    #
-    # 1 058 of 1 095 MiB — 96.6 % — is machine-generated churn, and the media
-    # trees (274 GB of video, 29 GB of photos, 28 GB of music) changed by ZERO
-    # bytes while restic added 770 MiB. The goal of these exclusions is exactly
-    # that: a night in which no user data moved should cost the repository, and
-    # the tunnel to the offsite copy, close to nothing.
-    #
-    # THE RULE APPLIED HERE, and it is the only one that makes an exclusion
-    # safe: exclude nothing that a documented restore procedure reads. Every
-    # database below is excluded as a LIVE DATADIR while its dump stays in the
-    # snapshot, and `restore-from-backup.md` already restores all of them from
-    # the dump — each of its procedures resets the datadir and lets the
-    # container re-run initdb. These copies are not a fallback anyone would use;
-    # this profile's own comment calls them worse than that, since "restic walks
-    # it file by file while Postgres writes: the copy is not atomic and can
-    # restore to a torn cluster".
-    #
-    # Checked before each line was written, so a database cannot lose its last
-    # copy here: nextcloud -> nextcloud.sql (mariadb-dump), miniflux ->
-    # miniflux.sql (pg_dump), uptime-kuma -> uptime-kuma.sqlite3 (sqlite3
-    # .backup, from backup_sqlite_dumps), immich -> its own dump under
-    # upload/backups, which is NOT excluded. The goss backup-dumps spec asserts
-    # each of those every night.
     exclude:
       - /mnt/data/services/nextcloud/data/data/appdata_*/libresign/aarch64
 
-      # A metrics ring buffer, 2.0 GiB on disk and 398.8 MiB rewritten nightly.
-      # It is capped by netdata and regenerates itself; restoring it restores
-      # nothing anyone needs, and netdata starts a fresh history anyway.
       - /mnt/data/services/netdata/cache
 
-      # The Pi-hole query log: one 317 MiB SQLite file on a 91-day retention,
-      # rewritten every day. FILE-level and not directory-level, deliberately —
-      # Pi-hole's configuration lives in the same directory and IS restore
-      # material: pihole.toml, gravity.db, the custom lists. Only the query
-      # history goes, and the register already records the decision that a
-      # rescan rebuilds this class of store.
       - /mnt/data/services/pihole/etc/pihole-FTL.db
       - /mnt/data/services/pihole/etc/pihole-FTL.db-wal
       - /mnt/data/services/pihole/etc/pihole-FTL.db-shm
 
-      # Live database datadirs. See the rule above: the dump is the copy, this
-      # is the torn one. Note the paths are the DB directories only — Immich's
-      # `upload/` (10 GB of photos plus its own dumps) and Nextcloud's `data/`
-      # (the user files) are untouched and still backed up in full.
       - /mnt/data/services/miniflux/db
       - /mnt/data/services/nextcloud/db
       - /mnt/data/services/immich/db
@@ -287,139 +67,39 @@ homelab:
       - /mnt/data/services/uptime-kuma/kuma.db-wal
       - /mnt/data/services/uptime-kuma/kuma.db-shm
 
-      # calibre-web's ingest staging. 3.3 GB on 2026-09-13 — LARGER than the
-      # 2.4 GB library it was ingested into. Worse for restic than a plain
-      # duplicate: the files are zipped, so content-defined chunking finds no
-      # partner for them and each one is stored whole, on both the local
-      # repository and the append-only offsite.
-      #
-      # The parent directory was excluded whole until 2026-09-19, on the premise
-      # that "every byte of it is a second copy of a book that is already backed
-      # up under media/books". That premise was checked in one direction only —
-      # that these files had been ingested — and never in the other. Measured
-      # 2026-09-19 against the 417 files of media/books: of the 11 PDFs in
-      # converted/, 6 have their PDF in the library, 4 exist there as EPUB only,
-      # and one book ("Creating and Using Virtual Prototyping Software") is not
-      # in the library in ANY format. Five files whose only copy anywhere was
-      # inside an excluded archive.
-      #
-      # So converted/ is backed up and its siblings are not: they hold the
-      # ORIGINALS as they were dropped in, which the import has already
-      # consumed. 96 MB as measured, against the 3.3 GB the old line saved when
-      # it was written. Listing the siblings rather than the parent also fails
-      # in the safe direction — a staging directory calibre-web invents later
-      # gets backed up until someone decides otherwise, instead of vanishing
-      # silently.
       - /mnt/data/services/calibre-web/processed_books/failed
       - /mnt/data/services/calibre-web/processed_books/imported
       - /mnt/data/services/calibre-web/processed_books/fixed_originals
       - /mnt/data/services/calibre-web/processed_books/duplicate_resolutions
 
-      # Rollback copies left behind by a Kuma repair. A GLOB, not the two
-      # literal paths this used to carry: the runbook now timestamps each
-      # rollback set so a second repair cannot overwrite the first one's, and a
-      # literal list would have excluded the 2026-08-02 copies while silently
-      # backing up every later one. ~7 MB each, and a rescan rebuilds nothing
-      # from them — they exist only to be restored by hand during a repair.
       - /mnt/data/services/uptime-kuma/kuma-pre-*
     tag:
       - auto
-    # restic's own summary, which the current script parses out of --json to
-    # build its Kuma message. Phase 2 reads it from here instead.
     verbose: true
 
-  # Nightly forget, weekly prune — the split backup.sh already makes, and for
-  # the same reason: forget is cheap and prune rewrites the repository.
   retention:
     after-backup: true
     keep-daily: 7
     keep-weekly: 4
     keep-monthly: 6
     prune: false
-    # `path: false` is NOT a default — resticprofile otherwise derives a
-    # `--path` filter from the backup sources, and `backup.sh` runs a plain
-    # `restic forget` with no filter at all. The difference is not cosmetic:
-    # a filter EXCLUDES snapshots whose path set does not match, so any older
-    # snapshot taken before a source was added would never be considered for
-    # removal and would accumulate for ever. Caught by reading `resticprofile
-    # show` rather than by trusting the config to mean what it looks like.
     path: false
 
-  # ADR-010. `restic copy` is idempotent — verified in the spike: a second copy
-  # with nothing changed wrote nothing and left the destination at one snapshot.
-  # So the "last 7 days" bound backup.sh computes with a JSON listing and a
-  # Python filter is an optimisation, not a correctness requirement, and
-  # re-offering a snapshot already present on an append-only repository is a
-  # no-op. That is the most convoluted part of the script gone.
   copy:
     repository: '{{ "{{ .Env.OFFSITE_RESTIC_REPOSITORY }}" }}'
     password-file: /mnt/data/secrets/offsite_restic_password
-    # The destination exists and is append-only; creating it here would be a
-    # symptom of pointing at the wrong place.
     initialize: false
 
-    # Its OWN monitor, as in backup.sh. The copy fails for entirely different
-    # reasons — the tunnel, the remote host — and folding it into the backup
-    # signal would hide one behind the other.
-    #
-    # `backup` does NOT trigger `copy`: verified, only the backup hook fired.
-    # resticprofile's groups assemble PROFILES, not commands within one, so the
-    # nightly job runs both commands from the systemd unit. Switching the timer
-    # to `backup` alone would have stopped offsite replication silently, while
-    # every run reported success.
     run-after:
       - /opt/homelab/scripts/backup-notify.sh up copy
     run-after-fail:
       - /opt/homelab/scripts/backup-notify.sh down copy
 
-  # --- Weekly maintenance, replacing local-maintenance.sh --------------------
-  # prune and check share ONE monitor, and only the LAST command pushes the
-  # success. If prune also pushed `up`, a deep check running for an hour behind
-  # it would leave Kuma claiming the maintenance had already completed.
-  #
-  # The failure path is what makes one monitor enough. `Type=oneshot` stops at
-  # the first failing ExecStart, and resticprofile exits 1 on a failed restic
-  # command (probed: exit 1, only run-after-fail fired). So a failed prune pushes
-  # DOWN and check never runs to overwrite it — the verdict the two commands used
-  # to compute jointly in shell now falls out of the ordering.
   prune:
     run-after-fail:
       - /opt/homelab/scripts/backup-notify.sh down maintenance
 
   check:
-    # A ROTATING deep check: one twelfth of the data each month, so the whole
-    # repository is verified over a year without ever paying for it in one go.
-    # Carried over from local-maintenance.sh, which computed the same fraction
-    # in shell — and it matters more now than when it was written, with a drive
-    # showing pending sectors (#207).
-    #
-    # Deep only in the first week of the month; the other weekly runs check
-    # metadata alone. The timer fires four times a month, so making every run
-    # read data would quadruple the I/O on that drive rather than verify more.
-    #
-    # The mode travels WITH the run, in the same branch that decides it (#290).
-    # Nothing downstream can derive it: resticprofile's hooks receive
-    # PROFILE_NAME and PROFILE_COMMAND and nothing else, so a notification that
-    # wants to say which check ran has to be told here or not at all.
-    #
-    # It is not a nicety. This is the only operation in the whole chain that
-    # re-reads the repository's actual bytes, and after ADR-031 its Kuma message
-    # was byte-identical to a metadata run's — while the journal that carried the
-    # difference holds 16.8 days against a 30-day period. Moving the distinction
-    # into the message moves the evidence into a store that outlives the event —
-    # this monitor holds all 13 of its beats back to 2026-07-19. Measured
-    # 2026-09-19, the reason is the weekly cadence and NOT the 180-day
-    # keepDataPeriodDays setting: Kuma prunes heartbeat rows against a
-    # per-monitor row budget, and on the 5-minute health monitor an ordinary beat
-    # survives ~36 h.
-    #
-    # It also closes the silent-degradation path. If the host is off for the
-    # first week of a month the catch-up fires on a day this branch no longer
-    # matches, the run quietly becomes metadata-only, and a twelfth of the
-    # repository goes unverified for another year. It still does — resticprofile
-    # cannot know what ran last month — but the beat now SAYS metadata, and
-    # `restic-deep-check-not-stale` in the posture spec fails when no deep beat
-    # has landed in 45 days.
 {% raw %}{{ if le .Now.Day 7 }}
     read-data-subset: '{{ printf "%d" .Now.Month }}/12'
     run-after:
@@ -431,10 +111,6 @@ homelab:
     run-after-fail:
       - /opt/homelab/scripts/backup-notify.sh down maintenance
 
-# --- The offsite repository, replacing offsite-check.sh ----------------------
-# A profile of its own rather than a section: `check` runs against the profile's
-# repository, and the offsite one is a different repository with different
-# credentials. Nothing here backs up — it only verifies what the copy put there.
 offsite:
   repository: '{{ "{{ .Env.OFFSITE_RESTIC_REPOSITORY }}" }}'
   password-file: /mnt/data/secrets/offsite_restic_password
@@ -446,11 +122,6 @@ offsite:
     RESTIC_REST_PASSWORD: '{{ "{{ .Env.OFFSITE_REST_PASSWORD }}" }}'
 
   check:
-    # Metadata only, deliberately. The repository is append-only and reached
-    # over the tunnel; reading its data back would pull hundreds of gigabytes
-    # across a domestic uplink to verify bytes the remote host can verify
-    # itself. What this asserts is that the repository is READABLE and
-    # structurally intact, which is what a copy target has to be.
     run-after:
       - /opt/homelab/scripts/backup-notify.sh up offsite-check
     run-after-fail:

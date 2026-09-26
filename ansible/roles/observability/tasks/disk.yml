@@ -1,15 +1,4 @@
 ---
-# Data-disk health -> its own Uptime Kuma push monitor.
-#
-# The 5 TB disk holds every service's data, the media library and the local
-# restic repository. Nothing watched it until 2026-08-15, while the offsite Pi
-# — which only holds a copy — had a SMART report and a monthly long self-test
-# since July. The copy was better monitored than the original.
-#
-# Separate from homelab-health.sh on purpose: that one runs every five minutes
-# and carries CPU temperature and undervoltage. A reallocated sector is not an
-# outage, it is a countdown, and folding it into the fast signal would bury it.
-
 - name: disk | Install the disk-health report script
   ansible.builtin.template:
     src: homelab-disk.sh.j2

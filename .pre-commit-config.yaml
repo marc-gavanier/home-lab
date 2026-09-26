@@ -1,7 +1,4 @@
 ---
-# Pre-commit hooks — install once with:
-#   pre-commit install
-# Then every `git commit` runs: secret scan, YAML lint, Ansible lint.
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
@@ -12,7 +9,7 @@ repos:
       - id: check-merge-conflict
       - id: check-added-large-files
       - id: no-commit-to-branch
-        args: [--branch, main]  # main only moves via PR
+        args: [--branch, main]
 
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.30.0
@@ -25,9 +22,6 @@ repos:
       - id: yamllint
         args: [-c=.yamllint.yml]
 
-  # Local system hook (not the upstream one): ansible-lint must see the repo's
-  # ansible.cfg (roles_path) and the Galaxy collections installed from
-  # ansible/requirements.yml — the upstream hook's isolated venv sees neither.
   - repo: local
     hooks:
       - id: ansible-lint
@@ -37,19 +31,6 @@ repos:
         files: ^ansible/
         pass_filenames: false
 
-      # Neither linter above can see a Jinja syntax error: yamllint reads the
-      # file as YAML, where a broken expression inside a comment is just a
-      # comment, and ansible-lint checks task structure rather than template
-      # bodies. So the error was reachable only by deploying against the live
-      # host — measured 2026-08-29, on a comment warning about the very braces
-      # that broke it. This parses every .j2 instead.
-      # ufw rewrites /etc/ufw/after.rules through an ASCII codec, so one em dash
-      # in a blockinfile marker made the whole security role unrunnable — and
-      # did it two days after the run that introduced it, because the failing
-      # task precedes the one that writes the marker. Nothing else here can see
-      # it: yamllint and ansible-lint both read UTF-8 happily, and the file is
-      # only rewritten by ufw itself. Made to fail on the three live markers
-      # before they were changed.
       - id: ascii-system-files
         name: no non-ASCII bound for an ASCII-strict system file
         entry: ops/check-ascii-system-files.py
@@ -64,22 +45,6 @@ repos:
         files: \.j2$
         pass_filenames: false
 
-      # A loop over a set that came back EMPTY falls through to the success
-      # path, so "I examined nothing" and "I found nothing wrong" reach the
-      # dashboard as the same green. The audit of 2026-09-05 swept 976 sites
-      # for that shape and found about thirty live instances, in goss specs, in
-      # shell reports and in Ansible task gates — and the remedy had already
-      # been written into this repo by hand six separate times without ever
-      # being generalised. Six statements of one rule, six times not applied
-      # next door. This is the generalisation.
-      #
-      # Two hooks, not one. The second runs the controls, because a lint that
-      # has only ever been run over a clean repository has proven nothing: it
-      # would pass exactly as quietly with its own regex broken, which is this
-      # gate's defect class applied to itself. Three of the six controls MUST
-      # be flagged, and two of them are real defects taken from the machine —
-      # the published-port derivation as it stood that morning, and the
-      # crash-heal loop as it stood through the 2026-08-26 outage.
       - id: empty-set-floors
         name: no iteration over a derived set without a floor
         entry: ops/check-empty-set-floors.py
@@ -87,15 +52,6 @@ repos:
         files: (goss-.*\.ya?ml\.j2|\.sh(\.j2)?)$
         pass_filenames: false
 
-      # Parsing a template is not rendering it, and the deploys of 2026-09-05
-      # proved the difference twice in one afternoon: both shipped a spec that
-      # parsed perfectly and that goss then refused, because whitespace control
-      # around a tag swallowed the newline in front of a mapping key. Two
-      # instrument traps let them through, and this hook exists for both —
-      # Ansible renders with `trim_blocks` where a bare Environment() does not,
-      # so the same bytes render clean on the workstation and glued on the Pi;
-      # and PyYAML accepts duplicate keys where goss's Go parser refuses them,
-      # so the local check could not tell a broken spec from a good one.
       - id: goss-specs-render
         name: goss specs render and load the way the host loads them
         entry: ops/check-goss-specs-render.py
@@ -110,24 +66,6 @@ repos:
         files: ^ops/check-empty-set-floors\.py$
         pass_filenames: false
 
-      # Ansible's become wrapper puts `environment:` on the command line it
-      # hands to sudo, and sudo journals that line. Three tasks had that shape
-      # on 2026-09-05 and had written two live secrets into /var/log/auth.log
-      # and the systemd journal several hundred times, both readable without
-      # sudo by the operator's own account. `no_log: true` does not mask it.
-      #
-      # Nine audits missed it because two of the three called their variable `P`
-      # and `T` — names chosen to keep the value out of argv, which was the
-      # PREVIOUS defect in the same class. The name is the author's choice, so
-      # searching for *PASSWORD* can never be complete; only searching for the
-      # value works, and this hook is what removes the need to.
-      #
-      # The secret set is derived from the deploy role's own assertions and from
-      # every file it writes under /mnt/data/secrets, so a new secret is covered
-      # the day it is added. The MODE half also derives its exemption from
-      # compose.yaml's `secrets:` block — which is why compose.yaml is in the
-      # trigger below: removing a `secrets:` entry changes which files a
-      # container still mounts, and the check has to be re-run when it does.
       - id: secret-in-environment
         name: no secret in an `environment:`, and no secret file misfiled either way
         entry: ops/check-secret-in-environment.py
@@ -135,10 +73,6 @@ repos:
         files: (^ansible/roles/.*/tasks/.*\.yml|^ansible/playbooks/.*\.yml|^docker/compose\.yaml)$
         pass_filenames: false
 
-      # yamllint parses the YAML and ansible-lint parses the task; neither hands
-      # the program INSIDE the string to a shell. On 2026-09-11 an apostrophe in
-      # a comment inside a single-quoted awk program closed the quote, and the
-      # first thing to notice was the deploy dying on the host, mid-run.
       - id: shell-cmds-parse
         name: every embedded shell program parses as shell
         entry: ops/check-shell-cmds-parse.py
@@ -158,4 +92,17 @@ repos:
         entry: ops/check-secret-in-environment.py --selftest
         language: system
         files: ^ops/check-secret-in-environment\.py$
+        pass_filenames: false
+
+      - id: no-comments
+        name: no comment in code, except tagged ones and tool directives
+        entry: ops/check-no-comments.py
+        language: system
+        pass_filenames: false
+
+      - id: no-comments-selftest
+        name: the no-comment gate still fails when it should
+        entry: ops/check-no-comments.py --selftest
+        language: system
+        files: ^ops/check-no-comments\.py$
         pass_filenames: false

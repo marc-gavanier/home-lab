@@ -1,284 +1,67 @@
-# =============================================================================
-# Local overrides — Copy to local.yml and fill in real values
-# =============================================================================
-# cp local.example.yml local.yml
-# local.yml is gitignored — secrets stay local.
-# Generate passwords in your password manager.
-# =============================================================================
-
-# --- Connection ---
 ansible_user: pi
 domain: example.com
-# Real hardened SSH port — kept out of the public repo (the port is obscurity,
-# not security, but publishing it would cancel the one thing it buys).
 ssh_port_hardened: 22
 
-# --- Storage ---
-luks_passphrase: ""  # Used once for initial LUKS format, needed for re-provisioning
+luks_passphrase: ""
 
-# --- Traefik ---
 traefik_acme_email: "admin@example.com"
-# Scoped Cloudflare API token for the ACME DNS-01 challenge (ADR-014) and DDNS.
-# Create at Cloudflare → My Profile → API Tokens → "Edit zone DNS" template
-# (permissions Zone:DNS:Edit + Zone:Read), scoped to your zone only.
 cloudflare_dns_api_token: "cf-scoped-dns-edit-token"
-# Uptime Kuma push URL for the DDNS updater (empty = no monitor, e.g. on a
-# fresh install where Kuma does not exist yet). Paste it with the query string
-# Kuma shows — the script strips it and supplies its own status and msg.
 ddns_kuma_push_url: ""
 
-# --- Pi-hole ---
 pihole_password: ""
 
-# --- WireGuard ---
-wg_password: ""  # wg-easy admin password, plaintext; v15 hashes it with argon2
-# Client config for the tunnel this host opens TOWARDS the offsite Pi — the
-# whole content of a wg0.conf, interface and peer. Seven tasks in
-# roles/deploy/tasks/wireguard.yml are gated on `homelab_wg_conf is defined`,
-# so leaving it unset does not fail the run: it silently skips the tunnel, and
-# with it the network path the nightly offsite copy travels over. Empty string
-# counts as defined, so use the block form or leave the key out entirely.
+wg_password: ""
 homelab_wg_conf: |
   [Interface]
-  # PrivateKey / Address / ListenPort
   [Peer]
-  # PublicKey / Endpoint / AllowedIPs / PersistentKeepalive
 
-# --- Nextcloud ---
-# No admin password here: the container no longer self-installs, so the admin
-# account is created once through the web installer (see ADR-016).
 nextcloud_db_password: ""
 nextcloud_db_root_password: ""
-# Redis is where PHP keeps the SESSIONS, not just a cache — 217 live ones when
-# this was added — so an empty value here leaves anything that can reach the
-# port able to lift a logged-in session.
-#
-# ALPHANUMERIC ONLY, and this is a hard constraint rather than a preference:
-#
-#     openssl rand -hex 48
-#
-# The value travels INSIDE A URL. The image's entrypoint builds PHP's session
-# handler as `session.save_path = tcp://nextcloud-redis:6379?auth=<value>` and
-# does not escape it, so any character with a meaning in a URL breaks the parse
-# — silently, and only for sessions.
-#
-# Measured on 2026-09-01, because this shipped with `openssl rand -base64 36`
-# and a value containing `@` and `&`: the cache kept working (config.php holds
-# an ordinary PHP string) while every login failed with
-#
-#     session_start(): Failed to read session data: redis
-#       (path: tcp://xxx:xxx@0dpq06*Z8l5)
-#
-# `@` made PHP read the tail of the password as the HOSTNAME; `&` would have
-# truncated it at the query separator. The base64 originally documented here is
-# no safer: `+` decodes to a space and `/` reads as a path boundary.
-#
-# Rotating it is a normal deploy: the value reaches Redis and both its readers
-# from the same variable, and everyone is logged out once when Redis restarts.
 nextcloud_redis_password: ""
 
-# --- LibreSign (PDF signing, ADR-022) ---
-# Identity of the root certificate every signature is issued from. Not secret —
-# it is printed inside each signed PDF — but the common name is usually a
-# person's name, which is why it lives here rather than in group_vars.
-# Read ONLY when the CA is generated, which happens once: changing these later
-# has no effect, and regenerating is what the deploy exists to prevent.
-# LibreSign root certificate identity — COMMENTED OUT ON PURPOSE.
-# An empty string here does not fall back. host_vars beat group_vars, so `""`
-# would override the working defaults in inventory/group_vars/all.yml
-# ("Home Lab" / "Home Lab" / "FR") and the CA would be minted with blank
-# fields. It is generated ONCE: regenerating it orphans every signature
-# already issued (ADR-022). Uncomment only to override — never to blank out.
-# libresign_cert_cn: "Firstname Lastname"   # what a reader sees in a signed PDF
-# libresign_cert_o: "Home Lab"              # organization
-# libresign_cert_c: "FR"                    # two-letter country
-
-# --- Vaultwarden ---
 vaultwarden_admin_token: ""
-# 16+ random bytes in hex (e.g. `openssl rand -hex 16`). Stable salt for
-# deterministic Argon2 hashing of the admin token. Keep it secret.
 vaultwarden_admin_salt: ""
 
-# --- Immich ---
 immich_db_password: ""
 
-# --- Transmission ---
 transmission_password: ""
 
-# --- Miniflux (RSS reader, ADR-026) ---
-# Postgres password. Written twice by the deploy role: bare for the database,
-# and again inside the connection string Miniflux reads, because Miniflux takes
-# a whole DSN rather than a password to slot into one.
 miniflux_db_password: ""
-# Login of the admin account that is ACTUALLY USED. Overrides the first-install
-# default in group_vars/all.yml, and must match the account you really log in
-# with: if the two diverge you get a second, unused administrator that the
-# rotation machinery governs instead of the real one (measured 2026-09-02).
 miniflux_admin_user: ""
-# Admin account password, used ONLY at first start (CREATE_ADMIN). Changing it
-# here later does not rotate the account — Miniflux reads it only while the user
-# is absent. Rotate through Settings → Password in the web UI, then update this
-# so a rebuild-from-scratch matches. The username default lives in
-# group_vars/all.yml (miniflux_admin_user).
-#
-# MAX 72 BYTES — same bcrypt ceiling as dozzle_admin_password_hash above, and it
-# fails the same way: Miniflux refuses rather than truncating, exits 1 with
-# "bcrypt: password length exceeds 72 bytes", and the heal timer then retries the
-# same failure every two minutes. A password-manager passphrase will overshoot
-# this without warning (a 128-byte one did, 2026-08-13). Note BYTES, not
-# characters: accented or non-Latin characters cost 2-4 bytes each in UTF-8.
 miniflux_admin_password: ""
 
-# --- Forgejo (private git forge, ADR-028) ---
-# Admin account password. Read ONLY by the one-shot `forgejo admin user create`
-# on first deploy — Forgejo has no CREATE_ADMIN equivalent, so the account is not
-# made declaratively and changing this later rotates nothing. Rotate in the web
-# UI (Settings → Account), then update this so a rebuild-from-scratch matches.
-# No 72-byte ceiling here: Forgejo hashes with pbkdf2 by default, not bcrypt.
 forgejo_admin_password: ""
-# Encrypts 2FA secrets and OAuth2 client secrets at rest. Forgejo generates this
-# during web installation; INSTALL_LOCK skips that step, so an unset value leaves
-# the forge on the constant compiled into every Forgejo binary. Generate one:
-#     docker exec forgejo /app/gitea/gitea generate secret SECRET_KEY
-# or, without a running container:
-#     head -c 32 /dev/urandom | base64
-# Set it BEFORE enabling 2FA or creating tokens: Forgejo has no rotation path,
-# so anything encrypted under the old key has to be re-enrolled by hand.
 forgejo_secret_key: ""
 
-# --- Claude Code (on the Pi) ---
-# Auth is manual: `claude auth login` (claude.ai) on the Pi — credentials persist
-# in ~/.claude. No token here (inference-only tokens can't do Remote Control).
-rclone_webdav_pass: ""  # A Nextcloud app-password for rclone WebDAV access
+rclone_webdav_pass: ""
 
-# --- Daily feed digest (ADR-027) ---
-# Miniflux API key, created BY HAND in Miniflux → Settings → API Keys (the API
-# cannot mint its own). Read by the digest job as the `claude` user. The same
-# session credentials above cover Claude itself: no OAuth token is needed.
 miniflux_api_key: ""
-# Uptime Kuma "Push" monitor URL for the digest dead-man's switch. Empty =
-# disabled, and a digest that stops running becomes invisible.
 feed_digest_kuma_push_url: ""
 
-# --- SearXNG (private metasearch) ---
-searxng_secret_key: ""  # openssl rand -hex 32
-# Opt-in Gerbier theme. false (default) = stock SearXNG; true = apply the dark
-# colour overrides (see docker/branding/searxng).
+searxng_secret_key: ""
 searxng_branding: false
-# Optional path (on the control node) to a logo file (.svg or .png), used only
-# when searxng_branding is true. Empty = keep the stock logo.
 searxng_logo: ""
 
-# --- Dozzle (container logs in the browser) ---
-# bcrypt hash of the UI password — the hash, not the password. Generate it with
-# the image's own CLI, then paste the `password:` value here:
-#   docker run -it --rm amir20/dozzle:v10.6.14 \
-#     generate admin --email admin@localhost --name 'Admin'
-# It prompts for the password, which keeps it out of shell history. Max 72 BYTES
-# — bcrypt reads no further and Dozzle refuses rather than truncating, so a long
-# generated passphrase fails with "password length exceeds 72 bytes".
-# The user/e-mail/name defaults live in group_vars/all.yml; override them there
-# or here if the generated file should carry different ones.
-dozzle_admin_password_hash: ""  # e.g. "$2a$11$…"
+dozzle_admin_password_hash: ""
 
-# --- Kill switch (remote poweroff via ntfy) ---
-killswitch_ntfy_topic: ""  # long random topic, e.g. `openssl rand -hex 16` (acts as a secret)
-killswitch_keyword: ""     # secret keyword; poweroff fires only on an exact match
+killswitch_ntfy_topic: ""
+killswitch_keyword: ""
 
-# --- Observability ---
-# Uptime Kuma "Push" monitor URL for the Pi's OWN power/thermal health
-# (CPU temperature + undervoltage) — same form as backup_kuma_push_url:
-# https://<uptime-kuma>/api/push/<token>  (leave empty to disable monitoring).
-# Create the push monitor + attach a notification: see
-# knowledge/runbooks/backup-monitoring.md
 homelab_health_kuma_push_url: ""
-# Daily container security posture check (issue #33). Create a "Push" monitor in
-# Kuma named e.g. "Pi security posture" and paste its push URL here.
 homelab_posture_kuma_push_url: ""
-# Uptime Kuma "Push" monitor URL for the weekly lynis security audit
-# (hardening index + warnings; DOWN if the index drops below lynis_min_index).
-# Kuma caps the push heartbeat interval at 24 days, so the audit runs weekly
-# (set the monitor's interval to ~8 days). Empty = disabled.
 lynis_kuma_push_url: ""
-# Hourly Nextcloud notify_push self-test. The push server fails silently — the
-# clients drop back to 30s polling and nothing else notices — so this is the
-# only signal that it still works. Create a "Push" monitor named e.g.
-# "Nextcloud notify_push" with a 90 min heartbeat interval (the timer is hourly
-# with a 5 min jitter) and paste its push URL here. Empty = disabled.
 notify_push_kuma_push_url: ""
-# Daily health report for the 5 TB data disk: SMART early-warning counters,
-# capacity, temperature, and the result of the monthly long self-test. Nothing
-# else watches this drive, and it carries every service's data plus the local
-# restic repository. Create a "Push" monitor named e.g. "Pi disk health" with a
-# 26 h heartbeat interval (the report runs daily at 07:00 with 10 min of
-# jitter) and paste its push URL here. Empty = disabled.
 disk_health_kuma_push_url: ""
 
-# --- Backup ---
 restic_password: ""
-# Uptime Kuma "Push" monitor URL for backup monitoring — base form:
-# https://<uptime-kuma>/api/push/<token>  (leave empty to disable monitoring).
-# Create the push monitor + attach a notification: see
-# knowledge/runbooks/backup-monitoring.md
 backup_kuma_push_url: ""
-# Same, for the weekly prune + rotating integrity check (resticprofile,
-# Tuesday 01:00). A separate monitor on purpose: it runs on its own schedule, so
-# folding it into the nightly one would make a missed maintenance invisible.
 local_maintenance_kuma_push_url: ""
 
-# --- Offsite backup (ADR-010) ---
-# Password of the OFFSITE restic repo — distinct from restic_password.
-# CRITICAL: keep a copy OUTSIDE the homelab (paper / offline), it is the key
-# to disaster recovery when the homelab itself is lost. Empty = offsite
-# replication disabled.
 offsite_restic_password: ""
-# Dedicated Kuma push monitors (empty = disabled):
-offsite_copy_kuma_push_url: ""   # nightly restic copy (dead-man's switch)
-offsite_check_kuma_push_url: ""  # weekly offsite repo check
+offsite_copy_kuma_push_url: ""
+offsite_check_kuma_push_url: ""
 
-# --- Netdata curated alarms (ADR-030, phase 1) ---
-# Netdata notifies nobody. A host-side adapter reads its alarm states every
-# 5 minutes and pushes into Uptime Kuma, which stays the single place the
-# notification channel is configured.
-#
-# ONE MONITOR PER ACTION, not per condition — which is what
-# docs/07-observability/README.md asks for. Conditions that would send you to
-# the same place share a monitor, so the dashboard stays readable and there are
-# three to create by hand rather than thirty (Kuma v2 has no API for it).
-#
-# What must never share a monitor is a difference of LIFETIME. `pending` holds
-# the conditions that wait for a human — a pending reboot, an expiring
-# certificate, a marginal sector — and stays red for days by design. Folding
-# those in with the acute checks is what cost a whole day in #216.
-#
-# On each of these monitors, set "Resend Notification if Down X times" in Kuma
-# (6 h is reasonable). Without it a monitor that is already down never
-# re-notifies, so a second condition appearing inside a group reaches nobody —
-# #200 measured 54 hours of continuous outage for a single message. The grouping
-# is only safe with resend on.
-#
-# EMPTY = that group is not installed at all, rather than installed and unread.
-netdata_resources_kuma_push_url: ""   # temperature, undervoltage, memory, swap
-netdata_services_kuma_push_url: ""    # containers (unhealthy + not running); systemd units not migrated yet
+netdata_resources_kuma_push_url: ""
+netdata_services_kuma_push_url: ""
 
-# There is deliberately NO netdata_pending_* here. The "waiting on a human"
-# monitor is fed by homelab-health.sh (see homelab_pending_kuma_push_url at the
-# end of this file): a Kuma push monitor takes its status from whoever pushed
-# last, so two independent pushers on one monitor would overwrite each other.
-
-# --- The "waiting on a human" monitor (issue #216) ---
-# homelab-health.sh pushes TWO signals: the acute checks on the monitor above,
-# and the conditions that wait on a person here — a pending reboot, security
-# updates unapplied for over 48 h, a certificate whose renewal has been failing.
-#
-# Those stay true for days by construction. Folded in with the acute checks they
-# occupied the signal permanently, and since Kuma notifies on a state CHANGE,
-# everything appearing behind them reached nobody. That cost a full day on
-# 2026-08-22: the checks worked, nothing they found could get out.
-#
-# Create a second Push monitor in Kuma — "Pi pending action", long interval,
-# retries 0, resend enabled — and put its push URL here.
-#
-# EMPTY = the split is off and these conditions fold BACK into the main signal,
-# exactly as before. They are never silently dropped.
 homelab_pending_kuma_push_url: ""

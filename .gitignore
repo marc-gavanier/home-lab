@@ -1,42 +1,27 @@
-# Secrets
 docker/.env
 .secrets/
 *.secret
 *.key
 
-# Ansible
 ansible/*.retry
 ansible/inventory/host_vars/*/local.yml
-# Private but NOT secret: personal values that need no encryption and must not
-# be published either (folder names, labels, anything identifying).
 ansible/inventory/host_vars/*/private.yml
 ansible/inventory/host_vars/*/vault.yml
 
-# Python — bytecode caches, written by the pre-commit hooks that run the
-# ops/*.py gates. Two of them were committed on 2026-09-06 and tripped a
-# GitGuardian scan: a .pyc packs the source's string constants end to end,
-# so `password` lands next to unrelated bytes and reads as a credential.
 __pycache__/
 *.pyc
 
-# OS
 .DS_Store
 Thumbs.db
 
-# IDE
 .vscode/
 .idea/
 
-# Logs
 *.log
 
-# Hook artifacts
 .remember/
 
-# SearXNG branding — generated assets and the brand logo stay out of the (public) repo
 docker/branding/searxng/out/
 docker/branding/searxng/logo.*
 
-# Jellyfin Live TV — a channel list is a personal subscription, not project config.
-# Copy iptv-fr.m3u.example next to it; the deploy task skips when it is absent.
 ansible/roles/deploy/files/jellyfin/iptv-fr.m3u

@@ -1,67 +1,4 @@
 #!/usr/bin/env python3
-"""Refuse an iteration over a derived set that has no floor under it.
-
-The defect this exists for, in one sentence: a loop over a set that came back
-EMPTY falls straight through to the success path, so "I examined nothing" and
-"I found nothing wrong" become the same observable. The audit of 2026-09-05
-swept 976 sites for it and found ~30 live instances across goss specs, shell
-reports and Ansible tasks; the remedy had already been written into this repo by
-hand six separate times without ever being generalised.
-
-The Ansible arm was missing until 2026-09-19 -- this docstring named it and the
-scanner did not reach it, which is why the firewall lockout had to be found by
-hand. A gate narrower than its own stated property is the disease this file
-exists to treat, and it had it.
-
-WHAT IS FLAGGED
-
-An iteration whose source is derived at run time --
-
-    for x in $(cmd ...)      for x in `cmd ...`      for x in $VAR
-    while read ... done < <(cmd)   |   ... | while read ...   |   done <<EOF
-
--- and, in an Ansible task, a `loop:`/`with_items:` whose source is a variable
-or an expression rather than a literal inline list:
-
-    loop: "{{ ssh_allowed_sources }}"        loop: "{{ x.results | select(...) }}"
-
-`| default([])` is NOT a floor there. It turns "undefined" into "iterate
-nothing", which is the defect itself wearing a seatbelt: the play goes green
-having done none of the work. The lockout found on 2026-09-19 was exactly this
--- an empty `ssh_allowed_sources` adding no allow rule while the retractions and
-`ufw enable` below it ran anyway.
-
--- unless the same unit also carries one of:
-
-  * a non-emptiness guard: [ -n "$V" ], [ -z "$V" ], test -n/-z
-  * a cardinality guard:   -ge N, -gt N, "$n" -eq 0 leading to a failure
-  * an explicit annotation naming what floors it (see below)
-
-THE ANNOTATION, AND WHY IT IS NOT AN OPT-OUT
-
-Some floors legitimately live elsewhere. `credential-stores-all-closed` loops
-over a derived mount set with no guard of its own, and it is correct: the
-cardinality is asserted 39 lines away by `credential-stores-derivation-nonempty`.
-So a loop may declare its floor:
-
-    # floor: credential-stores-derivation-nonempty
-
-In a goss spec the named assertion MUST EXIST in the same file, and this script
-checks that it does. A floor that is deleted therefore breaks the commit that
-deletes it, which is the property a comment alone would not have. Outside a goss
-spec the annotation takes free text and must give a reason.
-
-THE UNIT
-
-For a goss spec, the unit is one `exec:` block. For a shell script, it is the
-loop plus WINDOW_BEFORE lines above it (where the source is assigned and
-usually guarded) and WINDOW_AFTER below (where a count is usually compared).
-The window is deliberate: a whole-file unit would let one guard anywhere excuse
-every loop in the file.
-
-Run over the repository, not only over staged files, so the count in the commit
-message means something.
-"""
 import re
 import sys
 from pathlib import Path
@@ -75,9 +12,6 @@ ITERATION = re.compile(
   | (?:^|\s)while\s+.*\bread\b                    # while read ...
     """
 )
-# `for x in a b c` over literal words is bounded by construction and is not the
-# defect; only a derived source counts. A literal list never reaches ITERATION
-# because it has no `$` and no backtick.
 
 GUARDS = re.compile(
     r"""(?x)
@@ -97,14 +31,6 @@ ANSIBLE_GLOBS = ("roles/*/tasks/*.yml", "roles/*/handlers/*.yml", "playbooks/*.y
 
 
 def strip_comments(text):
-    """Drop comment bodies before matching.
-
-    Prose is full of the words this script looks for: `homelab-disk.sh.j2`
-    carries "... is read once a night", which matched the `while ... read`
-    pattern and produced this script's first false positive. A `#` inside a
-    single- or double-quoted string is not a comment, so quotes are tracked
-    rather than the line being cut at the first `#`.
-    """
     out = []
     for line in text.splitlines():
         quote = None
@@ -123,7 +49,6 @@ def strip_comments(text):
 
 
 def spec_blocks(text):
-    """Yield (name, start_line, block_text) for each `exec:` block in a goss spec."""
     lines = text.splitlines()
     starts = [i for i, l in enumerate(lines) if re.match(r"\s+exec:\s*(\||>|\S)", l)]
     for i in starts:
@@ -165,20 +90,12 @@ def check_spec(path, text):
     return findings
 
 
-# `[^\\S\\n]` and not `\\s`: \\s crosses the newline, so a block list on the
-# following lines was read as an inline source and every such loop was flagged
-# on the variable inside its FIRST ITEM. Caught by a finding on
-# `ssh_port_hardened`, which is a port and not a list.
 ANSIBLE_LOOP = re.compile(r"^([^\S\n]*)(?:loop|with_items):[^\S\n]*(\S.*?)[^\S\n]*$", re.MULTILINE)
 ANSIBLE_ROOT_VAR = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_]*)")
 ANSIBLE_BARE_VAR = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)$")
 
 
 def ansible_floor(window, var):
-    """A floor for `var` in this window: an assert, a when:, or a `# floor:` note.
-
-    `| default([])` deliberately does not count -- see the docstring.
-    """
     if re.search(r"#\s*floor:\s*\S", window):
         return True
     cardinality = re.compile(
@@ -192,8 +109,6 @@ def check_ansible(path, text):
     lines = text.splitlines()
     for m in ANSIBLE_LOOP.finditer(text):
         source = m.group(2)
-        # A literal inline list, or a block list on the following lines, is
-        # bounded by construction and is not the defect.
         if source.startswith("[") or source in ("", ">-", "|"):
             continue
         quoted = source.strip().strip('"').strip("'")
@@ -205,11 +120,6 @@ def check_ansible(path, text):
         else:
             continue
         line = text[: m.start()].count("\n") + 1
-        # The unit here is the file up to the loop, not a fixed window, and the
-        # reason is semantic rather than convenient: a task file is a sequential
-        # play, so an assert placed earlier really does gate everything after it.
-        # A shell guard may sit in a branch that was not taken, which is why
-        # check_shell keeps its window. The floor must still name THIS variable.
         hi = min(len(lines), line + WINDOW_AFTER)
         window = "\n".join(lines[:hi])
         if ansible_floor(window, var):
@@ -237,15 +147,6 @@ def check_shell(path, text):
 
 
 
-# --- The controls, and why they are in the file rather than beside it --------
-# This register's rule is that a gate counts only once it has been made to FAIL
-# on purpose; #278 is the reference, and it was disbelieved until it failed in
-# both modes. A lint that has only ever been run over a clean repository has
-# proven nothing at all — it would pass just as quietly with its regex broken,
-# which is this script's own defect class applied to itself.
-#
-# So the controls ship with it and run in pre-commit. Each names the real
-# defect it is drawn from.
 CONTROLS = [
     (
         "must FLAG: the published-port derivation as it stood before 2026-09-05",

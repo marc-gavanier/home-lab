@@ -1,20 +1,4 @@
 #!/usr/bin/env python3
-"""Parse every Ansible Jinja template, so a syntax error fails here and not at deploy.
-
-Why this exists. On 2026-08-29 a comment inside `goss-posture.yaml.j2` contained a
-doubled-brace expression, written to WARN against doubled braces. Jinja does not
-know what a YAML comment is: it parsed the comment as an expression and the deploy
-died at the `template` task with `Syntax error in template: unexpected '.'`.
-
-Both linters passed over it. yamllint reads the file as YAML, where the broken line
-is a comment; ansible-lint checks task structure, not template bodies. Nothing in
-the chain rendered the template, so nothing could see it — the error was reachable
-only by running a deploy against the live host.
-
-This parses (does not render) every template: no variables are needed, and a parse
-is enough for the whole class. `TemplateSyntaxError` carries the real line number,
-which the Ansible failure does not always point at precisely.
-"""
 
 import sys
 from pathlib import Path

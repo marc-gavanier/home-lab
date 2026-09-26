@@ -1,17 +1,10 @@
 #!/usr/bin/env bash
 # {{ ansible_managed }}
-# =============================================================================
-# Homelab Pi — weekly lynis audit -> Uptime Kuma push
-# =============================================================================
-# Runs a lynis system audit and reports the hardening index + warning count to
-# a Kuma push monitor. Pushes DOWN when the hardening index drops below the
-# threshold (a regression signal — e.g. a new service loosened the posture);
-# the warning count rides in the message either way. No-ops if no URL is set.
 
 set -uo pipefail
 
 KUMA_PUSH_URL='{{ lynis_kuma_push_url | default("") }}'
-KUMA_PUSH_URL="${KUMA_PUSH_URL%%\?*}"   # tolerate a pasted example query string
+KUMA_PUSH_URL="${KUMA_PUSH_URL%%\?*}"
 MIN_INDEX={{ lynis_min_index | default(65) }}
 REPORT=/var/log/lynis-report.dat
 STATE_DIR=/var/lib/homelab-lynis
@@ -21,38 +14,6 @@ LAST_REPORT="$STATE_DIR/last-green-report.dat"
 
 notify() {
     [ -n "$KUMA_PUSH_URL" ] || return 0
-    # The push URL carries the monitor's own token, so it goes in on stdin
-    # instead of argv: /proc is mounted without hidepid, any local account can
-    # read another process's command line, and this runs unattended on a timer
-    # (#177). printf is a shell builtin, so the value never reaches an argv there
-    # either.
-    #
-    # The failure is KEPT, not discarded. This call used to end in `2>&1 || true`,
-    # which threw away curl's diagnosis AND its verdict, so a report that reached
-    # nobody was indistinguishable from one that landed. Measured on 2026-08-30:
-    # three runs of homelab-health finished green, having done their work, while
-    # their beats never reached Kuma and the monitor sat on a reading 16 min 55 s
-    # old. `|| echo` rather than a real failure because the caller must not abort
-    # on it — what failed is the report, not the check it carries. The marker
-    # string is what `no-kuma-report-was-lost-in-silence` reads in the posture
-    # spec; keep the two in step.
-    # A TIMEOUT IS NOT A LOSS. Until 2026-09-13 every non-zero curl status wrote
-    # `kuma-push-failed: this report reached nobody`, a sentence this side of the
-    # wire cannot justify: whether the beat LANDED is decided by the server, while
-    # curl only reports whether a reply came back inside its own budget. Measured
-    # on the netdata emitter that day — Kuma committed the beat at 23:25:29.334
-    # UTC, the script wrote "reached nobody" exactly TIMEOUT later, payloads
-    # byte-identical. The full reasoning lives once, in homelab-netdata-kuma.sh.
-    # curl exit 28 therefore gets `kuma-push-unconfirmed:`, which the live
-    # assertion's anchored `--grep '^kuma-push-failed:'` does NOT match. Every
-    # other status (22 on a 4xx/5xx, 7 refused, 6 DNS) is a beat that provably
-    # did not land and keeps the original marker and the original words.
-    #
-    # `|| rc=$?` rather than reading PIPESTATUS after a bare pipeline: two of the
-    # ten emitters run under `set -e`, where an unguarded failing pipeline would
-    # abort the whole script — the guard the old `|| echo` provided by accident.
-    # The verdict stays advisory, as it was: every branch leaves the status 0,
-    # because what failed is the report, not the check it carries.
     local rc=0
     printf 'url = "%s"\n' "$KUMA_PUSH_URL" |
         curl -fsS -m 10 --retry 2 -K - -G \
@@ -64,32 +25,8 @@ notify() {
     esac
 }
 
-# Read the version BEFORE the audit, and never after it. ANY lynis invocation
-# truncates $REPORT and starts writing a fresh one — including a non-audit one
-# like `show version`. This used to sit further down, between the parse and the
-# `cp` that preserves the report, so every green run saved a 24-line stub with
-# no `hardening_index` and no `warning[]=` line as $LAST_REPORT. The effect was
-# invisible because the parse had already happened and the Kuma message was
-# correct; only the archived evidence was destroyed. The cost lands on the next
-# REGRESSION, which is the one moment the archive is read: with an empty
-# baseline the "new since last run" clause names EVERY warning as new, which is
-# exactly the failure the comment below says it exists to prevent. Measured
-# 2026-09-05 — last-green-report.dat was 695 bytes, 0 warnings, no index.
 lynis_ver=$(lynis show version 2>/dev/null | tr -cd '0-9.'); lynis_ver=${lynis_ver:-unknown}
 
-# The report's own timestamp, taken BEFORE the run. Everything below used to
-# rest on `[ ! -r "$REPORT" ]`, which could never fire: the distribution ships
-# its own lynis.timer, which was enabled and ran DAILY — so this file was
-# permanently fresh whether or not the audit below did anything at all. lynis
-# could have failed every week for months and the push would have kept carrying
-# the previous run's numbers, in green. The absence of a FRESH artefact is the
-# signal, not the absence of an artefact — the same reasoning the backup script
-# applies to the Immich dump.
-#
-# And it is taken AFTER the version call above, not before it. `show
-# version` truncates $REPORT like any other invocation, so it bumps the mtime:
-# stamping first would make `after != before` true even on a run whose audit
-# failed outright, which is precisely the vacuity this stamp exists to catch.
 before=$(stat -c %Y "$REPORT" 2>/dev/null || echo 0)
 
 lynis audit system --quick --no-colors >/dev/null 2>&1 || true
@@ -108,13 +45,6 @@ fi
 index=$(awk -F= '/^hardening_index=/{print $2; exit}' "$REPORT")
 index=${index//[^0-9]/}; index=${index:-0}
 
-# The warning TEST IDs, not just how many. On 2026-08-23 this monitor said
-# "index 71 (best 73), 4 warnings — regression, was 73" and there was no way to
-# learn WHICH four: the report is rewritten by the next audit, and a manual run
-# two hours later had already destroyed it. The regression turned out to be
-# KRNL-5830, "reboot of system is most likely needed" — a legitimate, temporary,
-# operator-actionable condition that held this monitor red for three days.
-# Naming them would have said so in the first message.
 warn_ids=$(awk -F'|' '/^warning\[\]=/{sub(/^warning\[\]=/,"",$1); printf "%s ", $1}' "$REPORT")
 warn_ids=${warn_ids% }
 warns=$(grep -c '^warning\[\]=' "$REPORT" 2>/dev/null || echo 0)
@@ -125,24 +55,6 @@ suggs=$(grep -c '^suggestion\[\]=' "$REPORT" 2>/dev/null || echo 0)
 
 mkdir -p "$STATE_DIR"
 
-# --- The baseline, and the trap that was in it ------------------------------
-# A ratchet on the best index ever recorded, because the absolute floor is
-# decorative: MIN_INDEX is 65 and the index has measured 74 on five consecutive
-# samples with zero variance, so a fall to 66 — nine points of hardening lost —
-# is reported green. The floor stays as a backstop; the ratchet is what actually
-# guards.
-#
-# It never lowers itself, and that was a time bomb: the hardening index is
-# computed by lynis, so a lynis UPGRADE that adds tests lowers it for everyone,
-# permanently, with no path back to green. The monitor would have been red
-# forever for a reason that is not a regression at all — a change of ruler, not
-# of what is being measured.
-#
-# So the baseline is tied to the version that produced it. A new lynis version
-# resets it and SAYS SO rather than alarming; a regression under the same
-# version is a real regression. To accept a drop deliberately under the same
-# version, remove $BEST_FILE. ($lynis_ver is captured before the audit, above —
-# reading it here would truncate the report this script is about to archive.)
 best=$(cat "$BEST_FILE" 2>/dev/null); best=${best//[^0-9]/}; best=${best:-0}
 best_ver=$(cat "$BEST_VER_FILE" 2>/dev/null); best_ver=${best_ver:-unknown}
 
@@ -154,16 +66,7 @@ if [ "$index" -lt "$MIN_INDEX" ]; then
     exit 1
 fi
 
-# `unknown` means this file did not exist yet, which is NOT a version change —
-# it is the state every host is in the first time this runs. Treating the two
-# alike would discard the recorded baseline on that first run and quietly accept
-# whatever the index happened to be, which is the one moment a regression would
-# be invisible. Found on deployment, 2026-08-26: best-index held 73 and the
-# version file was absent, so the next scheduled audit would have rebaselined
-# instead of comparing.
 if [ "$best_ver" != "unknown" ] && [ "$best_ver" != "$lynis_ver" ] && [ "$best" -gt 0 ]; then
-    # Not a regression: a different ruler. Report it, rebaseline, stay green —
-    # and name both versions so the next audit knows the comparison restarted.
     printf '%s\n' "$index" > "$BEST_FILE"
     printf '%s\n' "$lynis_ver" > "$BEST_VER_FILE"
     cp -f "$REPORT" "$LAST_REPORT" 2>/dev/null || true
@@ -172,9 +75,6 @@ if [ "$best_ver" != "unknown" ] && [ "$best_ver" != "$lynis_ver" ] && [ "$best" 
 fi
 
 if [ "$index" -lt "$best" ]; then
-    # Name what is NEW since the last run rather than leaving "regression, was
-    # 73" to be investigated against a report that no longer exists. The copy
-    # below is what makes this possible at all.
     new_ids=""
     if [ -r "$LAST_REPORT" ]; then
         prev=$(awk -F'|' '/^warning\[\]=/{sub(/^warning\[\]=/,"",$1); print $1}' "$LAST_REPORT")
@@ -206,10 +106,6 @@ if [ -r "$LAST_REPORT" ] && grep -q '^hardening_index=' "$LAST_REPORT" 2>/dev/nu
     new_sugg=${new_sugg# }
 fi
 
-# Keep the report that produced a GREEN verdict, so the next regression has
-# something to be compared against. lynis rewrites /var/log/lynis-report.dat on
-# every run, including a manual one, so without this copy the evidence for a
-# regression is gone by the time anyone reads the message about it.
 cp -f "$REPORT" "$LAST_REPORT" 2>/dev/null || true
 
 if [ -n "$new_warn" ]; then

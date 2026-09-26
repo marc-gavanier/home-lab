@@ -1,6 +1,4 @@
 ---
-# Docker Engine + Compose from the official repo, data-root on the HDD.
-
 - name: install | Install Docker prerequisites
   ansible.builtin.apt:
     name:
@@ -27,72 +25,6 @@
     state: directory
     mode: "0755"
 
-# `shutdown-timeout` is the whole of #288, and it is a DAEMON-WIDE budget rather
-# than a per-container one — which is what the audit's first diagnosis got wrong.
-#
-# Measured from the deliberate reboot of 2026-08-29:
-#
-#     02:45:17.239  dockerd: Processing signal 'terminated'
-#     02:45:32.551  dockerd: level=error msg="Force shutdown daemon"
-#
-# 15.31 s, which is the undocumented default, for TWENTY-EIGHT containers. What
-# had not finished draining by then was killed, and four came back needing
-# recovery: both PostgreSQL databases ("database system was not properly shut
-# down"), MariaDB (InnoDB crash recovery, 853 pages, 47 s) and Pi-hole's FTL
-# store ("recovered 937 frames from WAL").
-#
-# This budget is NECESSARY BUT NOT SUFFICIENT, and the correction is worth
-# recording because the first version of this comment said the opposite.
-#
-# A solo `docker stop` on an idle database reads 1.6 s (miniflux-db) and 2.5 s
-# (immich-db), from which it was concluded that a per-container grace period
-# would not have helped and that this daemon-wide budget was the whole fix. The
-# supervised restart of 2026-08-30 00:22 disproved it in one shot: with 60 s here
-# and no per-container change, both still came back recovering, while
-# nextcloud-db — the only one that had been given `stop_grace_period: 30s` —
-# came back clean.
-#
-# What the logs showed, and why the solo measurement lied:
-#
-#     22:22:52.537  received fast shutdown request
-#     22:22:54.767  shutting down
-#     22:23:00.051  FATAL: the database system is shutting down
-#                   ... killed at the 10 s per-container default, mid-checkpoint
-#
-# An idle database has almost nothing to flush. A real one, twenty minutes into
-# its writes, checkpointing while thirty-two containers drain onto the same USB
-# disk, needs far more than 10 s. MEASURE THE CONDITION THAT ACTUALLY OCCURS.
-#
-# So both knobs are set: a per-database grace in compose.yaml, and this budget to
-# make room for them — four containers that may each take their grace cannot fit
-# in 15.
-#
-# RE-SIZED 2026-09-06, after a third deliberate reboot found the same class. On
-# 2026-09-05 22:56, with 60 s here and 30 s per container, miniflux-db,
-# nextcloud-db and pihole were each killed at their own 30 s mark and came back
-# recovering. Per-container grace went to 90 s, and this budget follows to 150.
-#
-# What was NOT the constraint that night, so that nobody re-derives it:
-#
-#   - this budget. The daemon logged "Daemon shutdown complete" 54 s after the
-#     signal, 6 s inside its own 60. It never fired.
-#   - the signals. Fast shutdown (SIGINT) for both PostgreSQL, SIGTERM for the
-#     other two; every container's own log shows it received and acted on one.
-#   - pihole's CAP_KILL (#288). It worked — FTL ran its clean shutdown path and
-#     logged "Finished final database update" before being killed anyway.
-#
-# What the 54 s DOES say is the useful part: 24 s of that shutdown was network
-# and mount teardown happening outside any container's grace, with dockerd stuck
-# in nf_conntrack_lock long enough for the kernel to report RCU stalls. A daemon
-# budget has to carry that overhead on top of the slowest container, not instead
-# of it — 90 + 24 is ~115, and 150 is the margin over a host that is misbehaving
-# precisely when this budget matters.
-#
-# The third rung is now PINNED rather than inherited: docker_stop_timeout writes
-# TimeoutStopSec into a drop-in below. Until 2026-09-06 this comment read
-# "left at the distribution default", which is exactly the defect — the budget
-# here was bounded by a number this repo did not own and did not assert.
-# The relationship is asserted, not assumed — see the goss posture spec.
 - name: install | Configure Docker daemon
   ansible.builtin.copy:
     dest: /etc/docker/daemon.json
@@ -120,8 +52,6 @@
     state: present
     update_cache: true
 
-# Also ensured by unlock-integration.yml, deliberately duplicated so neither file
-# depends on the other's import order.
 - name: install | Create Docker service override directory
   ansible.builtin.file:
     path: /etc/systemd/system/docker.service.d
@@ -133,9 +63,6 @@
     dest: /etc/systemd/system/docker.service.d/shutdown-budget.conf
     content: |
       [Service]
-      # Must stay ABOVE daemon.json's shutdown-timeout ({{ docker_shutdown_timeout }} s),
-      # or systemd kills the daemon while containers are still draining — the
-      # same loss #288 removed, one level up. Asserted in the goss posture spec.
       TimeoutStopSec={{ docker_stop_timeout }}
     mode: "0644"
   notify: Reload systemd units
@@ -157,11 +84,6 @@
     name: docker
     state: started
 
-# `proxy` only — it is the one network declared `external: true` in
-# compose.yaml, so it must pre-exist. The internal network is created by Compose
-# under the project prefix; naming it here produced a second, empty, orphaned
-# `internal` on a different subnet. See the sibling comment in
-# roles/deploy/tasks/compose.yml.
 - name: install | Create the external Docker network
   community.docker.docker_network:
     name: proxy

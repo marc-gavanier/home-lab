@@ -1,17 +1,4 @@
 ---
-# Staged-startup orchestrator: DNS first, then health-gated waves.
-
-# The orchestrator creates any Tier 0 container a maintenance `compose down`
-# removed, and it names that tier in a hardcoded list. The source of truth is
-# `restart: unless-stopped` in docker/compose.yaml, so the two can drift — and a
-# drift would be silent in the worst possible way: a service that gained the
-# policy but is missing from the list would simply never be created after a
-# maintenance window, and the wave gated on it would time out.
-#
-# Deploy-time rather than runtime, deliberately. Deriving the list on the host
-# would put jq or python3 on the boot path of the one script that has to work
-# when nothing else does; comparing here costs nothing and fails on the
-# workstation, before the change ships.
 - name: startup | The orchestrator's Tier 0 list must match compose.yaml
   vars:
     compose_tier0: >-
@@ -54,12 +41,6 @@
       PartOf=homelab-services.target
       Requires=docker.service
       After=mnt-data.mount docker.service
-      # StartLimitIntervalSec is set EXPLICITLY and it is not decoration. The
-      # default window is 10 s, and with RestartSec=60 no two failures could
-      # ever fall inside it — the burst would never be reached and the unit
-      # would retry forever. The window must span BURST whole attempts, and one
-      # attempt on the timeout path costs TimeoutStartSec + RestartSec:
-      #   attempt = 1800 + 60 = 1860 s;  window >= 3 x 1860 = 5580 s.
       StartLimitIntervalSec=7200
       StartLimitBurst=3
 
@@ -68,34 +49,17 @@
       RemainAfterExit=yes
       TimeoutStartSec=1800
       ExecStart=/usr/local/sbin/homelab-stack-startup.sh
-      # A failed startup used to be terminal, and #241 assumed the crash-heal
-      # was the net under it. It is not: heal only restarts containers that
-      # EXITED non-zero, and a wave that never dispatched leaves its containers
-      # non-existent — there is nothing for it to restart. On 2026-08-26 waves 2
-      # and 3 never ran and 15 containers simply did not exist; heal would have
-      # found nothing to do even with its gate fixed. This is the only mechanism
-      # that recovers that.
-      #
-      # Burst counts the initial start, so this is one attempt plus two retries,
-      # then the unit stays `failed` — which is what raises the alert, and what
-      # finally lets the crash-heal run (its gate accepts is-failed). During the
-      # retries the unit is `activating`, so heal correctly stays out of the way.
       Restart=on-failure
       RestartSec=60
 
       [Install]
       WantedBy=homelab-services.target
 
-# An earlier version wired this WantedBy=multi-user.target, which pulled Docker
-# at boot — before homelab-unlock mounted /mnt/data — and produced a ghost store.
-# Remove that stale symlink so the regression cannot resurface on the next boot.
 - name: startup | Remove stale boot-time wiring of the orchestrator
   ansible.builtin.file:
     path: /etc/systemd/system/multi-user.target.wants/homelab-stack-startup.service
     state: absent
 
-# Enable wires it into homelab-services.target.wants — pulled by homelab-unlock,
-# not at boot. Not started here: the stack is already up after a deploy.
 - name: startup | Wire the orchestrator into homelab-services.target
   ansible.builtin.systemd:
     name: homelab-stack-startup.service

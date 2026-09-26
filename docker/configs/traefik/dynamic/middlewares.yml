@@ -1,91 +1,12 @@
-# =============================================================================
-# Traefik — Dynamic configuration (middlewares)
-# =============================================================================
-
 http:
   middlewares:
-    # Restrict access to the LAN and the VPN — 403 to anything else.
-    #
-    # --- READ THIS BEFORE TIGHTENING (#128, #259) ---------------------------
-    # Two different paths bring trusted traffic here, and neither arrives from
-    # the address you would guess. Both entries below are load-bearing: the
-    # last tidy-up deleted one of them and cost the offsite host its only
-    # channel for reporting anything.
-    #
-    #   VPN clients arrive as 172.18.0.1, never as 10.8.0.x
-    #     wg-easy   -A POSTROUTING -s 10.8.0.0/24 -o eth0 -j MASQUERADE
-    #               so 10.8.0.x leaves the container as wg-easy's OWN address on
-    #               the `proxy` network — not a literal, because Docker assigns
-    #               it at start: this line named 172.18.0.3 until 2026-09-20,
-    #               which is traefik's address, while wg-easy held .2
-    #     clients   AllowedIPs 0.0.0.0/0 — full tunnel, so they reach services
-    #               by the Pi's LAN address and the packet goes out to the host
-    #     host      docker hairpin-NATs it back into the bridge as 172.18.0.1
-    #
-    #   The offsite Pi arrives as 10.8.0.4, on the one path with no NAT at all
-    #     It dials services.<domain>, pinned in its own /etc/hosts to this
-    #     host's WireGuard address, so the packet never leaves the tunnel:
-    #     `ip route get 10.8.0.5` answers `dev wg0 src 10.8.0.4`. Nothing
-    #     masquerades it and Traefik logs the peer address verbatim. This is
-    #     the only channel offsite has, in either direction, for reporting.
-    #
-    # Two NAT hops on the first path, none on the second, and no HTTP proxy
-    # anywhere in either — so there is also no X-Forwarded-For to trust and
-    # read, and `forwardedHeaders` would change nothing. Recovering the real
-    # client address on the first path would mean dropping that MASQUERADE
-    # *and* giving Traefik a route back to 10.8.0.0/24, which it cannot install
-    # (`cap_drop: ALL`) and which would otherwise have to be done on the host,
-    # on the only path to the machine. Deliberately not done.
-    #
-    # --- The census that removed 10.8.0.0/24, and why it could not be right --
-    # #128 dropped the subnet on this evidence:
-    #
-    #   14 days of access logs, 77 395 requests, three source addresses ever:
-    #     59 844  <pi-lan-ip>   the Pi itself
-    #     17 527  172.18.0.1      the hairpin — this is every VPN client
-    #          1  172.18.0.8      uptime-kuma
-    #          0  10.8.0.0/24     in fourteen days
-    #
-    # `accessLog` carried `filters.statusCodes: 400-599`, so that log held ONLY
-    # requests that had already failed. The census enumerated the sources of
-    # refusals. Offsite's successful pushes were invisible to it by
-    # construction, which made "never arrives" and "always succeeded" the same
-    # reading. The filter is gone with #259, so a future census can be drawn
-    # from this log without inverting its meaning.
-    #
-    # `172.18.0.0/16` rather than the `172.16.0.0/12` it replaces: /12 spans
-    # 172.16 through 172.31, admitting all three docker networks — including
-    # `homelab_socketproxy` (172.20, measured 2026-08-30; this comment said
-    # 172.21 and was wrong, which is #292's own point: nobody was watching where
-    # Docker put these), where the Docker socket proxy lives — plus thirteen
-    # /16s that do not exist. Nothing outside 172.18 has reached Traefik in
-    # those fourteen days, so this excludes nothing observed and closes a
-    # lateral path that was open for no reason.
-    #
-    # The narrowing is what makes the allocation load-bearing: Docker assigns
-    # these subnets with no `ipam_config`, so a network recreated after the
-    # others comes back somewhere else, and the day `proxy` moves off 172.18
-    # this line refuses every VPN client. Watched by
-    # `traefik-allowlist-covers-the-live-proxy-subnet`, which compares the LIVE
-    # network against THIS FILE rather than against a remembered value (#292).
-    #
-    # One assertion per entry, because a single one covered only the survivor:
-    #   traefik-allowlist-admits-the-proxy-network  probes from uptime-kuma
-    #   traefik-allowlist-admits-the-vpn-subnet     probes from the host's wg0
-    # The first stayed green through the entire outage — it tests the line that
-    # was never removed. Any tightening that breaks either path is now a red
-    # monitor rather than a lockout discovered from outside the house.
     vpn-only:
       ipAllowList:
         sourceRange:
-          - "192.168.1.0/24"  # LAN
-          - "172.18.0.0/16"   # the `proxy` docker network — AND every VPN client
-          - "10.8.0.0/24"     # the offsite Pi's push path — no NAT on that hop
+          - "192.168.1.0/24"
+          - "172.18.0.0/16"
+          - "10.8.0.0/24"
 
-    # Security headers applied to every service (attached at the websecure
-    # entrypoint). SAMEORIGIN rather than frameDeny: a global frameDeny would
-    # break apps that legitimately iframe their own origin (Nextcloud etc.);
-    # SAMEORIGIN still blocks cross-origin clickjacking.
     secure-headers:
       headers:
         stsSeconds: 31536000
@@ -97,7 +18,6 @@ http:
         browserXssFilter: true
         referrerPolicy: "strict-origin-when-cross-origin"
 
-    # Nextcloud-specific headers
     nextcloud-headers:
       headers:
         stsSeconds: 31536000
@@ -109,45 +29,6 @@ http:
         customResponseHeaders:
           X-Robots-Tag: "noindex, nofollow"
 
-    # Rate limiting
-    #
-    # `burst` is the token-bucket depth: how much of a legitimate page load the
-    # limiter absorbs before it starts refusing. It was 50, and that rejected
-    # real traffic — 851 responses of 429 in nine days (#204), every one of them
-    # on SearXNG's thumbnail proxy, which fetches a whole page of images at once.
-    #
-    # Sized on the measured episodes rather than guessed. Grouping the requests
-    # into episodes separated by more than 30 s gives 30 of them over nine days:
-    #
-    #     largest 183, then 107, 79, 69, 68, 61, 58, 58, 56 …   median 31
-    #
-    # So one page of image results can ask for ~180 thumbnails in a go, and a
-    # bucket of 50 could never carry it. 250 covers the largest observed episode
-    # with room to spare.
-    #
-    # Reading the log needs one precaution: the peak seconds are almost entirely
-    # 429s (67 requests in one second, 67 of them refused), because a rejection
-    # is answered instantly while an accepted request is only logged once the
-    # remote image has been fetched. Those peaks are the signature of an
-    # exhausted bucket, not the arrival profile — size on episodes, not seconds.
-    #
-    # `average` stays at 100/s: it is the sustained ceiling, and the bucket
-    # refills in 2.5 s at that rate. What this middleware defends against is a
-    # runaway or compromised client on the VPN, not the internet — nothing here
-    # is reachable from outside — and 100/s sustained is still a real cap.
-    #
-    # Caveat worth keeping: this sample was taken while the household was away,
-    # so it is one user's traffic. Every VPN client shares this single bucket,
-    # so concurrent users add up inside it; revisit if 429s reappear with the
-    # house occupied.
-    #
-    # That sharing is PERMANENT, not a pending fix, and #128 closed on saying so.
-    # `rateLimit` buckets by source address, and every VPN client reaches Traefik
-    # as 172.18.0.1 after two NAT hops — the mechanism is written out in full
-    # above `vpn-only`. A per-client limit over the VPN is not reachable without
-    # dismantling the NAT and routing 10.8.0.0/24 back to Traefik, on the only
-    # path into this host. So this number has to be sized for the whole VPN at
-    # once rather than per person, and that is what it is.
     rate-limit:
       rateLimit:
         average: 100

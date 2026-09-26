@@ -1,10 +1,4 @@
 ---
-# Thermostatic case fan (kernel gpio-fan overlay).
-# Same mechanism raspi-config uses on Raspberry Pi OS: the kernel switches
-# the fan GPIO at the temperature threshold (hysteresis ~5°C). No daemon,
-# no userspace. Set gpio_fan_pin/gpio_fan_temp in host_vars (52Pi ICE Tower
-# NAS case: pin 14, 60°C per the vendor wiki).
-
 - name: fan | Configure thermostatic fan control
   ansible.builtin.lineinfile:
     path: /boot/firmware/config.txt

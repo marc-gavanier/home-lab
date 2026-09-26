@@ -1,9 +1,4 @@
 ---
-# =============================================================================
-# Role: security — System hardening
-# =============================================================================
-# Thin orchestrator: one file per concern, task names prefixed with the file.
-
 - name: Harden SSH and lock the admin account password
   ansible.builtin.import_tasks: ssh.yml
 
@@ -31,8 +26,5 @@
 - name: Redact the flash-time password hash from cloud-init artifacts
   ansible.builtin.import_tasks: cloud-init.yml
 
-# Apply the SSH port change NOW, not at end of play: if a later role fails,
-# handlers never run and the box is left with sshd on the old port behind a
-# UFW that only allows the new one — a guaranteed lockout (bitten 2026-07-12).
 - name: Flush handlers so sshd matches UFW before later roles run
   ansible.builtin.meta: flush_handlers

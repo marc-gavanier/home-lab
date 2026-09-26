@@ -3,20 +3,6 @@
 Description=Periodic report of Netdata curated alarms to Uptime Kuma
 
 [Timer]
-# *:2/5, offset from homelab-health's *:0/5 on 2026-09-13 (audit class C91 —
-# a set of periodic mechanisms whose schedules are ALIGNED, so their executions
-# coincide and the contention degrades what each measures past its own budget).
-#
-# Every homelab-* timer's OnCalendar fell on a 5-minute boundary, which made the
-# alignment structural rather than accidental: these two were measured
-# overlapping on 43 of 77 runs (56 %). The cost is not CPU, it is that the thing
-# being measured is degraded BY the measuring — Kuma push latency went 274 ms to
-# 12.0 s against what was then a 10 s client budget, and the adapter reported a
-# beat lost that Kuma had already committed.
-#
-# Two minutes, not a random delay: RandomizedDelaySec would reduce the
-# coincidence on average and leave it unbounded on any given tick. A fixed
-# offset is the only one that can be reasoned about.
 OnCalendar=*:2/5
 Persistent=true
 RandomizedDelaySec=15s

@@ -1,67 +1,16 @@
 #!/usr/bin/env bash
 # {{ ansible_managed }}
-# =============================================================================
-# Homelab Pi — host health report
-# =============================================================================
-# Pushes the host-level signals that need a human to a single Uptime Kuma push
-# monitor: undervoltage, pending reboot, stuck security updates, disk capacity,
-# DNS upstream, systemd unit and timer state, the git mirror and certificate
-# expiry. CPU temperature, available memory, swap and the two container
-# conditions are NOT in this list any more — see the "Moved to curated Netdata
-# alarms" note below. This header claimed temperature and unhealthy containers
-# until #263; keep it level with `problems+=(` rather than with memory.
-# A sagging PSU/cable silently corrupts the SD and is the prime suspect behind
-# an unexplained poweroff. Reads kernel sensors directly (vcgencmd is not
-# guaranteed on Ubuntu Server arm64). No-ops when no push URL is configured.
 
 set -uo pipefail
 
 KUMA_PUSH_URL='{{ homelab_health_kuma_push_url | default("") }}'
-# Kuma shows the push URL WITH an example query (?status=up&msg=OK&ping=); if
-# that gets pasted in, our own -G params arrive as a second status=/msg= and
-# Kuma reads the array as DOWN. Strip anything from '?' on so our params win.
 KUMA_PUSH_URL="${KUMA_PUSH_URL%%\?*}"
 
-# A SECOND monitor, for conditions that wait on a human rather than on the
-# machine. Empty = the split is off and everything rides the monitor above,
-# which is the behaviour this script had until #216.
 PENDING_PUSH_URL='{{ homelab_pending_kuma_push_url | default("") }}'
 PENDING_PUSH_URL="${PENDING_PUSH_URL%%\?*}"
 
-push_to() {   # $1 url, $2 status, $3 message
+push_to() {
     [ -n "$1" ] || return 0
-    # The push URL carries the monitor's own token, so it goes in on stdin
-    # instead of argv: /proc is mounted without hidepid, any local account can
-    # read another process's command line, and this runs unattended on a timer
-    # (#177). printf is a shell builtin, so the value never reaches an argv there
-    # either.
-    #
-    # The failure is KEPT, not discarded. This call used to end in `2>&1 || true`,
-    # which threw away curl's diagnosis AND its verdict, so a report that reached
-    # nobody was indistinguishable from one that landed. Measured on 2026-08-30:
-    # three runs of homelab-health finished green, having done their work, while
-    # their beats never reached Kuma and the monitor sat on a reading 16 min 55 s
-    # old. `|| echo` rather than a real failure because the caller must not abort
-    # on it — what failed is the report, not the check it carries. The marker
-    # string is what `no-kuma-report-was-lost-in-silence` reads in the posture
-    # spec; keep the two in step.
-    # A TIMEOUT IS NOT A LOSS. Until 2026-09-13 every non-zero curl status wrote
-    # `kuma-push-failed: this report reached nobody`, a sentence this side of the
-    # wire cannot justify: whether the beat LANDED is decided by the server, while
-    # curl only reports whether a reply came back inside its own budget. Measured
-    # on the netdata emitter that day — Kuma committed the beat at 23:25:29.334
-    # UTC, the script wrote "reached nobody" exactly TIMEOUT later, payloads
-    # byte-identical. The full reasoning lives once, in homelab-netdata-kuma.sh.
-    # curl exit 28 therefore gets `kuma-push-unconfirmed:`, which the live
-    # assertion's anchored `--grep '^kuma-push-failed:'` does NOT match. Every
-    # other status (22 on a 4xx/5xx, 7 refused, 6 DNS) is a beat that provably
-    # did not land and keeps the original marker and the original words.
-    #
-    # `|| rc=$?` rather than reading PIPESTATUS after a bare pipeline: two of the
-    # ten emitters run under `set -e`, where an unguarded failing pipeline would
-    # abort the whole script — the guard the old `|| echo` provided by accident.
-    # The verdict stays advisory, as it was: every branch leaves the status 0,
-    # because what failed is the report, not the check it carries.
     local rc=0
     printf 'url = "%s"\n' "$1" |
         curl -fsS -m 10 --retry 2 -K - -G \
@@ -79,26 +28,11 @@ problems=()
 pending=()
 report=()
 
-# Persistence gates (ADR-030), sourced rather than reimplemented once per
-# condition. See /usr/local/lib/homelab-gate.sh for the measurement that defines
-# them and for why the memory lives here rather than in a netdata alarm.
 if ! . /usr/local/lib/homelab-gate.sh 2>/dev/null; then
     problems+=("homelab-gate.sh missing — every grace period disabled")
-    # Degrade LOUD. Without this fallback `gate` is an unknown command, every
-    # call substitutes to nothing, and every gated condition silently stops
-    # being reported — the silent-disablement shape catalogued in #220. Noisy
-    # beats invisible, so the fallback reports everything immediately.
     gate() { shift 2; [ "$#" -gt 0 ] && printf '%s\n' "$@"; }
 fi
 
-# --- Undervoltage ---
-# The rpi_volt hwmon alarm is a PULSE, not a latch: raspberrypi-hwmon.c clears
-# the firmware's sticky bits on every poll and polls every 2 s. This read is
-# therefore near-blind on its own -- at a 5-minute cadence it has about a 0.7%
-# chance of landing on a 2 s event. It stays because it costs nothing and
-# because the curated netdata alarm, which samples the same bit every second
-# and takes `max` over a minute, is what actually detects this. If that alarm
-# is ever removed, this loop does NOT inherit its coverage.
 uv_seen=0
 for h in /sys/class/hwmon/hwmon*; do
     [ "$(cat "$h/name" 2>/dev/null)" = "rpi_volt" ] || continue
@@ -107,65 +41,8 @@ for h in /sys/class/hwmon/hwmon*; do
 done
 [ "$uv_seen" = 0 ] && report+=("no rpi_volt sensor")
 
-# --- Pending reboot ---
-# Auto-reboot is disabled by policy (a reboot would leave /mnt/data locked and
-# services down until a manual homelab-unlock). So a kernel/library update sits
-# waiting on the operator — push DOWN once so Kuma pings, then schedule the
-# reboot+unlock deliberately. State-change only, so it notifies once, not every
-# heartbeat; clears to UP after the reboot.
 [ -f /var/run/reboot-required ] && pending+=("reboot pending — schedule homelab reboot+unlock")
 
-# The clock this board has before it has a clock (#292, class C42).
-#
-# With no RTC and no /usr/lib/clock-epoch, systemd advances the clock at boot to
-# the mtime of its own binary — 2026-07-28 17:04:45 here, measured. Everything
-# logged until the first NTP reply carries that date, and the journal segment
-# opened in that window is NAMED for it: on the reboot of 2026-08-30 17:00, a
-# file written ten minutes earlier was the oldest on the host, ahead of data
-# from 2026-08-15. journald's vacuum deletes the oldest first, so what it
-# removes first is the beginning of the CURRENT boot.
-#
-# This is reported here and not in the posture spec because it stays true until
-# the next boot and waits on a human — #216's rule, applied to the finding that
-# most tempted breaking it.
-#
-# Recorded because it cost something: an earlier pass declared this mechanism
-# refuted, on the grounds that no segment carried a pre-synchronisation
-# timestamp and that deleting the oldest first cannot remove the newest boot's
-# beginning. Both observations were real and the conclusion was wrong. The
-# segments were absent because they had ALREADY been vacuumed, and the newest
-# boot's beginning is exactly what a delete-oldest-first vacuum takes when that
-# beginning is stamped older than everything else. The refutation trusted a
-# timestamp written before synchronisation, which is the class it was refuting.
-#
-# TWO checks, because they fire at different moments. The skew is the leading
-# indicator: it is true from the first second of a bad boot, whether or not the
-# vacuum has run yet. The banner is the trailing one: by the time it fires, the
-# records are already gone.
-#
-# WHICH CHANNEL, and this changed on 2026-09-12. The skew was in `pending`, and
-# on this hardware that makes it permanent: there is no RTC, fake-hwclock
-# restores the clock AFTER journald has already imported the kernel ring buffer,
-# so every boot begins with a few hundred kernel lines carrying the wrong wall
-# time. The condition is therefore true from the first second of EVERY boot and
-# stays true until the next one. A monitor that is red for the life of every
-# boot is not a warning, it is furniture, and the operator learns to scroll past
-# it — which is the failure mode this whole reporting chain exists to avoid.
-#
-# Measured on the reboot of 2026-09-11: 569 kernel lines stamped 2026-09-05
-# 22:56:10, all at the same second, which is the signature of a ring-buffer
-# import done before the clock was fixed. fake-hwclock itself was fine — it set
-# the clock correctly at 23:35:30, and NTP synchronised at 23:38:43.
-#
-# So the skew now reports, and only ALARMS when the risk it warns about is live.
-# The risk is the vacuum reaching this boot's mis-dated head, and the vacuum only
-# runs as the journal approaches its cap. The threshold is derived from the
-# DEPLOYED cap rather than written here, so changing journald_system_max_use
-# moves it. Unreadable headroom alarms rather than staying quiet: not being able
-# to size the risk is not the same as the risk being absent.
-#
-# The trailing check below is NOT gated. By the time it fires the records are
-# already gone, and that is worth saying whatever the disk says.
 JOURNAL_PRESSURE_PCT=80
 
 journal_cap_mb=$(sed -n 's/^SystemMaxUse=\([0-9]\{1,\}\)M$/\1/p' \
@@ -187,7 +64,7 @@ fi
 boot_journal=$(journalctl -b -o short-unix 2>/dev/null | head -1 | cut -d. -f1)
 boot_real=$(date -d "$(uptime -s)" +%s 2>/dev/null)
 case "${boot_journal:-x}${boot_real:-x}" in
-    *[!0-9]*) ;;   # either unreadable: say nothing rather than guess
+    *[!0-9]*) ;;
     *)
         skew=$(( boot_real - boot_journal ))
         if [ "$skew" -gt 600 ]; then
@@ -213,13 +90,6 @@ case "$boot_first" in
     *) pending+=("the start of boot is already gone from this boot's record, which begins at '${boot_first:-nothing}' (#292)") ;;
 esac
 
-# --- Pending security updates (age-gated) ---
-# unattended-upgrades installs security fixes daily, so a bare nonzero count
-# would flash red in the hours before u-u runs. Only alarm if it is STILL
-# nonzero after 48h — a held/failed/stuck update, or a fix that installed but
-# needs a restart needrestart didn't cover. apt-check prints "all;security" on
-# stderr. The count is deliberately NOT the gate key: it changes as updates land
-# and would restart the clock on every change, so the key is the condition.
 APT_CHECK=/usr/lib/update-notifier/apt-check
 if [ -x "$APT_CHECK" ]; then
     sec=$("$APT_CHECK" 2>&1 | cut -d';' -f2); sec=${sec//[^0-9]/}; sec=${sec:-0}
@@ -232,17 +102,8 @@ if [ -x "$APT_CHECK" ]; then
     fi
 fi
 
-# --- Disk capacity ---
-# A full disk is the one failure nothing else here would catch: restic, Immich
-# and Jellyfin write to /mnt/data, while Docker images and logs fill the SD.
-# Netdata graphs it but has no notification path, so it only ever surfaces
-# after something has already broken. The offsite Pi runs the same check.
 DISK_THRESHOLD=85
 for fs in / /mnt/data; do
-    # /mnt/data is a LUKS volume unlocked by hand after a reboot (staged
-    # startup). Between boot and homelab-unlock it is legitimately absent —
-    # report it, but do not alarm: the "reboot pending" signal already covers
-    # that window, and alarming here would cry wolf on every reboot.
     if ! mountpoint -q "$fs"; then
         report+=("$fs not mounted")
         continue
@@ -253,56 +114,9 @@ for fs in / /mnt/data; do
     [ "$usage" -ge "$DISK_THRESHOLD" ] && problems+=("$fs ${usage}% full")
 done
 
-# --- Moved to curated Netdata alarms (ADR-030) ------------------------------
-# Swap, available memory and CPU temperature all left this script, each only
-# after the whole chain had been seen to fire AND recover on the real system:
-# threshold pushed past the live value, monitor red and notified, threshold
-# restored, monitor green and notified again. They are now health.d/*.conf,
-# reported through the `Pi resources` monitor, and the reasoning behind each
-# number moved with it rather than being restated here.
-#
-# Undervoltage below stays, and is expected to: there is no way to force an
-# event without actually browning out the supply — so it cannot be put through
-# the same proof, and it is the signal that explains an unexplained poweroff.
-# What CAN be proved without a brownout is the detection path, and that proof
-# lives with the offsite check, which greps the kernel journal instead: the
-# driver's two strings were read out of the shipped module binary and the grep
-# was made to fail on purpose against a pattern known to be present.
-#
-# The 57 STOCK Netdata alarms still reach nobody, which remains deliberate: they
-# are tuned for a generic server and the disk-backlog one alone would fire on
-# every nightly backup. What changed is that a signal WE curate no longer has to
-# be written in bash to reach a human.
-#
-# One artefact is left behind on the host by this removal:
-# /var/lib/homelab-health/lowmem.stamp, which nothing reads any more.
-
-# --- DNS upstream ---
-# Nothing else detects a dead DoH upstream, and the failure is silent in the
-# worst way: Pi-hole keeps answering cached names, both containers read green,
-# and the LAN loses resolution for everything else.
-#
-# The Kuma `Pi-hole DNS` monitor cannot see it. It asks for the A record of the
-# domain every 60 s, and FTL answers that from cache essentially always — 10 084
-# queries for that name over 7 days produced 2 upstream forwards, both of them
-# container restarts flushing the cache. It proves FTL is alive, nothing more.
-# Neither can the container healthchecks: dnsproxy has none at all, and
-# Pi-hole's uses `+norecurse` against a local name, so it cannot reach the
-# upstream by construction.
-#
-# A random label cannot be served from cache, so this walks the whole path:
-# FTL -> 127.0.0.1#5053 -> DoH. Verified rather than assumed — a probe query
-# landed in the FTL database as `status=2 forward=127.0.0.1#5053`, 656 ms, while
-# a cached answer returns in ~0 ms with no forward at all.
-#
-# NXDOMAIN is a success here: the question is whether the upstream ANSWERED, not
-# whether the name exists. SERVFAIL, REFUSED and silence are the failures — they
-# are what a dead dnsproxy produces.
 DNS_PROBE_DOMAIN='{{ domain }}'
 if command -v dig >/dev/null 2>&1 && [ -n "$DNS_PROBE_DOMAIN" ]; then
     rand=$(head -c8 /dev/urandom | od -An -tx1 | tr -d ' \n')
-    # No `head -1` on this pipeline: `status: X,` matches exactly one line, and
-    # closing a pipe early is how the earlier probes acquired SIGPIPE races.
     dns_rc=$(dig +time=3 +tries=1 "${rand}.${DNS_PROBE_DOMAIN}" @127.0.0.1 2>/dev/null \
              | sed -n 's/.*status: \([A-Z]*\),.*/\1/p')
     case "${dns_rc:-}" in
@@ -312,49 +126,22 @@ if command -v dig >/dev/null 2>&1 && [ -n "$DNS_PROBE_DOMAIN" ]; then
             ;;
         *)
             report+=("dns ${dns_rc:-no-response}")
-            # Sustained across a run, i.e. >4 min. One upstream hiccup is not an
-            # outage, and this probe deliberately leaves the cache out of the
-            # path, so it has no cushion of its own. 240s rather than the 300s
-            # cadence: a timer that fires a few seconds early must not reset the
-            # verdict, which is the failure mode of counting runs instead of
-            # seconds — what the stamp this replaces actually did.
             [ -n "$(gate dns-upstream 240 unreachable)" ] &&
                 problems+=("dns upstream unreachable, sustained (${dns_rc:-no response})")
             ;;
     esac
 fi
 
-# --- Forgejo pull mirror ---
-# The mirror ran 22 h behind a healthy container on 2026-08-15 and nothing
-# showed it: /api/healthz answered 200, the Kuma monitor stayed UP, no timer
-# failed, and the stale copy was served perfectly throughout (#123, #132).
-#
-# `updated_unix` is NOT the signal, though it reads like one. It moves on every
-# ATTEMPT: in the 03:00 dump taken during that outage it said 00:56 UTC — four
-# minutes old, four hours into the failure. Forgejo records no
-# last-successful-sync anywhere, so there is nothing else in that direction.
-#
-# `next_update_unix` is the signal, and the same dump proves it: 2 h 30 in the
-# PAST and sinking while the mirror was broken, against a future value whenever
-# it is healthy. Forgejo advances it only when a sync completes. A local read,
-# no network call, and no false positive from ordinary lag — the scheduled time
-# is exactly what the field encodes, so being behind upstream between two syncs
-# is invisible to it, which is what we want.
 MIRROR_DB='{{ services_data_dir }}/forgejo/data/data/forgejo.db'
-MIRROR_GRACE=3600   # a sync in flight leaves it seconds overdue, never an hour
+MIRROR_GRACE=3600
 MIRROR_STAMP=/var/lib/homelab-health/mirror.stamp
 if [ -f "$MIRROR_DB" ] && command -v sqlite3 >/dev/null 2>&1; then
-    # ifnull(): an empty mirror table is "nothing configured", not "unreadable"
-    # — the two must not collapse into one message.
     mirror_late=$(sqlite3 -cmd '.timeout 5000' "file:$MIRROR_DB?mode=ro" \
         "select ifnull(cast(strftime('%s','now') - min(next_update_unix) as int), 'none') from mirror;" \
         2>/dev/null)
     case "${mirror_late:-}" in
-        none) ;;                                    # no mirror configured
+        none) ;;
         ''|*[!0-9-]*)
-            # A check that cannot run must not read as a pass. Same two-strike
-            # gate as the DNS probe above, for the same reason: a momentary lock
-            # on a live database is not an incident, a persistent one is.
             report+=("mirror unreadable")
             mkdir -p "$(dirname "$MIRROR_STAMP")"
             [ -f "$MIRROR_STAMP" ] && \
@@ -373,40 +160,11 @@ if [ -f "$MIRROR_DB" ] && command -v sqlite3 >/dev/null 2>&1; then
     esac
 fi
 
-# --- TLS certificate expiry ---
-# Watches the OUTCOME rather than the renewal, and that is the point (#157).
-#
-# Uptime Kuma checks expiry on 15 of the 21 certificates. Six are unwatched:
-# dns (its monitor is type=dns and never opens TLS), proxy (type=port, a bare
-# TCP connect), services (Kuma cannot monitor itself), and indexers, series and
-# films, whose monitors are type=keyword with expiry_notification=0. The first
-# two are green, named after the service whose certificate they cannot see.
-# Counted 2026-09-20: 21 distinct domain.main in acme.json, 15 monitors at
-# expiry_notification=1. This comment read "15 of the 18 ... Three" while the
-# estate had grown to 21 — the watched count did not move when the three *arr
-# services arrived, so the gap widened in silence rather than the coverage.
-#
-# Traefik would NOT hide a failure — measured rather than assumed: the string
-# "Unable to obtain ACME certificate for domains" is in the binary and is
-# emitted at ERROR, which passes log.level=WARN, and ERROR lines from this
-# container do reach the stream. But nothing reads it: 7 application lines in
-# 70 350 retained, the rest being the access log. A red line nobody greps is not
-# an alert, so the control belongs here, on the consequence — which also makes
-# it indifferent to WHY a renewal stopped working.
-#
-# 21 days: Traefik renews at 30 days remaining, so the alarm means renewal has
-# been failing for over a week. Short enough to act on calmly, long enough that
-# one transient failure — Cloudflare unreachable for a night — is retried and
-# never seen.
 ACME_JSON=/mnt/data/services/traefik/acme/acme.json
 CERT_STAMP=/var/lib/homelab-health/certs
 CERT_MIN_DAYS=21
 
 if mountpoint -q /mnt/data && [ -f "$ACME_JSON" ]; then
-    # Re-parsed only when Traefik rewrites the file, i.e. on issuance or
-    # renewal. This runs every five minutes; forking openssl per certificate
-    # that often to re-derive a date that changes four times a year would be
-    # absurd. The countdown itself is arithmetic on the cached date.
     mkdir -p "$(dirname "$CERT_STAMP")"
     acme_mtime=$(stat -c %Y "$ACME_JSON" 2>/dev/null || echo "")
     cached_mtime=""; cached_epoch=""; cached_name=""; cached_count=""; cert_high=""
@@ -424,7 +182,6 @@ with open(sys.argv[1]) as fh:
 for resolver in store.values():
     for cert in resolver.get("Certificates") or []:
         chain = base64.b64decode(cert["certificate"])
-        # The leaf is first in the chain; `openssl x509` reads exactly one.
         out = subprocess.run(
             ["openssl", "x509", "-noout", "-enddate"],
             input=chain, capture_output=True,
@@ -439,7 +196,6 @@ for resolver in store.values():
         if soonest is None or when < soonest[0]:
             soonest = (when, name)
 
-# Nothing parsed is a failure, not a pass: print nothing and let the caller say so.
 if soonest and count:
     print(int(soonest[0].timestamp()), soonest[1], count)
 PYEOF
@@ -448,8 +204,6 @@ PYEOF
             cached_epoch=$(cut -d' ' -f1 <<< "$cert_facts")
             cached_name=$(cut -d' ' -f2 <<< "$cert_facts")
             cached_count=$(cut -d' ' -f3 <<< "$cert_facts")
-            # High-water mark, carried across re-parses. See the ratchet note
-            # below for what it is for and what it deliberately is not.
             if [ -z "$cert_high" ] || [ "$cached_count" -gt "$cert_high" ]; then
                 cert_high=$cached_count
             fi
@@ -459,11 +213,6 @@ PYEOF
         fi
     fi
 
-    # Seed the mark from whatever is already cached. Without this the ratchet
-    # would stay dormant until acme.json is next rewritten — a renewal, so up to
-    # two months — and a fix that arms itself in two months is not deployed.
-    # Stamp files written before 2026-09-03 have four fields, so the fifth reads
-    # empty and lands here on the very first run after the deploy.
     if [ -z "$cert_high" ] && [ -n "$cached_count" ]; then
         cert_high=$cached_count
         printf '%s %s %s %s %s\n' "$cached_mtime" "$cached_epoch" "$cached_name" \
@@ -476,108 +225,16 @@ PYEOF
         if [ "$cert_days" -lt "$CERT_MIN_DAYS" ]; then
             pending+=("certificate $cached_name expires in ${cert_days}d — Traefik renews at 30d, so ACME has been failing for over a week")
         fi
-        # The ratchet, added 2026-09-03. Everything above reads the OFFER — the
-        # certificates that exist — and asks when the nearest one expires. It has
-        # never asked whether one is MISSING, and the count it prints was compared
-        # to nothing at all: 18 went into the Kuma message and out again. A
-        # resolver that stops issuing, or a store that loses an entry, lowers the
-        # count and moves the soonest expiry FURTHER AWAY, so the existing alarm
-        # gets quieter exactly when something has gone wrong.
-        #
-        # A high-water mark rather than an expected total, deliberately. The
-        # demand side lives in Traefik's dynamic configuration and reaching it
-        # from here would mean a new dependency inside a five-minute health
-        # script; the same ratchet shape is already what the lynis hardening
-        # index uses, and it needs nothing that is not in this file. It cannot
-        # see a service that never got a certificate — say so rather than let a
-        # reader assume otherwise — but it does catch every regression from a
-        # state that once worked, which is the failure this gap actually had.
-        #
-        # It resets by hand: delete $CERT_STAMP after deliberately retiring a
-        # hostname, or the alarm is permanent and correct about the old world.
         if [ -n "$cert_high" ] && [ -n "$cached_count" ] && [ "$cached_count" -lt "$cert_high" ]; then
             problems+=("$(( cert_high - cached_count )) certificate(s) gone from $ACME_JSON — $cached_count now, $cert_high before; a resolver has stopped issuing and the expiry alarm goes QUIETER when this happens")
         fi
     else
         problems+=("certificate expiry unreadable in $ACME_JSON")
     fi
-# The last branch in this file where "cannot run" read as "pass" (#177). The
-# mountpoint guard is legitimate — while /mnt/data is locked the file genuinely
-# is not there, and the disk report already says so. But once the volume IS
-# mounted, an absent acme.json means Traefik has never obtained a certificate or
-# the store has moved, and eighteen expiry dates are being watched by nobody.
 elif mountpoint -q /mnt/data; then
     problems+=("$ACME_JSON absent while /mnt/data is mounted — no certificate expiry is being watched")
 fi
 
-# --- Containers: both checks retired here, ADR-030 phase 2 ---------------
-# Two blocks lived here — "unhealthy for >10 min" and "expected but not
-# running" — and both are gone because their replacements were OBSERVED firing,
-# which is the only thing that lets a line leave under ADR-030's rule.
-#
-#   homelab_container_unhealthy   2026-08-24 01:45. A deliberately unhealthy
-#                                 throwaway container, NAMED in the push rather
-#                                 than counted.
-#   homelab_container_down        2026-08-26 22:14. A container stopped and left
-#                                 stopped: alarm at 10 min 44 s, adapter pushed
-#                                 `[docker_local.container_zz-down_state]` to
-#                                 Kuma 51 seconds later.
-#   through a supervised reboot   2026-08-26 10:04-10:28. It never fired, and
-#                                 structurally cannot: netdata is itself in the
-#                                 LAST startup wave, so by the time its docker
-#                                 collector has any chart every container is
-#                                 already up. The boot-window noise the alarm's
-#                                 own header predicts is unreachable.
-#
-# --- One latency trade, recorded rather than discovered later ----------------
-# The second block also caught a container ABSENT from the engine entirely, not
-# merely stopped. That case now falls to the goss spec, which runs DAILY where
-# this ran every five minutes — measured 2026-08-26:
-#
-#   homelab-health.timer / homelab-netdata-kuma.timer   every 5 min
-#   homelab-posture.timer                               daily, 11:02
-#
-# So "someone removed a container" goes from ~15 minutes to up to 24 hours. That
-# is accepted because it is not the case this check was written for: its
-# motivating incident (#34) was a socket-proxy STOPPED while Traefik kept
-# answering 200 from its in-memory routes, and a stopped container is exactly
-# what homelab_container_down catches, at the same latency as before.
-#
-# goss does catch the absent case, and that was measured rather than assumed —
-# it-tools removed from the engine on 2026-08-26 turned five assertions red
-# within the same run, each naming it.
-#
-# Two stamp files under /var/lib/homelab-health/ are left behind by this
-# removal: unhealthy.stamp and missing.stamp. Nothing reads them any more.
-
-# --- systemd units ---
-# Two of the five conditions here are now declared in /etc/goss/units.yaml, and
-# the composition that made that possible is the point of this block: goss has
-# no memory, these checks exist ONLY because of one, and the shared gate supplies
-# it — applied to the NAMES of the assertions that failed, so every assertion in
-# the spec gets a grace period without goss knowing anything about it.
-#
-# Why the grace period is not optional: Docker restarted on 2026-08-16 at
-# 21:36:23 and was up at 21:37:02. Thirty-nine seconds where systemctl does not
-# say "active", on a check that runs every five minutes — a 13% chance of
-# reporting an outage that resolved itself.
-#
-# What did NOT move, and why:
-#   activating loop   the units must be enumerated and NAMED, and goss cannot
-#                     report a value — it streams stdout, and every format says
-#                     `object: *bytes.Reader` (measured on the backup dumps)
-#   timer last run    enumerated from `systemctl list-timers homelab-*`, so a new
-#                     timer is covered without editing anything. A static spec
-#                     would trade that for a list to maintain
-#
-# What was DELETED rather than moved: the NRestarts snapshot, its state file and
-# its latch. The check compared the restart counter against the previous run's,
-# which made a restart detectable for exactly ONE run by construction and needed
-# a latch to survive a second beat. Its own measurement retired it: "Measured
-# over 60 days: one real detection and ZERO notifications."
-#
-# Gated on /mnt/data: before the LUKS unlock the stack is legitimately down and
-# claude-remote-control legitimately retries.
 UNITS_SPEC=/etc/goss/units.yaml
 if command -v systemctl >/dev/null 2>&1 && mountpoint -q /mnt/data; then
 
@@ -587,9 +244,6 @@ if command -v systemctl >/dev/null 2>&1 && mountpoint -q /mnt/data; then
         problems+=("goss binary missing — unit state was not checked")
     else
         units_tap=$(goss -g "$UNITS_SPEC" validate --format tap 2>&1) || true
-        # The plan line is goss's own count. Its absence means it did not parse
-        # the spec, which must read as a failure rather than as nothing to
-        # report: a loop that visits nothing returns true.
         units_total=$(printf '%s\n' "$units_tap" | sed -n 's/^1\.\.\([0-9]*\)$/\1/p')
         units_seen=$(printf '%s\n' "$units_tap" | grep -cE '^(not )?ok [0-9]+ ') || true
         if [ -z "$units_total" ] || [ "$units_total" -eq 0 ]; then
@@ -597,9 +251,6 @@ if command -v systemctl >/dev/null 2>&1 && mountpoint -q /mnt/data; then
         elif [ "$units_seen" -ne "$units_total" ]; then
             problems+=("goss declared $units_total unit assertions and produced $units_seen — the run was cut short")
         else
-            # Both resource types land in the same shape: `Service: docker.service:`
-            # and `Command: systemd-no-failed-units:`. The captured name is what
-            # goes through the gate and what the operator reads.
             units_bad=$(printf '%s\n' "$units_tap" |
                         sed -n 's/^not ok [0-9]* - [A-Za-z]*: \([^:]*\):.*/\1/p' | sort -u)
             # shellcheck disable=SC2086
@@ -609,49 +260,12 @@ if command -v systemctl >/dev/null 2>&1 && mountpoint -q /mnt/data; then
         fi
     fi
 
-    # Any unit stuck in auto-restart is looping, whatever it says about itself.
-    # `systemctl --failed` would catch NEITHER incident that made these checks
-    # exist: a unit with Restart=on-failure and StartLimitIntervalSec=0 restarts
-    # forever and never reaches the failed state — it sits here instead. That is
-    # the state claude-remote-control sat in for 5h47 on 2026-07-27, looping
-    # 1 112 times while work went on continuously on this host.
-    #
-    # Measured tonight and worth knowing before "fixing" it in systemd:
-    # fail2ban and claude-remote-control are precisely the two units with
-    # StartLimitIntervalSec=0, which is what disables the limiter. Giving them a
-    # working one would make systemd declare them failed — and also make them
-    # STOP RETRYING, which for fail2ban is a security decision, not a tidy-up.
-    #
-    # `$4 == "auto-restart"` is the SUB-state, and it is the whole filter. A unit
-    # that is merely starting sits in `start`; only one systemd is restarting
-    # after a failure sits in auto-restart. Dropping that condition for a
-    # `grep -v .target` was tried in this very commit's first draft and caught by
-    # reading the gate's state file: `homelab-health.service` is itself
-    # `activating` while its ExecStart runs, so the check reported ITSELF as a
-    # restart loop, and would have done so on every second run.
     looping=$(systemctl list-units --state=activating --no-legend --plain 2>/dev/null \
               | awk '$4 == "auto-restart" {print $1}')
     # shellcheck disable=SC2086
     looping=$(gate systemd-activating 240 $looping)
     [ -n "$looping" ] && problems+=("restart loop: $(printf '%s ' $looping | sed 's/ $//')")
 
-    # Timer-driven oneshots rest at inactive/dead, so their state says nothing —
-    # the signal is the result of the last run. ENUMERATED rather than listed, so
-    # a new timer is covered without editing this script, which is the property a
-    # declarative spec cannot have.
-    #
-    # A script that exits 1 to mean "I pushed DOWN" is a REPORT, not a failure,
-    # and the units that do it declare SuccessExitStatus=1. homelab-lynis did not
-    # until 2026-08-24, so one event arrived twice: its own monitor red, and this
-    # line naming the unit.
-    #
-    # The enumeration needs a floor for the same reason every other derived set
-    # in this stack does: `list-timers` returning nothing — systemd not
-    # answering, the glob matching none — leaves `badrun` empty, which is the
-    # healthy value. "No timer failed" and "no timer was looked at" were one
-    # sentence. Thirteen are expected; the floor is one, because the point is
-    # to separate an empty enumeration from a clean one, not to hardcode a
-    # count that a new timer would falsify.
     badrun=""
     notrun=""
     timers_seen=0
@@ -659,49 +273,11 @@ if command -v systemctl >/dev/null 2>&1 && mountpoint -q /mnt/data; then
         case "$t" in *.service) ;; *) continue ;; esac
         timers_seen=$((timers_seen + 1))
         r=$(systemctl show "$t" -p Result --value 2>/dev/null)
-        # `Result` does not say WHICH run it describes, and four histories read
-        # `success`: never started in this unit's life, started before the last
-        # boot — the service timestamps are cleared by it, the timer's are not —
-        # started and ended non-zero under `SuccessExitStatus=1`, which seven of
-        # the fourteen control units carry on purpose, and started a minute ago
-        # and passed. Measured 2026-09-18: offsite-smart-test last ran on 09-01
-        # and reads byte-identical to homelab-image-retention, which has never
-        # run at all.
-        #
-        # One case is decidable here without crying wolf on every weekly timer:
-        # the timer FIRED SINCE THIS BOOT and its service never started. Both
-        # fields measure the same monotonic quantity, so the boot resets the pair
-        # together — verified on the offsite, whose 09-01 trigger reads 0 against
-        # a 09-12 boot. It catches what `Result` structurally cannot: a trigger
-        # that produced no run.
-        #
-        # Each side is tested against the literal "0" and NEVER against the
-        # other. systemd renders `LastTriggerUSecMonotonic` as a timespan string
-        # (`1w 2h 3min 53.394959s`) and `ExecMainStartTimestampMonotonic` as raw
-        # microseconds (`612233407772`) — measured 2026-09-19, seventeen
-        # milliseconds apart. The quantities are commensurable; the values read
-        # back are not, so `began < fired` would compare a string against an
-        # integer and never say so.
         fired=$(systemctl show "${t%.service}.timer" -p LastTriggerUSecMonotonic --value 2>/dev/null)
         began=$(systemctl show "$t" -p ExecMainStartTimestampMonotonic --value 2>/dev/null)
         if [ -n "$fired" ] && [ "$fired" != "0" ] && [ "${began:-0}" = "0" ]; then
             notrun="$notrun $t"
         fi
-        # `exec-condition` is a RUN THAT DECIDED IT HAD NOTHING TO DO, not a
-        # failure — systemd's own word for an ExecCondition that declined. It
-        # became reachable on 2026-08-26 when the SMART self-test grew from two
-        # minutes to four hours and had to stop starting a second test on top of
-        # a running one (#207). This check named one healthy value and treated
-        # every other as broken, so the correct outcome read as a failure and the
-        # monitor stayed red after the real failure was fixed.
-        #
-        # Accepting it does NOT re-open the hole it guards. A condition that is
-        # false forever means the timer never does its job — and that is caught
-        # elsewhere, on purpose: homelab-disk.sh compares the self-test's
-        # power-on-hour stamp against the drive's current one and reports
-        # `self-test stale` after two missed weekly runs. The unit result says
-        # "the last run was not a failure"; the dead-man check says "runs are
-        # actually happening". Neither answers the other's question.
         case "$r" in ""|success|exec-condition) continue ;; esac
         badrun="$badrun $t"
     done
@@ -714,52 +290,6 @@ if command -v systemctl >/dev/null 2>&1 && mountpoint -q /mnt/data; then
     [ "$timers_seen" -eq 0 ] && problems+=("no homelab-* timer was enumerated — the unit check asserted nothing")
 fi
 
-# --- The crash-heal timer is LOOKING, not merely running ---------------------
-# The heal timer is the only recovery path for the 23 of 29 containers that run
-# with `restart: "no"`, and until 2026-09-05 a run that examined nothing looked
-# exactly like a run that found nothing wrong: no journal line either way, and
-# `Result=success` either way. That is not a hypothetical — it is what the
-# 2026-08-26 outage looked like from here, with 15 containers stopped.
-#
-# The script now reports its own cardinal, so this asserts on the number rather
-# than on the silence. Two different failures, named separately:
-#
-#   no line at all      the timer fires and the script dies before its report,
-#                       or the timer is not firing while claiming to be active.
-#   checked 0           the script ran and its query returned an empty set —
-#                       the docker socket is gone, the label filter matches
-#                       nothing, or the daemon is not answering. Healing is off
-#                       and nothing else would say so.
-#   checked N of M      the daemon answered, and answered short. A store that
-#                       came back partial reports a number that is small and
-#                       truthful, and the `>= 1` floor this block first shipped
-#                       with accepted it. M comes from compose, not from the
-#                       daemon, so the two sides of the comparison cannot fail
-#                       together.
-#
-# TWO guards, and the second one cost a false DOWN on 2026-09-05 before it was
-# written. An assertion must not demand a window LONGER THAN THE PRODUCER HAS
-# EXISTED, and here the producer is always younger than the assertion:
-# `observability` is a phase-1 role and `stack-startup` is phase-5, so every
-# deploy that touches both installs this check roughly ten minutes before the
-# script whose output it reads. Measured that day: health script at 10:31:39,
-# heal script at 10:41:08, first `checked` line at 10:42:14, and the run at
-# 10:41:08 pushed DOWN for a mechanism that was working. Recovered by itself at
-# 10:45:58, which is exactly what makes it a trap — a four-minute red that looks
-# like a fault and is an ordering artefact.
-#
-# It is the shape C82 describes, met inside the change that closed C82. The
-# remedy is not to reorder the roles, which would fight the phase structure for
-# one check: it is to start the window at the later of "15 minutes ago" and
-# "when the producer was installed".
-#
-#   script older than the window   the report is genuinely overdue.
-#   script younger                 there has not been time for one yet; silence
-#                                  carries no information and must not be read.
-#
-# The mtime guard does not subsume the boot case, so both stay: after a reboot
-# the script is old but has not run, and ExecMainExitTimestamp is empty until
-# its first tick.
 heal_script=/usr/local/sbin/homelab-stack-heal.sh
 heal_installed=$(stat -c %Y "$heal_script" 2>/dev/null || echo 0)
 if [ $(( $(date +%s) - heal_installed )) -gt 900 ] &&
@@ -769,58 +299,21 @@ if [ $(( $(date +%s) - heal_installed )) -gt 900 ] &&
     if [ -z "$heal_last" ]; then
         problems+=("crash-heal has not reported in 15 min — it may be firing blind")
     else
-        # --- The floor is the DECLARED count, not one --------------------
-        # `>= 1` caught a run that saw nothing and missed a run that saw
-        # three of twenty-nine — a daemon answering from a half-built store
-        # reports a number that is small, truthful and useless. The heal
-        # script now emits `checked N of M declared`, M coming from
-        # `docker compose config --services`, so the comparison has an
-        # independent right-hand side.
-        #
-        # Both formats are accepted on purpose. This role is phase 1 and
-        # stack-startup is phase 5, so a deploy installs this parser about
-        # ten minutes before the producer whose new sentence it reads —
-        # which is precisely the fault this block's own header describes.
-        # The mtime guard above already suppresses the window; accepting the
-        # old sentence as well means a straggler cannot manufacture a DOWN.
         heal_n=$(printf '%s' "$heal_last" | sed -n 's/^checked \([0-9]\{1,\}\) .*/\1/p')
         heal_m=$(printf '%s' "$heal_last" | sed -n 's/^checked [0-9]\{1,\} of \([0-9]\{1,\}\) declared.*/\1/p')
         if [ -z "$heal_m" ]; then
             [ "${heal_n:-0}" -ge 1 ] || problems+=("crash-heal examined 0 containers — recovery is off")
         elif [ "${heal_n:-0}" -lt "$heal_m" ]; then
             problems+=("crash-heal saw ${heal_n:-0} of $heal_m declared services — it is looking at a partial stack")
-        # MORE containers than declared, added 2026-09-13. The comparison above
-        # was one-directional and therefore could not see the fault it most
-        # needed to: a heal run that lands inside a Compose recreate counts
-        # Docker's rename-on-recreate temporary as a real container and reports
-        # `checked 30 of 29`. `30 -lt 29` is false, so both collisions of
-        # 2026-09-05 and 2026-09-12 passed straight through this assertion
-        # while the unit also exited 0. An assertion is not weak here, it is
-        # pointed the wrong way.
         elif [ "${heal_n:-0}" -gt "$heal_m" ]; then
             problems+=("crash-heal saw ${heal_n:-0} of $heal_m declared services — it collided with a recreate and may have restarted a transient")
         fi
     fi
 fi
 
-# --- Verdict ---
-# TWO signals, not one, and that split is the whole point of #216.
-#
-# A pending reboot waits on a human and stays true for days by construction.
-# Folded in with the acute checks it occupied the signal permanently: the
-# monitor sat DOWN for a whole day, and because Kuma notifies on a state CHANGE,
-# every acute condition appearing behind it reached nobody. The checks were
-# working; nothing they found could get out.
-#
-# So conditions that wait on a person go to their own monitor, where they can
-# stay red for a week without deafening anything.
-#
-# If that second monitor is not configured, they fold BACK into the main signal
-# rather than vanishing — an unconfigured URL must not silently drop a check.
 join() { local out; out=$(printf "%s$1" "${@:2}"); echo "${out%"$1"}"; }
 msg=$(join ', ' "${report[@]}")
 
-{# bash ${#array[@]} reads as a Jinja comment opener — shield it #}
 {% raw %}
 if [ -z "$PENDING_PUSH_URL" ] && [ ${#pending[@]} -gt 0 ]; then
     problems+=("${pending[@]}")

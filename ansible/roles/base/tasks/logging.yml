@@ -1,76 +1,4 @@
 ---
-# Volatile-storage policy — bound what the OS writes to the SD card.
-# Docker logs and swap already live on the HDD (docker + storage roles); this
-# file handles the remaining SD write sources.
-
-# journald's persistent journal lives on the ENCRYPTED volume since 2026-09-20,
-# not on the SD card. A drop-in wins over the shipped journald.conf without
-# editing it; "99-" sorts last so it beats any CIS-supplied fragment.
-#
-# WHY IT MOVED, and the sentence that used to stand here is why it took so long.
-# It read: "Keep it PERSISTENT — boot logs must survive a poweroff, they are
-# what the 'unexplained poweroff -> reflash' runbook reads to decide". **The
-# runbook it cites says the opposite**, at boot-and-unlock.md:70: "the journal
-# lives on the SD, so it proves nothing" — precisely because anyone who can pull
-# the card can forge it. The stated reason for keeping 560 MB of command lines
-# on an unencrypted card was refuted by its own source, and nobody had put the
-# two sentences side by side. Moving the journal STRENGTHENS the tamper story:
-# a journal on the encrypted volume cannot be rewritten by pulling the card.
-#
-# What made it necessary: the audit of 2026-09-20 found live credentials in the
-# journal — journald records `_CMDLINE` for every process, so any secret that
-# reaches a command line lands there, in binary, with no insertion point for the
-# masking that now covers auth.log and sudo.log. Moving the store is the only
-# remedy that reaches it.
-#
-# HOW IT AVOIDS THE BOOT PATH, which is the part that has to be right. The
-# volume is unlocked by hand, so nothing in the boot path may wait for it.
-# `Storage=auto` means journald writes persistently ONLY if /var/log/journal
-# exists — and on this host it does not: it is created by the mount unit in storage/tasks/journal.yml
-# when the volume appears. Before the unlock the journal is in RAM; after it,
-# the directory exists and `journalctl --flush` moves the buffer in. Nothing in
-# sysinit.target waits for anything, and `systemd-journal-flush.service` is left
-# exactly as the distribution ships it. If the volume never mounts, the journal
-# stays volatile and the machine boots normally — the failure mode is a lost
-# journal, never a hung boot.
-#
-# RuntimeMaxUse is what bounds the pre-unlock window, and 50M was sized for a
-# window of minutes. The unlock is MANUAL: the window lasts until a human is in
-# the room, which can be hours, so the buffer is raised to 300M against 4 GB of
-# available RAM. Overflow costs the OLDEST entries of that window, not the boot.
-#
-# What stays on the SD and is unaffected: rsyslog's syslog and kern.log, which
-# carry 5 741 systemd lines and every boot message, so a boot that never reached
-# the unlock is still diagnosable from the card. Measured 2026-09-20, and they
-# hold no credential: 859 long runs, all container IDs and Ansible checksums,
-# and the 17 `password=` occurrences are `update_password=always`.
-#
-# The history of the CAP, which is a separate question from where the store
-# lives and stays valid after the move. NOTE: the retention argument below was
-# written when the journal was believed to be the poweroff runbook's evidence;
-# that premise is refuted above. What survives it is the OTHER reason, and it is
-# the load-bearing one — a monthly event whose only durable record expires in
-# sixteen days is not recorded at all.
-#
-# The cap was 200M and the journal sat at 199.1M, i.e. permanently rotating:
-# measured retention was 14.3 days against 19 days of uptime, so the boot of
-# 2026-07-28 was already gone. 74 % of the volume is SSH session accounting. Raising the cap adds NO
-# writes (the cap governs deletion, not writing) and costs 300M on a filesystem
-# with 45G free. Counter-check: the offsite host retains 42 days at the same
-# cap, which is what shows 200M is not a universal figure but a symptom of this
-# host's log rate.
-#
-# Raised again on 2026-08-30, 500M -> 1500M, for a different reason than the
-# first move (#290, class C39). 500M held 16 days at the measured 31 MB/day,
-# while the events this journal is the ONLY durable record of run monthly — the
-# rotating deep verification of the backup repository, and every container the
-# heal timer resurrects. Evidence that expires before the event repeats is not
-# evidence. Re-measured 2026-09-21, after the journal moved to the encrypted
-# volume: 545.3 MiB spanning 21.3 days, so 25.6 MiB/day and about 59 days at
-# saturation, not the 48 this said. The 45-day threshold of the deep check is
-# NOT what sizes this — that assertion reads Kuma's heartbeat history, not the
-# journal. What the cap must outlive is the period of the jobs whose only
-# durable record is the journal, the longest of which is monthly.
 - name: logging | Ensure the journald drop-in directory exists
   ansible.builtin.file:
     path: /etc/systemd/journald.conf.d
@@ -91,15 +19,6 @@
       RuntimeMaxUse=300M
   notify: Restart systemd-journald
 
-# /tmp defaults to the SD card. A tmpfs /tmp removes that write surface
-# entirely (RAM is plentiful on both hosts) and satisfies CIS's /tmp
-# separate-mount rules. fstab is safe HERE — unlike /mnt/data: tmpfs has no
-# device dependency, so the LUKS "ghost store" race that banned fstab for the
-# data mount does not apply. Size-capped so a runaway temp writer hits a loud
-# ENOSPC instead of silently exhausting RAM.
-# Deliberately NOT noexec: apt/dpkg postinst and container/pip tooling exec
-# from /tmp — noexec there is a foot-gun on a Docker host (documented CIS
-# deviation, not a fix).
 - name: logging | Mount /tmp as tmpfs (size-capped, nosuid/nodev)
   ansible.posix.mount:
     path: /tmp
@@ -107,9 +26,5 @@
     fstype: tmpfs
     opts: "defaults,nosuid,nodev,noatime,size={{ tmp_tmpfs_size | default('1G') }}"
     state: mounted
-  # AnsiballZ explodes the module payload under TMPDIR (/tmp by default); the
-  # moment this task mounts a fresh tmpfs over /tmp it hides that payload, and
-  # the module dies mid-run trying to re-read its own zip. Land the payload in
-  # /var/tmp so it survives the remount.
   environment:
     TMPDIR: /var/tmp

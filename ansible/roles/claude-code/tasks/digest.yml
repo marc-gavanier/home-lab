@@ -1,12 +1,4 @@
 ---
-# Daily feed digest: Miniflux -> claude -p -> Obsidian vault (ADR-027).
-#
-# No API key and no long-lived OAuth token: this runs as the `claude` user, whose
-# ~/.claude already carries the claude.ai login Remote Control needs. Issue #15
-# specified a `claude setup-token` OAuth token stored in the vault; measuring
-# showed `claude -p` works with the existing session credentials, so the most
-# fragile piece of the design (a secret expiring once a year, silently) is gone.
-
 - name: digest | Create the digest working directory
   ansible.builtin.file:
     path: /home/claude/.local/share/feed-digest
@@ -15,8 +7,6 @@
     group: claude
     mode: "0750"
 
-# The prompt lives in its own file rather than inside the script on purpose: it
-# is the part that gets tuned, and tuning it should not mean re-reading shell.
 - name: digest | Render the digest prompt
   ansible.builtin.template:
     src: feed-digest-prompt.md.j2
@@ -33,9 +23,6 @@
     group: claude
     mode: "0750"
 
-# 0400 and claude-owned: the script reads it, nothing else needs to. It sits on
-# the LUKS volume with the rclone password, under the 0700 directory vault.yml
-# creates (ADR-011).
 - name: digest | Write the Miniflux API key
   ansible.builtin.copy:
     dest: /mnt/data/secrets/claude/miniflux_api_key
@@ -46,12 +33,6 @@
   no_log: true
   when: miniflux_api_key | default('') | length > 0
 
-# The retract half, and without it the guard above is a revocation that does not
-# revoke: clearing miniflux_api_key in the vault SKIPS the write, and the key
-# already on disk stays there — 0400 on LUKS, and still read by digest.sh, which
-# resolves it by path and has no idea the operator meant to withdraw it.
-# Emptying the variable is the documented way to turn the digest off, so it has
-# to be the way the key leaves the host too.
 - name: digest | Remove the Miniflux API key when it is not configured
   ansible.builtin.file:
     path: /mnt/data/secrets/claude/miniflux_api_key
@@ -65,10 +46,6 @@
     content: |
       [Unit]
       Description=Daily feed digest (Miniflux -> Claude -> vault)
-      # Same soft dependency as claude-remote-control.service, for the same
-      # reason documented there: a hard Requires= on the mount makes a slow boot
-      # kill the unit permanently. Wants= + a /proc/mounts gate lets a run that
-      # fires before the mount is ready fail cleanly and be retried tomorrow.
       After=network-online.target vault-mount.service
       Wants=network-online.target vault-mount.service
       RequiresMountsFor=/mnt/data
@@ -77,63 +54,11 @@
       Type=oneshot
       User=claude
       Group=claude
-      # NOT the vault: a WorkingDirectory that is an unmounted rclone endpoint
-      # fails the unit at chdir with 200/CHDIR before ExecStartPre can report
-      # anything useful. The script addresses the vault by absolute path.
       WorkingDirectory=/home/claude
       Environment=HOME=/home/claude
-      # NO ExecStartPre, since 2026-09-13, and the removal is the fix rather
-      # than a relaxation. The gate it held — the mount point exists as an empty
-      # local directory when rclone is not up, so the note would land on the SD
-      # card — now lives in digest.sh, three lines after `fail()` is defined.
-      #
-      # It had to move because an ExecStartPre that fails takes the unit down
-      # BEFORE the only notify() in this chain exists. On 2026-09-13 at 06:34:01
-      # it did exactly that: the mount was present and returning EIO (Nextcloud
-      # was refusing rclone's credential), the control process exited 2, and the
-      # failure was announced to nobody. The dead-man's window reported it 60 min
-      # 46 s later with no cause, and a manual re-run at 12:36 reset `Result=` to
-      # success. Same assertion, same two halves, in the one place that can speak.
-      # SuccessExitStatus=1, 2026-09-13. This script REPORTS by pushing DOWN to
-      # its own Kuma monitor and then exiting 1, so without this line one
-      # incident is announced twice: once by this unit's monitor, and again by
-      # `Pi health`, which reds on `last run failed:`. The second message says
-      # nothing the first did not, and it LATCHES the aggregate monitor — `Pi
-      # health` carries ~17 acute host conditions, and while it is held DOWN by
-      # a scheduled job's problem an acute one arriving behind it notifies
-      # nobody until the next resend (#216).
-      #
-      # The rule is not new: it was applied to homelab-lynis on 2026-08-24 and
-      # the journal is its own positive control — lynis appears in
-      # `last run failed:` on 08-23 and 08-24 and never again. What was missing
-      # is that the POPULATION was never swept. It is now: of the 13 timer
-      # services, the ones that report by exiting non-zero after pushing DOWN
-      # get this line.
-      #
-      # NOT applied to homelab-backup or homelab-local-maintenance, and that is
-      # deliberate: both carry TWO ExecStart lines whose ordering guarantee
-      # depends on Type=oneshot stopping at the first failure — no replication
-      # if the backup did not run, no check if the prune did not. Making exit 1
-      # a success would run the second command anyway. Their duplicate
-      # notification is the cheaper of the two costs.
       SuccessExitStatus=1
       ExecStart=/home/claude/.local/share/feed-digest/digest.sh
-      # The hard stop, and it is not theoretical: on 2026-08-13 six abandoned
-      # `claude` sessions held 1.5 GB of RAM and 525 MB of swap on this host for
-      # up to eleven days. Those were interactive and someone eventually noticed.
-      # A timer-driven job that never exits would do the same thing unwatched, so
-      # it gets a ceiling well above a normal run (37 s measured on 30 entries).
-      #
-      # TimeoutStartSec, NOT RuntimeMaxSec: with Type=oneshot systemd ignores
-      # RuntimeMaxSec outright — "has no effect in combination with Type=oneshot,
-      # Ignoring" in the journal, which is easy to miss among the start lines.
-      # Worse, Type=oneshot defaults TimeoutStartSec to INFINITY, so the first
-      # version of this unit had no ceiling at all while claiming one. A oneshot
-      # service is "starting" for its whole life, so the start timeout is what
-      # bounds it. Caught on the first manual run.
       TimeoutStartSec=900
-      # No Restart=: a failed run is reported to Kuma and retried tomorrow.
-      # Retrying a digest that just burned tokens on a bad response buys nothing.
 
       [Install]
       WantedBy=multi-user.target
@@ -148,8 +73,6 @@
 
       [Timer]
       OnCalendar=*-*-* {{ feed_digest_hour | default('06:30') }}:00
-      # Catches up after a reboot or a Pi that was off at the scheduled time —
-      # the digest is a daily record, missing one because of an outage is a loss.
       Persistent=true
       RandomizedDelaySec=300
 

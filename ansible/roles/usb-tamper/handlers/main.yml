@@ -1,11 +1,5 @@
 ---
-# =============================================================================
-# Handlers: usb-tamper
-# =============================================================================
-# Reload only — NEVER `udevadm trigger` here: replaying add events with the
-# tamper rule live would fire the poweroff on the spot if the system is armed.
-# =============================================================================
-
+# [critical]: reload only, never `udevadm trigger`: replaying add events with the tamper rule armed powers the host off
 - name: Reload udev rules
   ansible.builtin.command:
     cmd: udevadm control --reload-rules

@@ -1,18 +1,4 @@
 ---
-# resticprofile — ADR-031, migration complete.
-#
-# Installs the binary and the profile. This header claimed "phase 1 … backup.sh
-# keeps running on its timer" until 2026-08-29, which stopped being true the day
-# the timers moved: resticprofile owns the nightly backup and the two weekly
-# jobs, and backup.sh, local-maintenance.sh and offsite-check.sh no longer
-# exist. It was staged that way on purpose — install, exercise by hand against
-# the real repository including a restore, then switch — and that sequence is
-# recorded here because it is the part worth reusing.
-#
-# The `no_self_update` build on purpose. A binary that updates itself on a host
-# whose image and package versions are pinned and reviewed through Renovate
-# would be a hole in that process rather than a convenience.
-
 - name: resticprofile | Read the installed version, if any
   ansible.builtin.command: resticprofile version
   register: resticprofile_installed
@@ -23,9 +9,6 @@
 - name: resticprofile | Install the pinned release
   when: resticprofile_version not in (resticprofile_installed.stdout | default(''))
   block:
-    # Checksum published by the project alongside the release. Without it this
-    # task would trust whatever the network returned, on the host that holds the
-    # backups.
     - name: resticprofile | Download the release archive
       ansible.builtin.get_url:
         url: "{{ resticprofile_release_url }}/{{ resticprofile_archive }}"
@@ -55,17 +38,6 @@
         path: /tmp/resticprofile.tar.gz
         state: absent
 
-# The password files this profile reads are written by secrets.yml, which runs
-# far earlier in the role. They used to be written HERE, and the move is not
-# cosmetic: `restic init` in backup.yml runs before this file and now reads the
-# same password through RESTIC_PASSWORD_FILE, so writing them here would have
-# left a fresh host initialising its repository against a file that does not
-# exist yet. The existing host would never have shown it.
-
-# The half no tool expresses. resticprofile's hooks receive PROFILE_NAME and
-# PROFILE_COMMAND and nothing else, so a readable notification has to be built
-# outside the tool. Its sibling backup-dumps.sh is gone: the dump COMMANDS are
-# hooks in the profile and the assertions are the goss spec below.
 - name: resticprofile | Install the notification adapter
   ansible.builtin.copy:
     src: backup-notify.sh
@@ -75,15 +47,11 @@
     mode: "0750"
 
 - name: resticprofile | Remove the dump script it replaced
-  # 373 lines. ADR-031 kept it because "resticprofile has no equivalent" for the
-  # assertions, which stopped being true when ADR-032 installed goss.
   ansible.builtin.file:
     path: /opt/homelab/scripts/backup-dumps.sh
     state: absent
 
 - name: resticprofile | Install the dump assertions
-  # /etc/goss is created by the observability role, which site.yml runs first.
-  # Same mode as the posture spec: it names every database path on this host.
   ansible.builtin.template:
     src: goss-backup-dumps.yaml.j2
     dest: /etc/goss/backup-dumps.yaml

@@ -1,24 +1,18 @@
 ---
-# Dedicated unprivileged user, sandbox deps, Claude Code binary.
-
 - name: install | Create the dedicated unprivileged 'claude' user
   ansible.builtin.user:
     name: claude
     shell: /bin/bash
     create_home: true
-    # Deliberately NOT added to sudo or docker — least privilege.
 
 - name: install | Install sandbox deps (bubblewrap + socat) and rclone
   ansible.builtin.apt:
     name:
-      - bubblewrap   # filesystem isolation for /sandbox
-      - socat        # network isolation for /sandbox
+      - bubblewrap
+      - socat
       - rclone
     state: present
 
-# Ubuntu 24.04 restricts unprivileged user namespaces (AppArmor), which blocks
-# bubblewrap — and thus Claude Code's /sandbox. Allow ONLY bwrap to use userns,
-# keeping the global restriction in place for everything else.
 - name: install | Allow bubblewrap user namespaces (AppArmor profile)
   ansible.builtin.copy:
     dest: /etc/apparmor.d/bwrap
@@ -33,7 +27,6 @@
       }
   notify: Reload bwrap AppArmor profile
 
-# Official installer pattern; guarded by `creates` so it runs once.
 - name: install | Install Claude Code for the claude user  # noqa: command-instead-of-module
   ansible.builtin.shell:
     cmd: set -o pipefail; curl -fsSL https://claude.ai/install.sh | bash

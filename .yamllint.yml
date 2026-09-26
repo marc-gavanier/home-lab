@@ -1,27 +1,19 @@
 ---
-# yamllint configuration — aligned with ansible-lint's internal yamllint
-# profile so the two tools never disagree.
 extends: default
 
-# Never lint third-party roles, wherever they get installed.
 ignore: |
   ansible/roles/UBUNTU24-CIS/
 
 rules:
   line-length:
     max: 160
-  # Ansible idiom: inline dicts in loops — `{ key: value }` with padding.
   braces:
     max-spaces-inside: 1
-  # `on:` in GitHub workflow files is a key, not a boolean.
   truthy:
     check-keys: false
-  # Markdown-embedded and generated YAML (compose) don't all start with ---.
   document-start: disable
   comments:
     min-spaces-from-content: 1
-  # Required by ansible-lint for its yaml rule to stay compatible
-  # (https://docs.ansible.com/projects/lint/rules/yaml/).
   comments-indentation: false
   octal-values:
     forbid-implicit-octal: true
