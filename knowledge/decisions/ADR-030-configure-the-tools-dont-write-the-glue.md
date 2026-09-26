@@ -193,7 +193,7 @@ because a field was left blank. Nothing about the existing Kuma path changes.
 > alarms are written `to: silent` like the stock ones, and a host-side adapter
 > (`homelab-netdata-kuma.sh`) pushes each into its own Uptime Kuma monitor, so
 > Netdata notifies nobody and Kuma is the only channel. See
-> `docs/07-observability/README.md`, "Since ADR-030 there is a third option".
+> `docs/07-observability/README.md`, "Netdata alarms, and how they reach Kuma".
 
 ### The migration rule — this is the part that guarantees no do-and-undo
 

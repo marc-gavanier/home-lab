@@ -1,6 +1,7 @@
 # Services
 
-Every service runs as a Docker container from one Docker Compose file. Persistent data lives on the 5 TB HDD.
+Every service except Claude Code (a host systemd unit, see [claude-code.md](claude-code.md)) runs
+as a Docker container from one Docker Compose file. Persistent data lives on the 5 TB HDD.
 
 ## Deployed Services
 

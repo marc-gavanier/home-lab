@@ -133,6 +133,7 @@ never put it in a variable or file on this host.
    sudo systemctl stop rest-server
    sudo restic -r /mnt/backup/restic forget \
        --keep-daily 7 --keep-weekly 4 --keep-monthly 6 --prune
+   sudo chown -R rest-server:rest-server /mnt/backup/restic
    sudo systemctl start rest-server
    ```
 
@@ -182,6 +183,13 @@ The local stale-lock assertion (`restic-repo-has-no-stale-lock`) covers the loca
 repo only; the offsite repo has its own in `goss-offsite-health.yaml.j2`.
 
 **List before unlocking.** A lock with a live restic behind it is doing its job.
+In the step-2 shell, a bare `restic` reaches the **local** repo (`backup.env`). For the
+offsite repo, export its variables first:
+
+```bash
+export RESTIC_REPOSITORY="$OFFSITE_RESTIC_REPOSITORY" RESTIC_PASSWORD="$OFFSITE_RESTIC_PASSWORD" \
+  RESTIC_REST_USERNAME="$OFFSITE_REST_USER" RESTIC_REST_PASSWORD="$OFFSITE_REST_PASSWORD"
+```
 
 ```bash
 restic list locks
@@ -202,11 +210,10 @@ restic unlock --remove-all
 
 ```bash
 ls -l /run/lock/resticprofile-*.lock
-pgrep -a resticprofile
-rm /run/lock/resticprofile-homelab.lock
+pgrep -a resticprofile || rm /run/lock/resticprofile-homelab.lock
 ```
 
-Remove it only if `pgrep` shows nothing. `/run/lock` is a tmpfs, so a reboot also
+The `rm` runs only if `pgrep` finds nothing. `/run/lock` is a tmpfs, so a reboot also
 clears it. `force-inactive-lock` stays unset on purpose: breaking a lock
 automatically hides the failure.
 

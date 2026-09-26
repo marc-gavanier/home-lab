@@ -91,7 +91,8 @@ Removing a client: [wireguard-peer-revocation.md](../../knowledge/runbooks/wireg
 
 ## Backup and restore
 
-- `wg-easy.db` is a live SQLite database in WAL mode, so restore the **dump**, not the raw file.
+- `wg-easy.db` is written live by the container (rollback-journal mode), so a raw copy taken
+  mid-write can be torn. Restore the **dump**, not the raw file.
 - Restore procedure: [restore-from-backup.md § Restore wg-easy (SQLite)](../../knowledge/runbooks/restore-from-backup.md#restore-wg-easy-sqlite).
   It takes the service `down` first and warns against the old `wg0.json`. Do not restore the raw
   directory over a running container.

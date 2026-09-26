@@ -118,7 +118,7 @@ docker exec uptime-kuma sqlite3 "file:/app/data/kuma.db?mode=ro" \
   "SELECT count(*) FROM heartbeat WHERE time > datetime('now','-3 minutes');"
 ```
 
-Expected: non-zero, from about a dozen monitors. Push monitors (Pi health, Lynis, restic,
+Expected: non-zero, from about twenty monitors (every 60 s check). Push monitors (Pi health, Lynis, restic,
 posture) report on their own slower schedules and lag.
 
 ## Before any Kuma upgrade

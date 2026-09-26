@@ -67,7 +67,8 @@ Read `docker/configs/traefik/dynamic/middlewares.yml` before tightening any of t
 ## Public DNS
 
 - Provider: Cloudflare, DNS only, not proxied.
-- Only `vpn.example.com` has a public A record, to bootstrap the tunnel.
+- Of the lab's names, only `vpn.example.com` has a public A record, to bootstrap the tunnel.
+  The apex and `www` belong to the external site.
 - Service subdomains get certificates through ACME DNS-01, so they need no public record and stay
   out of public DNS (ADR-014).
 - No wildcard: certificates are per host, so subdomains served elsewhere (for example a static
@@ -158,8 +159,9 @@ Requirements:
 
 Warnings, to check after any box reset or ISP change:
 
-- **Never forward 53/TCP+UDP.** Pi-hole listens on `0.0.0.0:53` with no application guard; only
-  the box keeps it off the internet. An open resolver is a reflection amplifier.
+- **Never forward 53/TCP+UDP.** Pi-hole publishes `0.0.0.0:53` with no application guard. The
+  host's `DOCKER-USER` rules drop :53 from outside the LAN, the VPN and the container networks,
+  and the box is the second guard. An open resolver is a reflection amplifier.
 - **Never forward 80/443.** It would re-open the perimeter this lab closed on purpose (ADR-002).
 
 Gotchas:

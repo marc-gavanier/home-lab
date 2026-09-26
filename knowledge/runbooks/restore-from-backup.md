@@ -26,7 +26,7 @@ Rules that apply to every procedure on this page:
   everywhere except `immich-machine-learning` (container `immich-ml`).
 - **An `--include` that matches nothing restores zero files and exits 0.** No
   output means nothing was restored. Check the path with `restic ls` first.
-- Run `ansible-playbook playbooks/site.yml --tags storage` after every restore: see
+- Run `ansible-playbook playbooks/site.yml --tags storage --ask-vault-pass` after every restore: see
   [Ownership after a restore](#ownership-after-a-restore).
 
 Open the repository, as root on the Pi:
@@ -558,7 +558,8 @@ Check it worked:
 
 ### Before you start
 
-- Plan on **7 to 33 hours** (a day and a half); see [Drill record](#drill-record).
+- Plan on **2 to 9 hours** for the 90.9 GiB snapshot of 2026-09-26; see [Drill record](#drill-record)
+  for the rates and how to recompute it.
 - **Disable the timers first.** The nightly backup `rm -rf`s
   `/mnt/data/backups/dumps` at its first step, even if it then fails, so a 03:00 run
   destroys the dumps step 2 restores — and step 3 finds an empty directory that looks
@@ -652,12 +653,16 @@ Every drill verifies by **loading** the data, never by listing it.
 | 2026-07-19 | Local                                                      | Immich dump into a throwaway VectorChord postgres: 66 tables, 9 283 `asset`, 9 247 `smart_search`. Vaultwarden `.backup`: integrity ok. Local prune+check timer run. |
 | 2026-07-11 | Local                                                      | `restic check --read-data-subset=2%`, Vaultwarden scratch restore, Nextcloud dump into a throwaway MariaDB (156 tables).                                         |
 
-Full-restore duration, for 343 GiB across 116 482 files through the tunnel:
+Full-restore duration through the tunnel, for the 90.9 GiB / 95 440-file snapshot of
+2026-09-26 (the rates were measured when it held 343 GiB):
 
 | Rate       | Source                                   | Time   |
 |------------|------------------------------------------|--------|
-| 13.5 MiB/s | burst, small files                       | 7.4 h  |
-| 3.13 MB/s  | sustained nightly tunnel rate, 7 nights  | ~33 h  |
+| 13.5 MiB/s | burst, small files                       | ~1.9 h |
+| 3.13 MB/s  | sustained nightly tunnel rate, 7 nights  | ~8.7 h |
+
+The current size is the last `scan finished … GiB` line of
+`journalctl -u homelab-backup`; divide it by both rates.
 
 To narrow it on the day: restore one large directory first, time it, and
 extrapolate from that.

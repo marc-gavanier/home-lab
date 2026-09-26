@@ -68,6 +68,11 @@ Expected: no password prompt, then the Ubuntu welcome message.
 
 ## Step 5 — Verify Ansible Connectivity
 
+Ansible checks host keys against your `known_hosts`. Its first connection to a new
+address or port, including the hardened SSH port after the first full run, asks you
+to confirm the key. After a reflash, remove the old entries first:
+`ssh-keygen -R <pi-lan-ip>` and `ssh-keygen -R "[<pi-lan-ip>]:<ssh-port>"`.
+
 ```bash
 cd ~/Storage/Workspace/learn/home-lab/ansible
 ansible homelab -m ping

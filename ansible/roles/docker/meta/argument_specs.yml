@@ -7,6 +7,13 @@ argument_specs:
         type: path
         required: true
         description: Docker data-root, on the encrypted volume (/mnt/data/docker).
+      docker_gpg_sha256:
+        type: str
+        required: true
+        description: >-
+          Checksum of Docker's apt signing key (fingerprint 9DC85822...0EBFCD88).
+          The install fails rather than trusting a key served by the same host
+          as the packages it authenticates.
       data_mount_point:
         type: path
         required: true

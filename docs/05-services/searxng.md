@@ -19,6 +19,8 @@ an account.
   would silently run a generated stub.
 - No Redis/Valkey: single user on the VPN, limiter off.
 - Preferences live in a per-device cookie.
+- At every start SearXNG downloads the ClearURLs rules from a third party, unpinned. Accepted:
+  they can only strip parameters from result links.
 
 ## Common tasks
 

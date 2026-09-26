@@ -43,7 +43,7 @@ Take one now, and again after any keyslot change.
 4. Shred the working copy (mandatory, `/root` survives reboots):
 
    ```bash
-   shred -u /root/luks-header-*.img
+   sudo sh -c 'shred -u /root/luks-header-*.img'
    ```
 
 ## When to refresh it

@@ -22,6 +22,7 @@ data_fsck_interval_days: 30
 docker_data_root: /mnt/data/docker
 docker_shutdown_timeout: 150
 docker_stop_timeout: 240
+docker_gpg_sha256: "1500c1f56fa9e26b9b8f42452a553675796ade0807cdce11975eb98170b3a570"
 
 domain: example.com
 
