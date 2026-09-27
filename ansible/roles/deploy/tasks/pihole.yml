@@ -25,9 +25,16 @@
   ansible.builtin.shell:
     cmd: >-
       set -o pipefail;
-      python3 -c 'import json; print(json.dumps({"password": open("/mnt/data/secrets/docker/pihole_password").read().rstrip("\\n")}))'
-      | docker exec -i pihole curl -s -o /dev/null -w '%{http_code}'
-      -X POST --data-binary @- http://localhost/api/auth
+      resp=$(python3 -c 'import json; print(json.dumps({"password": open("/mnt/data/secrets/docker/pihole_password").read().rstrip("\\n")}))'
+      | docker exec -i pihole curl -s -w '\n%{http_code}'
+      -X POST --data-binary @- http://localhost/api/auth);
+      sid=$(printf '%s' "${resp%$'\n'*}"
+      | python3 -c 'import json,sys; print((json.load(sys.stdin).get("session") or {}).get("sid") or "")' 2>/dev/null || true);
+      if [ -n "$sid" ]; then
+      printf 'X-FTL-SID: %s\n' "$sid"
+      | docker exec -i pihole curl -s -o /dev/null -X DELETE -H @- http://localhost/api/auth || true;
+      fi;
+      printf '%s' "${resp##*$'\n'}"
     executable: /bin/bash
   register: pihole_pw_check
   changed_when: false

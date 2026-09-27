@@ -24,6 +24,55 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-09-27 (TWENTY-SECOND run) — key `exhaustion`, one PR
+
+- **journald keeps up to 400 files** (`journald_system_max_files`), the 1500M byte cap
+  unchanged: at journald's default of 100, per-user journals (the operator's and the audits'
+  SSH sessions, `claude`) evicted the system history at a third of the size cap. The
+  operator asked for temperance: the ceiling on bytes, and so on disk use, did not move.
+  `homelab-health` reports whichever cap is closer.
+- **sshd `PerSourceMaxStartups 8`** on both hosts.
+- **The deploy's Pi-hole API check logs out** (`DELETE /api/auth`), so it no longer holds one
+  of 16 seats for 30 minutes.
+- **SearXNG web engines**: DuckDuckGo, Brave and Startpage disabled (CAPTCHA/429 on most
+  queries from this address), Bing and `duckduckgo web` enabled; Qwant, Mojeek and Presearch
+  refused this address with 403 when tested, do not re-enable them without a live query.
+- **Words**: the swap resize procedure is back in `docs/07-observability` with the corrected
+  `swapoff` caveat; swap steady state; ADR-004's `TasksMax`.
+
+## Decisions taken on 2026-09-27 (twenty-second run) — do not re-propose
+
+- **Kuma's login limiter** (one upstream bucket of 20 attempts/min for every client):
+  accepted as is.
+- **Kuma drops a Discord notification on HTTP 429** with a stdout line and no retry: peak on
+  record 14/min against 30/min. No detector — it would be alerting-path coupling.
+- **`systemd --user` as the OOM killer's first pick** (`OOMScoreAdjust=100`): 0 kills in 62
+  days, the unit exists only while someone is logged in. No action.
+- **Traefik's access log on `/run`**: no size cap, ~4.4 MB/day against 785 MB. No action.
+- **SD card endurance**: the card exposes no wear counter; nothing to watch.
+- **Nextcloud's OPcache (128 MB)** is readable only from Admin → Overview; not measured.
+- **SearXNG's wikidata engine** fails with 403 at every start and stays unregistered until
+  the next restart (C29 shape). Not fixed.
+
+## Instrument traps paid on 2026-09-27 (twenty-second run)
+
+- **journald has TWO caps**: `SystemMaxUse` (bytes) and `SystemMaxFiles` (count, default
+  100, per-user journals included). `journalctl --disk-usage` answers only the first; count
+  the files in `/var/log/journal/<machine-id>/`.
+- **netdata runs on the `proxy` network**: its `netfilter.*`, `ipv4.sockstat*`, `ip.tcp*` and
+  `disk.space` "/tmp" charts measure the netdata container, not the host (conntrack 11 against
+  598). netdata has no chart for the host's `/`, `/mnt/data` or `/tmp`; the disk detector of
+  record is `homelab-health.sh`.
+- **`docker inspect` shows `PidsLimit <nil>`** while every container's cgroup enforces
+  `pids.max=8730` from systemd's `DefaultTasksMax`. Read the cgroup.
+- **netdata v2.11.1 logs every datafile deletion as "disk quota"** (hard-coded): it is not a
+  quota event.
+- **The netdata MCP transition list skips UNDEFINED→CLEAR** transitions.
+- **`ExecMainStartTimestamp` resets at boot**: an empty one means "not since boot", not
+  "never"; the journal settles which (retention permitting).
+- **`perturbation` is `interference`** (2026-09-20): a key offered as unused must be grepped
+  against the run sections, not only the key list.
+
 ## Shipped on 2026-09-27 (TWENTY-FIRST run) — key `revocation`, one PR, documentation only
 
 - **The one live stale grant was revoked by the operator**: Nextcloud app password 51

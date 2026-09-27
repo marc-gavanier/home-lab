@@ -215,6 +215,11 @@ grant was configured, delivered or rotated; none asked whether WITHDRAWING one r
 every place that honours it — the copies, the sessions, the side-by-side credentials,
 the pause nobody ends.
 
+**The twenty-second run, on 2026-09-27, used `exhaustion` and minted one** (C142).
+**Consecutive zero-mint runs: still 0.** Every class before it asked whether a pool was
+sized, timed or guarded at the right distance; none asked who ELSE draws from an admission
+budget the operator needs, and whether anything names the one who emptied it.
+
 ---
 
 # The register
@@ -577,7 +582,16 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
-## OPEN — 0 (after the TWENTY-FIRST run of 2026-09-27, key `revocation`)
+## OPEN — 0 (after the TWENTY-SECOND run of 2026-09-27, key `exhaustion`)
+
+**Empty.** C142 was minted and swept in the same run — see "The run of 2026-09-27
+(TWENTY-SECOND)" below.
+
+| ID | Property | State |
+|---|---|---|
+| C142 | **An admission budget the operator's access draws from, shared with other consumers and not partitioned per principal** — pre-authentication slots, login attempts, session seats — so another consumer can empty it and deny the operator, and nothing records who emptied it | **MINTED 2026-09-27 (twenty-second run), ENUMERATED**: `security` 10/10 admission limiters (4 shared, 4 per connection or per address, 1 without a limiter), `network` the shared DNS and HTTP buckets (Pi-hole per client, Traefik's bucket, both far from their limits). Prior unnamed instance: Traefik's single rate-limit bucket (#128, #204). 0 exhaustions on record. 3 instances: sshd `MaxStartups 10:30:60` with no per-source cap on both hosts — FIXED, `PerSourceMaxStartups 8`; Kuma's login limiter, one upstream bucket of 20/min — ACCEPTED; every deploy's Pi-hole API check left one of 16 seats open for 30 min — FIXED, the check logs out. Single-agent mint: `network` did not reach the property independently. Not GATED |
+
+### The twenty-first run's table read:
 
 **Empty.** C138 to C141 were minted and swept in the same run — see "The run of
 2026-09-27 (TWENTY-FIRST)" below.
@@ -1195,6 +1209,72 @@ separate correction — **the marker is not a provenance instrument.**
 C92 and C03-R were closed as review rules once their spaces proved non-derivable.
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
+
+## The run of 2026-09-27 (TWENTY-SECOND) — the key was `exhaustion`, and it minted one
+
+The key, **chosen by the operator** over `inheritance` and `attribution` (after
+`perturbation` was offered and withdrawn: it is `interference`, spent on 2026-09-20):
+**when a finite pool a mechanism draws from runs dry, what does the mechanism do, and
+would anything see it?** Four forms: (E1) silent at empty, (E2) wrong victim of a shared
+pool, (E3) non-replenishing with nothing counting, (E4) the witness draws from the same
+pool. Discriminant, all three mandatory: limit and current use read live, behaviour at
+exhaustion shown, detector named or shown absent. Declared overlaps, instance-only: C120,
+`scale`'s growth figures, C84, C127, C128, C134, C121, C39, C119.
+
+### The counter: 0 OPEN in, 0 OPEN out, 1 minted, class total 141 -> 142
+
+### The sweep
+
+| Domain | Pools | Result |
+|---|---|---|
+| `system` | 54/54 (27 x 2 hosts) | C68 (journald file count); OOM victim suspected, no action |
+| `security` | 18/18 | C142 minted: sshd, Kuma login, Pi-hole seats |
+| `network` | 18/18 | clean; conntrack figure in this file corrected |
+| `services` | 26/26 | C50 (SearXNG engines); OPcache not measurable read-only |
+| `backup` | 14/14 | clean |
+| `observability` | 20/20 | C68 (converged with `system`); Discord 429 drop measured |
+| `ansible-deploy` | 33/33 | clean; `/run` access log rejected |
+| `project-manager` | 38/38 statements | C01 x3 (swap procedure pointer, swap steady state, ADR-004 `TasksMax`) |
+
+### The live defect
+
+**C68, a member its sweep missed: journald's FILE count.** `SystemMaxFiles` defaults to
+100 and the repo never set it. The homelab store sat at 100/100 files and 561.5M of
+1500M; 61 of the 100 were per-user journals (uid 1000, the operator's and the audits' SSH
+sessions; uid 1001, `claude`), so the system journal reached back only to 09-09 — 18.5
+days against the ~59 the documentation promised. Deletion is silent, and the #292 guard
+measured size (37 %). The audits themselves evicted the system history they read.
+Offsite, same drop-in, 63 files, would have bound in ~7 weeks. Fixed: `SystemMaxFiles=400`
+with the 1500M byte cap unchanged, so the size binds first and nothing grows beyond what
+was already decided; the guard reports whichever cap is closer.
+
+### Shipped, one PR
+
+1. **C68**: `journald_system_max_files: 400`; `homelab-health` reads the file cap too.
+2. **C142**: `PerSourceMaxStartups 8` on both hosts (twice the measured peak of 4, below
+   the 10 where random refusals begin); the Pi-hole API check logs out.
+3. **C50**: SearXNG's general web search ran on four engines, three of them blocked most
+   of the time from this address (DuckDuckGo CAPTCHA, Brave 429, Startpage CAPTCHA with a
+   one-hour suspension), with `/healthz` answering OK. The operator had noticed it in use.
+   DuckDuckGo, Brave and Startpage disabled; Bing and `duckduckgo web` enabled after a
+   live query each — Qwant, Mojeek and Presearch answered 403 from this address.
+4. **C01**: the swap resize procedure written back into `docs/07-observability` (its
+   pointer led to text #390 removed), with the `swapoff` caveat corrected — under
+   `vm.overcommit_memory=1` it does not refuse, the OOM killer decides; swap steady state
+   1.5 GiB (55-day mean), not 2.1–2.3; ADR-004 names systemd's default `TasksMax`.
+
+### Rejected or requalified
+
+- `project-manager` called the journald cap clean: it read the size cap only.
+- `ansible-deploy`'s `/run` access log: 180x a day's volume to fill it. Fails the
+  discriminant.
+- SD write endurance: the card reports no limit, so nothing can be counted.
+- Kuma's Discord 429 drop: peak 14/min against 30/min; any detector is alerting-path
+  coupling, declined 2026-09-20. `observability` filed it under C45, `project-manager`
+  under C128; no proposal either way.
+- The main session's baseline counted 14/14 timers `Result=success`; one of them,
+  `homelab-image-retention`, has never run (first slot 10-04), and four last ran before the
+  reboot. The known baseline trap, paid again.
 
 ## The run of 2026-09-27 (TWENTY-FIRST) — the key was `revocation`, and it minted four
 
@@ -2136,7 +2216,8 @@ container-clock trap is clean and was verified with an instrument** (`fail2ban-r
 cannot be cleared by any tmpfiles entry short of a reboot. `network`: DDNS keeps
 no local state (the last IP lives at Cloudflare and is re-read every run); FTL
 retains 91.89 days against `maxDBdays 91` with **zero** consumers asking for it;
-conntrack peaked at 1 762 over 55 days against 262 144; the pihole/dnsproxy
+conntrack peaked at 1 762 over 55 days against 262 144 (corrected 2026-09-27: that is
+the netdata container's own table, not the host's, which keeps no history); the pihole/dnsproxy
 namespace is intact; Traefik answered its own API rather than its labels — 24
 routers, 6 middlewares, 0 errors. `observability`: the deepest netdata question
 asks 7 200 s of a store retaining 424 188 s (58.9x, 66/66); the #378 window
@@ -7840,7 +7921,7 @@ because an unmerged mint list inflates the counter and hides the convergence.
 | ID | Property | Space swept | State |
 |-----|--------------------------------------------------|-----------------|------------|
 | C67 | A verification whose deadline was sized against an input that was empty or small when it was measured, and which grows without bound | 13 constructs across both hosts' verification layer, 13/13 | ENUMERATED, **not gated** |
-| C68 | A store whose declared retention is overridden by a limit that is not the one written down | 7 stores + 31 container log rings | ENUMERATED |
+| C68 | A store whose declared retention is overridden by a limit that is not the one written down | 7 stores + 31 container log rings | ENUMERATED **Member added 2026-09-27 (twenty-second run)**: journald's FILE count, `SystemMaxFiles` (default 100, never set) bound at 561M of 1500M on homelab; fixed, 400 |
 | C69 | A periodic control whose own runtime is a fraction of its period that nothing measures | 16 periodic controls, 16/16 | ENUMERATED |
 | C70 | A rule that is inert today and would be a fault if it were enforced | 19 UFW rules, 19/19 | ENUMERATED |
 | C71 | A recurring cost driven by rewrite rate rather than by information carried | 22 backup subtrees, 22/22 | ENUMERATED |
@@ -7980,7 +8061,7 @@ tracks unused dimensions rather than a rotting system.
 
 | ID | Property | Outcome |
 |-----|----------------------------------------------|--------------------------------------------|
-| C50 | A liveness probe whose subject answers without the component the probe claims to prove | **CARDINALS FROZEN AT A 28-CONTAINER ESTATE — re-derive before quoting (flagged 2026-09-19, fifth run).** The Docker half is **28**, not 25: 32 running containers minus the 4 with no healthcheck (`dnsproxy`, `searxng`, `nextcloud-cron`, `nextcloud-notify-push`), which is the same 28 that C22 carries. The Kuma half (34) and the 62 total are NOT re-derived here and must not be quoted until they are — 37 monitors exist today, but how many are liveness probes in this class's sense was never re-counted. Historic text follows. ENUMERATED 62/62, ~19 instances. The cardinal was wrong: recorded as 64, it is 62 — 25 Docker healthchecks (taken from the machine, not the repo: three services inherit their `test:` from their image), **34** Kuma monitors (not 36) and 3 `wait_healthy`. Three agents swept disjoint thirds. The instances that matter are not the resolver ones this row was opened on: `pg_isready -d <db> -U <user>` returns the same output and exit 0 for a database and a role that **do not exist** (verified with a control against the real call), so the arguments are decorative on two databases; Kuma's own healthcheck greps `entryPage`, which is the FIELD NAME in `{"type":"entryPage","entryPage":null}` — and Kuma is the only container no external monitor watches; `miniflux -healthcheck auto` performs **zero** transactions over 30 probes. The suspicion worth more than its instances: if `/mnt/data` disappears while the containers run, calibre-web serves `/login`, jellyfin `Healthy`, navidrome `.`, immich `pong` — four dead services, four green probes, four routers kept |
+| C50 | A liveness probe whose subject answers without the component the probe claims to prove | **CARDINALS FROZEN AT A 28-CONTAINER ESTATE — re-derive before quoting (flagged 2026-09-19, fifth run).** The Docker half is **28**, not 25: 32 running containers minus the 4 with no healthcheck (`dnsproxy`, `searxng`, `nextcloud-cron`, `nextcloud-notify-push`), which is the same 28 that C22 carries. The Kuma half (34) and the 62 total are NOT re-derived here and must not be quoted until they are — 37 monitors exist today, but how many are liveness probes in this class's sense was never re-counted. Historic text follows. ENUMERATED 62/62, ~19 instances. The cardinal was wrong: recorded as 64, it is 62 — 25 Docker healthchecks (taken from the machine, not the repo: three services inherit their `test:` from their image), **34** Kuma monitors (not 36) and 3 `wait_healthy`. Three agents swept disjoint thirds. The instances that matter are not the resolver ones this row was opened on: `pg_isready -d <db> -U <user>` returns the same output and exit 0 for a database and a role that **do not exist** (verified with a control against the real call), so the arguments are decorative on two databases; Kuma's own healthcheck greps `entryPage`, which is the FIELD NAME in `{"type":"entryPage","entryPage":null}` — and Kuma is the only container no external monitor watches; `miniflux -healthcheck auto` performs **zero** transactions over 30 probes. The suspicion worth more than its instances: if `/mnt/data` disappears while the containers run, calibre-web serves `/login`, jellyfin `Healthy`, navidrome `.`, immich `pong` — four dead services, four green probes, four routers kept **Member added 2026-09-27 (twenty-second run)**: SearXNG's `/healthz` answers OK while its web engines are suspended for CAPTCHA/429; three engines replaced |
 | C51 | A procedure whose written order differs from the order the machine imposes | **ENUMERATED 80/80, 6 instances** (the 4 fixed on 08-30 plus 2). The 80th sequence was found by dropping the title index and taking the two candidates invisible to it: `sd-theft-response.md` is clean on 6 machine-verified claims, and `ops/bootstrap.sh` carries one instance — its connectivity check and its final command omit `-e homelab_ssh_port=22`, which `hosts.yml` states in writing, and `--ask-vault-pass`; proven, `ansible-inventory --host homelab` answers `Attempting to decrypt but no vault secrets found`. **The suspected instance is CONFIRMED without dropping anything**, and it is worse than an inversion: step 1 prints an unfilled `--cap-add`, whose only source is step 4, and step 4's instrument is **blind on 25 containers of 29** (24 without `getcap`, 2 without a shell). The blind set contains Collabora, and the rule "empty sweep ⇒ the flag is safe" therefore authorises the drop |
 | C52 | A safety argument whose premise is a defect that has just been corrected | **ENUMERATED, bucket swept 9/9 of 151 candidate arguments, 1 confirmed instance.** `observability/handlers/main.yml` refuses `netdatacli reload-health` on the grounds — stamped **"Measured, not assumed"** — that `/run/netdata/` is empty. Measured tonight inside the container (the right namespace): `netdata.pipe` is present and `netdatacli ping` answers `pong`. The direct cost is one netdata restart per deploy instead of a reload; the value is that **a measurement stamped "measured" expired and nothing noticed**, which is the property itself. A second material: `homelab.env` is argued about as "group-readable and mounted into the containers" when it is 0600 and mounted nowhere — right decision, false reasons |
 | C54 | A startup list that is neither derived from the machine nor asserted against it | **ENUMERATED 4/4.** Tier 0, wave 1, wave 2, wave 3; only the Tier 0 list is both derived (from `compose.yaml`) and asserted. Coverage 6+9+6+8 = 29 = the 29 services, no discrepancy. **The suspected instance is DISCARDED with proof**: a service no wave starts fails the goss assertions generated for it (`docker inspect <absent> | jq` -> `null`, positive control `traefik` -> `false`) — real detection, but at 24 h and under a misleading name. **1 confirmed latent instance**: the Tier 0 assertion covers one of the three `restart:` values, so an `always`/`on-failure` would pass it in both directions and short-circuit the staged startup. Measured 0 today (6 `unless-stopped`, 23 `no`, 29/29 compliant). ~10 lines turn the equality into a partition assertion and **C54 would reach GATED** |

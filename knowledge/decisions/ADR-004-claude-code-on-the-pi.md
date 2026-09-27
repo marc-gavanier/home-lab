@@ -59,7 +59,7 @@ the system, secrets, Docker, or other data.
 - **No inbound exposure**: Remote Control is outbound-only; nothing new opened on the firewall.
 
 ### Cons
-- **Residual DoS risk**: no `MemoryMax`/`CPUQuota`/`TasksMax` on the service (accepted) — a
+- **Residual DoS risk**: no `MemoryMax`/`CPUQuota` on the service, only systemd's default `TasksMax` (8730) (accepted) — a
   misused session could exhaust resources. Mitigation: stop the service via SSH.
 - **Manual one-time auth**: the `claude` login can't be automated (by design).
 - **Memory**: ~300 MB while working on the 8 GB Pi — viable but adds to the budget.

@@ -73,7 +73,7 @@ period.** A green monitor says the job ran, not what it did.
 | Evidence                                           | Jobs                                            | Retention                           |
 |----------------------------------------------------|-------------------------------------------------|-------------------------------------|
 | A Kuma push monitor whose message carries readings | most jobs                                       | per-monitor row budget              |
-| The journal alone                                  | `homelab-stack-heal`, `offsite-wg-reresolve`    | ~59 days at saturation              |
+| The journal alone                                  | `homelab-stack-heal`, `offsite-wg-reresolve`    | ~8 weeks at the size cap            |
 | Nothing at all                                     | `homelab-image-retention` (monthly)             | —                                   |
 
 Enumerate the timers, not the monitors — a job with no channel never shows up in a list of
@@ -381,11 +381,16 @@ The table is maintained by hand. To check it, compare against `problems+=(` in
 - **Memory, 800 MiB**: `MemAvailable`, not free memory (the page cache is reclaimable). Over 19 days
   the hourly minimum never went below 800 MiB; the 5-min window absorbs short dips.
 - **Swap, 85 % (provisional)**: the swap file is 4 GiB because at 2 GiB it sat saturated with cold
-  pages and occupancy meant nothing. The expected steady state is ~2.1–2.3 GiB (52–57 %). A full
+  pages and occupancy meant nothing. The measured steady state is ~1.5 GiB (37 %, 55-day mean). A full
   swap is not memory shortage; it matters only if available memory is also low. If occupancy settles
   above 85 %, raise the threshold rather than delete it.
 - **Resizing swap is manual**: `creates:` guards it, so changing `swap_size_mb` alone does nothing.
-  Procedure and `swapoff` caveats: `ansible/roles/storage/tasks/swap.yml`.
+  Outside the 03:00 backup window, with the stack quiet:
+  1. `free -m`: `available` must exceed swap `used` with room to spare. `swapoff` does not refuse
+     when it does not: with `vm.overcommit_memory=1` it pulls every page back and the OOM killer
+     picks the victims. Stop heavy services first if it is tight.
+  2. `sudo systemctl stop mnt-data-swapfile.swap && sudo rm /mnt/data/swapfile`
+  3. From `ansible/`: `ansible-playbook playbooks/site.yml --tags storage --ask-vault-pass`
 - **DNS, random name**: Kuma's `Pi-hole DNS` and Pi-hole's healthcheck are answered from cache or
   locally, so a dead `dnsproxy` leaves them green. A random label under the domain must go upstream
   (`forward=127.0.0.1#5053`). `NXDOMAIN` counts as success; `SERVFAIL`, `REFUSED` and silence fail.
@@ -474,7 +479,9 @@ Discord webhook on every monitor. Known limitations, accepted (issue #13):
 - Docker: `json-file`, `max-size 10m` × `max-file 3` daemon default
   (`ansible/roles/docker/tasks/install.yml`). `traefik-log-redactor` overrides it with `20m` × `10`
   in `compose.yaml` (ADR-034); its ring empties on every recreation.
-- journald: persistent, `SystemMaxUse=1500M` via a drop-in (`ansible/roles/base/tasks/logging.yml`).
+- journald: persistent, `SystemMaxUse=1500M` and `SystemMaxFiles=400` via a drop-in
+  (`ansible/roles/base/tasks/logging.yml`). Per-user journals share both caps with the system
+  journal; at journald's default of 100 files the count bound first, at a third of the size.
   The persistent store is on the encrypted volume, mounted at unlock
   (`ansible/roles/storage/tasks/journal.yml`): before unlock, only the current boot is readable, so
   the "unexplained poweroff" runbook cannot rely on previous boots.

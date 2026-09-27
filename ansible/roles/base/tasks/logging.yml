@@ -15,6 +15,7 @@
       Storage=auto
       Compress=yes
       SystemMaxUse={{ journald_system_max_use | default('500M') }}
+      SystemMaxFiles={{ journald_system_max_files | default(400) }}
       SystemMaxFileSize=50M
       RuntimeMaxUse=300M
   notify: Restart systemd-journald

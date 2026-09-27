@@ -244,6 +244,7 @@ netdata_expected_plugins:
 netdata_min_contexts: 270
 
 journald_system_max_use: "1500M"
+journald_system_max_files: 400
 
 lynis_scheduled: false
 
