@@ -21,6 +21,8 @@ old credential in force.
 | `offsite_restic_password`      | resticprofile (offsite)      | **no, and never rotate it alone**; see [restic](#the-restic-passwords-key-add-first-always) |
 | `luks_passphrase`              | cryptsetup / `luks_device`   | **no, and the deploy reports `ok`**; see [LUKS](#the-luks-passphrase-a-green-deploy-is-not-evidence) |
 | `wg_password`                  | wg-easy admin UI             | **no**, the deploy never sets it; see [wg-easy](#wg_password-the-deploy-never-sets-it-at-all) |
+| `rclone_webdav_pass`           | vault-mount (rclone)         | **yes**, but the old app password stays valid; see [below](#app-passwords-and-api-keys-delete-the-old-one) |
+| `miniflux_api_key`             | feed digest                  | **yes**, but the old key stays valid; see [below](#app-passwords-and-api-keys-delete-the-old-one) |
 | `vaultwarden_admin_token_hash` | vaultwarden                  | **no**, `config.json` overrides the environment; see [Vaultwarden](#rotating-the-vaultwarden-admin-token) |
 | `nextcloud_db_password`        | nextcloud-db + config.php    | **no**, `initdb` only                                                                      |
 | `nextcloud_db_root_password`   | nextcloud-db                 | **no**, `initdb` only                                                                      |
@@ -118,6 +120,23 @@ is the only path to the host.
 
 1. Change the password in the wg-easy UI.
 2. Put the same value in the vault.
+3. If the rotation answers a leak or a lost device, end every open session: a
+   new password does not
+   ([wireguard-peer-revocation](wireguard-peer-revocation.md#end-every-wg-easy-admin-session)).
+
+### App passwords and API keys: delete the old one
+
+Nextcloud and Miniflux accept several credentials at once. Creating a new one
+does not retire the previous one: a Nextcloud app password keeps full access to
+the account, with no expiry and no second factor.
+
+1. Create the new credential in the app, put it in the vault and deploy
+   (`--tags claude-code`).
+2. Check the consumer works with it: the vault mount lists files, or the next
+   digest run is green.
+3. Delete the old credential in the app. Nextcloud: *Settings → Security →
+   Devices & sessions*, the older of the two same-named lines. Miniflux:
+   *Settings → API Keys*.
 
 ### Why the database ones cannot work
 

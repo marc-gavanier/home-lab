@@ -15,7 +15,9 @@ earlier — which would have sent eight agents to re-derive settled work. Rebuil
 it from `classes.md`'s OPEN table at the start of every run; if the two
 disagree, `classes.md` wins.
 
-As of the TWENTIETH run of 2026-09-27, key `actionability`: **0 OPEN** — the table below is the fifteenth run's, kept for its C01 history.
+As of the TWENTY-FIRST run of 2026-09-27, key `revocation`: **0 OPEN** — the table below is the fifteenth run's, kept for its C01 history.
+
+**FORTY keys are now spent.** `revocation` (twenty-first run, 4 mints: C138 to C141). `exhaustion`, `attribution` and `inheritance` are still unspent.
 
 **Thirty-NINE keys are now spent.** `actionability` (twentieth run, 5 mints: C133 to C137). `exhaustion`, `attribution` and `inheritance` are unspent.
 

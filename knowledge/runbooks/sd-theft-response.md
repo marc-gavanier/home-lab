@@ -12,23 +12,27 @@ Do these in order.
 1. **Kill switch.** The card holds `/etc/killswitch.env` (topic + keyword), so
    the holder can power the Pi off. Rotate `killswitch_ntfy_topic` and
    `killswitch_keyword` in the homelab vault and redeploy (`--tags killswitch`).
-2. **Claude OAuth tokens** in the operator's `~/.claude/.credentials.json`. The
-   `claude` user's state (login, sessions, memory) and the vault's write cache are
-   on LUKS, bind-mounted at `/home/claude/.claude`; a card imaged before
-   2026-09-27 still holds them. Revoke the sessions at claude.ai → Settings →
-   Devices, then re-auth on the Pi.
+2. **Claude OAuth tokens.** The `claude` user's state (login, sessions, memory)
+   and the vault's write cache are on LUKS, bind-mounted at `/home/claude/.claude`,
+   and the operator account holds no Claude login; older tokens can survive in the
+   card's freed blocks. Revoke the sessions at claude.ai → Settings → Devices, then
+   re-auth on the Pi.
 3. **SSH host keys.** An image lets an attacker impersonate the server (MITM).
    Regenerate with `sudo rm /etc/ssh/ssh_host_*` then
    `sudo ssh-keygen -A && sudo systemctl restart ssh.socket`, and update
    `known_hosts` on your clients.
-4. **Password hash.** Nothing to do: the security role redacts the flash-time
-   hash in the cloud-init artifacts, and the account is password-locked.
+4. **Password hash.** The account has no hash, but the flash-time one can
+   survive in the card's freed blocks and be cracked offline: if that password
+   is used anywhere else, change it there.
+5. **Kuma push tokens.** They live on LUKS, but tokens older than their move
+   there can survive in the card's freed blocks: reset any push monitor's token
+   in Kuma that has not been reset since 2026-09-27.
 
 ## What the card does not give
 
-Service passwords, restic repo passwords (local and offsite), the WireGuard key,
-rclone credentials, the SearXNG secret, the `claude` user's sessions and the notes
-it writes through the vault: all on LUKS.
+Service passwords, Kuma push tokens, restic repo passwords (local and offsite),
+the WireGuard key, rclone credentials, the SearXNG secret, the `claude` user's
+sessions and the notes it writes through the vault: all on LUKS.
 
 ## Whole-Pi theft
 

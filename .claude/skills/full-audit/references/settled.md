@@ -24,6 +24,58 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-09-27 (TWENTY-FIRST run) — key `revocation`, one PR, documentation only
+
+- **The one live stale grant was revoked by the operator**: Nextcloud app password 51
+  ("Rclone PI"), replaced on 09-13 by 53 and never deleted; full scope, no expiry, no
+  second factor. Verified gone with `occ user:auth-tokens:list admin`.
+- **App passwords and API keys: delete the old one** (`rotate-a-secret.md`), with rows for
+  `rclone_webdav_pass` and `miniflux_api_key`; `feed-digest.md`'s renewal row points to it.
+- **Ending every wg-easy admin session** (`wireguard-peer-revocation.md`): rewrite
+  `general_table.session_password`; the `wg_password` rotation and the lost-device list
+  point to it. The lost-device list gains the Claude app and Navidrome.
+- **Words**: `sd-theft-response.md` (the shadow hash stays behind the lock; the Kuma push
+  tokens on the card), ADR-011 (push tokens on both hosts, the card is not credential-free),
+  `offsite-backup.md` (a stolen offsite peer is deleted, never disabled — the one exception
+  to "never remove an infrastructure peer").
+
+## Decisions taken on 2026-09-27 (twenty-first run) — do not re-propose
+
+- **No secret on the homelab SD card beyond two boot-time exceptions** — the operator's
+  rule, which overrides ADR-011's former residuals: the Kuma push URLs moved to
+  `/mnt/data/secrets/kuma-push.env` (scripts source it, report nothing before the unlock),
+  the admin account carries `password: "!"` instead of a locked hash (both hosts,
+  `/etc/shadow-` included), and the operator's unused Claude login was deleted. The only
+  exceptions are `/etc/killswitch.env` and the SSH host keys. Freed SD blocks can still
+  hold the old values: resetting the push tokens in Kuma is the operator's call.
+- **C138, copies that keep a revoked grant, DECLINED as minor**: no text on restores
+  re-granting what was revoked after the snapshot (wg-easy, Vaultwarden, Nextcloud, Kuma),
+  none on destroying older LUKS header copies or on `cryptsetup reencrypt`, and the old
+  offsite restic key stays. Nothing was ever rotated, so nothing is exposed.
+- **C141, a pause with no end, DECLINED as minor**: no posture term counting paused Kuma
+  monitors or open maintenance windows. 0 today.
+- **C88, two latent sites, DECLINED as minor**: no `remove_orphans` on the compose deploy,
+  no purge of the Traefik dynamic directory. No service or file has been removed since.
+- **Dormant device tokens** (Nextcloud "Obsidian desktop", Jellyfin "Findroid", one
+  Vaultwarden Firefox device) are the operator's devices, not defects.
+- **Vaultwarden's offline cache on a lost device** survives a master-password change by
+  design of end-to-end encryption; the runbook already says so.
+- **Open, the operator's to answer**: the workstation's netdata MCP key matches no key on the
+  Pi since the 07-27 regeneration; one MCP journal query settles whether MCP lost journal and
+  process access (suspected C12).
+- **Secret fragments printed into audit transcripts** (8 characters of each WireGuard
+  private key, 20 of the Calibre-Web session): no rotation, below any usable length.
+
+## Instrument traps paid on 2026-09-27 (twenty-first run)
+
+- **`wg show <if> dump` prints the interface's PRIVATE key in field 2**: use
+  `wg show <if> public-key` and `wg show <if> peers`, never `dump`.
+- **`tr "\x27"` does not strip single quotes** in a remote shell: a "tokens differ" verdict
+  came from the quotes, not the values.
+- **`occ user:auth-tokens:list` is the read-only route to Nextcloud tokens**: the MariaDB
+  root password is not in the container's environment.
+- **A 45-day journal scan on the Pi** was killed after 3 minutes by the agent that started it.
+
 ## Shipped on 2026-09-27 (TWENTIETH run) — key `actionability`, one PR
 
 - **Alerts name what failed**: `Pi health` and `Offsite health` append the failed units to

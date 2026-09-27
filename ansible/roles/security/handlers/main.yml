@@ -36,3 +36,12 @@
   ansible.builtin.command: fail2ban-client reload --restart
   changed_when: true
   listen: Reload UFW
+
+- name: Drop the removed hash from the shadow backup
+  ansible.builtin.copy:
+    src: /etc/shadow
+    dest: /etc/shadow-
+    remote_src: true
+    owner: root
+    group: shadow
+    mode: "0640"

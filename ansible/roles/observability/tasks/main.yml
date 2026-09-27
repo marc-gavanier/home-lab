@@ -2,6 +2,34 @@
 - name: Install the shared persistence gate
   ansible.builtin.import_tasks: gate.yml
 
+- name: Read whether the encrypted volume is mounted now
+  ansible.builtin.command:
+    cmd: mountpoint -q /mnt/data
+  register: mnt_data_mountpoint
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Refuse to write the push tokens while the encrypted volume is unmounted
+  ansible.builtin.assert:
+    that:
+      - mnt_data_mountpoint.rc == 0
+    fail_msg: >-
+      /mnt/data is not mounted — run homelab-unlock on the host first (on a
+      first install, this is expected until the storage role has run). Writing
+      now would leave the Kuma push tokens in clear on the SD card, under the
+      mount point.
+    quiet: true
+
+- name: Keep the Kuma push tokens on the encrypted volume (ADR-011)
+  ansible.builtin.template:
+    src: kuma-push.env.j2
+    dest: /mnt/data/secrets/kuma-push.env
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+
 - name: Push Pi power/thermal health to Uptime Kuma
   ansible.builtin.import_tasks: health.yml
 

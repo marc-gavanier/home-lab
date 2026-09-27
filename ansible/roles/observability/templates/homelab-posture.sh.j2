@@ -3,7 +3,14 @@
 
 set -uo pipefail
 
-KUMA_PUSH_URL='{{ homelab_posture_kuma_push_url | default("") }}'
+KUMA_PUSH_ENV=/mnt/data/secrets/kuma-push.env
+if [ -r "$KUMA_PUSH_ENV" ]; then
+    . "$KUMA_PUSH_ENV"
+else
+    echo "kuma-push-env-missing: $KUMA_PUSH_ENV is unreadable, /mnt/data is probably not unlocked — this report reaches nobody" >&2
+fi
+
+KUMA_PUSH_URL="${HOMELAB_POSTURE_PUSH_URL:-}"
 KUMA_PUSH_URL="${KUMA_PUSH_URL%%\?*}"
 
 notify() {

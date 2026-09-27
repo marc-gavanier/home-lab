@@ -209,6 +209,12 @@ C137). **Consecutive zero-mint runs: still 0.** Every class before it looked at 
 mechanism; none followed a signal to the hand that must act on it and asked whether
 the action exists and still works in the state that raised the signal.
 
+**The twenty-first run, on 2026-09-27, used `revocation` and minted four** (C138 to
+C141). **Consecutive zero-mint runs: still 0.** Every class before it asked whether a
+grant was configured, delivered or rotated; none asked whether WITHDRAWING one reaches
+every place that honours it — the copies, the sessions, the side-by-side credentials,
+the pause nobody ends.
+
 ---
 
 # The register
@@ -571,7 +577,19 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
-## OPEN — 0 (after the TWENTIETH run of 2026-09-27, key `actionability`)
+## OPEN — 0 (after the TWENTY-FIRST run of 2026-09-27, key `revocation`)
+
+**Empty.** C138 to C141 were minted and swept in the same run — see "The run of
+2026-09-27 (TWENTY-FIRST)" below.
+
+| ID | Property | State |
+|---|---|---|
+| C138 | **A revocation that reaches the live acceptor and not the copies the estate keeps of it** — a restore re-grants what was withdrawn after the snapshot, or an older copy of a wrapper (LUKS header, restic key file) still opens with the withdrawn secret because the key it wraps never changed | **MINTED 2026-09-27 (twenty-first run), ENUMERATED**: converged from four agents. `backup` 11 (grant, backup) pairs, 10 undetected; `security` 6 wrapper stores, 3 on the hosts; `network` the wg-easy dump; `system` 5 acceptors with copies. 0 live instances: 1 LUKS keyslot at Epoch 3, 1 key per restic repository, no WireGuard peer ever revoked. Nearest: C121, whose event sweep did not include revocation. Remedies DECLINED as minor. Not GATED |
+| C139 | **A grant with no revocation route at its acceptor** — a derived session that neither a credential change nor a logout ends | **MINTED 2026-09-27 (twenty-first run), ENUMERATED**: `network` 15/15, `services` 21/21. 1 instance, verified in the running code: wg-easy's `useWGSession` seals sessions with `general_table.session_password`, no server-side `maxAge` (`// TODO: add session expiration`); a stolen cookie survives a password change and can download every client configuration. Route documented: rewrite `session_password`, read on every request. Not GATED |
+| C140 | **A rotation that adds the new credential and never deletes the old one**, in an acceptor that holds several side by side | **MINTED 2026-09-27 (twenty-first run), ENUMERATED**: `services` 6/6 (credential, app) pairs. 1 live instance: Nextcloud app password 51 "Rclone PI", replaced 09-13 by 53, full scope, no expiry, no second factor — deleted by the operator, verified gone. 1 latent: `miniflux_api_key`. Fixed in words: `rotate-a-secret.md` deletes the old one. Distinct from C12 (the new value arrived) and C87 (not made by a repair). Not GATED |
+| C141 | **A suspension with no end that no check can see** — a paused monitor or an open manual maintenance window | **MINTED 2026-09-27 (twenty-first run), ENUMERATED**: `observability` 17/17. 0 live: 0 paused monitors, 0 maintenance windows; every Kuma posture term filters `active = 1` (`goss-posture.yaml.j2:604-1223`). Posture term DECLINED as minor. Not GATED |
+
+### The twentieth run's table read:
 
 **Empty.** C133 to C137 were minted and swept in the same run, and C104, reopened by a
 member outside its counted predicate, was re-enumerated — see "The run of 2026-09-27
@@ -1177,6 +1195,51 @@ separate correction — **the marker is not a provenance instrument.**
 C92 and C03-R were closed as review rules once their spaces proved non-derivable.
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
+
+## The run of 2026-09-27 (TWENTY-FIRST) — the key was `revocation`, and it minted four
+
+The key, **invented** and **chosen by the operator** over `attribution`, `exhaustion` and
+`inheritance`: **when a grant is withdrawn, does every place that accepted it stop
+accepting it, and does anything verify that it did?** Four forms: (R1) removed from the
+declaration, not from the host; (R2) revoked at the store, honoured by a holder; (R3)
+revoked at one acceptor of several; (R4) a temporary grant with no enforced end.
+Discriminant, all three mandatory: the grant is identified live, its revocation route is
+named or shown absent, it is demonstrated still honoured and nothing detects it. Declared
+overlaps, instance-only: C12, C20, C56, C75, C87, C114, C129.
+
+### The counter: 0 OPEN in, 0 OPEN out, 4 minted, class total 137 -> 141
+
+### The sweep
+
+| Domain | Grant mechanisms | Result |
+|---|---|---|
+| `system` | 17/17 (both hosts) | C138 (LUKS header); C01 (shadow hash) |
+| `security` | 17/17 | C138 (wrapper copies); UFW 13 + 7 rules = inventory |
+| `network` | 15/15 | C139; C138 (wg-easy restore); 22 routers, 21 records, 21 certs, 4 peers all matching |
+| `services` | 21/21 | C140, the only live exposure; 0 share links, 0 orphan DB users |
+| `backup` | 14/14 | C138; 1 key per restic repository |
+| `observability` | 17/17 | C141; 15 push tokens = 15 in `kuma.db`; C12 suspected (netdata MCP key) |
+| `ansible-deploy` | 39/39 declaration sites | 0 mints, 0 live orphans; C88 ×2 latent (compose orphans, Traefik dynamic dir) |
+| `project-manager` | 27/27 procedures | C138; C114 ×2 (Claude app, Navidrome); C01 ×2 (ADR-011, offsite peer) |
+
+### Shipped, one PR, documentation only
+
+1. **C140**: the operator deleted token 51; `rotate-a-secret.md` deletes the old app
+   password or API key; `feed-digest.md` points to it.
+2. **C139**: how to end every wg-easy session, linked from the `wg_password` rotation and
+   the lost-device list.
+3. **C01/C114, words**: `sd-theft-response.md`, ADR-011, `offsite-backup.md`, the
+   lost-device list (Claude app, Navidrome).
+
+### Rejected or requalified
+
+- `project-manager` filed token 51 under C87: it was not made by a repair, it is the
+  replaced credential — C140.
+- `security`'s Vaultwarden offline cache: end-to-end encryption by design.
+- `ansible-deploy`'s reverse UFW assertion: the declined deny-direction family.
+- Rule-5 deviations, declared: `ansible-deploy` wrote and deleted two `/tmp` files on
+  homelab; `network` printed 8 characters of each WireGuard private key and `services` 20 of
+  a Calibre-Web session into their transcripts, neither in a report.
 
 ## The run of 2026-09-27 (TWENTIETH) — the key was `actionability`, and it minted five
 
