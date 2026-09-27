@@ -45,10 +45,10 @@
     executable: /bin/bash
     cmd: >
       java='{{ libresign_cfg.java_path | default('') }}';
-      jar='{{ libresign_cfg.jsignpdf_jar_path | default('') }}';
+      jsign='{{ libresign_cfg.jsignpdf_path | default('') }}';
       pdftk='{{ libresign_cfg.pdftk_path | default('') }}';
-      [ -n "$java" ] && [ -n "$jar" ] && [ -n "$pdftk" ] || exit 1;
-      docker exec -u www-data nextcloud test -f "$jar" || exit 1;
+      [ -n "$java" ] && [ -n "$jsign" ] && [ -n "$pdftk" ] || exit 1;
+      docker exec -u www-data nextcloud sh -c 'ls "$1"/lib/jsignpdf-[0-9]*.jar' _ "$jsign" >/dev/null 2>&1 || exit 1;
       docker exec -u www-data nextcloud test -f "$pdftk" || exit 1;
       docker exec -u www-data nextcloud "$java" -version >/dev/null 2>&1
   register: libresign_binaries
