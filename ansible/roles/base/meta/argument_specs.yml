@@ -36,6 +36,14 @@ argument_specs:
           governs deletion — and it is now sized by retention: the journal is
           the only durable record of some monthly events, so it has to outlive
           their period (#290).
+      journald_system_max_files:
+        type: int
+        required: false
+        description: >-
+          Cap on the NUMBER of journal files (inline default 400; journald's own
+          default is 100). Per-user journals share it with the system journal, so
+          at 100 it deleted system history at a third of the size cap. Sized so
+          that journald_system_max_use binds first.
       tmp_tmpfs_size:
         type: str
         required: false

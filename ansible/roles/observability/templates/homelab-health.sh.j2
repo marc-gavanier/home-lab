@@ -65,6 +65,7 @@ JOURNAL_PRESSURE_PCT=80
 journal_cap_mb=$(sed -n 's/^SystemMaxUse=\([0-9]\{1,\}\)M$/\1/p' \
                  /etc/systemd/journald.conf.d/99-homelab.conf 2>/dev/null | head -1)
 journal_pct=""
+journal_cap_label="${journal_cap_mb}M"
 if [ -n "$journal_cap_mb" ] && [ "$journal_cap_mb" -gt 0 ] 2>/dev/null; then
     journal_pct=$(journalctl --disk-usage 2>/dev/null | awk -v cap="$journal_cap_mb" '
         match($0, /take up [0-9.]+[KMGT]/) {
@@ -76,6 +77,16 @@ if [ -n "$journal_cap_mb" ] && [ "$journal_cap_mb" -gt 0 ] 2>/dev/null; then
             else if (unit == "T") n *= 1048576
             printf "%d", (n / cap) * 100
         }')
+fi
+journal_files_cap=$(sed -n 's/^SystemMaxFiles=\([0-9]\{1,\}\)$/\1/p' \
+                    /etc/systemd/journald.conf.d/99-homelab.conf 2>/dev/null | head -1)
+if [ -n "$journal_pct" ] && [ -n "$journal_files_cap" ] && [ "$journal_files_cap" -gt 0 ] 2>/dev/null; then
+    journal_files=$(find "/var/log/journal/$(cat /etc/machine-id 2>/dev/null)" -maxdepth 1 -name '*.journal*' 2>/dev/null | wc -l)
+    journal_files_pct=$(( journal_files * 100 / journal_files_cap ))
+    if [ "$journal_files_pct" -gt "$journal_pct" ]; then
+        journal_pct=$journal_files_pct
+        journal_cap_label="${journal_files_cap}-file"
+    fi
 fi
 
 boot_journal=$(journalctl -b -o short-unix 2>/dev/null | head -1 | cut -d. -f1)
@@ -93,7 +104,7 @@ case "${boot_journal:-x}${boot_real:-x}" in
             if [ -z "$journal_pct" ]; then
                 pending+=("this boot's journal starts $how before the machine did, and the journal's headroom could not be read to size the risk (#292)")
             elif [ "$journal_pct" -ge "$JOURNAL_PRESSURE_PCT" ]; then
-                pending+=("this boot's journal starts $how before the machine did and the journal is at ${journal_pct}% of its ${journal_cap_mb}M cap — the pre-NTP segment sorts oldest and the vacuum takes it first (#292)")
+                pending+=("this boot's journal starts $how before the machine did and the journal is at ${journal_pct}% of its ${journal_cap_label} cap — the pre-NTP segment sorts oldest and the vacuum takes it first (#292)")
             else
                 report+=("boot journal skew $how, journal ${journal_pct}%")
             fi

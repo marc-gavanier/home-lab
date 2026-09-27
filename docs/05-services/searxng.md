@@ -18,6 +18,10 @@ an account.
   symlink from `/opt/homelab`: it would dangle inside the container, and SearXNG
   would silently run a generated stub.
 - No Redis/Valkey: single user on the VPN, limiter off.
+- Web engines: Google CSE, Bing, `duckduckgo web`. Refused from this address, so disabled:
+  `duckduckgo` (CAPTCHA), Brave (429), Startpage (CAPTCHA), Qwant, Mojeek and Presearch (403).
+  SearXNG drops a refused engine silently and `/healthz` stays OK: test one with
+  `/search?q=test&engines=<name>` and read `docker logs searxng 2>&1 | grep 'ERROR:searx.engines'`.
 - Preferences live in a per-device cookie.
 - At every start SearXNG downloads the ClearURLs rules from a third party, unpinned. Accepted:
   they can only strip parameters from result links.

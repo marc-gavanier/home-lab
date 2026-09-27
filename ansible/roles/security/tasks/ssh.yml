@@ -20,6 +20,7 @@
     - { regexp: '^#?LoginGraceTime', line: 'LoginGraceTime 60' }
     - { regexp: '^#?MaxSessions', line: 'MaxSessions 10' }
     - { regexp: '^#?MaxStartups', line: 'MaxStartups 10:30:60' }
+    - { regexp: '^#?PerSourceMaxStartups', line: 'PerSourceMaxStartups 8' }
     - { regexp: '^#?PermitUserEnvironment', line: 'PermitUserEnvironment no' }
     - { regexp: '^#?IgnoreRhosts', line: 'IgnoreRhosts yes' }
     - { regexp: '^#?HostbasedAuthentication', line: 'HostbasedAuthentication no' }
