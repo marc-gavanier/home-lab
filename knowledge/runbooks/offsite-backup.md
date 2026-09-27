@@ -105,7 +105,9 @@ The backup disk holds only restic ciphertext and the htpasswd hash. The system c
 holds two live credentials: the WireGuard client key and the health report's Kuma
 push URL.
 
-1. wg-easy UI → delete or disable client `offsite-backup`.
+1. wg-easy UI → delete client `offsite-backup`, following
+   [wireguard-peer-revocation](wireguard-peer-revocation.md). This is the one case where an
+   infrastructure peer is removed; never disable it instead.
 2. Rotate `rest_server_auth_password` (vault). It guards bandwidth, not
    confidentiality.
 3. Recreate the Kuma "offsite health" push monitor (a thief could forge green pings

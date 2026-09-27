@@ -50,7 +50,8 @@
     content: |
       d /run/sshd 0755 root root -
 
-- name: ssh | Lock the admin account password (no legitimate use, offline-crackable)
+- name: ssh | Remove the admin account password hash (no legitimate use, offline-crackable)
   ansible.builtin.user:
     name: "{{ ansible_user }}"
-    password_lock: true
+    password: "!"
+  notify: Drop the removed hash from the shadow backup

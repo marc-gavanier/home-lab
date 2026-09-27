@@ -8,10 +8,10 @@ access that has served its purpose, or any peer you cannot name. A peer key open
 
 - **Never remove the two infrastructure peers**: the offsite Pi's client (carries the nightly
   backup copy) and the homelab host tunnel (only management path to the offsite Pi). See
-  [offsite-backup.md](offsite-backup.md) and ADR-010.
+  [offsite-backup.md](offsite-backup.md) and ADR-010. The one exception is a stolen offsite Pi.
 - **Do not read `wg0.json`.** It is the pre-v15 store (ADR-020): it still parses but is frozen, so
   peers added since are missing.
-- Open the database with `-readonly`: it belongs to a running container, and a read-write open
+- Read the database with `-readonly`: it belongs to a running container, and a read-write open
   takes a lock wg-easy needs.
 
 ## List the peers
@@ -82,8 +82,26 @@ The UI delete path has not yet been exercised on a real peer: always verify with
 No peer has an expiry today, and the expiry job has never been seen running here. You can hand out
 a time-limited peer, but check the first time that it is actually disabled at expiry.
 
+## End every wg-easy admin session
+
+A wg-easy login never expires on the server, and neither a password change nor a logout ends
+another browser's session. A device that was logged in to the UI can still add peers and download
+every client's configuration, private keys included. Replace the key that seals the sessions;
+wg-easy reads it on every request, so no restart is needed:
+
+```bash
+ssh homelab "sudo sqlite3 /mnt/data/services/wireguard/wg-easy.db \
+  \"UPDATE general_table SET session_password = lower(hex(randomblob(32)));\""
+```
+
+Expected: the UI asks you to log in again.
+
 ## Clean up what the lost device still holds
 
+- **wg-easy UI**: if the device was ever logged in, end every session (above).
+- **Claude app**: it reaches Remote Control on the Pi through claude.ai, not through the VPN.
+  Revoke the device at claude.ai → Settings → Devices.
+- **Navidrome**: music apps keep the account password. Change it in Navidrome.
 - **Vaultwarden**: the mobile client keeps an encrypted offline cache. If the device may have been
   unlocked, change the master password, then invalidate sessions in `/admin` → *Users*.
 - **Nextcloud**: `occ user:auth-tokens:list <user>` then

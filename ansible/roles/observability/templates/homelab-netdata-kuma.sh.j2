@@ -11,6 +11,14 @@ TIMEOUT=30
 
 log() { echo "$*"; }
 
+KUMA_PUSH_ENV=/mnt/data/secrets/kuma-push.env
+if [ -r "$KUMA_PUSH_ENV" ]; then
+    . "$KUMA_PUSH_ENV"
+else
+    log "kuma-push-env-missing: $KUMA_PUSH_ENV is unreadable, /mnt/data is probably not unlocked — no alarm reaches anybody"
+    exit 0
+fi
+
 alarms_json=""
 ALARM_TABLE=""
 API_STATE="unreachable"
@@ -161,7 +169,7 @@ EOF
 {% for grp in netdata_alarm_groups if grp.push_url %}
 {% set members = netdata_curated_alarms | selectattr('group', 'equalto', grp.name) | list %}
 {% if members %}
-group '{{ grp.push_url }}' {% for a in members %}'{{ a.alarm }}' {% endfor %}
+group "${NETDATA_{{ grp.name | upper | regex_replace('[^A-Z0-9]', '_') }}_PUSH_URL:-}" {% for a in members %}'{{ a.alarm }}' {% endfor %}
 
 {% endif %}
 {% endfor %}
