@@ -24,6 +24,49 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-09-27 (TWENTY-THIRD run) — key `delegation`, one PR
+
+- **Renovate holds MariaDB majors for Dependency Dashboard approval**: the hold on #364 had
+  lived only in the operator's memory while `MARIADB_AUTO_UPGRADE=1` makes the upgrade
+  one-way. Nextcloud 35 still does not list MariaDB 13.
+- **snapd purged on both hosts and pinned at -1**: it refreshed itself as root four times a
+  day, outside ADR-013, and served no snap but itself.
+- **Timer units no longer start Docker**: `homelab-netdata-kuma`, `-notify-push`, `-posture`
+  and `-image-retention` use `Requisite=docker.service`, so a tick during an fsck cannot
+  remount `/mnt/data` or start dockerd outside the staged startup.
+- **Crash-heal brings a stopped service back with `--no-deps`**, so a dependency the operator
+  removed with `docker compose down` stays down.
+- **The heal-silence check keys on `homelab-services.target`**, not on the heal timer, and
+  names a paused timer as such: a pause longer than 15 min turns `Pi health` red.
+- **Calibre-Web auto-convert off** (operator, in the UI): the 5 books converted on 09-02 keep
+  their EPUB; the PDF originals stay in `processed_books/converted/`.
+- **Words**: no channel reports a CVE in a container image (ADR-013, security page); the
+  Cloudflare token can edit the whole zone (ADR-014); crash-heal applies a pending pin
+  (ADR-007); Miniflux drops a feed after 15 errors; offsite reboots after every kernel update;
+  image retention logs to the journal; fail2ban's actual jails (CLAUDE.md); Claude Code's
+  update record.
+
+## Decisions taken on 2026-09-27 (twenty-third run) — do not re-propose
+
+- **No container CVE scanner** (Trivy/Grype): the premise that `osvVulnerabilityAlerts`
+  already covered images was false, and the operator kept the decision with the corrected
+  premise. The weekly Renovate batch is the only channel.
+- **The Cloudflare token's zone-wide reach**: accepted; Cloudflare scopes a token to a zone,
+  not a record. A second zone was judged too costly.
+- **Nextcloud 35 (#366)**: ready under condition (richdocuments, bookmarks, libresign and
+  external must update from the app store during the upgrade); 34 is supported until
+  2027-06-08. Done by hand after a nightly backup, not held.
+- **The 5 converted books keep their EPUB**; the PDFs are not re-imported.
+
+## Instrument traps paid on 2026-09-27 (twenty-third run)
+
+- **`systemctl show -p Result` on a misspelled unit** (`x.service.service`) answers `success`
+  with `LoadState=not-found`: paid again by the main session's baseline. Read `LoadState`.
+- **`occ richdocuments:activate-config` writes**: it re-saves the WOPI configuration. Use
+  `occ config:app:get richdocuments` to read.
+- **`osvVulnerabilityAlerts` covers no datasource this repository uses** (Docker, GitHub
+  releases and tags, Galaxy): a green Renovate config says nothing about image CVEs.
+
 ## Shipped on 2026-09-27 (TWENTY-SECOND run) — key `exhaustion`, one PR
 
 - **journald keeps up to 400 files** (`journald_system_max_files`), the 1500M byte cap

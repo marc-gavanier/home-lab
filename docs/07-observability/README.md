@@ -73,8 +73,8 @@ period.** A green monitor says the job ran, not what it did.
 | Evidence                                           | Jobs                                            | Retention                           |
 |----------------------------------------------------|-------------------------------------------------|-------------------------------------|
 | A Kuma push monitor whose message carries readings | most jobs                                       | per-monitor row budget              |
-| The journal alone                                  | `homelab-stack-heal`, `offsite-wg-reresolve`    | ~8 weeks at the size cap            |
-| Nothing at all                                     | `homelab-image-retention` (monthly)             | —                                   |
+| The journal alone                                  | `homelab-stack-heal`, `offsite-wg-reresolve`,   | ~8 weeks at the size cap            |
+|                                                    | `homelab-image-retention` (monthly)             |                                     |
 
 Enumerate the timers, not the monitors — a job with no channel never shows up in a list of
 channels:

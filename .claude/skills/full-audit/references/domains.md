@@ -15,7 +15,9 @@ earlier — which would have sent eight agents to re-derive settled work. Rebuil
 it from `classes.md`'s OPEN table at the start of every run; if the two
 disagree, `classes.md` wins.
 
-As of the TWENTY-SECOND run of 2026-09-27, key `exhaustion`: **0 OPEN** — the table below is the fifteenth run's, kept for its C01 history.
+As of the TWENTY-THIRD run of 2026-09-27, key `delegation`: **0 OPEN** — the table below is the fifteenth run's, kept for its C01 history.
+
+**FORTY-TWO keys are now spent.** `delegation` (twenty-third run, 4 mints: C143 to C146). `attribution`, `inheritance` and `erasure` are still unspent.
 
 **FORTY-ONE keys are now spent.** `exhaustion` (twenty-second run, 1 mint: C142). `attribution` and `inheritance` are still unspent; `perturbation` is `interference`, do not offer it.
 

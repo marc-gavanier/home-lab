@@ -167,7 +167,7 @@ mf "https://rss.<domain>/v1/feeds" \
 - Reddit feeds are refused (`Access to this website is forbidden. Perhaps, this website has a
   bot protection`, r/selfhosted, 2026-08-13): do not add them.
 - A 403 or DNS error for a week: delete the feed in the UI and in your OPML file.
-- A timeout: keep the feed, but refresh it by hand. After 3 consecutive errors Miniflux stops
+- A timeout: keep the feed, but refresh it by hand. After 15 consecutive errors (`POLLING_PARSING_ERROR_LIMIT`) Miniflux stops
   polling it for good, and the posture check `miniflux-no-feed-silently-unscheduled` stays red
   until a refresh succeeds:
 

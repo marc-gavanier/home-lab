@@ -6,7 +6,7 @@
     content: |
       [Unit]
       Description=Remove Docker images no container references and older than 30 days
-      Requires=docker.service
+      Requisite=docker.service
       After=docker.service
 
       [Service]

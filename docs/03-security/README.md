@@ -77,8 +77,8 @@ hold. This page lists the controls per layer and where each one is decided.
 
 ### 3. Containers (Docker)
 
-- Official images, pinned versions, tracked by Renovate with
-  `osvVulnerabilityAlerts` for off-schedule CVE PRs.
+- Official images, pinned versions, tracked by Renovate weekly. No channel
+  reports a CVE in an image: a fix arrives with the next release (ADR-013).
 - **`no-new-privileges`** on every container except two, where the flag fails
   silently:
   - **Netdata**: setuid-root plugins read other processes' `/proc` (ADR-018).

@@ -57,7 +57,10 @@ encrypted disk, and stage the containers behind it — all automated by the
 4. **Crash recovery by timer.** Since `restart: "no"` also disables Docker's
    crash restarts, `homelab-stack-heal.timer` (every 2 min while the target is
    up) restarts any compose container found exited with a non-zero code, `created` or
-   `dead` (since 2026-09-05), or unhealthy for 15 min (since 2026-09-12).
+   `dead` (since 2026-09-05), or unhealthy for 15 min (since 2026-09-12). A stopped
+   container is brought back with `compose up -d --no-deps`, not restarted: it
+   comes back on the image the host's `compose.yaml` pins, so a pin a deploy
+   copied but did not apply (Immich's one-way migration included) is applied then.
 
 ## Consequences
 

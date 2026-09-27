@@ -328,10 +328,12 @@ fi
 heal_script=/usr/local/sbin/homelab-stack-heal.sh
 heal_installed=$(stat -c %Y "$heal_script" 2>/dev/null || echo 0)
 if [ $(( $(date +%s) - heal_installed )) -gt 900 ] &&
-   systemctl -q is-active homelab-stack-heal.timer 2>/dev/null &&
+   systemctl -q is-active homelab-services.target 2>/dev/null &&
    [ -n "$(systemctl show homelab-stack-heal.service -p ExecMainExitTimestamp --value 2>/dev/null)" ]; then
     heal_last=$(journalctl -t homelab-heal --since -15min -o cat 2>/dev/null | grep '^checked ' | tail -1)
-    if [ -z "$heal_last" ]; then
+    if [ -z "$heal_last" ] && ! systemctl -q is-active homelab-stack-heal.timer 2>/dev/null; then
+        problems+=("crash-heal is paused — homelab-stack-heal.timer is stopped and has not run in 15 min; start it once maintenance is over")
+    elif [ -z "$heal_last" ]; then
         problems+=("crash-heal has not reported in 15 min — it may be firing blind")
     else
         heal_n=$(printf '%s' "$heal_last" | sed -n 's/^checked \([0-9]\{1,\}\) .*/\1/p')

@@ -144,6 +144,8 @@ docker compose down <svc>                    # removes it — nothing to heal
 systemctl stop homelab-stack-heal.timer     # or pause healing (restart after)
 ```
 
+A pause longer than 15 min turns `Pi health` red until the timer is started again.
+
 `docker compose down` with no service also removes Tier 0. `homelab-unlock`
 recreates it; restarting Docker alone does not.
 
@@ -194,7 +196,8 @@ Schedule by reachability, not raw CVSS, and by when someone can be on the LAN:
 | Actively exploited **and** reachable — CISA KEV / public PoC in the netstack, WireGuard, or an unauth-reachable path | **≤ 48 h** |
 
 Offsite reboots itself when an update needs it, at 04:00
-(`Unattended-Upgrade::Automatic-Reboot "true"`), roughly monthly.
+(`Unattended-Upgrade::Automatic-Reboot "true"`): after every kernel update, with no fixed
+period.
 
 Why: [ADR-007](../decisions/ADR-007-staged-container-startup.md) (staged
 startup), [ADR-013](../decisions/ADR-013-update-patching-strategy.md) (patching).
