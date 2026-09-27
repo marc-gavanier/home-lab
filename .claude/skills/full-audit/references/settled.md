@@ -24,6 +24,51 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-09-27 (TWENTIETH run) — key `actionability`, one PR
+
+- **Alerts name what failed**: `Pi health` and `Offsite health` append the failed units to
+  `systemd-no-failed-units`; `no-container-came-back-recovering` exits 1 (shutdown budget,
+  #288) or 3 (died after start, #391); `docs/07-observability` gives the one-liner that runs
+  a check's body and prints the cause goss drops.
+- **The Lynis reference is written only on a green verdict**, so a new warning stays red.
+- **The deploy no longer stops on a tolerated failure**: `ignore_errors` on the notify_push
+  setup and the Collabora wait (`failed_when: false` loses to exhausted retries); four
+  probes carry `failed_when: false`/`ignore_errors` so the message after them can show.
+- **The `/mnt/data` guards read `mountpoint -q`**, not facts gathered before the mount.
+- **Remedies that went through the failure** are rewritten: ACME diagnosis before deleting
+  `acme.json`; fsck is LAN-only with its start and return commands; offsite `repair` on site.
+- **Runbook gaps closed**: Miniflux refresh after 3 errors, offsite init step, offsite
+  silence (handshake from the homelab first), "No heartbeat" row, missed deep-check slice,
+  fail2ban ban expiry, header restore on a refused passphrase, DDNS DOWN carries the public
+  IP, Nextcloud keyword/JIT rows, LAN address (router reservation first), WireGuard password
+  (UI first), LAN-pin via `--tags claude-code,backup`, notify_push redeploy scoped.
+
+## Decisions taken on 2026-09-27 (twentieth run) — do not re-propose
+
+- **Heal vs `homelab_container_down`** (a container crashing > 2 min after each start is
+  relaunched before the 10 min alarm): accepted under the cost/benefit rule, no restart
+  counter.
+- **Push tokens printed into audit transcripts** again (5): the nineteenth run's decision
+  holds, no reset.
+- **DDNS during an IP change**: a message and a paragraph, no out-of-band path.
+- **Open, the operator's to answer**: whether the Ansible vault pass is reachable with the
+  Pi off. Until answered it is a suspected C134 instance, not a decision.
+- **The Redis-password assert keeps `no_log`** for now: its removal was refused by the
+  session's safety classifier; the operator decides.
+
+## Instrument traps paid on 2026-09-27 (twentieth run)
+
+- **`diff` or `cat` of a deployed push script prints its Kuma URL and token**: filter
+  `https://` out of every read of a deployed script.
+- **`sudo grep -r` over `/mnt/data/services/netdata`** walks the metric store for minutes:
+  twice killed by the agents that started it.
+- **`failed_when: false` does not survive `until` exhaustion** in ansible-core; read the
+  executor, not the task, before calling a probe tolerant.
+- **A goss check's stdout is dropped by the hand route too** (`goss validate`): only
+  running the check's body shows it.
+- **An agent's "regression" verdict needs the deployed state**: `/run/sshd` was re-derived
+  as broken from a namespace without it, while `tmpfiles.d` recreates it at every boot.
+
 ## Shipped on 2026-09-27 (NINETEENTH run) — key `fidelity`, one PR
 
 - **The `claude` user's state is on LUKS**: `/home/claude/.claude` is a bind mount of

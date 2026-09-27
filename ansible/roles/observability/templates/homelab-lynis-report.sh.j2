@@ -106,12 +106,12 @@ if [ -r "$LAST_REPORT" ] && grep -q '^hardening_index=' "$LAST_REPORT" 2>/dev/nu
     new_sugg=${new_sugg# }
 fi
 
-cp -f "$REPORT" "$LAST_REPORT" 2>/dev/null || true
-
 if [ -n "$new_warn" ]; then
     notify down "$msg — new warning(s) since the last green run: ${new_warn}"
     exit 1
 fi
+
+cp -f "$REPORT" "$LAST_REPORT" 2>/dev/null || true
 
 [ -n "$new_sugg" ] && msg="$msg — new suggestion(s): ${new_sugg}"
 

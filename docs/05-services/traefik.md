@@ -40,6 +40,18 @@ ssh homelab "sudo tail -20 /run/traefik/access.log"
 **Certificate problem.** Read the health message first: it reports `certs Nd/C`, the days left on
 the nearest expiry over the number of certificates in `acme.json`, and names the failing one.
 
+Then read why renewal fails. Most causes live outside `acme.json`: deleting the file fixes none of
+them and re-orders every certificate through the same failing path.
+
+```bash
+ssh homelab "docker logs traefik 2>&1 | grep -i acme | tail -20"
+```
+
+- Cloudflare refuses the DNS challenge (an authentication or permission error from its API):
+  rotate the token, see [`cf_dns_api_token`](../../knowledge/runbooks/rotate-a-secret.md#cf_dns_api_token).
+- `acme.json` unreadable or not valid JSON: restore it (see [Restore](#restore)).
+- Let's Encrypt rejects the account itself (`accountDoesNotExist`): only then delete the file.
+
 **Last resort: delete `acme.json`.** Expect `Pi health` to go DOWN. It deletes the ACME account key
 and triggers one ACME order per certificate at once:
 

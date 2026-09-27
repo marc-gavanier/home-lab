@@ -161,13 +161,19 @@ Other feeds keep working. List failing feeds:
 
 ```sh
 mf "https://rss.<domain>/v1/feeds" \
-  | jq -r '.[] | select(.parsing_error_count > 0) | "\(.title): \(.parsing_error_message)"'
+  | jq -r '.[] | select(.parsing_error_count > 0) | "\(.id) \(.title): \(.parsing_error_message)"'
 ```
 
 - Reddit feeds are refused (`Access to this website is forbidden. Perhaps, this website has a
   bot protection`, r/selfhosted, 2026-08-13): do not add them.
-- A 403 or DNS error for a week: delete the feed in the UI and in your OPML file. A timeout:
-  keep it.
+- A 403 or DNS error for a week: delete the feed in the UI and in your OPML file.
+- A timeout: keep the feed, but refresh it by hand. After 3 consecutive errors Miniflux stops
+  polling it for good, and the posture check `miniflux-no-feed-silently-unscheduled` stays red
+  until a refresh succeeds:
+
+```sh
+mf -X PUT "https://rss.<domain>/v1/feeds/<id>/refresh"
+```
 
 ## Related
 

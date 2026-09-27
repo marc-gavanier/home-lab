@@ -34,7 +34,7 @@ Each role pins in two places: `/etc/cloud/templates/hosts.debian.tmpl`
 playbooks**, because offsite is not in `site.yml`:
 
 ```bash
-ansible-playbook playbooks/site.yml --ask-vault-pass --tags claude-code,deploy
+ansible-playbook playbooks/site.yml --ask-vault-pass --tags claude-code,backup
 ```
 ```bash
 ansible-playbook playbooks/offsite.yml --ask-vault-pass --tags offsite-backup

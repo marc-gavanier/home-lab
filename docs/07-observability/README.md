@@ -53,7 +53,7 @@ Conditions that send you to the same place share a monitor:
 | Monitor                  | What it carries                                                                                                             | Fed by                              | What you would do        |
 |--------------------------|-----------------------------------------------------------------------------------------------------------------------------|-------------------------------------|--------------------------|
 | **Pi health**            | `/` and `/mnt/data` usage, undervoltage, DNS, mirror, certificate store, failed units and timers, restart loops, crash-heal | `homelab-health.sh`                 | look at the host         |
-| **Pi resources**         | temperature, undervoltage, memory, swap                                                                                     | curated alarms via the Kuma adapter | look at load             |
+| **Pi resources**         | temperature, undervoltage, memory, swap                                                                                     | curated alarms via the Kuma adapter | load, or PSU and cable   |
 | **Pi disk health**       | `/mnt/data` usage, SMART, drive temperature, pending sectors, ext4 state                                                    | `homelab-disk.sh`                   | look at the disk         |
 | **Pi pending action**    | reboot pending, services on replaced libraries, journal skew under pressure, security updates, certificate expiry           | `homelab-health.sh`                 | schedule an intervention |
 | **Netdata — containers** | containers down, containers unhealthy                                                                                       | curated alarms via the Kuma adapter | look at the stack        |
@@ -103,6 +103,16 @@ gaps are 24–37 days). It works because this monitor is weekly and keeps all it
 on Kuma's `keepDataPeriodDays` (180): raw beats are pruned by a per-monitor row budget (~45.6 h for
 an ordinary beat on the 5-minute health monitor).
 
+When it fires, that month's slice (`<month>/12`) was not read, and the next scheduled run reads the
+next month's slice, not this one: left alone, it waits a year. Re-read it by hand, as root:
+
+```bash
+set -a; . /opt/homelab/backup.env; set +a
+restic check --read-data-subset=<month>/12
+```
+
+This pushes nothing, so the assertion stays red until the next first-week run clears it.
+
 **Access log.** The redacted access log (ADR-034) is the only trace the offsite host leaves here,
 and it writes once a week. The log carries its own `logging:` block, 10 x 20 MB (~32 days of
 capacity at ~6 MB/day). The ring belongs to the container and restarts empty on every recreation,
@@ -142,6 +152,18 @@ sudo goss -g /etc/goss/posture.yaml validate --format tap
 ```
 
 The first ends in `Count: N, Failed: 0`; the second is what the scripts consume.
+
+Neither prints what a failing check wrote: goss discards it, and the alert carries only the check's
+name and exit code. To read the cause (which unit, which container), run that one check's body:
+
+```bash
+sudo python3 -c 'import sys,yaml;print(yaml.safe_load(open(sys.argv[1]))["command"][sys.argv[2]]["exec"])' \
+  /etc/goss/posture.yaml <check-name> | sudo bash
+```
+
+`no-container-came-back-recovering` has two causes with different fixes, told apart by the exit
+code: `1`, a database came back recovering because the shutdown budget did not cover it (#288); `3`,
+a process died after a clean start and forced a recovery (#391).
 
 **`backup-dumps.yaml` fails by hand — that is normal.** The dump directory exists only during a
 backup run (ADR-031), so outside one it fails one assertion per dump (`dump-nextcloud-present`,
@@ -388,6 +410,9 @@ The table is maintained by hand. To check it, compare against `problems+=(` in
 - The message names the warning test IDs, and a regression names what is new. The report behind
   each green verdict is kept (`/var/log/lynis-report.dat` is rewritten by every run, manual ones
   included).
+- A new warning keeps the monitor red on every run until it is gone. To accept one on purpose:
+  `sudo cp /var/log/lynis-report.dat /var/lib/homelab-lynis/last-green-report.dat`, then
+  `sudo systemctl start homelab-lynis`.
 - `KRNL-5830` ("reboot … needed") is a legitimate, temporary warning; it clears only at the next
   weekly run after the reboot.
 - **`PKGS-7388` is a known false positive; do not skip it.** Lynis 3.0.9 cannot parse the deb822
@@ -410,6 +435,9 @@ current public IP.
 - Neither proves the public record is correct; that needs a probe from outside the LAN. The
   WireGuard HTTP monitor does not help: Kuma's `extra_hosts` pins `vpn.<domain>` to the LAN IP.
 - A stale record breaks remote access at once and silently.
+- A `down` message ends with `public IP now <ip>` whenever the script got that far. If you are away
+  and the tunnel no longer connects, compare it with the `vpn.<domain>` record in the Cloudflare
+  dashboard and correct the record there by hand; the next successful run takes over again.
 
 **Offsite tunnel recovery (ADR-029).** `offsite-wg-reresolve.timer` re-resolves the endpoint name
 and calls `wg set` when the peer's handshake goes stale, within four minutes.

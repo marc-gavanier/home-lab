@@ -142,6 +142,7 @@
   delay: 10
   changed_when: true
   failed_when: false
+  ignore_errors: true
   when:
     - nextcloud_up
     - nc_push_test.rc | default(0) != 0

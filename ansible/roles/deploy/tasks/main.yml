@@ -1,13 +1,23 @@
 ---
+- name: Read whether the encrypted volume is mounted now
+  ansible.builtin.command:
+    cmd: mountpoint -q /mnt/data
+  register: mnt_data_mountpoint
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  tags: always
+
 - name: Refuse to deploy while the encrypted volume is unmounted
   ansible.builtin.assert:
     that:
-      - ansible_mounts is defined
-      - ansible_mounts | selectattr('mount', 'equalto', '/mnt/data') | list | length == 1
+      - mnt_data_mountpoint.rc == 0
     fail_msg: >-
-      /mnt/data is not mounted — run homelab-unlock on the host first. Deploying
-      now would write credentials in clear onto the SD card, under the mount
-      point, report ok/changed, and the next unlock would hide them there.
+      /mnt/data is not mounted — run homelab-unlock on the host first (on a
+      first install, where homelab-unlock does not exist yet, this is expected
+      until the storage role has run). Deploying now would write credentials in
+      clear onto the SD card, under the mount point, report ok/changed, and the
+      next unlock would hide them there.
     quiet: true
   tags: always
 

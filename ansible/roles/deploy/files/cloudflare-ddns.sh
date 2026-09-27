@@ -11,14 +11,18 @@ notify() {
     local url="${KUMA_DDNS_PUSH_URL:-}"
     [ -n "$url" ] || return 0
     url="${url%%\?*}"
+    local msg="$2"
+    if [ "$1" = down ] && [[ "${IP:-}" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]]; then
+        msg="$msg — public IP now $IP"
+    fi
     local rc=0
     printf 'url = "%s"\n' "$url" |
         curl -fsS -m 30 --connect-timeout 5 --retry 2 -K - -G \
-            --data-urlencode "status=$1" --data-urlencode "msg=$2" >/dev/null || rc=$?
+            --data-urlencode "status=$1" --data-urlencode "msg=$msg" >/dev/null || rc=$?
     case "$rc" in
         0) ;;
-        28) echo "kuma-push-unconfirmed: no reply within 30s, the beat may have landed — $2" >&2 ;;
-        *)  echo "kuma-push-failed: this report reached nobody — $2" >&2 ;;
+        28) echo "kuma-push-unconfirmed: no reply within 30s, the beat may have landed — $msg" >&2 ;;
+        *)  echo "kuma-push-failed: this report reached nobody — $msg" >&2 ;;
     esac
 }
 

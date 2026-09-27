@@ -31,8 +31,9 @@ Then open `http://localhost:51821`.
 - The login asks for a username: `admin`. Typing the password alone, or letting a password manager
   fill an email, gives `invalid username or password`.
 - Passwords are hashed with argon2, which does not truncate at 72 bytes. If a password longer than
-  72 characters is rejected, enter its first 72 characters, or set a shorter `wg_password` and
-  redeploy.
+  72 characters is rejected, enter its first 72 characters. The deploy never sets this password:
+  change it in the UI, then put the same value in `wg_password`. Changing `wg_password` alone makes
+  every later deploy fail on the login.
 
 ## Adding a client
 
