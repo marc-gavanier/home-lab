@@ -45,6 +45,11 @@
       "matchPackageNames": ["ghcr.io/immich-app/immich-server", "ghcr.io/immich-app/immich-machine-learning", "ghcr.io/immich-app/postgres"],
       "groupName": null,
       "dependencyDashboardApproval": true
+    },
+    {
+      "matchPackageNames": ["mariadb"],
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
     }
   ],
   "customManagers": [
