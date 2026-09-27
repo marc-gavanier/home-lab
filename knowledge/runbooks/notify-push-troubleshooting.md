@@ -6,7 +6,8 @@ fails. Clients silently fall back to 30 s polling.
 ## Before you start
 
 - Fixes live in `docker/compose.yaml` and `ansible/roles/deploy/tasks/nextcloud.yml`;
-  redeploy with `--tags deploy`.
+  redeploy the three Nextcloud containers together, not the whole stack:
+  `--tags deploy --extra-vars "deploy_services='nextcloud nextcloud-cron nextcloud-notify-push'"`.
 - `homelab-notify-push.timer` runs the self-test hourly; the Discord alert names the
   failing step.
 

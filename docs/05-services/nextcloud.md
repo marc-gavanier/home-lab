@@ -85,3 +85,9 @@ after each run), and the import needs `maintenance:mode`. Follow
   [stale locks](../../knowledge/runbooks/nextcloud-stale-locks.md).
 - notify_push self-test fails:
   [notify_push](../../knowledge/runbooks/notify-push-troubleshooting.md).
+- `Nextcloud` monitor red on its keyword (`maintenance` or `needsDbUpgrade`), usually after an image
+  bump: `docker exec -u www-data nextcloud php occ upgrade`, then, if still in maintenance,
+  `docker exec -u www-data nextcloud php occ maintenance:mode --off`.
+- Posture `nextcloud-php-jit-is-disabled` red: an ini file from the image turns the JIT back on.
+  `docker exec nextcloud php --ini` lists them; find the one that sorts after `zz-disable-jit.ini`
+  or sets `opcache.jit*`, and extend `docker/configs/nextcloud/zz-disable-jit.ini` to override it.

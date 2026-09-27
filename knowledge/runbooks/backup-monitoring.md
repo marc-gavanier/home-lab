@@ -77,7 +77,8 @@ goes red and notifies.
 
 ## If it fails
 
-| Symptom                        | Action                                                                                                   |
-|--------------------------------|----------------------------------------------------------------------------------------------------------|
-| DOWN message                   | It ends with `journalctl -u <unit> -n 50` — the cause is in the journal (`journalctl -u homelab-backup`) |
-| Looking in the log file        | `/var/log/homelab-backup.log` holds only the notify lines and dump stderr, never restic's output         |
+| Symptom                           | Action                                                                                                                                |
+|-----------------------------------|---------------------------------------------------------------------------------------------------------------------------------------|
+| DOWN message                      | It ends with `journalctl -u <unit> -n 50` — the cause is in the journal (`journalctl -u homelab-backup`)                              |
+| Looking in the log file           | `/var/log/homelab-backup.log` holds only the notify lines and dump stderr, never restic's output                                      |
+| `No heartbeat in the time window` | The job never pushed. `systemctl list-timers 'homelab-*'`, then its journal. `Offsite health`: [offsite-backup.md](offsite-backup.md) |

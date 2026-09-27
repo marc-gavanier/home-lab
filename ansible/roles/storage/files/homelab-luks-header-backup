@@ -33,8 +33,8 @@ echo "SHA256: $(sha256sum "$OUT" | cut -d' ' -f1)"
 echo "Size:   $(du -h "$OUT" | cut -f1)"
 echo
 echo "NEXT (this file is as sensitive as the passphrase — do NOT leave it here):"
-echo "  1. Move it off this machine, to BOTH of the independent places named in"
-echo "     knowledge/runbooks/luks-header-backup.md."
+echo "  1. Move it off this machine, to two independent offline places"
+echo "     (the rule is in knowledge/runbooks/luks-header-backup.md)."
 echo "  2. Shred the working copy:  shred -u '$OUT'"
 
 if [ -e /run/homelab/tamper-armed ]; then

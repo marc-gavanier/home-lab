@@ -48,6 +48,19 @@ One condition is outside the spec: security updates still pending after 48 h
 (two daily runs), checked by `offsite-health.sh`. There is no reboot condition: the
 host reboots itself at 04:00 (ADR-013).
 
+### Why "offsite health" says "No heartbeat"
+
+The host stopped pushing, so every action above needs the tunnel it may have lost. Check the tunnel
+from the homelab first:
+
+```bash
+ssh homelab 'docker exec wg-easy wg show wg0 | grep -A3 "10.8.0.4"'
+```
+
+- A `latest handshake` under ~3 minutes: the tunnel is up, the fault is on the host; `ssh offsite`.
+- An old handshake or none: the host, its network or its power is down. Nothing on it restarts on
+  its own, so the fix is on site.
+
 ## Management access (SSH)
 
 The tunnel is the only way in: the Pi dials out. Go through the homelab, which holds
@@ -98,6 +111,19 @@ push URL.
 3. Recreate the Kuma "offsite health" push monitor (a thief could forge green pings
    with its token).
 4. Nothing to do for the data: the repo password was never on the Pi.
+
+## First initialisation (once, from the homelab)
+
+resticprofile never initialises a repository (`initialize: false`). Create the offsite one with the
+local repo's chunker parameters, or deduplication between the two is lost (ADR-010). As root:
+
+```bash
+set -a; . /opt/homelab/backup.env; set +a
+export RESTIC_FROM_REPOSITORY="$RESTIC_REPOSITORY" RESTIC_FROM_PASSWORD="$RESTIC_PASSWORD" \
+  RESTIC_REPOSITORY="$OFFSITE_RESTIC_REPOSITORY" RESTIC_PASSWORD="$OFFSITE_RESTIC_PASSWORD" \
+  RESTIC_REST_USERNAME="$OFFSITE_REST_USER" RESTIC_REST_PASSWORD="$OFFSITE_REST_PASSWORD"
+restic init --copy-chunker-params
+```
 
 ## Never run two copies at once
 
@@ -216,6 +242,14 @@ pgrep -a resticprofile || rm /run/lock/resticprofile-homelab.lock
 The `rm` runs only if `pgrep` finds nothing. `/run/lock` is a tmpfs, so a reboot also
 clears it. `force-inactive-lock` stays unset on purpose: breaking a lock
 automatically hides the failure.
+
+### If `check` tells you to run `restic repair`
+
+restic's own advice (`repair index`, `repair snapshots`, `repair packs`) rewrites or deletes files.
+Through rest-server's `--append-only`, as from the homelab, every delete but a lock's is refused.
+Run it on the offsite Pi as in [Manual retention](#manual-retention-rare--when-disk-usage-approaches-85):
+stop rest-server, run the repair against `/mnt/backup/restic`, `chown` back to `rest-server`, start
+rest-server, then run the check again.
 
 ## Disaster recovery (homelab lost)
 

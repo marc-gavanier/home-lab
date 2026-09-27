@@ -50,6 +50,9 @@ Use this page every time the homelab Pi comes back up: reboot, power cut,
    sudo homelab-unlock     # asks for the LUKS passphrase
    ```
 
+   - If `cryptsetup` refuses a passphrase you know is right (`No key available with this
+     passphrase`), or no longer sees a LUKS volume, the header may be damaged:
+     [restore it](luks-header-backup.md#restore-a-damaged-header-disaster-recovery).
    - **From now on any USB plug/unplug powers the Pi off.** Disarm before
      touching cables ([usb-tamper runbook](usb-tamper.md),
      [ADR-008](../decisions/ADR-008-usb-tamper-poweroff.md)).
@@ -149,7 +152,16 @@ recreates it; restarting Docker alone does not.
 **Never run `e2fsck` directly**: if anything mounts the volume mid-scan, it
 corrupts it. `homelab-fsck` blocks mounting for the duration.
 
-Before you start: stack down, `/mnt/data` unmounted, LUKS mapper still open.
+**From the LAN only.** Unmounting `/mnt/data` stops `wg-quick@wg0` and the stack stops wg-easy: over
+the VPN, the first command below cuts your session.
+
+Before you start: stack down, `/mnt/data` unmounted, LUKS mapper still open. `homelab-lock` is not
+the way there: it closes the mapper, and `homelab-fsck` then refuses to run.
+
+```bash
+sudo systemctl stop homelab-services.target
+sudo systemctl stop mnt-data.mount
+```
 
 1. Run the read-only check (~3 min 30 s). Exit code 4 means it found
    something; that is a normal result.
@@ -161,7 +173,7 @@ homelab-fsck -fy        # repair, once you have READ the read-only output
 ```
 
 The gate clears on exit, even on errors. `homelab-unlock` refuses to run
-while it is up.
+while it is up. Afterwards, `sudo homelab-unlock` mounts the volume and starts the stack again.
 
 ## Security-update reboot cadence
 

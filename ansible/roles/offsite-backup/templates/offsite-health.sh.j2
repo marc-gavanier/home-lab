@@ -44,7 +44,14 @@ else
     else
         failed=$(printf '%s\n' "$tap" | sed -n 's/^not ok [0-9]* - [A-Za-z]*: \([^:]*\):.*/\1/p' |
                  sort -u | tr '\n' ' ')
-        [ -n "${failed% }" ] && problems+=("${failed% }")
+        if [ -n "${failed% }" ]; then
+            # shellcheck disable=SC2086
+            if printf '%s\n' $failed | grep -qx offsite-no-failed-units; then
+                failed_units=$(systemctl --failed --no-legend --plain 2>/dev/null | awk '{print $1}' | tr '\n' ' ')
+                [ -n "${failed_units% }" ] && failed="$failed(failed: ${failed_units% }) "
+            fi
+            problems+=("${failed% }")
+        fi
     fi
 fi
 

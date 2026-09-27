@@ -11,5 +11,5 @@ component: Memory
      warn: $this > (($status >= $WARNING) ? ({{ netdata_swap_threshold_pct | int - 5 }}) : ({{ netdata_swap_threshold_pct | int }}))
     delay: up 2m down 15m multiplier 1.5 max 1h
   summary: Homelab swap utilisation above {{ netdata_swap_threshold_pct }}%
-     info: Swap utilisation crossed the threshold justified in homelab-health.sh
+     info: Swap utilisation crossed the threshold justified in docs/07-observability (Host health)
        to: silent

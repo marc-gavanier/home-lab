@@ -15,7 +15,9 @@ earlier — which would have sent eight agents to re-derive settled work. Rebuil
 it from `classes.md`'s OPEN table at the start of every run; if the two
 disagree, `classes.md` wins.
 
-As of the NINETEENTH run of 2026-09-27, key `fidelity`: **0 OPEN** — the table below is the fifteenth run's, kept for its C01 history.
+As of the TWENTIETH run of 2026-09-27, key `actionability`: **0 OPEN** — the table below is the fifteenth run's, kept for its C01 history.
+
+**Thirty-NINE keys are now spent.** `actionability` (twentieth run, 5 mints: C133 to C137). `exhaustion`, `attribution` and `inheritance` are unspent.
 
 **Thirty-EIGHT keys are now spent.** `fidelity` (nineteenth run, 2 mints: C131, C132). `attribution` (does an effect's trace name its cause), `inheritance` and `exhaustion` are unspent.
 

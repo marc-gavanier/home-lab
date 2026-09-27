@@ -138,8 +138,11 @@ Each one is pinned, derived at run time from whoever assigns it, or watched.
 | `homelab_socketproxy`  | Docker default pool  | Same assertion |
 
 - **LAN address** (`<pi-lan-ip>`) is hardcoded through `homelab_ip` into every split-DNS record,
-  the compose env and the resolver given to VPN clients. If it changes, redeploy, then
-  re-download and re-import every client config from wg-easy: each device keeps the old resolver.
+  the compose env and the resolver given to VPN clients. If it changes, first restore the address
+  reservation on the router: that clears it with nothing else to touch. To move the Pi on purpose,
+  change `homelab_ip`, redeploy, then re-download and re-import every client config from wg-easy
+  (each device keeps the old resolver). Outside the repo, also update the router's DHCP DNS option
+  and its port forwards, and the workstation's `ssh homelab` `HostName`.
 - **LAN subnet** (`192.168.1.0/24`) is hardcoded in `host_vars/homelab/main.yml`,
   `security/tasks/firewall.yml` and Traefik's `middlewares.yml`. A new router that changes it
   means editing all three by hand; until then LAN clients get 403, no DNS and no SSH, while the

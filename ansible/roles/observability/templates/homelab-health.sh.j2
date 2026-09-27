@@ -265,8 +265,15 @@ if command -v systemctl >/dev/null 2>&1 && mountpoint -q /mnt/data; then
                         sed -n 's/^not ok [0-9]* - [A-Za-z]*: \([^:]*\):.*/\1/p' | sort -u)
             # shellcheck disable=SC2086
             units_bad=$(gate systemd-units 240 $units_bad)
-            [ -n "$units_bad" ] &&
-                problems+=("units: $(printf '%s ' $units_bad | sed 's/ $//')")
+            if [ -n "$units_bad" ]; then
+                units_msg="units: $(printf '%s ' $units_bad | sed 's/ $//')"
+                # shellcheck disable=SC2086
+                if printf '%s\n' $units_bad | grep -qx systemd-no-failed-units; then
+                    failed_units=$(systemctl --failed --no-legend --plain 2>/dev/null | awk '{print $1}' | tr '\n' ' ')
+                    [ -n "${failed_units% }" ] && units_msg="$units_msg (failed: ${failed_units% })"
+                fi
+                problems+=("$units_msg")
+            fi
         fi
     fi
 

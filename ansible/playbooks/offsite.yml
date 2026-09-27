@@ -41,5 +41,5 @@
           reachable from the homelab WireGuard IP only)
 
           Next: init the repo from the homelab —
-          see knowledge/runbooks/offsite-backup.md
+          see knowledge/runbooks/offsite-backup.md, "First initialisation"
           =============================================

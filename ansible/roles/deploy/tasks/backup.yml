@@ -65,6 +65,7 @@
     RESTIC_PASSWORD_FILE: /mnt/data/secrets/restic_password
   register: restic_open
   changed_when: false
+  failed_when: false
   check_mode: false
 
 - name: backup | Fail the deploy if the repository did not open

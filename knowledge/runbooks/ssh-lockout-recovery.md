@@ -9,6 +9,10 @@ there is no serial console ([ADR-009](../decisions/ADR-009-physical-attack-surfa
 Look for a surviving session first. Existing SSH sessions survive an sshd
 restart; any open terminal or tmux on the Pi can fix the problem in seconds.
 
+A fail2ban ban lifts on its own after one hour (`bantime`, no recidive jail).
+For a ban, wait it out, or connect from another address: the steps below are
+for a lockout that does not expire.
+
 ## Steps
 
 1. **Power off cleanly with the [kill switch](kill-switch.md).** It runs as root,

@@ -204,6 +204,11 @@ none asked about the GAIN between one cause and the number of effects it produce
 mechanism acted correctly; none asked whether a COPY still carried what its readers
 rely on — the medium it sits on, the time it claims.
 
+**The twentieth run, the same night, used `actionability` and minted five** (C133 to
+C137). **Consecutive zero-mint runs: still 0.** Every class before it looked at the
+mechanism; none followed a signal to the hand that must act on it and asked whether
+the action exists and still works in the state that raised the signal.
+
 ---
 
 # The register
@@ -566,7 +571,32 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
-## OPEN — 0 (after the NINETEENTH run of 2026-09-27, key `fidelity`)
+## OPEN — 0 (after the TWENTIETH run of 2026-09-27, key `actionability`)
+
+**Empty.** C133 to C137 were minted and swept in the same run, and C104, reopened by a
+member outside its counted predicate, was re-enumerated — see "The run of 2026-09-27
+(TWENTIETH)" below.
+
+| ID | Property | State |
+|---|---|---|
+| C133 | **A detector that saves the reading it is about to alarm on as its comparison reference, before raising the alarm** — so the next run, scheduled or a re-run to check a fix, compares against the failing state and reports green with nothing repaired | **MINTED 2026-09-27 (twentieth run), ENUMERATED**: `security` 7/7 saved references on homelab, 0 on offsite. 1 instance: `homelab-lynis-report.sh` copied the report into `last-green-report.dat` before the "new warning" DOWN; reproduced off-host 0 -> 1 (DOWN) -> 0 (UP), nothing fixed. Fixed: the copy moved below the check; re-run of the reproduction: DOWN, DOWN, then UP once the warning is gone. 1 deliberate documented edge (SMART pending), 5 stay red correctly. Never fired. Not GATED |
+| C134 | **A documented remedy whose execution needs a component that the failure it answers — or the remedy itself — removes** | **MINTED 2026-09-27 (twentieth run), ENUMERATED**: the eight domains' signal→remedy pairs, 320/320. 3 confirmed instances, all fixed in words: `traefik.md`'s only certificate action deleted `acme.json`, re-ordering 21 valid certificates through the Cloudflare DNS-01 path that was failing; `homelab-fsck` needs the stack down and `/mnt/data` unmounted, which stops wg-easy and `wg-quick@wg0`, the only remote path; restic's printed `repair` advice is refused offsite by `--append-only`. 1 suspected, the operator's to settle: the Ansible vault pass while Vaultwarden is down. Excluded by decision: the tunnel as sole remote path. Never fired. Not GATED |
+| C135 | **A failure tolerance declared on a step that the executor revokes on another path** — `failed_when: false` on a task with `until`/`retries`: ansible-core marks the result failed when the retries run out, after `failed_when` was evaluated (`task_executor.py:624-626`) | **MINTED 2026-09-27 (twentieth run), ENUMERATED**: `ansible-deploy` 26/26 failure-disposition declarations, 2 instances: `nextcloud.yml` notify_push setup (every `--tags deploy` stopped there while notify_push was red — 5 red episodes, ~9.5 h, since 08-15; whether a deploy fell in one is unmeasurable) and `collabora.yml`'s wait (latent). Fixed: `ignore_errors: true` on both. Not GATED |
+| C136 | **A guard that reads a value captured at run start after an earlier step of the same run has changed it** | **MINTED 2026-09-27 (twentieth run), ENUMERATED**: `ansible-deploy` 8/8 gathered-fact reads, 2 instances with one cause: the `/mnt/data` guards of `deploy` and `claude-code` read `ansible_mounts` gathered before `storage` mounts the volume, so bootstrap, `--tags storage` and DR step 1 would end red with "run homelab-unlock". Fixed: `mountpoint -q` at the guard. Not run since the guard shipped (09-20). Not GATED |
+| C137 | **A rotating-slice verification whose staleness detector does not record which slice was missed** — it fires after the window, the next in-band run (a different slice) clears it, and the lost slice waits a full rotation | **MINTED 2026-09-27 (twentieth run), ENUMERATED for `backup` only**: 1/1 (`check --read-data-subset=<month>/12` × `restic-deep-check-not-stale`). Remedy documented, not built: the hand re-read of the month's slice. Other domains were not asked for sliced jobs. Never fired. Not GATED |
+
+**C104 REOPENED and re-enumerated the same run.** Its counting predicate (≥ 2 `exit 1`
+branches) missed `no-container-came-back-recovering`, written after its sweep: one
+`exit 1` behind two causes, 5 notified firings on 09-26. Re-counted on the deployed
+spec: 54 of 232 posture commands and 4 of 10 units commands write a cause goss drops;
+a second stratum, the deploy's own texts, 5 of 26 unreachable (4 behind a probe that
+fails first, 1 behind `no_log`). Fixed: `Pi health` and `Offsite health` name the
+failed units; the recovering check exits 1 or 3 by cause; the docs give the command
+that prints a check's body output; the 4 probes tolerate failure so their text shows.
+The `no_log` removal was refused by the session's safety classifier and is left to the
+operator.
+
+### The nineteenth run's table read:
 
 **Empty.** C131 and C132 were minted and swept in the same run — see "The run of
 2026-09-27 (NINETEENTH)" below.
@@ -1147,6 +1177,57 @@ separate correction — **the marker is not a provenance instrument.**
 C92 and C03-R were closed as review rules once their spaces proved non-derivable.
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
+
+## The run of 2026-09-27 (TWENTIETH) — the key was `actionability`, and it minted five
+
+The key, **chosen by the operator** over `exhaustion` and `attribution`: **for every
+signal that reaches the operator, does the action it calls for exist, and can it be
+performed in the state that raised the signal?** Four forms: (A1) orphan, (A2)
+self-disabling remedy, (A3) remedy that clears the signal but not the cause, (A4) wrong
+moment. Discriminant, all three mandatory: the signal exists live, the action is named
+or shown absent, the gap is demonstrated from declared dependencies or live state.
+Out of scope by decision: signal delivery (C95/C116), the tunnel as sole remote path.
+
+### The counter: 0 OPEN in, 0 OPEN out, 5 minted, C104 reopened and re-enumerated, class total 132 -> 137
+
+### The sweep
+
+| Domain | Signals | A1 | A2 | A3 | A4 | Result |
+|---|---|---|---|---|---|---|
+| `system` | 58/58 | 5 | 1 | 0 | 0 | C104, C134 (fsck), C01 ×1 |
+| `security` | 28/28 | 1 | 1 susp. | 1 | 0 | C133 |
+| `network` | 34/34 | 0 | 1 | 1 | 0 | C134 (acme), C114 |
+| `services` | 35/35 | 7 | 0 | 2 | 1 | C104, C01 ×3 (Miniflux, 2 texts) |
+| `backup` | 26/26 | 3 | 1 | 1 | 1 | C137, C134 (repair) |
+| `observability` | 38/38 | 2 | 0 | 3 | 0 | C104 |
+| `ansible-deploy` | 58/58 | 9 | 2 | 1 | 0 | C135, C136, C104 stratum, C01 (wireguard) |
+| `project-manager` | 43/43 | 7 | 3 | 2 | 0 | C134, C34 ×2, C129 |
+
+### Shipped, one PR
+
+1. **C104**: failed units named in both health messages; `no-container-came-back-recovering`
+   exits 1 or 3 by cause; the command that prints a check's cause; 4 deploy probes
+   made tolerant so their failure text shows.
+2. **C133**: the Lynis reference is written only after a green verdict.
+3. **C135, C136**: `ignore_errors` on the two retried tasks; `mountpoint -q` guards.
+4. **C134**: ACME diagnosis before any deletion; fsck is LAN-only, with the commands
+   to reach its start state and back; offsite `repair` runs on site.
+5. **C01/C34/C114/C129/C137, words**: Miniflux refresh, WireGuard password, LAN address,
+   undervoltage action, three alarm/check texts, offsite init step, header-backup
+   pointer, LAN-pin tags, notify_push redeploy scope, "No heartbeat" row, offsite
+   silence, fail2ban ban expiry, header restore link, DDNS message carries the IP,
+   Nextcloud keyword and JIT rows, missed deep-check slice.
+
+### Rejected or requalified
+
+- `observability`'s mint (an assertion passed only once someone logs in, `/run/sshd`):
+  fixed by 2a69ef7, verified live — the `tmpfiles.d` entry exists on both hosts and
+  `/run/sshd` dates from boot. The 09-26 red predates the fix; `backup` was right.
+- 94 of the notified DOWNs read "404": Traefik dropping a sick or starting container,
+  named soon after by the containers monitor. Not a defect.
+- `backup`'s M-B (restic's own remedy refused by append-only) is a C134 instance.
+- C120, not fixed by cost/benefit: the heal timer relaunches a crashing container every
+  600-722 s, under the 10 min `homelab_container_down` needs. Derived, never observed.
 
 ## The run of 2026-09-27 (NINETEENTH) — the key was `fidelity`, and it minted two
 
