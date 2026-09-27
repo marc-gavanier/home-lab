@@ -15,8 +15,9 @@ Do these in order.
 2. **Claude OAuth tokens.** The `claude` user's state (login, sessions, memory)
    and the vault's write cache are on LUKS, bind-mounted at `/home/claude/.claude`,
    and the operator account holds no Claude login; older tokens can survive in the
-   card's freed blocks. Revoke the sessions at claude.ai → Settings → Devices, then
-   re-auth on the Pi.
+   card's freed blocks. At claude.ai → Settings → Account, revoke the Pi's line
+   under *Active sessions*, or *Log out of all devices* if it cannot be told
+   apart, then re-auth on the Pi.
 3. **SSH host keys.** An image lets an attacker impersonate the server (MITM).
    Regenerate with `sudo rm /etc/ssh/ssh_host_*` then
    `sudo ssh-keygen -A && sudo systemctl restart ssh.socket`, and update
