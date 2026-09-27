@@ -41,6 +41,9 @@ Other defaults are safe: `config_anonbrowse = 0`, `config_public_reg = 0`,
   would fork the library silently.
 - Add books through the web UI, or drop them into `/mnt/data/media/books-ingest` (imported, then
   emptied).
+- Auto-convert is off (Admin → CWA Settings): a book stays in the format it was dropped in. CWA's
+  default converts to EPUB and moves the original to `processed_books/converted/`, out of the
+  library. The setting lives in `cwa.db`, not in the repo; nothing checks it.
 - Restore: run the deploy role, then a restic restore of the three paths.
 
 ## Hardening limits

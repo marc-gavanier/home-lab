@@ -2,7 +2,7 @@
 [Unit]
 Description=Report Netdata curated alarms to their Uptime Kuma monitors
 After=docker.service
-Wants=docker.service
+Requisite=docker.service
 
 [Service]
 Type=oneshot

@@ -2,7 +2,7 @@
 [Unit]
 Description=Homelab container security posture check
 After=docker.service
-Wants=docker.service
+Requisite=docker.service
 
 [Service]
 Type=oneshot

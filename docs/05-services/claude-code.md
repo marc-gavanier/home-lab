@@ -25,7 +25,8 @@ AI agent on the Pi that manages the Obsidian notes vault, driven from the Claude
 ## How it works
 
 - Installed by Anthropic's installer as the `claude` user (no sudo, no docker group); it updates
-  itself and nothing pins or records the version. `autoUpdates=false` does not apply to this
+  itself and nothing pins the version; the last update is recorded in
+  `~/.claude/.last-update-result.json`. `autoUpdates=false` does not apply to this
   install type. Accepted.
 - It follows the vault's own `CLAUDE.md`. Writes go through WebDAV, so Nextcloud indexes them
   at once (no `occ` scan).

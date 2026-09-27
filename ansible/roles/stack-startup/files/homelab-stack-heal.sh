@@ -95,7 +95,7 @@ while read -r name; do
     if [ "$state" = running ]; then
         docker restart "$name" >/dev/null 2>&1 || rc=1
     else
-        docker compose up -d "$svc" >/dev/null 2>&1 || rc=1
+        docker compose up -d --no-deps "$svc" >/dev/null 2>&1 || rc=1
     fi
     if [ "$rc" = 0 ]; then
         healed=$((healed + 1))

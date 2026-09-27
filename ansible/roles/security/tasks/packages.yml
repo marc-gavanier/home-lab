@@ -5,6 +5,18 @@
       - avahi-daemon
       - telnet
       - ftp
+      - snapd
     state: absent
     purge: true
     autoremove: true
+
+- name: packages | Keep snapd from coming back with a metapackage
+  ansible.builtin.copy:
+    dest: /etc/apt/preferences.d/no-snapd
+    content: |
+      Package: snapd
+      Pin: release a=*
+      Pin-Priority: -1
+    owner: root
+    group: root
+    mode: "0644"

@@ -582,13 +582,17 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
-## OPEN — 0 (after the TWENTY-SECOND run of 2026-09-27, key `exhaustion`)
+## OPEN — 0 (after the TWENTY-THIRD run of 2026-09-27, key `delegation`)
 
-**Empty.** C142 was minted and swept in the same run — see "The run of 2026-09-27
-(TWENTY-SECOND)" below.
+**Empty.** C143 to C146 were minted and swept in the same run — see "The run of 2026-09-27
+(TWENTY-THIRD)" below.
 
 | ID | Property | State |
 |---|---|---|
+| C143 | **A credential held by an automatic actor whose reach at the provider exceeds the task written for its holders**, with nothing watching a use outside that task | **MINTED 2026-09-27 (twenty-third run), ENUMERATED**: `network` 9/9 actors, `security` 9/9 tokens. 1 instance: the Cloudflare token (DDNS + Traefik ACME) can edit all 16 records of the zone for a task that touches 4 — ACCEPTED at the provider's floor (zone, not record). ADR-014 corrected. Not GATED |
+| C144 | **A restriction the operator placed on an automatic actor that its active configuration does not carry** — the hold lives in memory or prose, so the actor's next run ignores it | **MINTED 2026-09-27 (twenty-third run), ENUMERATED**: `ansible-deploy` 21/21 restrictions. 2 instances: the MariaDB 13 hold (#364, mergeable, `MARIADB_AUTO_UPGRADE=1`) — FIXED, approval rule; Immich "server & ML together" while `groupName: null` splits them — NOT FIXED, both PRs already need approval. Not GATED |
+| C145 | **An automatic start whose dependency resolution brings up an object the operator stopped on purpose** | **MINTED 2026-09-27 (twenty-third run), ENUMERATED**, converged from `system` 19/19 (auto-triggered unit, activated object) pairs and `observability` 43/43 action points. 2 instances: four `homelab-*` units `Wants`/`Requires` `docker.service`, which `RequiresMountsFor=/mnt/data` (09-26 14:27:59, refused only by the mount's assert) — FIXED, `Requisite=`; crash-heal's `compose up -d` started a removed dependency — FIXED, `--no-deps`. Nearest: C129 (a documented step, not an actor). Not GATED |
+| C146 | **An automatic actor whose mandate is written nowhere**, so what it may change is the vendor's default | **MINTED 2026-09-27 (twenty-third run), ENUMERATED**, converged from `security` 38/38 vendor units, `services` 25/25 app actors, `backup` 15/15 deleters, `project-manager` (9 actors with no written mandate). 2 live instances: snapd self-refreshing as root 4x a day — FIXED, purged and pinned; Calibre-Web `auto_convert=1`, 11 PDFs converted on 09-02 — FIXED, off, documented. Latent: restic retention held by restic's default grouping; image retention would remove the image of a service taken down. Not GATED |
 | C142 | **An admission budget the operator's access draws from, shared with other consumers and not partitioned per principal** — pre-authentication slots, login attempts, session seats — so another consumer can empty it and deny the operator, and nothing records who emptied it | **MINTED 2026-09-27 (twenty-second run), ENUMERATED**: `security` 10/10 admission limiters (4 shared, 4 per connection or per address, 1 without a limiter), `network` the shared DNS and HTTP buckets (Pi-hole per client, Traefik's bucket, both far from their limits). Prior unnamed instance: Traefik's single rate-limit bucket (#128, #204). 0 exhaustions on record. 3 instances: sshd `MaxStartups 10:30:60` with no per-source cap on both hosts — FIXED, `PerSourceMaxStartups 8`; Kuma's login limiter, one upstream bucket of 20/min — ACCEPTED; every deploy's Pi-hole API check left one of 16 seats open for 30 min — FIXED, the check logs out. Single-agent mint: `network` did not reach the property independently. Not GATED |
 
 ### The twenty-first run's table read:
@@ -1209,6 +1213,54 @@ separate correction — **the marker is not a provenance instrument.**
 C92 and C03-R were closed as review rules once their spaces proved non-derivable.
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
+
+## The run of 2026-09-27 (TWENTY-THIRD) — the key was `delegation`, and it minted four
+
+The key, **invented** and **chosen by the operator** over `attribution`, `inheritance` and
+`erasure`: **when a mechanism acts on the operator's behalf without their approval at the
+moment it acts, is what it may do bounded to what was delegated, and would anything show it
+stepping outside?** Four forms: (D1) reach beyond the mandate, (D2) overrides an explicit
+operator decision, (D3) acts without a durable trace, (D4) outlives its reason.
+Discriminant, all four mandatory: actor identified live, mandate located, reach measured,
+detector named or shown absent.
+
+### The counter: 0 OPEN in, 0 OPEN out, 4 minted, class total 142 -> 146
+
+Seven proposals came back, all numbered C143 by their agents; merged to four.
+
+### The sweep
+
+| Domain | Space | Result |
+|---|---|---|
+| `system` | 19/19 pairs, 53 timers, 28 vendor actors | C145 |
+| `security` | 25/25 actors, 9/9 tokens, 38/38 vendor units | C146 (snapd); tokens clean |
+| `network` | 9/9 actors | C143; Traefik discovery, gravity, reresolve clean |
+| `services` | 25/25 app actors | C146 (Calibre-Web) |
+| `backup` | 15/15 deleters | C146 latent; C15, C18 intact |
+| `observability` | 13/13 mechanisms, 43/43 action points | C145 (heal); C141 new plane |
+| `ansible-deploy` | 9 actors, 6 Renovate rules, 21 restrictions | C144; 0 auto-merge |
+| `project-manager` | 133 statements | C01 x6, 127 match |
+
+GATED intact, read or made to fail: C03-T, C11, C14, C15, C18, C19, C41, C81.
+
+### Also fixed
+
+- **C141, a new plane**: pausing the heal timer disarmed the check that would see heal fall
+  silent (40 pauses on record, longest 970 s). The check now keys on
+  `homelab-services.target` and names a paused timer.
+- **C01**: ADR-013 and the security page claimed `osvVulnerabilityAlerts` raised CVE PRs for
+  images; it covers none of the repository's datasources and Dependabot alerts are off. The
+  premise of ADR-013's scanner rejection was false; the operator kept the rejection.
+
+### Rejected or requalified
+
+- `security` rejected the Cloudflare instance `network` reported: both right, it is C143 at
+  the provider's floor.
+- `security` rejected "heal pulls a new image"; `project-manager` found heal applies a
+  pending pin. Consistent: it applies what a deploy copied, it pulls nothing.
+- `project-manager`'s nine unmandated actors, which it judged not worth a class, are C146.
+- The register cites C19 at `:665`; the deployed floor is `homelab-health.sh:325`.
+- Three agents wrote and removed temp files on homelab (rule 5); none left.
 
 ## The run of 2026-09-27 (TWENTY-SECOND) — the key was `exhaustion`, and it minted one
 

@@ -38,7 +38,8 @@ homelab service. A wildcard was rejected: it would be a single private key valid
 for **every** subdomain — including ones served by other providers
 (e.g. a static site on GitHub Pages) and any future one — so a compromise of the
 Pi would threaten domains the homelab does not even serve. Per-host certs cover
-exactly the homelab hosts and nothing else.
+exactly the homelab hosts. The token does not share that bound: with it, a
+compromised Pi can still obtain a certificate for any name in the zone.
 
 ## Consequences
 
@@ -56,9 +57,10 @@ exactly the homelab hosts and nothing else.
   get a trusted cert without ever being published.
 
 **Negative / cost**
-- A Cloudflare API token now lives in the secrets set. Blast radius is bounded:
-  it can edit DNS records **only** in the `example.com` zone (no account-wide
-  scope). It is treated like the other LUKS-stored secrets (ADR-011).
+- A Cloudflare API token now lives in the secrets set. It can edit **every**
+  record of the `example.com` zone (public site, MX, DKIM), not just the `vpn`
+  record and the `_acme-challenge` TXT its two holders need, and nothing watches
+  the others. Accepted: Cloudflare scopes a token to a zone, not to a record. It is treated like the other LUKS-stored secrets (ADR-011).
 - Per-host certs mean N ACME orders instead of one (well under LE rate limits),
   and Cloudflare becomes a dependency for renewal.
 

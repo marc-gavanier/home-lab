@@ -181,8 +181,11 @@ deliberate reboot posture.
    > `Pi health` (which stays UP on a pending reboot — measured 2026-09-24). They
    > fold back into `Pi health` only when the pending push URL is not configured.
 5. **Containers** (the bulk of the exposed surface) — Renovate weekly PRs +
-   manual merge, plus `osvVulnerabilityAlerts` so an OSV-flagged CVE raises a PR
-   off-schedule instead of waiting up to 7 days for the Saturday batch.
+   manual merge. No channel reports a CVE in a container image:
+   `osvVulnerabilityAlerts` covers none of this repository's datasources
+   (Docker, GitHub releases and tags, Galaxy) and Dependabot alerts are off. A
+   fix reaches the host only when its release lands in the Saturday batch.
+   Accepted: the exposed surface is two ports.
 
 ## Alternatives rejected
 

@@ -63,7 +63,7 @@ Use agents in `.claude/agents/` for domain-specific tasks:
 
 - SSH: key-only authentication, password disabled, non-standard port
 - UFW firewall: deny by default, explicit whitelist
-- fail2ban active on SSH and exposed services
+- fail2ban active on SSH, Nextcloud and Vaultwarden (WireGuard and Transmission have no jail)
 - Automatic security updates (unattended-upgrades)
 - Secrets: never in the repo, never in plain text
 - Exposed to the internet: WireGuard (51820/udp) and Transmission's peer port
