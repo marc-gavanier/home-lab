@@ -100,7 +100,7 @@ Expected: the UI asks you to log in again.
 
 - **wg-easy UI**: if the device was ever logged in, end every session (above).
 - **Claude app**: it reaches Remote Control on the Pi through claude.ai, not through the VPN.
-  Revoke the device at claude.ai → Settings → Devices.
+  Revoke its line at claude.ai → Settings → Account → *Active sessions*.
 - **Navidrome**: music apps keep the account password. Change it in Navidrome.
 - **Vaultwarden**: the mobile client keeps an encrypted offline cache. If the device may have been
   unlocked, change the master password, then invalidate sessions in `/admin` → *Users*.
