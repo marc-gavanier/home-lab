@@ -74,6 +74,27 @@ Clients:
 sudo apt install nextcloud-desktop
 ```
 
+Major upgrade (a Renovate PR `nextcloud:N` → `N+1`). The deploy keeps the app store off
+(`appstoreenabled=false`), so the upgrade cannot fetch a compatible version of an app in
+`custom_apps` and disables it instead (35: `richdocuments`, `libresign`, `bookmarks`,
+`external`). There is no way back short of a restore.
+
+1. Check each enabled app has a release for `N+1` on apps.nextcloud.com.
+2. Take a fresh restore point: `sudo systemctl start homelab-backup.service`.
+3. Deploy `nextcloud nextcloud-cron nextcloud-notify-push` together. It stops on the first
+   `occ` call if the upgrade is still running; that is expected.
+4. List what the upgrade disabled (`docker logs nextcloud | grep 'Disabled incompatible'`),
+   then open the store, update and re-enable each, and close it:
+
+   ```bash
+   occ() { docker exec -u www-data nextcloud php occ "$@"; }
+   occ config:system:set appstoreenabled --type=boolean --value=true
+   occ app:update <app> && occ app:enable <app>
+   occ config:system:set appstoreenabled --type=boolean --value=false
+   ```
+
+5. Deploy again: it converts a document through Collabora and checks LibreSign's binaries.
+
 Restore: the dump is not on disk (the backup deletes `/mnt/data/backups/dumps/`
 after each run), and the import needs `maintenance:mode`. Follow
 [restore-from-backup.md](../../knowledge/runbooks/restore-from-backup.md) →

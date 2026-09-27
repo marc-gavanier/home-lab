@@ -185,3 +185,9 @@ merely present.
 updater". Since 2026-09-18 `appstoreenabled` is `false`, so that updater cannot
 see one: LibreSign (like `richdocuments`, both in `custom_apps`) is today updated
 by nothing, and that remedy is an open decision rather than a mechanism.*
+
+*Amended 2026-09-28: a Nextcloud major disables these apps instead of updating
+them. They are updated by hand at each major (procedure in
+`docs/05-services/nextcloud.md`); between majors, still by nothing. LibreSign 15
+also renamed `jsignpdf_jar_path` to `jsignpdf_path`, a directory; the deploy's
+binaries check reads the new key.*
