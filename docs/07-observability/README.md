@@ -270,7 +270,7 @@ p=collections.Counter(k.split(".")[0] for k in c); print(len(c), dict(p.most_com
 | Axis        | Expected                                                                                                   |
 |-------------|------------------------------------------------------------------------------------------------------------|
 | 1. uid      | **201** (0 means it fell back to root)                                                                     |
-| 2. plugins  | **11**: `NETWORK-VIEWER`, `apps.plugin`, `debugfs.plugin`, `go.d.plugin`, `netflow-plugin`, `otel-plugin`, `scripts.d.plugin`, `sd-jrnl.plugin`, `sd-unit.plugin`, `spawn-plugins`, `spawn-setns` |
+| 2. plugins  | **10**: `NETWORK-VIEWER`, `apps.plugin`, `debugfs.plugin`, `go.d.plugin`, `otel-plugin`, `scripts.d.plugin`, `sd-jrnl.plugin`, `sd-unit.plugin`, `spawn-plugins`, `spawn-setns` |
 | 3. contexts | **383** — netdata 137, system 43, ipv6 26, cgroup 25, ipv4 24, mem 23, app 14, user 14                      |
 
 AppArmor denials land in `dmesg | grep apparmor`. Re-measure these values whenever you change the

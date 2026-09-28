@@ -220,6 +220,13 @@ the pause nobody ends.
 sized, timed or guarded at the right distance; none asked who ELSE draws from an admission
 budget the operator needs, and whether anything names the one who emptied it.
 
+**The twenty-fourth run, on 2026-09-28, used `inheritance` and minted one** (C147).
+**Consecutive zero-mint runs: still 0.** Eight agents proposed seven classes; the
+operator's ruling that an unwritten setting taking the vendor's default is normal, and the
+admission check it prompted (SKILL.md, "Admit a mint"), left one. From this run on, the
+mint count is the ADMITTED count: a proposal with no confirmed instance worth a fix does
+not reset the clock.
+
 ---
 
 # The register
@@ -582,7 +589,17 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
-## OPEN — 0 (after the TWENTY-THIRD run of 2026-09-27, key `delegation`)
+## OPEN — 0 (after the TWENTY-FOURTH run of 2026-09-28, key `inheritance`)
+
+**Empty.** C147 was minted and swept in the same run; C47 reopened and was re-enumerated —
+see "The run of 2026-09-28 (TWENTY-FOURTH)" below.
+
+| ID | Property | State |
+|---|---|---|
+| C147 | **A listening socket opened by an upstream default that no written configuration chose, reachable by the container's network peers** | **MINTED 2026-09-28 (twenty-fourth run), ENUMERATED**: `security` 68/68 listeners (47 in containers, 12 homelab host, 9 offsite). 3 instances: netdata's netflow plugin (UDP, the one container with `no-new-privileges` off and `SYS_PTRACE`) — FIXED, `[plugins] netflow = no`; Pi-hole v6's NTP server, v4 and v6 — FIXED, `FTLCONF_ntp_*` false; Jellyfin client autodiscovery — FIXED, `AutoDiscovery` false in `network.xml`. Mirror: C29. Not GATED |
+| C47 | A PID 1 that cannot act on the signal it is sent | **REOPENED and re-enumerated 2026-09-28**: `services` 32/32, 3 members. New: `nextcloud-notify-push` inherited the Nextcloud image's `STOPSIGNAL SIGWINCH`, which `notify_push` ignores (22 of 139 forced kills in 14 days) — FIXED, `stop_signal: SIGTERM`. Missed because the sweep compared `SigCgt` to SIGTERM, not to the EFFECTIVE `Config.StopSignal` |
+
+### The twenty-third run's table read:
 
 **Empty.** C143 to C146 were minted and swept in the same run — see "The run of 2026-09-27
 (TWENTY-THIRD)" below.
@@ -1213,6 +1230,69 @@ separate correction — **the marker is not a provenance instrument.**
 C92 and C03-R were closed as review rules once their spaces proved non-derivable.
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
+
+## The run of 2026-09-28 (TWENTY-FOURTH) — the key was `inheritance`, and it minted one
+
+The key, chosen by the operator over `erasure`, `attribution` and `degradation`: **when an
+object's effective value comes from a layer above the repository — image, vendor unit,
+application, module, daemon, parent directory, parent process — is it the value the
+operator and the documentation believe, and would anything show it moving with the
+upstream?** Four forms: (I1) contradicts a written claim, (I2) moves with a version bump,
+(I3) a child inherits what the parent was given for its own reason, (I4) an override aimed
+at the wrong layer.
+
+### The counter: 0 OPEN in, 0 OPEN out, 1 minted, C47 reopened and re-enumerated, class total 146 -> 147
+
+Seven proposals came back, all numbered C147 or M1 by their agents. **The operator ruled
+that an unwritten setting taking the vendor's default is normal**, and asked for an
+admission check before any mint (SKILL.md, "Admit a mint"). Applied:
+
+| Proposal | From | Verdict |
+|---|---|---|
+| Listening socket opened by an upstream default | `security` | **ADMITTED as C147** — 3 confirmed, fixed |
+| Behaviour held only by an unwritten default of a pinned component, unprobed (Traefik `encodedCharacters`, LibreSign `signing_mode`) | `network`, `project-manager` (one class) | REJECTED, step 2: the operator's ruling |
+| A setting the upstream deployment recipe writes, dropped in transcription (`immich-db` `shm_size` 64 MB) | `system` | REJECTED, step 2 and step 3: default accepted, no measured impact |
+| Image `VOLUME` left unmounted, anonymous volume (SearXNG) | `backup`, `services` (one class) | REJECTED, step 3: 0 instance holding data |
+| Create-only module parameter on a pre-existing object (`directory_mode`, 3 dirs at 775) | `ansible-deploy` | REJECTED, step 3: zero impact |
+| Universal claim over a hand-populated set (Kuma notification `is_default=0`) | `observability` | REJECTED, step 2 and 3: latent only, a tool default |
+| A bump activating a behaviour retroactively (Kuma domain-expiry, 34/37) | `observability` | REJECTED, step 2: the operator's ruling |
+| A reason written for one service, true of all (vendor call-home) | `services` | REJECTED as a class, step 1: C66's shape. **The instances were FIXED anyway**, on the operator's instruction to cut every call-home a setting can cut |
+
+### The sweep
+
+| Domain | Space | Result |
+|---|---|---|
+| `system` | ~650 (object, property) pairs, 9 spaces | 0 in domain; `shm_size` proposal rejected |
+| `security` | 604/604 pairs, 68/68 listeners | C147 |
+| `network` | 102/102 values, 32/32 container resolvers | C01 (`internal` network); proposal rejected |
+| `services` | 32/32 containers x {VOLUME, StopSignal, Healthcheck, User, call-home}, 51/51 app settings | C47 reopened; call-home fixed |
+| `backup` | 75/75 | C01 (backup README); proposal rejected |
+| `observability` | 481/481 Kuma field reads, 839 alarms, 32/32 healthchecks | C01 (journal README); proposals rejected |
+| `ansible-deploy` | 226/226 write tasks, 53/53 Jinja fallbacks, 19/19 Renovate PRs | proposal rejected |
+| `project-manager` | C01 16/16 changed sections, `inheritance` slice 29/29 | C01 x5 |
+
+GATED intact, read or made to fail: C03-T, C11, C14, C15, C18, C19 (floor at
+`homelab-health.sh:325`, 14 timers), C41, C81.
+
+### Also fixed
+
+- **C01**: `internal` described as "not routed" / "isolated" while the host NATs it
+  (`.claude/agents/network.md`, `docs/03-security/README.md`); wg-easy hash said bcrypt,
+  is argon2id; backup page omitted `/mnt/data/log` and `/mnt/data/claude`; journal page
+  implied no earlier boot survives before unlock (syslog and kern.log on the card do); two
+  pointers to comments removed by #390.
+- **Vendor call-home off where a setting exists**: Navidrome insights, Prowlarr/Sonarr/Radarr
+  analytics, netdata anonymous statistics, Traefik version check, Nextcloud and Forgejo
+  update checkers.
+
+### Rejected or requalified
+
+- `observability`'s "vendor ForwardToSyslog copies the journal to the card" (C131): a written
+  decision, `e273399`. `system` was right; only the README sentence was wrong (C01).
+- `ansible-deploy`'s "Renovate vulnerability PRs bypass approval": from memory, unverified.
+- `ansible-deploy`'s targeted deploy converging 8 dependencies (C145): not reopened.
+- Two agents wrote on homelab (rule 5): `system` a file in `/dev/shm`, removed and checked;
+  `ansible-deploy` ran `smartd -q onecheck`, which appended to smartmontools' attribute log.
 
 ## The run of 2026-09-27 (TWENTY-THIRD) — the key was `delegation`, and it minted four
 
@@ -8246,7 +8326,7 @@ them. Five are in the OPEN table above.
 |-----|--------------------------------------------------|-----------------|------------|
 | C44 | A verification whose cadence cannot observe the event it guards | 13/13 timers swept; **1 instance**, not 12 — see below | ENUMERATED, remedy shipped, **not gated** |
 | C45 | A reporting path that cannot report its own failure | 10/10 push sites, **8 instances** | ENUMERATED |
-| C47 | A PID 1 that cannot act on the signal it is sent | 29/29, **2 instances** | ENUMERATED |
+| C47 | A PID 1 that cannot act on the signal it is sent | **32/32, 3 instances** (reopened 2026-09-28: `nextcloud-notify-push`, fixed) | ENUMERATED |
 | C48 | A real dependency that nothing declares | 29 services + 18 configs, **1 instance** | ENUMERATED |
 | C49 | A hardening applied to an artefact its producer regenerates | 28/28, **1 new instance** (3 prior: #189, #299, the UFW sysctl) | ENUMERATED |
 | C53 | A handler whose effect is expected earlier in the play than it occurs | **41 handlers, 3 flush points** (re-counted 2026-09-19 by two runs independently; the 34/1 this row carried was frozen at 2026-08-30), **2 instances, 1 fixed** | ENUMERATED, **not gated** |
@@ -8454,7 +8534,7 @@ them; do not re-derive without a new symptom.
 | C42 | A mechanism ranking by a timestamp written before the clock was right | 6/6, 1 instance | 08-30 |
 | C44 | A verification whose cadence cannot observe the event it guards | **LEFT THE OPEN COLUMN 2026-09-20 (eighth run), ENUMERATED 27/27, remedy DECLINED — read the eighth run's section, NOT the OPEN table, which has not carried C44 since.** The words "see the OPEN table" stood here until 2026-09-20 and sent the reader to a table the class had already left — a C34 instance inside the register itself. (It said "C44 IS THE REGISTER'S ONLY OPEN CLASS" from the fifth run until 2026-09-20; C113 joined it as OPEN in the seventh run and was closed in the eighth.) It sat here with a stale `13/13 timers` while being OPEN, and without the "left this table" pointer C01/C10/C12/C17/C20 all carry, so this table read as if C44 were closed (corrected 2026-09-19, fifth run) | 08-30 |
 | C45 | A reporting path that cannot report its own failure | 10/10 push sites, 8 instances | 08-30 |
-| C47 | A PID 1 that cannot act on the signal it is sent | 29/29, 2 instances (`SigCgt` masks, not documentation) | 08-30 |
+| C47 | A PID 1 that cannot act on the signal it is sent | 32/32, 3 instances (`SigCgt` against the EFFECTIVE `Config.StopSignal`) | 09-28 |
 | C48 | A real dependency that nothing declares | 29 services + 18 configs, 1 instance | 08-30 |
 | C49 | A hardening applied to an artefact its producer regenerates | 28/28, 1 new instance | 08-30 |
 | C53 | A handler whose effect is expected earlier in the play than it occurs | **41 handlers, 3 flush points** — not the 34/1 this row carried; two runs counted 41/3 independently, and the correction had been written in the run narration without reaching this table (corrected 2026-09-19, fifth run) | 08-30 |
