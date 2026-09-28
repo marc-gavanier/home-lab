@@ -73,7 +73,7 @@ period.** A green monitor says the job ran, not what it did.
 | Evidence                                           | Jobs                                            | Retention                           |
 |----------------------------------------------------|-------------------------------------------------|-------------------------------------|
 | A Kuma push monitor whose message carries readings | most jobs                                       | per-monitor row budget              |
-| The journal alone                                  | `homelab-stack-heal`, `offsite-wg-reresolve`,   | ~8 weeks at the size cap            |
+| The journal alone                                  | `homelab-stack-heal`, `offsite-wg-reresolve`,   | ~5 weeks; deploy days shorten it    |
 |                                                    | `homelab-image-retention` (monthly)             |                                     |
 
 Enumerate the timers, not the monitors — a job with no channel never shows up in a list of
@@ -247,7 +247,8 @@ counters, capacity, temperature, and the weekly **extended** self-test started b
 ## Git mirror
 
 The health push carries `mirror ok`, or `mirror Nh overdue`, alerting once a sync is more than an
-hour late. A frozen mirror looks healthy everywhere else.
+hour late. A frozen mirror looks healthy everywhere else. An empty mirror table alerts as
+`mirror missing`; a database it cannot read, twice running, as `mirror unreadable`.
 
 - It reads `next_update_unix`, which only advances when a sync **completes**. `mirror.updated_unix`
   moves on every attempt and hides an outage.

@@ -163,12 +163,16 @@ fi
 MIRROR_DB='{{ services_data_dir }}/forgejo/data/data/forgejo.db'
 MIRROR_GRACE=3600
 MIRROR_STAMP=/var/lib/homelab-health/mirror.stamp
-if [ -f "$MIRROR_DB" ] && command -v sqlite3 >/dev/null 2>&1; then
+if mountpoint -q /mnt/data && command -v sqlite3 >/dev/null 2>&1; then
     mirror_late=$(sqlite3 -cmd '.timeout 5000' "file:$MIRROR_DB?mode=ro" \
         "select ifnull(cast(strftime('%s','now') - min(next_update_unix) as int), 'none') from mirror;" \
         2>/dev/null)
     case "${mirror_late:-}" in
-        none) ;;
+        none)
+            rm -f "$MIRROR_STAMP"
+            report+=("mirror missing")
+            problems+=("forgejo holds no mirror — the staleness check has nothing to watch")
+            ;;
         ''|*[!0-9-]*)
             report+=("mirror unreadable")
             mkdir -p "$(dirname "$MIRROR_STAMP")"
