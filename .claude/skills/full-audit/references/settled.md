@@ -26,7 +26,7 @@ Two kinds of entry, and the distinction matters:
 
 ## Shipped on 2026-09-28 (TWENTY-FIFTH run) — key `erasure`, one PR
 
-- **Ansible stages on tmpfs**: `remote_tmp = $XDG_RUNTIME_DIR/ansible`. Every transferred file,
+- **Ansible stages on tmpfs**: `remote_tmp = /run/user/1000/ansible`. Every transferred file,
   rendered secrets included, used to land in `~/.ansible/tmp` on the card (C131).
 - **`homelab-wg-easy-config.sh`** passes a drifted client's record through the environment, not
   `argv` (C26).
@@ -45,6 +45,9 @@ Two kinds of entry, and the distinction matters:
 - **Journal file counts are inflated by per-user journals**: each rotation archives
   `system`, `user-1000` and `user-1001` together, pre-allocated at 8 MB whatever they hold. Size
   with `du` (allocated), not `du --apparent-size`, which reads double.
+- **`remote_tmp` is expanded twice**: by the remote shell for the SSH user, and by
+  `os.path.expandvars` inside a module running under sudo, where `XDG_RUNTIME_DIR` is unset — a
+  variable there becomes a literal relative directory. Use a path that means the same in both.
 - **Kuma's raw-beat pruning is a per-monitor row budget** (about 2 400 rows), not a time cut:
   compare row counts across monitors before reading a depth off one of them.
 
