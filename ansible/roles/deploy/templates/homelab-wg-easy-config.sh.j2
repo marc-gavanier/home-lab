@@ -114,9 +114,9 @@ else
         CUR_CLIENT="$(curl -sf -b "$COOKIE" "$API/api/client/$cid")" \
             || die "cannot read client $cid"
         BODY="$(mktemp)"
-        python3 - "$CUR_CLIENT" > "$BODY" <<'PYBODY'
-import json, os, sys
-c = json.loads(sys.argv[1])
+        CUR_CLIENT="$CUR_CLIENT" python3 - > "$BODY" <<'PYBODY'
+import json, os
+c = json.loads(os.environ["CUR_CLIENT"])
 drop = {"id", "createdAt", "updatedAt", "interfaceId", "userId", "publicKey",
         "privateKey", "preSharedKey", "endpoint", "latestHandshakeAt",
         "transferRx", "transferTx", "oneTimeLink"}
