@@ -15,7 +15,9 @@ earlier — which would have sent eight agents to re-derive settled work. Rebuil
 it from `classes.md`'s OPEN table at the start of every run; if the two
 disagree, `classes.md` wins.
 
-As of the TWENTY-FOURTH run of 2026-09-28, key `inheritance`: **0 OPEN** — the table below is the fifteenth run's, kept for its C01 history.
+As of the TWENTY-FIFTH run of 2026-09-28, key `erasure`: **0 OPEN** — the table below is the fifteenth run's, kept for its C01 history.
+
+**FORTY-FOUR keys are now spent.** `erasure` (twenty-fifth run, 0 mints). `attribution` and `degradation` are still unspent; `extremity` (behaviour at the edges of an input range) was offered and not chosen.
 
 **FORTY-THREE keys are now spent.** `inheritance` (twenty-fourth run, 1 admitted mint: C147). `attribution`, `erasure` and `degradation` are still unspent.
 

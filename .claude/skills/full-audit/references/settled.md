@@ -24,6 +24,30 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-09-28 (TWENTY-FIFTH run) — key `erasure`, one PR
+
+- **Ansible stages on tmpfs**: `remote_tmp = $XDG_RUNTIME_DIR/ansible`. Every transferred file,
+  rendered secrets included, used to land in `~/.ansible/tmp` on the card (C131).
+- **`homelab-wg-easy-config.sh`** passes a drifted client's record through the environment, not
+  `argv` (C26).
+- **The health push alerts `mirror missing`** on an empty Forgejo `mirror` table, and a missing
+  database now reads `mirror unreadable` instead of nothing (C83).
+- **Documentation (C01)**: the tamper trace on the card before unlock, journal depth, the
+  backup catch-up window, the handshake record captured before a peer is dropped.
+
+## Instrument traps paid on 2026-09-28 (twenty-fifth run)
+
+- **A `journalctl -g` or `-o export` over weeks overruns a two-minute tool timeout on homelab**
+  and leaves the remote process running. Bound it with `--since` in hours, or read
+  `/var/log/syslog` on the card.
+- **`pkill -f <pattern>` over SSH kills the SSH shell whose own command line carries the
+  pattern.** Kill by PID, and check by PID.
+- **Journal file counts are inflated by per-user journals**: each rotation archives
+  `system`, `user-1000` and `user-1001` together, pre-allocated at 8 MB whatever they hold. Size
+  with `du` (allocated), not `du --apparent-size`, which reads double.
+- **Kuma's raw-beat pruning is a per-monitor row budget** (about 2 400 rows), not a time cut:
+  compare row counts across monitors before reading a depth off one of them.
+
 ## Shipped on 2026-09-28 (TWENTY-FOURTH run) — key `inheritance`, one PR
 
 - **`nextcloud-notify-push` stops on SIGTERM**: it inherited the Nextcloud image's SIGWINCH
