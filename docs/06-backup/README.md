@@ -50,11 +50,11 @@ sudo grep -oE '^  dump-[a-z0-9-]+-present:' /etc/goss/backup-dumps.yaml \
 
 ### Schedule
 
-| Timer                             | When           | What                                                                                  |
-|-----------------------------------|----------------|---------------------------------------------------------------------------------------|
-| `homelab-backup.timer`            | daily 03:00    | dumps → backup → `forget` → offsite copy of every snapshot it lacks (a failed night catches up) |
-| `homelab-local-maintenance.timer` | Tuesday 01:00  | `resticprofile -n homelab prune` then metadata `check`; deep read in the first 7 days of the month |
-| `homelab-offsite-check.timer`     | Tuesday 02:00  | offsite repo metadata check                                                           |
+| Timer                             | When          | What                                                                                                                           |
+|-----------------------------------|---------------|--------------------------------------------------------------------------------------------------------------------------------|
+| `homelab-backup.timer`            | daily 03:00   | dumps → backup → `forget` → offsite copy of every snapshot it lacks (catches up on failed nights still within local retention) |
+| `homelab-local-maintenance.timer` | Tuesday 01:00 | `resticprofile -n homelab prune` then metadata `check`; deep read in the first 7 days of the month                             |
+| `homelab-offsite-check.timer`     | Tuesday 02:00 | offsite repo metadata check                                                                                                    |
 
 The monthly deep read uses `--read-data-subset=<month>/12`, so the whole local repo is
 re-read over about 12 months. The offsite side also runs a daily health report and a

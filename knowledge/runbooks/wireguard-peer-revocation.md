@@ -38,7 +38,14 @@ Pi reboots, so always follow it with the deletion below.
      \"SELECT name, public_key FROM clients_table ORDER BY id;\""
    ```
 
-2. Drop it from the running interface:
+2. Record what the interface knows of it — last handshake, endpoint IP, bytes. The next step erases
+   it and nothing else keeps it:
+
+   ```bash
+   ssh homelab "docker exec wg-easy wg show wg0 dump | grep '<public-key>'"
+   ```
+
+3. Drop it from the running interface:
 
    ```bash
    ssh homelab "docker exec wg-easy wg set wg0 peer '<public-key>' remove"
