@@ -601,7 +601,7 @@ four directions.
 
 | ID | Property | State |
 |---|---|---|
-| C131 | A copy kept on a medium less protected than its original | **GATE BROKEN 2026-09-28, downgraded GATED -> ENUMERATED**: Ansible staged every transferred file, rendered secrets included, in `~/.ansible/tmp` on the card of both hosts; its gate names two paths and derives nothing. FIXED, `remote_tmp = $XDG_RUNTIME_DIR/ansible` (tmpfs, 0700) |
+| C131 | A copy kept on a medium less protected than its original | **GATE BROKEN 2026-09-28, downgraded GATED -> ENUMERATED**: Ansible staged every transferred file, rendered secrets included, in `~/.ansible/tmp` on the card of both hosts; its gate names two paths and derives nothing. FIXED, `remote_tmp = /run/user/1000/ansible` (tmpfs, 0700, the same path for the SSH user and for modules under sudo) |
 | C26 | A credential reaching a command line | **Missed member, 2026-09-28**: `homelab-wg-easy-config.sh` passed a drifted client's full record, private key and PSK included, to `python3` as `argv[1]`. Invisible to the 09-13 value sweep: the value arrives from wg-easy's API and the branch runs only on drift (0 in two weeks). FIXED, passed through the environment |
 | C83 | A success reported without bounding the examined set from below | **Missed member, 2026-09-28**: the health push's mirror check wrote nothing when Forgejo's `mirror` table was empty or its database absent, so the push stayed UP with no mirror reading. FIXED, `mirror missing` alerts; a missing database falls into `mirror unreadable`. `ops/check-empty-set-floors.py` does not see a `case` arm that emits nothing |
 
