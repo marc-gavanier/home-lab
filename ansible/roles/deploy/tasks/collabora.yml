@@ -71,7 +71,7 @@
   check_mode: false
   when: collabora_up
 
-- name: collabora | Re-assert the WOPI URL (public name, see comment)
+- name: collabora | Re-assert the WOPI URL (public name)
   ansible.builtin.command:
     cmd: "docker exec -u www-data nextcloud php occ config:app:set richdocuments wopi_url --value=https://office.{{ domain }}"
   register: collabora_set

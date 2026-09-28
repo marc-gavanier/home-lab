@@ -483,8 +483,8 @@ Discord webhook on every monitor. Known limitations, accepted (issue #13):
   (`ansible/roles/base/tasks/logging.yml`). Per-user journals share both caps with the system
   journal; at journald's default of 100 files the count bound first, at a third of the size.
   The persistent store is on the encrypted volume, mounted at unlock
-  (`ansible/roles/storage/tasks/journal.yml`): before unlock, only the current boot is readable, so
-  the "unexplained poweroff" runbook cannot rely on previous boots.
+  (`ansible/roles/storage/tasks/journal.yml`): before unlock, the journal shows only the current boot;
+  earlier boots survive only in rsyslog's `syslog` and `kern.log`, which stay on the card.
 
 ## Reading the UFW log
 

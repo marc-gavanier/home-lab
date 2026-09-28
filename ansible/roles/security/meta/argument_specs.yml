@@ -58,8 +58,7 @@ argument_specs:
           without a default: every plausible default is either wrong for one of
           the two hosts (their LANs differ) or wide enough to be no scoping at
           all, and the failure mode of guessing is losing the only route to a
-          machine in another building. Measured per host — see the comment above
-          the value in host_vars.
+          machine in another building. Measured per host.
       ufw_service_rules:
         type: list
         elements: dict

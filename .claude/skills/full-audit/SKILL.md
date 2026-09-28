@@ -76,9 +76,12 @@ Closing a class means: state the cardinal N, sweep N/N, record the count.
 A partial sweep does not close anything — it is what kept C01 open for
 ten days while three runs sampled it.
 
-If you find something that fits NO existing class, that is a MINT, and it
-is worth more than an instance. Write the PROPERTY and the SPACE first,
-the instance second.
+If you find something that fits NO existing class, PROPOSE a mint: write
+the PROPERTY and the SPACE first, the instance second, and name the
+nearest existing class. A proposal is not a class: it becomes one only
+if it has at least one CONFIRMED instance whose fix is real work on the
+infrastructure. A property with only latent, zero-impact or accepted
+instances is reported as an observation, not proposed as a mint.
 
 If your domain has no OPEN class, verify instead that its GATED
 assertions still fail when they should — read them, do not test
@@ -184,8 +187,30 @@ Two things must appear explicitly:
 
 - **What you rejected from the agents and why.** It is what makes the rest
   believable.
-- **Every mint, with its property and its space.** A mint is the run's real
-  output; an instance is a by-product.
+- **Every mint, with its property and its space**, and every proposal that
+  failed the admission check below, with the reason.
+
+## Admit a mint — before it enters the counter
+
+On 2026-09-28 (key `inheritance`) eight agents returned seven proposed classes
+for about ten real corrections, because the brief said a mint was worth more
+than an instance. Four of them described one fact the operator considers normal
+(an unwritten setting takes the vendor's default), two had no live instance at
+all. A proposal enters the register only when the main session has checked, in
+this order:
+
+1. **Not a duplicate.** Compare it with every other proposal of the run and
+   with the nearest class of the register, by property, not by wording. Two
+   agents describing the same predicate from two domains is ONE class.
+2. **Not a settled position.** It does not restate something the operator has
+   accepted or declined in `settled.md`, under another name.
+3. **Real work.** At least one CONFIRMED instance, re-measured by the main
+   session, whose correction is a change the operator accepts to apply to the
+   infrastructure (even one line). Latent-only, zero-impact or accepted-only
+   properties are recorded as observations under the nearest class.
+
+A proposal that fails any of the three is listed in the report as rejected,
+with the step it failed. The counter counts only admitted mints.
 
 State plainly when a finding lands in a GATED class: that is a broken gate, it
 does not belong in the audit's count, and it is reported as a red test.

@@ -327,7 +327,7 @@ All HTTPS services are VPN/LAN-only (`vpn-only` middleware on Traefik's
   transistor.
 - **SSH**: key-only (ed25519), vaulted non-standard port
   (`ssh_port_hardened`), LAN/VPN only. The port only cuts bot noise.
-- **WireGuard UI password**: hashed with bcrypt on the Pi.
+- **WireGuard UI password**: hashed by wg-easy itself with argon2.
 - **VPN-only allow-list**: LAN (192.168.1.0/24), `proxy` Docker network
   (172.18.0.0/16, where full-tunnel VPN clients arrive, hairpin-NATed),
   WireGuard (10.8.0.0/24, the offsite Pi's push path). Mobile sync needs the VPN

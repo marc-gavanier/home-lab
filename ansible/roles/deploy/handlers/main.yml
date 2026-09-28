@@ -74,3 +74,8 @@
   ansible.builtin.command:
     cmd: docker restart transmission
   changed_when: true
+
+- name: Restart jellyfin
+  ansible.builtin.command:
+    cmd: docker restart jellyfin
+  changed_when: true

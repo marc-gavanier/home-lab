@@ -35,7 +35,8 @@ Mirrors the profile's `source` list: keep both in sync. All daily.
 | Immich DB              | Immich's own scheduled backup → `services/immich/upload/backups/*.sql.gz`                 | built-in → Restic |
 
 **Not backed up:** `/mnt/data/library` (torrent video, re-obtainable, kept until
-watched — ADR-035), and the OS.
+watched — ADR-035), `/mnt/data/log` (the persistent journal), `/mnt/data/claude`
+(the `claude` account's working files and rclone write cache), and the OS.
 
 The deployed spec is the list of dumped databases that cannot drift (one line per
 database, ten today):
