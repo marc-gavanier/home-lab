@@ -21,7 +21,7 @@
     quiet: true
   tags: always
 
-- name: Compute WireGuard bcrypt and Vaultwarden Argon2 facts
+- name: Compute the Vaultwarden Argon2 facts
   ansible.builtin.import_tasks: hashes.yml
   tags: [secrets]
 
@@ -81,7 +81,7 @@
   ansible.builtin.import_tasks: offsite.yml
   tags: [backup]
 
-- name: Install the Jellyfin Live TV playlist
+- name: Configure Jellyfin (Live TV playlist, no autodiscovery)
   ansible.builtin.import_tasks: jellyfin.yml
   tags: [jellyfin]
 

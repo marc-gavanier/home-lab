@@ -55,6 +55,7 @@
     - { key: maintenance_window_start, type: integer, value: "4" }
     - { key: appstoreenabled, type: boolean, value: "false" }
     - { key: log_rotate_size, type: integer, value: "10485760" }
+    - { key: updatechecker, type: boolean, value: "false" }
   register: nc_sys_set
   changed_when: true
   when:

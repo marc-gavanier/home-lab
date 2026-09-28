@@ -37,7 +37,8 @@ Cloudflare DDNS: vpn.example.com updated by cloudflare-ddns.sh (15-min timer)
 
 - Each service gets its own subdomain, resolved locally by Pi-hole (split DNS)
 - TLS everywhere, even locally; Traefik labels live in `docker/compose.yaml`
-- Docker networks: `proxy` (Traefik ↔ exposed services), `internal` (DB/cache, not routed)
+- Docker networks: `proxy` (Traefik ↔ exposed services), `internal` (DB/cache, not published but
+  NATed to the internet: `nextcloud-cron` and `immich-ml` need the egress)
 - Document open ports and their justification in `docs/04-network/`
 - Test on the Pi before documenting as working
 

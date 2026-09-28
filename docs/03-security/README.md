@@ -137,8 +137,9 @@ hold. This page lists the controls per layer and where each one is decided.
   which feeds Compose interpolation for every service (ADR-020).
 - **Security headers and rate limit** on every HTTPS router: HSTS, SAMEORIGIN,
   nosniff and a per-IP cap at the Traefik entrypoint.
-- **Isolated networks**: `proxy`, `internal`, `socketproxy`. Databases live on
-  `internal` only.
+- **Separate networks**: `proxy`, `internal`, `socketproxy`. Databases live on
+  `internal` only. Only `socketproxy` has no route out; `internal` reaches the
+  internet through the host's NAT, which `nextcloud-cron` and `immich-ml` need.
 - **No web UI published directly**; all route through Traefik (vpn-only).
   Published ports: Traefik's 80/443, DNS, WireGuard, Transmission's peer port,
   and wg-easy's admin UI on host loopback only.

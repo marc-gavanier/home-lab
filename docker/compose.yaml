@@ -194,6 +194,9 @@ services:
       FTLCONF_dns_listeningMode: all
       FTLCONF_misc_etc_dnsmasq_d: "true"
       FTLCONF_dns_upstreams: 127.0.0.1#5053
+      FTLCONF_ntp_ipv4_active: "false"
+      FTLCONF_ntp_ipv6_active: "false"
+      FTLCONF_ntp_sync_active: "false"
     secrets:
       - pihole_password
     volumes:
@@ -413,6 +416,7 @@ services:
     image: nextcloud:35.0.1-apache
     container_name: nextcloud-notify-push
     restart: "no"
+    stop_signal: SIGTERM
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
     read_only: true
@@ -568,6 +572,7 @@ services:
       ND_LOGLEVEL: info
       ND_BASEURL: ""
       ND_SCANNER_PURGEMISSING: full
+      ND_ENABLEINSIGHTSCOLLECTOR: "false"
     volumes:
       - ${SERVICES_DATA_DIR}/navidrome:/data
       - ${MEDIA_DIR}/music:/music:ro
@@ -759,6 +764,7 @@ services:
       PUID: ${PUID}
       PGID: ${PGID}
       TZ: ${TZ}
+      PROWLARR__LOG__ANALYTICSENABLED: "false"
     volumes:
       - ${SERVICES_DATA_DIR}/prowlarr:/config
     networks:
@@ -788,6 +794,7 @@ services:
       PUID: ${PUID}
       PGID: ${PGID}
       TZ: ${TZ}
+      SONARR__LOG__ANALYTICSENABLED: "false"
     volumes:
       - ${SERVICES_DATA_DIR}/sonarr:/config
       - ${LIBRARY_DIR}:/data
@@ -818,6 +825,7 @@ services:
       PUID: ${PUID}
       PGID: ${PGID}
       TZ: ${TZ}
+      RADARR__LOG__ANALYTICSENABLED: "false"
     volumes:
       - ${SERVICES_DATA_DIR}/radarr:/config
       - ${LIBRARY_DIR}:/data
@@ -917,6 +925,7 @@ services:
       - /host/run/log:size=1m
     environment:
       DOCKER_HOST: tcp://socket-proxy:2375
+      DO_NOT_TRACK: "1"
     depends_on:
       - socket-proxy
     volumes:
@@ -1132,6 +1141,7 @@ services:
       FORGEJO__server__DISABLE_SSH: "true"
       FORGEJO__security__INSTALL_LOCK: "true"
       FORGEJO__service__DISABLE_REGISTRATION: "true"
+      FORGEJO__cron.update_checker__ENABLED: "false"
       FORGEJO__database__DB_TYPE: sqlite3
       FORGEJO__database__PATH: /var/lib/gitea/data/forgejo.db
       FORGEJO__security__SECRET_KEY_URI: file:/run/secrets/forgejo_secret_key

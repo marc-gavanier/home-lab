@@ -7,3 +7,16 @@
     owner: root
     group: root
     mode: "0644"
+
+- name: jellyfin | Read whether Jellyfin has written its network configuration
+  ansible.builtin.stat:
+    path: "{{ services_data_dir }}/jellyfin/config/config/network.xml"
+  register: jellyfin_network_xml
+
+- name: jellyfin | Stop answering client autodiscovery
+  when: jellyfin_network_xml.stat.exists
+  ansible.builtin.replace:
+    path: "{{ services_data_dir }}/jellyfin/config/config/network.xml"
+    regexp: "<AutoDiscovery>true</AutoDiscovery>"
+    replace: "<AutoDiscovery>false</AutoDiscovery>"
+  notify: Restart jellyfin
