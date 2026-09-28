@@ -24,6 +24,41 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-09-28 (TWENTY-FOURTH run) — key `inheritance`, one PR
+
+- **`nextcloud-notify-push` stops on SIGTERM**: it inherited the Nextcloud image's SIGWINCH
+  and was force-killed at every stop (C47).
+- **Three default listeners closed** (C147): netdata netflow plugin, Pi-hole NTP server and
+  client, Jellyfin autodiscovery.
+- **Vendor call-home off** wherever a setting exists: Navidrome insights, *arr analytics
+  (`<APP>__LOG__ANALYTICSENABLED`), netdata statistics (read-only marker file), Traefik
+  `global.checkNewVersion`, Nextcloud `updatechecker`, Forgejo `cron.update_checker`.
+- **Documentation**: `internal` reaches the internet through the host's NAT; wg-easy hashes
+  with argon2; backup exclusions complete; journal before unlock.
+- **full-audit**: a mint is admitted only if it is not a duplicate, not a settled position,
+  and has a confirmed instance whose fix is real work (SKILL.md, "Admit a mint").
+
+## Decisions taken on 2026-09-28 (twenty-fourth run) — do not re-propose
+
+- **An unwritten setting taking the vendor's default is normal.** Do not propose writing a
+  value down only because it is a default, nor a probe to watch a default that could move:
+  Traefik `encodedCharacters`, LibreSign `signing_mode`, `immich-db` `shm_size`, Kuma's
+  domain-expiry notification and `is_default=0` all stay as they are.
+- **The restic cache stays in `/root/.cache/restic` on the SD card** (about 250 MB,
+  ciphertext only).
+- **Vendor call-home is cut wherever a setting allows it.** Where only a UI toggle or
+  nothing exists (Kuma, Immich, Pi-hole release check, Calibre-Web), it stays on; do not
+  write glue to reach it.
+
+## Instrument traps paid on 2026-09-28 (twenty-fourth run)
+
+- **`DO_NOT_TRACK` crashes netdata on a read-only rootfs**: the entrypoint touches the
+  opt-out marker under `/etc/netdata` and exits 1. Mount the marker read-only instead.
+- **C47's instrument is `SigCgt` against the EFFECTIVE `Config.StopSignal`**, not against
+  SIGTERM: an image's `STOPSIGNAL` is inherited by every sidecar reusing it.
+- **The Docker journal's forced-kill line reads `10s of signal 28`**; grep `signal 28`, not
+  `signal=28`.
+
 ## Shipped on 2026-09-27 (TWENTY-THIRD run) — key `delegation`, one PR
 
 - **Renovate holds MariaDB majors for Dependency Dashboard approval**: the hold on #364 had
