@@ -227,12 +227,17 @@ admission check it prompted (SKILL.md, "Admit a mint"), left one. From this run 
 mint count is the ADMITTED count: a proposal with no confirmed instance worth a fix does
 not reset the clock.
 
+**The twenty-fifth run, on 2026-09-28, used `erasure` and minted zero.** **Consecutive
+zero-mint runs: 1.** The same reserve as `substitution` and `propagation`: the zero was
+earned partly by assignment, four confirmed instances going to C01, C26, C83 and C131, the
+last one a GATED class whose gate could not see it. No agent proposed a mint.
+
 ---
 
 # The register
 
 Runs of 2026-08-15 through 2026-09-21 (TWELFTH run, key `durability`).
-**Current state: see the OPEN table after the EIGHTEENTH run of 2026-09-26 (key `amplification`) — 130 classes, 0 OPEN. The counts below this line are the twelfth run's.**
+**Current state: see the OPEN table after the TWENTY-FIFTH run of 2026-09-28 (key `erasure`) — 147 classes, 0 OPEN. The counts below this line are the twelfth run's.**
 **121 recorded classes: 3 OPEN — and the membership is C121, C34 and C01,
 written as a list because every time this line carried a rule for reconstructing
 the count instead, the count was wrong. 9 GATED, 7 closed by decision, plus the
@@ -589,7 +594,18 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
-## OPEN — 0 (after the TWENTY-FOURTH run of 2026-09-28, key `inheritance`)
+## OPEN — 0 (after the TWENTY-FIFTH run of 2026-09-28, key `erasure`)
+
+**Empty.** Nothing minted; C131's gate found blind and the class downgraded — see "The run of
+2026-09-28 (TWENTY-FIFTH)" below.
+
+| ID | Property | State |
+|---|---|---|
+| C131 | A copy kept on a medium less protected than its original | **GATE BROKEN 2026-09-28, downgraded GATED -> ENUMERATED**: Ansible staged every transferred file, rendered secrets included, in `~/.ansible/tmp` on the card of both hosts; its gate names two paths and derives nothing. FIXED, `remote_tmp = $XDG_RUNTIME_DIR/ansible` (tmpfs, 0700) |
+| C26 | A credential reaching a command line | **Missed member, 2026-09-28**: `homelab-wg-easy-config.sh` passed a drifted client's full record, private key and PSK included, to `python3` as `argv[1]`. Invisible to the 09-13 value sweep: the value arrives from wg-easy's API and the branch runs only on drift (0 in two weeks). FIXED, passed through the environment |
+| C83 | A success reported without bounding the examined set from below | **Missed member, 2026-09-28**: the health push's mirror check wrote nothing when Forgejo's `mirror` table was empty or its database absent, so the push stayed UP with no mirror reading. FIXED, `mirror missing` alerts; a missing database falls into `mirror unreadable`. `ops/check-empty-set-floors.py` does not see a `case` arm that emits nothing |
+
+### The twenty-fourth run's table read:
 
 **Empty.** C147 was minted and swept in the same run; C47 reopened and was re-enumerated —
 see "The run of 2026-09-28 (TWENTY-FOURTH)" below.
@@ -656,7 +672,7 @@ operator.
 
 | ID | Property | State |
 |---|---|---|
-| C131 | **A copy kept on a medium less protected than its original** — data read from the encrypted volume, written back to the SD card | **MINTED 2026-09-27 (nineteenth run), GATED**: `system` 8/8 copy sites from `/mnt/data` to the card, 2 instances with one cause, both fixed: the `claude` user's `~/.claude` (sessions, memory, claude.ai login) and the rclone vault write cache. Gate `claude-state-is-on-the-encrypted-volume`, run against the pre-fix host: rc=1 on all three terms; after the deploy: rc=0 |
+| C131 | **A copy kept on a medium less protected than its original** — data read from the encrypted volume, written back to the SD card | **Downgraded GATED -> ENUMERATED 2026-09-28 (twenty-fifth run)**: a third instance, Ansible's remote tmp on the card, fixed; the gate lists paths and derives nothing. **MINTED 2026-09-27 (nineteenth run), GATED**: `system` 8/8 copy sites from `/mnt/data` to the card, 2 instances with one cause, both fixed: the `claude` user's `~/.claude` (sessions, memory, claude.ai login) and the rclone vault write cache. Gate `claude-state-is-on-the-encrypted-volume`, run against the pre-fix host: rc=1 on all three terms; after the deploy: rc=0 |
 | C132 | **A copy stamped with the time it was made, which its reader takes for the time of the original** | **MINTED and ENUMERATED 2026-09-27 (nineteenth run)**: `services` 10/10 paths where a consumer reads a date. 1 instance: 78 home videos converted by ffmpeg on 2026-05-23 with no `creation_time`, dated that day by Immich and Nextcloud. Remedy: file dates set to each folder's date, run by the operator. Not GATED |
 
 ### The eighteenth run's table read:
@@ -1230,6 +1246,59 @@ separate correction — **the marker is not a provenance instrument.**
 C92 and C03-R were closed as review rules once their spaces proved non-derivable.
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
+
+## The run of 2026-09-28 (TWENTY-FIFTH) — the key was `erasure`, and it minted zero
+
+The key, chosen by the operator over `attribution`, `degradation` and `extremity`: **every
+mechanism that deletes, expires, overwrites, truncates, rotates, prunes, vacuums or resets —
+deliberately or as a side effect of a reboot, a recreate or a template — and what its readers
+conclude afterwards.** Four forms: (E1) absence read as a state, (E2) the last copy erased
+before its reader, (E3) effective scope differs from the written one, (E4) assumed persistence.
+Its borders were drawn against `residue` (what survives a removal), `revocation`, C88 and
+`vacuity` before the fan-out.
+
+### The counter: 0 OPEN in, 0 OPEN out, 0 minted, C131 gate broken and downgraded, class total 147
+
+No agent proposed a mint. Every confirmed instance fits a class on file.
+
+### The sweep
+
+| Domain | Space | Result |
+|---|---|---|
+| `system` | 119/119 erasing mechanisms, both hosts | C01 (usb-tamper runbook); journal file cap observation |
+| `security` | 19/19 homelab, 11/11 offsite | C131 (gate broken), C26, C01 (peer revocation) |
+| `network` | 16/16 | clean; FTL retention observation |
+| `services` | 75/75 recreate surfaces, 19/19 readers, 21/21 app deletions | clean |
+| `backup` | 16/16 | C01 (catch-up window) |
+| `observability` | 24/24 (reader, store) pairs, 14/14 windows, 12/12 state files | C83 |
+| `ansible-deploy` | 27 `absent`, 10 runtime-written files, 32 regexps, 23 tmpfs, 5 temp files, 2 purges | clean |
+| `project-manager` | 17/17 retention claims, 20/20 deleting steps | C01 (journal depth) |
+
+GATED intact, read: C03-T, C11, C14, C15, C18, C19, C41, C81. C131 is not in that list any more.
+
+### Also fixed
+
+- **C01**: `usb-tamper.md` said nothing can be read before the unlock, while rsyslog writes the
+  `usb-tamper` lines to `/var/log/syslog` on the card; the journal's "~8 weeks" measured at about
+  five (38 MB/day averaged since 09-09, about 300 MB/day on deploy days, three pre-allocated 8 MB
+  files per rotation); the backup's catch-up holds only within local retention; the peer
+  revocation runbook erased the last handshake record before reading it.
+
+### Rejected or requalified
+
+- `project-manager`'s "Kuma prunes by a daily time cut": measured, a per-monitor row budget
+  (the three largest monitors at 2 386-2 401 rows, oldest beats weeks apart); the weekly
+  monitor keeps all 14 beats since 07-19. The doc was right.
+- `security`'s "fstrim zeroes the card's freed blocks": not verified,
+  `discard_zeroes_data` reads 0. The standing rule holds.
+- `system`'s "the 400-file cap binds before the size cap": true only at deploy-day rates;
+  161/400 files and 729M/1500M, nothing deleted yet. Filed as the C01 depth correction.
+- `backup`'s undetected mass deletion: the declined drift detection.
+- `network`'s FTL retention at 93.6 days: no reader.
+- `services`' heal recreate erasing a crash's output, `ansible-deploy`'s `.md` purge: latent,
+  zero impact.
+- Four agents and the main session overran a `journalctl` scan on homelab; every process was
+  killed and checked gone by PID. One agent printed Kuma push URLs into its own transcript.
 
 ## The run of 2026-09-28 (TWENTY-FOURTH) — the key was `inheritance`, and it minted one
 
