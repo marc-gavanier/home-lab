@@ -40,8 +40,15 @@ journalctl -t usb-tamper -b           # every usb add/remove is logged, armed or
 ## After a poweroff: tamper or false positive?
 
 A spontaneous USB reset of the HDD registers as `remove`+`add` and powers the Pi
-off while armed. You cannot read the `TRIGGER while armed` line before the
-unlock: the persistent journal lives on the encrypted volume.
+off while armed. The persistent journal lives on the encrypted volume, but rsyslog also writes the
+`usb-tamper` lines to `/var/log/syslog` on the card, readable before the unlock:
+
+```bash
+ssh homelab 'sudo grep usb-tamper /var/log/syslog'
+```
+
+A `usb remove` then `usb add` of the disk's vendor:model just before `TRIGGER while armed` is a
+USB reset. No line proves nothing: that file is written asynchronously and the poweroff can beat it.
 
 | What you know | Action |
 |---------------|--------|
