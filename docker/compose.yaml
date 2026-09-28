@@ -925,13 +925,13 @@ services:
       - /host/run/log:size=1m
     environment:
       DOCKER_HOST: tcp://socket-proxy:2375
-      DO_NOT_TRACK: "1"
     depends_on:
       - socket-proxy
     volumes:
       - ${SERVICES_DATA_DIR}/netdata/lib:/var/lib/netdata
       - ${SERVICES_DATA_DIR}/netdata/cache:/var/cache/netdata
       - ${SERVICES_DATA_DIR}/netdata/netdata.conf:/etc/netdata/netdata.conf:ro
+      - ${SERVICES_DATA_DIR}/netdata/opt-out-from-anonymous-statistics:/etc/netdata/.opt-out-from-anonymous-statistics:ro
       - ${SERVICES_DATA_DIR}/netdata/health.d:/etc/netdata/health.d:ro
       - ${SERVICES_DATA_DIR}/netdata/go.d:/etc/netdata/go.d:ro
       - /proc:/host/proc:ro

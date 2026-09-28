@@ -51,6 +51,15 @@
     mode: "0444"
   notify: Restart netdata
 
+- name: netdata | Opt out of anonymous statistics (the rootfs is read-only, so DO_NOT_TRACK cannot write the marker)
+  ansible.builtin.copy:
+    content: ""
+    dest: "{{ services_data_dir }}/netdata/opt-out-from-anonymous-statistics"
+    owner: root
+    group: root
+    mode: "0444"
+  notify: Restart netdata
+
 - name: netdata | Create the curated alarm directory on the encrypted volume
   ansible.builtin.file:
     path: "{{ services_data_dir }}/netdata/health.d"
