@@ -54,6 +54,9 @@ Two kinds of entry, and the distinction matters:
 
 - **`DO_NOT_TRACK` crashes netdata on a read-only rootfs**: the entrypoint touches the
   opt-out marker under `/etc/netdata` and exits 1. Mount the marker read-only instead.
+- **A file bind's source needs a dot in its last component**: the posture's credential-store
+  derivation reads a dotless source under `${SERVICES_DATA_DIR}` as a directory store, so
+  compose declares one more store than the host counts and the posture goes red.
 - **C47's instrument is `SigCgt` against the EFFECTIVE `Config.StopSignal`**, not against
   SIGTERM: an image's `STOPSIGNAL` is inherited by every sidecar reusing it.
 - **The Docker journal's forced-kill line reads `10s of signal 28`**; grep `signal 28`, not
