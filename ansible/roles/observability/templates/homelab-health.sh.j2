@@ -89,7 +89,7 @@ if [ -n "$journal_pct" ] && [ -n "$journal_files_cap" ] && [ "$journal_files_cap
     fi
 fi
 
-boot_journal=$(journalctl -b -o short-unix 2>/dev/null | head -1 | cut -d. -f1)
+boot_journal=$(journalctl -b -o short-unix -n +1 2>/dev/null | cut -d. -f1)
 boot_real=$(date -d "$(uptime -s)" +%s 2>/dev/null)
 case "${boot_journal:-x}${boot_real:-x}" in
     *[!0-9]*) ;;
@@ -112,7 +112,7 @@ case "${boot_journal:-x}${boot_real:-x}" in
         ;;
 esac
 
-boot_first=$(journalctl -b -k -o cat 2>/dev/null | head -1)
+boot_first=$(journalctl -b -k -o cat -n +1 2>/dev/null)
 case "$boot_first" in
     *"Booting Linux on physical CPU"*) ;;
     *) pending+=("the start of boot is already gone from this boot's record, which begins at '${boot_first:-nothing}' (#292)") ;;

@@ -47,6 +47,12 @@ if [ -n "$netdata_started" ]; then
     epoch="$(date -d "$netdata_started" +%s 2>/dev/null || true)"
     [ -n "$epoch" ] && netdata_uptime=$(( $(date +%s) - epoch ))
 fi
+health_age=$netdata_uptime
+reloaded="$(stat -c %Y /run/homelab-netdata-health-reload 2>/dev/null || true)"
+if [ -n "$reloaded" ] && [ "$netdata_uptime" -ge 0 ]; then
+    reload_age=$(( $(date +%s) - reloaded ))
+    [ "$reload_age" -ge 0 ] && [ "$reload_age" -lt "$health_age" ] && health_age=$reload_age
+fi
 
 UNAVAILABLE_STATUS=""
 UNAVAILABLE_MSG=""
@@ -62,9 +68,9 @@ case "$API_STATE" in
             UNAVAILABLE_MSG="netdata unreachable"
         fi ;;
     *)
-        if [ "$netdata_uptime" -ge 0 ] && [ "$netdata_uptime" -lt "$STARTUP_GRACE" ]; then
+        if [ "$health_age" -ge 0 ] && [ "$health_age" -lt "$STARTUP_GRACE" ]; then
             UNAVAILABLE_STATUS=up
-            UNAVAILABLE_MSG="netdata restarted ${netdata_uptime}s ago, health engine has no verdict yet"
+            UNAVAILABLE_MSG="netdata health engine started ${health_age}s ago, no verdict yet"
         else
             UNAVAILABLE_STATUS=down
             UNAVAILABLE_MSG="netdata up ${netdata_uptime}s and its health engine has evaluated no alarm"
@@ -155,9 +161,9 @@ EOF
     [ ${#reports[@]} -gt 0 ] && readings="$(join ', ' "${reports[@]}")"
 
     if [ ${#problems[@]} -gt 0 ] && [ "$unsettled" -eq ${#problems[@]} ] &&
-       [ "$netdata_uptime" -ge 0 ] && [ "$netdata_uptime" -lt "$STARTUP_GRACE" ]; then
-        log "netdata started ${netdata_uptime}s ago, $unsettled alarm(s) not settled yet — reporting up"
-        push "$url" up "netdata started ${netdata_uptime}s ago, not settled yet: $(join '; ' "${problems[@]}")${readings:+ | ${readings}}"
+       [ "$health_age" -ge 0 ] && [ "$health_age" -lt "$STARTUP_GRACE" ]; then
+        log "netdata health engine started ${health_age}s ago, $unsettled alarm(s) not settled yet — reporting up"
+        push "$url" up "netdata health engine started ${health_age}s ago, not settled yet: $(join '; ' "${problems[@]}")${readings:+ | ${readings}}"
     elif [ ${#problems[@]} -gt 0 ]; then
         push "$url" down "$(join '; ' "${problems[@]}")${readings:+ | ${readings}}"
     else

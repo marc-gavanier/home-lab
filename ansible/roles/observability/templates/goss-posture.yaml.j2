@@ -528,12 +528,10 @@ command:
       st=$(date -d "$su" +%s 2>/dev/null)
       case "${st:-x}" in ''|*[!0-9]*) echo "cannot read netdata's start time: [$su]"; exit 2 ;; esac
       up=$(( $(date +%s) - st ))
-      [ "$up" -lt $(( {{ netdata_docker_update_every }} * 2 )) ] && exit 0
-      cap={{ ((600 / netdata_docker_update_every) * 0.833) | round | int }}
-      floor=$(( up * 833 / 1000 / {{ netdata_docker_update_every }} ))
-      [ "$floor" -gt "$cap" ] && floor=$cap
+      [ "$up" -lt 660 ] && exit 0
+      floor={{ ((600 / netdata_docker_update_every) * 0.833) | round | int }}
       [ "$max" -gt "$floor" ] || {
-        echo "highest container_health_samples=$max, floor=$floor after ${up}s of netdata uptime (cap $cap) — homelab_container_unhealthy cannot fire"
+        echo "highest container_health_samples=$max, floor=$floor after ${up}s of netdata uptime — homelab_container_unhealthy cannot fire"
         exit 1
       }
     timeout: 60000

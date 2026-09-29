@@ -1,4 +1,12 @@
 ---
+- name: lynis | Skip the pending-security-update test, which Pi pending action owns with a 48 h grace
+  ansible.builtin.copy:
+    content: "skip-test=PKGS-7392\n"
+    dest: /etc/lynis/custom.prf
+    owner: root
+    group: root
+    mode: "0644"
+
 - name: lynis | Install the lynis report script
   ansible.builtin.template:
     src: homelab-lynis-report.sh.j2

@@ -6,6 +6,7 @@
       id=$(docker ps -aq --filter 'name=^netdata$')
       [ -n "$id" ] || exit 0
       docker exec netdata netdatacli reload-health
+      touch /run/homelab-netdata-health-reload
   changed_when: true
 
 - name: Restart netdata
