@@ -24,6 +24,35 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-09-29 (TWENTY-SIXTH run) — key `determinism`, one PR (#406)
+
+- **`homelab-health` reads the boot's first journal entry with `journalctl -n +1`**: under
+  systemd's `IgnoreSIGPIPE=yes`, `journalctl | head -1` read the whole boot (C69).
+- **lynis skips `PKGS-7392`** (`/etc/lynis/custom.prf`): Pi pending action owns pending security
+  updates with a 48 h grace. The index does not move — the test scores 0/0 when clean (C120).
+- **Posture's sample floor waits 660 s after netdata starts**, and **the netdata-kuma adapter's
+  grace also runs from the last `reload-health`** (C120).
+- **Documentation**: ADR-012, the lynis acceptance procedure (lower the ratchet too), Kuma
+  migration wait, Vaultwarden restore order, backup window, timers with a random delay (C01, C51,
+  C73).
+
+## Decisions taken on 2026-09-29 (twenty-sixth run) — do not re-propose
+
+- **Pending security updates are Pi pending action's alone**, at 48 h; do not re-enable
+  `PKGS-7392` nor move the lynis timer to chase Ubuntu's publication time.
+- **Healthcheck flips under load alone** (traefik, immich-ml) stay as they are: no consequence,
+  same shape as the declined transmission case.
+
+## Instrument traps paid on 2026-09-29 (twenty-sixth run)
+
+- **Every systemd service ignores SIGPIPE by default**: `cmd | head -1` inside a unit does not
+  stop `cmd`. Test a pipe's cost with `trap '' PIPE` in a shell, not at a bare prompt (206 ms
+  against more than 60 s for the same `journalctl` line).
+- **lynis refreshes the apt lists itself** (`refresh-repositories=yes` in `default.prf`): its
+  package verdict is not the one unattended-upgrades saw.
+- **Kuma keeps no text of a failed posture term**: read `journalctl -u homelab-posture` for which
+  assertion failed.
+
 ## Shipped on 2026-09-28 (TWENTY-FIFTH run) — key `erasure`, one PR
 
 - **Ansible stages on tmpfs**: `remote_tmp = /run/user/1000/ansible`. Every transferred file,

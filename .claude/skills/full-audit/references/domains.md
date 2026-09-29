@@ -15,9 +15,11 @@ earlier — which would have sent eight agents to re-derive settled work. Rebuil
 it from `classes.md`'s OPEN table at the start of every run; if the two
 disagree, `classes.md` wins.
 
-As of the TWENTY-FIFTH run of 2026-09-28, key `erasure`: **0 OPEN** — the table below is the fifteenth run's, kept for its C01 history.
+As of the TWENTY-SIXTH run of 2026-09-29, key `determinism`: **0 OPEN** — the table below is the fifteenth run's, kept for its C01 history.
 
-**FORTY-FOUR keys are now spent.** `erasure` (twenty-fifth run, 0 mints). `attribution` and `degradation` are still unspent; `extremity` (behaviour at the edges of an input range) was offered and not chosen.
+**FORTY-FIVE keys are now spent.** `determinism` (twenty-sixth run, 0 mints). `attribution`, `degradation`, `hysteresis` and `composition` are still unspent; `composition` risks landing in `interference`.
+
+**FORTY-FOUR keys were spent before it.** `erasure` (twenty-fifth run, 0 mints). `attribution` and `degradation` are still unspent; `extremity` (behaviour at the edges of an input range) was offered and not chosen.
 
 **FORTY-THREE keys are now spent.** `inheritance` (twenty-fourth run, 1 admitted mint: C147). `attribution`, `erasure` and `degradation` are still unspent.
 
@@ -124,7 +126,7 @@ other: `network` 16/16 mechanisms (3 deny-covered, 4 admit-only, 9 uncovered),
 `security` 197/197 deny-subject assertions of 329 (186 fail-safe, 11 stay
 green). **Only 2 of 197 verify that a control actually refuses.**
 
-**Six domains own no OPEN class, and that is the normal state now.** Their job is
+**No domain owns an OPEN class, and that is the normal state now.** Their job is
 the one that demoted C02, C13, C20, C26 and C17: re-read the GATED assertions in
 their area and ask whether each is DERIVED from the thing it guards or is merely a
 list of the instances once found. `backup` did exactly that on 2026-08-31 and again
@@ -298,7 +300,7 @@ window. It also cost the main session two bad instruments of its own, both caugh
 by a control and both recorded. Rule confirmed twice now: **a key that turns on the
 instrument is worth more than one that only turns on the estate.**
 
-**Six domains own no OPEN class and are not idle.** Their job is the one that
+**No domain owns an OPEN class, and none is idle.** Their job is the one that
 demoted C02, C13, C20, C26 and, on 2026-09-05 evening, C17: re-read the GATED
 assertions in their area and ask whether each is DERIVED from the thing it
 guards or merely a list of the instances once found. `backup` did exactly that on 2026-08-31 and found C10 to
@@ -372,9 +374,9 @@ later is worth raising; a theoretical one that costs a weekend is not.
 **Already established** — see `references/settled.md` for the container-layer
 work that is closed and the hardening proposals that have been declined.
 
-**The argv class (C26) was ENUMERATED on 2026-08-22 and REOPENED on 2026-09-12
-on its TRACE axis — see `classes.md`'s OPEN table before reading the rest of this
-paragraph as settled.** Its four axes were: a
+**The argv class (C26) was ENUMERATED on 2026-08-22, reopened on 2026-09-12 on its
+TRACE axis and closed again on 2026-09-13 on all four axes; its 2026-09-28 missed
+member is fixed.** Its four axes were: a
 YAML parse of all 28 services in `compose.yaml`, the child processes those
 command lines spawn, the in-container scheduled jobs no sweep window catches, and
 an empirical 140 s `/proc` sweep against 35 real secret values with a positive
@@ -550,9 +552,8 @@ during an incident.
 the page agree with its ADR, its runbook, its container?). **That sweep is NOT
 C34's space and this paragraph framed it as such until 2026-09-20** — C34 covers
 any artefact citing a sibling, including a code comment, which is what reopened
-it. Read the OPEN table above for where C34 actually stands: axis A closed 44/44,
-axis C at 33 of 460. **C01 is this domain's other open class**, reopened the same
-day because its 81-file space was all `.md` while a comment in an Ansible task is
+it. C34 is ENUMERATED (464/464, 2026-09-25) and C01 is ENUMERATED; C01 was reopened
+on 2026-09-20 because its 81-file space was all `.md` while a comment in an Ansible task is
 a documentary statement too. Eleven were clean;
 the other nine produced fourteen corrections, shipped in #203. Re-check after a
 change rather than re-exploring — but two shapes are worth carrying forward.
