@@ -53,11 +53,24 @@ for h in /sys/class/hwmon/hwmon*; do
 done
 [ "$uv_seen" = 0 ] && report+=("no rpi_volt sensor")
 
+STAMP_DIR=/var/lib/homelab-health
+mkdir -p "$STAMP_DIR"
+dpkg_mtime=$(stat -c %Y /var/lib/dpkg/status 2>/dev/null || echo 0)
+boot_epoch=$(date -d "$(uptime -s)" +%s 2>/dev/null || echo 0)
+
 if [ -f /var/run/reboot-required ]; then
     pending+=("reboot pending — schedule homelab reboot+unlock")
-elif [ "$(stat -c %Y /var/lib/dpkg/status 2>/dev/null || echo 0)" -gt "$(date -d "$(uptime -s)" +%s 2>/dev/null || echo 0)" ]; then
-    stale_svc=$(needrestart -b -r l 2>/dev/null | grep -c '^NEEDRESTART-SVC:')
-    [ "$stale_svc" -gt 0 ] && pending+=("$stale_svc services still run replaced libraries — schedule homelab reboot+unlock")
+elif [ "$dpkg_mtime" -gt "$boot_epoch" ]; then
+    restart_key="$dpkg_mtime $boot_epoch"
+    if [ "$(cat "$STAMP_DIR/needrestart-clean" 2>/dev/null)" != "$restart_key" ]; then
+        restart_out=$(needrestart -b -r l 2>/dev/null); restart_rc=$?
+        stale_svc=$(grep -c '^NEEDRESTART-SVC:' <<< "$restart_out")
+        if [ "$stale_svc" -gt 0 ]; then
+            pending+=("$stale_svc services still run replaced libraries — schedule homelab reboot+unlock")
+        elif [ "$restart_rc" -eq 0 ]; then
+            printf '%s\n' "$restart_key" > "$STAMP_DIR/needrestart-clean"
+        fi
+    fi
 fi
 
 JOURNAL_PRESSURE_PCT=80
@@ -120,7 +133,16 @@ esac
 
 APT_CHECK=/usr/lib/update-notifier/apt-check
 if [ -x "$APT_CHECK" ]; then
-    sec=$("$APT_CHECK" 2>&1 | cut -d';' -f2); sec=${sec//[^0-9]/}; sec=${sec:-0}
+    apt_key="$dpkg_mtime $(stat -c %Y /var/lib/apt/lists 2>/dev/null || echo 0)"
+    cached_apt_key=""; sec=""
+    read -r cached_dpkg cached_lists sec 2>/dev/null < "$STAMP_DIR/apt-check" || true
+    [ -n "${cached_dpkg:-}" ] && cached_apt_key="$cached_dpkg $cached_lists"
+    if [ "$cached_apt_key" != "$apt_key" ] || [ -z "$sec" ]; then
+        apt_out=$("$APT_CHECK" 2>&1); apt_rc=$?
+        sec=$(cut -d';' -f2 <<< "$apt_out"); sec=${sec//[^0-9]/}
+        [ "$apt_rc" -eq 0 ] && [ -n "$sec" ] && printf '%s %s\n' "$apt_key" "$sec" > "$STAMP_DIR/apt-check"
+    fi
+    sec=${sec:-0}
     if [ "$sec" -gt 0 ]; then
         report+=("$sec security updates pending")
         [ -n "$(gate security-updates 172800 nonzero)" ] &&
