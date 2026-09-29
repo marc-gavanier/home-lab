@@ -34,7 +34,9 @@ that nothing is wrong.
 **Startup grace (the one exception to "whatever the state").** A freshly started netdata answers
 HTTP 200 with an empty `alarms` object: 25 s to ~4 min on a warm restart; on a cold boot its API
 first answered ~301 s after start and the first verdict came at 779 s. The adapter therefore uses a
-**1200 s** grace based on netdata's own start time:
+**1200 s** grace based on netdata's own start time, or on the last `reload-health` Ansible ran,
+whichever is later: a reload resets every alarm to no verdict, like a restart (marker
+`/run/homelab-netdata-health-reload`):
 
 | netdata answer                                                                      | netdata up < 1200 s                                                        | netdata up ≥ 1200 s              |
 |-------------------------------------------------------------------------------------|----------------------------------------------------------------------------|----------------------------------|
@@ -220,7 +222,7 @@ How it behaves:
 
 ## The daily disk-health report
 
-`homelab-disk.sh` (daily at 07:00, push monitor `Pi disk health`) watches the 5 TB drive: SMART
+`homelab-disk.sh` (daily at 07:00 + up to 10 min, push monitor `Pi disk health`) watches the 5 TB drive: SMART
 counters, capacity, temperature, and the weekly **extended** self-test started by
 `homelab-smart-test.timer`.
 
@@ -417,8 +419,13 @@ The table is maintained by hand. To check it, compare against `problems+=(` in
   each green verdict is kept (`/var/log/lynis-report.dat` is rewritten by every run, manual ones
   included).
 - A new warning keeps the monitor red on every run until it is gone. To accept one on purpose:
-  `sudo cp /var/log/lynis-report.dat /var/lib/homelab-lynis/last-green-report.dat`, then
-  `sudo systemctl start homelab-lynis`.
+  `sudo cp /var/log/lynis-report.dat /var/lib/homelab-lynis/last-green-report.dat`; if it also
+  lowered the index, lower the ratchet too:
+  `awk -F= '/^hardening_index=/{print $2}' /var/log/lynis-report.dat | sudo tee /var/lib/homelab-lynis/best-index`;
+  then `sudo systemctl start homelab-lynis`.
+- `PKGS-7392` (pending security updates) is skipped in `/etc/lynis/custom.prf`: lynis refreshes the
+  package lists itself and flags updates unattended-upgrades has not had a chance to install. Pi
+  pending action owns them, with a 48 h grace. The skip does not move the index.
 - `KRNL-5830` ("reboot … needed") is a legitimate, temporary warning; it clears only at the next
   weekly run after the reboot.
 - **`PKGS-7388` is a known false positive; do not skip it.** Lynis 3.0.9 cannot parse the deb822

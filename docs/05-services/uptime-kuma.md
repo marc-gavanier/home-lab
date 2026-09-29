@@ -60,8 +60,8 @@ hand in the UI: Kuma is v2, and the Ansible tooling targets v1 only.
 | Pi pending action         | Push     | `homelab-health.sh` pending group, every 5 min                                                |
 | Pi resources              | Push     | `homelab-netdata-kuma.sh` resources group, /5 min                                             |
 | Pi restic prune+check     | Push     | resticprofile `prune`+`check`, Tue 01:00                                                      |
-| Pi security posture       | Push     | `homelab-posture.sh`, daily 11:00                                                             |
-| Veille quotidienne        | Push     | `feed-digest/digest.sh`, daily 06:30                                                          |
+| Pi security posture       | Push     | `homelab-posture.sh`, daily 11:00 + jitter                                                    |
+| Veille quotidienne        | Push     | `feed-digest/digest.sh`, daily 06:30 + jitter                                                 |
 
 Push monitors are dead-man's switches: the job pushes, and Kuma alarms when the push does not
 arrive.

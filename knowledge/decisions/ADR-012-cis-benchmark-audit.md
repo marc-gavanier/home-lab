@@ -109,11 +109,17 @@ for the week with unattended-upgrades working exactly as designed.
 
 ADR-013 had already named this shape and solved it for the other instrument:
 the Pi health monitor age-gates its pending-update count to 48 h precisely "so
-the daily u-u cycle doesn't flash it red". That reasoning was never carried
-across to this one. The fix here is the cheaper of the two — the timer moved to
-**Tuesday 08:00**, clear of `apt-daily-upgrade`'s worst case (~07:30) and of
-`homelab-disk` at 07:07 — because a weekly audit has no reason to run before
-the daily patch window, and moving it needs no threshold to tune.
+the daily u-u cycle doesn't flash it red". The first fix here moved the timer to
+Tuesday 08:00, after the patch window. **It did not hold (2026-09-29)**: lynis
+runs its own `apt-get update` inside the test, so it sees updates published after
+unattended-upgrades last ran. That morning u-u found nothing at 06:20, Ubuntu
+published a libevent fix at 06:45, and the 08:12 audit went red for a week. No
+timer placement closes that gap.
+
+The test is therefore skipped (`skip-test=PKGS-7392` in `/etc/lynis/custom.prf`),
+and pending security updates belong to the Pi pending action monitor alone. The
+index does not move: lynis awards this test no points when it passes and takes 25
+when it fails, so a skip scores exactly like a clean run.
 
 What this warning does NOT excuse: the same run's four packages were still
 pending at 14:45 that day, and that part *was* a defect — needrestart had

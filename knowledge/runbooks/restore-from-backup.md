@@ -38,7 +38,7 @@ export HOME=/root
 restic snapshots
 ```
 
-Expected: a list of snapshots, the newest from last night's 03:00 run.
+Expected: a list of snapshots, the newest from last night's 03:00 run or from a later manual run.
 
 ## Restore a single file or folder
 
@@ -167,28 +167,39 @@ docker exec -u www-data nextcloud php occ maintenance:mode --off
 ## Restore Vaultwarden (SQLite)
 
 Restore the dump `vaultwarden.sqlite3`, not the live `db.sqlite3`, which can carry a
-torn WAL.
+torn WAL. Attachments, sends and RSA keys sit beside the database in
+`/mnt/data/services/vaultwarden`, so the directory comes back first and the dump last.
 
-1. Get the dumps:
+1. Get the dumps and the service directory:
 
    ```bash
    sudo rm -rf /mnt/data/tmp/restore
-   restic restore latest --target /mnt/data/tmp/restore --include /mnt/data/backups/dumps
+   restic restore latest --target /mnt/data/tmp/restore \
+     --include /mnt/data/backups/dumps \
+     --include /mnt/data/services/vaultwarden
    ```
 
-2. Stop the service, drop the stale WAL/SHM, copy the dump in, start it:
+2. Stop the service:
 
    ```bash
    cd /opt/homelab
    docker compose down vaultwarden
+   ```
+
+3. Restore attachments, sends and keys (skip if only the database was lost):
+
+   ```bash
+   rsync -a --delete /mnt/data/tmp/restore/mnt/data/services/vaultwarden/ /mnt/data/services/vaultwarden/
+   ```
+
+4. Drop the WAL/SHM, copy the dump over the database, start:
+
+   ```bash
    rm -f /mnt/data/services/vaultwarden/db.sqlite3-wal /mnt/data/services/vaultwarden/db.sqlite3-shm
    cp /mnt/data/tmp/restore/mnt/data/backups/dumps/vaultwarden.sqlite3 \
       /mnt/data/services/vaultwarden/db.sqlite3
    docker compose up -d vaultwarden
    ```
-
-Attachments, sends and RSA keys sit beside the database in
-`/mnt/data/services/vaultwarden`; [Restore one service](#restore-one-service) brings them back.
 
 ## Restore Immich (PostgreSQL — VectorChord / pgvecto.rs)
 
