@@ -1,7 +1,7 @@
 # Runbook — Daily feed digest (Miniflux → Claude → vault)
 
 Use this page to set up, tune, replay or repair the daily digest: `homelab-feed-digest.timer`
-runs at 06:30, summarises everything unread in Miniflux into one dated vault note, then marks
+runs at 06:30 (plus up to 5 min), summarises everything unread in Miniflux into one dated vault note, then marks
 those entries read. Design: [ADR-027](../decisions/ADR-027-feed-digest.md) and
 [docs/05-services/claude-code.md](../../docs/05-services/claude-code.md).
 

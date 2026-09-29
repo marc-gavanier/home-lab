@@ -80,11 +80,12 @@ sudo docker run --rm -v $T:/d -v /tmp/mark.sql:/s.sql:ro alpine:3.20 \
   sh -c 'apk add -q sqlite; sqlite3 /d/kuma.db < /s.sql'
 
 sudo docker run -d --name kuma-trial --network none -v $T:/app/data louislam/uptime-kuma:<version>
-sleep 75 && docker ps -a | grep kuma-trial
+timeout 900 sh -c 'until sudo docker logs kuma-trial 2>&1 | grep -q "Listening on"; do sleep 15; done'
 docker logs kuma-trial 2>&1 | grep -iE 'migrat|error|Listening'
 ```
 
-Expected: `kuma-trial` is `Up … (healthy)`.
+Expected: the wait returns within about 7 minutes, and the logs show `Listening on` with no migration error.
+A timeout after 15 minutes means the repair failed.
 
 Then dump the trial schema:
 
@@ -114,7 +115,8 @@ cd /opt/homelab && sudo docker compose up -d uptime-kuma
 
 ## Check it worked
 
-Heartbeats, not container state, prove monitoring resumed:
+Heartbeats, not container state, prove monitoring resumed. Kuma takes 5 to 7 minutes to start listening;
+run this once `docker logs uptime-kuma` shows `Listening on`:
 
 ```bash
 docker exec uptime-kuma sqlite3 "file:/app/data/kuma.db?mode=ro" \

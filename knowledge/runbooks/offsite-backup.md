@@ -12,8 +12,8 @@ The repo password is deliberately **not** stored on it.
 |-----------------------|------------------------------------------------|--------------------------------------------------------------------------|-------------------|
 | Daily 03:00           | `homelab-backup.service` (homelab)             | local backup, then copy of **every** snapshot the offsite repo lacks     | "Offsite backup"  |
 | Tuesday 02:00         | `homelab-offsite-check.timer` (homelab)        | `restic check` (metadata) of the offsite repo through the tunnel         | "offsite check"   |
-| Daily 08:00           | `offsite-health.timer` (offsite)               | disk/SMART/power self-report; asserts rest-server still refuses deletes  | "offsite health"  |
-| 1st of month 04:00    | `offsite-smart-test.timer` (offsite)           | SMART long self-test; the daily report reads the result                  | —                 |
+| Daily 08:00 + ≤15 min | `offsite-health.timer` (offsite)               | disk/SMART/power self-report; asserts rest-server still refuses deletes  | "offsite health"  |
+| 1st, 04:00 + ≤15 min  | `offsite-smart-test.timer` (offsite)           | SMART long self-test; the daily report reads the result                  | —                 |
 
 - **A red copy monitor that turns green the next night has self-healed.** Every
   night copies all missing snapshots; re-offering existing ones creates no

@@ -87,7 +87,7 @@ replaying a digest and the failure tree:
 
 | Unit / file                                  | Role                                          |
 |----------------------------------------------|-----------------------------------------------|
-| `homelab-feed-digest.timer`                  | daily at 06:30, `Persistent=true`             |
+| `homelab-feed-digest.timer`                  | 06:30 + ≤5 min, `Persistent=true`             |
 | `homelab-feed-digest.service`                | oneshot, `User=claude`, `TimeoutStartSec=900` |
 | `~claude/.local/share/feed-digest/digest.sh` | Miniflux API → `claude -p` → vault → mark read |
 | `~claude/.local/share/feed-digest/prompt.md` | generic English default, Ansible-owned        |
