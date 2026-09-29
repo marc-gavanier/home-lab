@@ -232,12 +232,20 @@ zero-mint runs: 1.** The same reserve as `substitution` and `propagation`: the z
 earned partly by assignment, four confirmed instances going to C01, C26, C83 and C131, the
 last one a GATED class whose gate could not see it. No agent proposed a mint.
 
+**The twenty-sixth run, on 2026-09-29, used `determinism` and minted zero.** **Consecutive
+zero-mint runs: 2** (`erasure`, `determinism`). With the OPEN table empty, **both halves of the
+termination criterion hold for the first time on admitted counts.** The reserve is the one both
+zeros carry: they were earned partly by assignment. Six confirmed instances went to C69, C120 (three),
+C51 and C01; one proposal was refused as a duplicate of C120. Every class before it asked
+whether a mechanism was configured, timed or guarded; this key asked whether it is a FUNCTION,
+and every verdict that was not one had a class that already named why.
+
 ---
 
 # The register
 
 Runs of 2026-08-15 through 2026-09-21 (TWELFTH run, key `durability`).
-**Current state: see the OPEN table after the TWENTY-FIFTH run of 2026-09-28 (key `erasure`) — 147 classes, 0 OPEN. The counts below this line are the twelfth run's.**
+**Current state: see the OPEN table after the TWENTY-SIXTH run of 2026-09-29 (key `determinism`) — 147 classes, 0 OPEN. The counts below this line are the twelfth run's.**
 **121 recorded classes: 3 OPEN — and the membership is C121, C34 and C01,
 written as a list because every time this line carried a rule for reconstructing
 the count instead, the count was wrong. 9 GATED, 7 closed by decision, plus the
@@ -594,7 +602,18 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
-## OPEN — 0 (after the TWENTY-FIFTH run of 2026-09-28, key `erasure`)
+## OPEN — 0 (after the TWENTY-SIXTH run of 2026-09-29, key `determinism`)
+
+**Empty.** Nothing minted — see "The run of 2026-09-29 (TWENTY-SIXTH)" below.
+
+| ID | Property | State |
+|---|---|---|
+| C69 | A periodic control whose own runtime nothing measures | **Missed member, 2026-09-29**: `homelab-health.sh` ran `journalctl -b \| head -1` under systemd's default `IgnoreSIGPIPE=yes`, so journalctl read the whole boot journal after `head` exited: 3-3.6 min of CPU per 5-min run, runs up to 261 s. FIXED, `journalctl -n +1` (14-31 s per run after deploy) |
+| C120 | A guard whose trip point sits at the wrong distance from the rupture it guards | **Three missed members, 2026-09-29**: lynis `PKGS-7392` trips at zero delay on an update unattended-upgrades is allowed ~24 h to install (lynis refreshes the lists itself) — FIXED, skipped, Pi pending action owns it at 48 h; posture `container-health-sample-floor-reachable` waited 10 s for an alarm needing ~10 min — FIXED, 660 s; the netdata-kuma adapter's 1200 s grace ran from netdata's start, not from a `reload-health` — FIXED, a `/run` marker from the handler |
+| C51 | A procedure whose written order differs from the order the machine imposes | **Missed member, 2026-09-29**: `restore-from-backup.md` restored Vaultwarden's dump, then sent the reader to the in-place directory restore that overwrites it with the live `db.sqlite3`. FIXED, directory first, dump last. 1 of 8 dump+directory sections |
+
+### The twenty-fifth run's table read:
+
 
 **Empty.** Nothing minted; C131's gate found blind and the class downgraded — see "The run of
 2026-09-28 (TWENTY-FIFTH)" below.
@@ -1246,6 +1265,57 @@ separate correction — **the marker is not a provenance instrument.**
 C92 and C03-R were closed as review rules once their spaces proved non-derivable.
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
+
+## The run of 2026-09-29 (TWENTY-SIXTH) — the key was `determinism`, and it minted zero
+
+The key, chosen by the operator over `attribution`, `hysteresis` and `composition`: **does the
+same input give the same result?** Three forms: (a) a verdict that changes while what it examines
+did not; (b) an artefact that differs between two runs from the same inputs; (c) a hidden input —
+the hour, the load, which list or upstream answered. Overlaps declared before the fan-out: `time`,
+`order`, `concurrency`, `interference`, `inheritance`, C108, C120.
+
+### The counter: 0 OPEN in, 0 OPEN out, 0 minted, 0 gates broken, class total 147
+
+One proposal (`project-manager`: a detector reading an externally published list with no age
+grace) refused at step 1 of the admission check: it is C120's "shorter than the work the mechanism
+explicitly permits itself".
+
+### The sweep
+
+| Domain | Space | Result |
+|---|---|---|
+| `system` | 47/47 timer-driven units, 16/16 staged starts, 24 block-device consumers | C120 (lynis); `/dev/sda` naming observation (13/13 boots) |
+| `security` | 61 posture runs, UFW/DOCKER-USER order, fail2ban, 32 containers' start-time keys | C120 (lynis) |
+| `network` | 24 routers (231 pairs), 36 network attachments, 18/18 monitored names, 6845 DDNS runs | clean |
+| `services` | 28 healthchecks over 30 days, 6 self-rewriting configs, 29/29 file binds | C120 (sample floor); 5 load-only healthcheck flips, observation |
+| `backup` | 10 dumps, 21/21 nights, 8/8 dump+directory restore sections | C51 (Vaultwarden) |
+| `observability` | 37/37 monitors' DOWN episodes since 09-13, adapter, push messages | C69, C120 (adapter) |
+| `ansible-deploy` | 171 render tasks, 153 + 32 destinations re-rendered without a rewrite, 52 `changed_when: false` | clean |
+| `project-manager` | 38/38 scheduled-time claims, 9/9 cadences, 12 "always" claims, 17/17 runbooks | C01, C73 |
+
+GATED intact, read: C03-T, C07, C11, C14, C15, C18, C19, C41, C81. C19's `units.yaml` holds 6
+service + 10 command checks (9 named + 1 derived), not 6 + 8.
+
+### Also fixed
+
+- **C01**: ADR-012 said moving lynis to Tuesday 08:00 cleared PKGS-7392 (3 red of 11 scheduled runs
+  since 07-19, 2 of them PKGS-7392); the lynis acceptance procedure could not clear an
+  index-lowering warning (the ratchet exits before the accepted report is read); the backup
+  window counts from the last push, not from 03:00; eight fixed times for timers with a random
+  delay; `domains.md` carried four statements of OPEN classes the register had closed.
+- **C73**: the Kuma migration runbook waited 75 s for a start measured at 5.5-7 min (4/4).
+
+### Rejected or requalified
+
+- `system` and `security` filed the lynis red under C119: the refresh makes lynis's reading more
+  accurate, it does not read its own trace. `ansible-deploy` placed it under `time`/`order`; C120
+  names the property more exactly.
+- `security`'s "each of the 7 posture reds matches a real change": the 09-28 11:11 run failed on
+  the sample-floor term alone, 5 min after netdata started, and passed at 12:24 with nothing changed.
+- Observations, no work: `/dev/sda` names; offsite's DHCP address embedded in fail2ban and sysctl;
+  the controller's ansible-core unpinned; Nextcloud's and pg_dump's per-run values in 3 SQL dumps
+  (zero dedup cost, those databases change nightly); load-only healthcheck flips (declined shape).
+- Three agents overran a remote `journalctl` and killed it by PID.
 
 ## The run of 2026-09-28 (TWENTY-FIFTH) — the key was `erasure`, and it minted zero
 
