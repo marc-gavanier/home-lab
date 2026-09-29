@@ -24,6 +24,23 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-09-29 (TWENTY-SEVENTH run) — key `hysteresis`, one PR
+
+- **`homelab-unlock` runs `reset-failed homelab-stack-startup` before starting the stack**, and the
+  `homelab-stack-startup` and `vault-mount` remedies say `reset-failed` first (C134).
+- **Documentation**: the feed digest's boot catch-up fails before the unlock; the vault units stop
+  in `failed` after 5 failures in 10 min (C01).
+
+## Instrument traps paid on 2026-09-29 (twenty-seventh run)
+
+- **`get_throttled` has no memory**: on this kernel the hwmon driver clears its bits every 2 s.
+  Read the temperature history for a margin.
+- **`docker compose config --hash` differs from the container's label for a service with
+  `network_mode: service:<x>`**: compose resolves it to a container id only in the label. Not drift.
+- **A start limit refuses `systemctl start` with "the control process exited with error code"**
+  although nothing ran: read `systemctl show -p Result` (`start-limit-hit`) before reading the
+  script's logs.
+
 ## Shipped on 2026-09-29 (TWENTY-SIXTH run) — key `determinism`, one PR (#406)
 
 - **`homelab-health` reads the boot's first journal entry with `journalctl -n +1`**: under
@@ -3416,8 +3433,8 @@ instead of a reading of an unknown accumulation. Do not quote 53 % as a baseline
   space that is needed: the offsite copy grew 7 GB in 35 days.
 - **Kernel RCU stall messages.** 226 over 14 days, 204 of them at 21 jiffies
   (~84 ms), maximum 85. Informational on a preempt kernel. Not a defect.
-- **Thermal and hardware margin.** `throttled=0x0` on both hosts — sticky bits,
-  so never throttled or under-volted in 19 days. Zero USB, ext4, I/O or OOM
+- **Thermal and hardware margin.** `throttled=0x0` on both hosts covers the last 2 s only (the
+  hwmon driver clears the bits); the margin rests on the temperature history instead. Zero USB, ext4, I/O or OOM
   events in the retained journal. Do not re-audit without a new symptom.
 
 ## Two agent claims that did not survive verification
