@@ -31,7 +31,8 @@ AI agent on the Pi that manages the Obsidian notes vault, driven from the Claude
 - It follows the vault's own `CLAUDE.md`. Writes go through WebDAV, so Nextcloud indexes them
   at once (no `occ` scan).
 - `claude-remote-control` soft-wants `vault-mount` and gates its start on the vault being
-  mounted (`ExecStartPre`), retrying until it is. A slow boot therefore heals itself.
+  mounted (`ExecStartPre`), retrying until it is. A slow boot therefore heals itself, unless
+  `vault-mount` fails 5 times within 10 minutes: it then stays `failed` until `reset-failed`.
 - The two units move together: Remote Control is `PartOf=vault-mount.service` and stops
   before the mount, releasing its working directory; a `Wants=` drop-in on the mount starts
   it again. `vault-mount` clears a stale endpoint before every start and lazy-unmounts on
@@ -163,10 +164,11 @@ journalctl -u claude-remote-control -f             # expect "Connected · vault"
 
 Then pick the environment the service just logged, and remove any ghost.
 
-### Both units loop forever → stale FUSE endpoint
+### Both units fail to start → stale FUSE endpoint
 
 Symptom: Kuma reports the Pi health check down with `restart loop: vault-mount.service` and
-`claude-remote-control.service (activating)`. It does not recover on its own.
+`claude-remote-control.service (activating)`. After 5 failures within 10 minutes
+`vault-mount` stops in `failed` and systemd refuses any start until `reset-failed`.
 
 ```bash
 journalctl -u vault-mount -n 20            # "Fatal error: directory already mounted"
@@ -183,6 +185,7 @@ Fix — `-z` is required, a plain `-u` fails again:
 sudo systemctl stop claude-remote-control vault-mount
 sudo fusermount -uz /home/claude/vault
 grep vault /proc/mounts || echo CLEAN            # must be CLEAN before restarting
+sudo systemctl reset-failed vault-mount
 sudo systemctl start vault-mount                 # Remote Control is pulled up with it
 sudo -u claude sh -c 'cd ~/vault && ls'          # probe the function, not the unit state
 ```

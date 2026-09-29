@@ -113,7 +113,7 @@ the cause.
 | `curl … (22)` on `/v1/entries` | Miniflux or Traefik down | `curl $R https://rss.<domain>/healthcheck` → expect 200 |
 | `claude -p failed` | claude.ai session expired | re-login the `claude` user, same procedure as Remote Control 401 |
 | `claude -p returned an empty digest` | model returned nothing | replay; if it repeats, the prompt is the suspect |
-| Timer never fired at all | Pi was off | `Persistent=true` catches up on next boot; nothing to do |
+| Timer never fired at all | Pi was off | the boot catch-up runs before the unlock and fails; after `homelab-unlock`, if today's note is missing, `sudo systemctl start homelab-feed-digest.service` |
 
 ## Kuma is green but the message is always `OK`
 

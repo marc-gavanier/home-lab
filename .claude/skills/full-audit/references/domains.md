@@ -15,9 +15,11 @@ earlier — which would have sent eight agents to re-derive settled work. Rebuil
 it from `classes.md`'s OPEN table at the start of every run; if the two
 disagree, `classes.md` wins.
 
-As of the TWENTY-SIXTH run of 2026-09-29, key `determinism`: **0 OPEN** — the table below is the fifteenth run's, kept for its C01 history.
+As of the TWENTY-SEVENTH run of 2026-09-29, key `hysteresis`: **0 OPEN** — the table below is the fifteenth run's, kept for its C01 history.
 
-**FORTY-FIVE keys are now spent.** `determinism` (twenty-sixth run, 0 mints). `attribution`, `degradation`, `hysteresis` and `composition` are still unspent; `composition` risks landing in `interference`.
+**FORTY-SIX keys are now spent.** `hysteresis` (twenty-seventh run, 0 mints). `attribution`, `degradation` and `composition` are still unspent.
+
+**FORTY-FIVE keys were spent before it.** `determinism` (twenty-sixth run, 0 mints). `attribution`, `degradation`, `hysteresis` and `composition` are still unspent; `composition` risks landing in `interference`.
 
 **FORTY-FOUR keys were spent before it.** `erasure` (twenty-fifth run, 0 mints). `attribution` and `degradation` are still unspent; `extremity` (behaviour at the edges of an input range) was offered and not chosen.
 

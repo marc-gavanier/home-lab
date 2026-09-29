@@ -72,6 +72,7 @@
       fi
 
       echo "Starting services (staged, in the background)..."
+      systemctl reset-failed homelab-stack-startup.service || true
       systemctl start --no-block homelab-services.target
 
       echo "Done. DNS returns in ~2-3 min; the heaviest services answer ~20 min after a cold boot."

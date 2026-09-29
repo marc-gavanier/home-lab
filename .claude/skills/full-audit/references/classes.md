@@ -240,6 +240,12 @@ C51 and C01; one proposal was refused as a duplicate of C120. Every class before
 whether a mechanism was configured, timed or guarded; this key asked whether it is a FUNCTION,
 and every verdict that was not one had a class that already named why.
 
+**The twenty-seventh run, on 2026-09-29, used `hysteresis` and minted zero.** **Consecutive
+zero-mint runs: 3** (`erasure`, `determinism`, `hysteresis`). The criterion still holds. Same
+reserve: the zero was earned partly by assignment, two missed members going to C134 and two
+statements to C01; no agent proposed a mint. The key asked whether a result depends on the path
+taken rather than on the present state; six of eight domains swept it clean.
+
 ---
 
 # The register
@@ -602,9 +608,16 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
-## OPEN — 0 (after the TWENTY-SIXTH run of 2026-09-29, key `determinism`)
+## OPEN — 0 (after the TWENTY-SEVENTH run of 2026-09-29, key `hysteresis`)
 
-**Empty.** Nothing minted — see "The run of 2026-09-29 (TWENTY-SIXTH)" below.
+**Empty.** Nothing minted — see "The run of 2026-09-29 (TWENTY-SEVENTH)" below.
+
+| ID | Property | State |
+|---|---|---|
+| C134 | A documented remedy whose execution needs a component that the failure it answers — or the remedy itself — removes | **Two missed members, 2026-09-29**: the component is systemd's start budget. `homelab-stack-startup` (`StartLimitBurst=3` over 7200 s) and `vault-mount` (5 over 600 s) stop in `failed` after the failures their runbooks answer, and the written `restart`/`start` is refused until `reset-failed`; through `homelab-unlock` the refusal was silent and the script printed "Done". FIXED, `reset-failed` in both remedies and in `homelab-unlock`. Space: the repo's written start limits, 3/3; `rest-server` is not a member (its remedy is a deliberate stop then start). Never fired: 0 FATAL and 0 start-limit lines since 09-06 |
+
+### The twenty-sixth run's table read:
+
 
 | ID | Property | State |
 |---|---|---|
@@ -1265,6 +1278,53 @@ separate correction — **the marker is not a provenance instrument.**
 C92 and C03-R were closed as review rules once their spaces proved non-derivable.
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
+
+## The run of 2026-09-29 (TWENTY-SEVENTH) — the key was `hysteresis`, and it minted zero
+
+The key, chosen by the operator over `attribution`, `composition` and `degradation`: **does a
+mechanism's result depend on its history — the path taken — rather than on the present state?**
+Four forms: (H1) a latch nothing clears, (H2) convergence that depends on the starting state,
+(H3) a detector whose clearing condition is not its raising one, (H4) memory in the instrument.
+Borders declared before the fan-out: C121, C100, C137, C41, C120, C122, C134, C119, and the keys
+`residue`, `erasure`, `determinism`, `staleness`, `initiality`.
+
+### The counter: 0 OPEN in, 0 OPEN out, 0 minted, 0 gates broken, class total 147
+
+No proposal.
+
+### The sweep
+
+| Domain | Space | Result |
+|---|---|---|
+| `system` | 7 spaces on both hosts: start limits, markers, `Persistent=` catch-ups, boot path, cumulative counters | C134 (`homelab-stack-startup`) |
+| `security` | 7 spaces: fail2ban state, lynis ratchet (3 files), 34 firewall rules live = rendered, tamper, AppArmor | clean |
+| `network` | 21/21 mechanisms: DDNS (no local cache), Pi-hole, ACME, wg-easy, 24 `extra_hosts` | clean |
+| `services` | 15/15 first-init values, 6/6 self-rewriting configs, 28/28 "already installed" states, 32 containers | clean |
+| `backup` | 38/38: stamps, locks, `forget` over gaps, 11 detectors' clearing conditions | clean |
+| `observability` | 4 caches (0db00aa), 6 gate stores, 1 `/run` marker, 6 alarms, 37 monitors, 8 windows | clean |
+| `ansible-deploy` | 33/33 existence guards, 43 handlers (29 + 15 file/consumer pairs, 0 stale), 81 bind mounts, 32 compose hashes | clean |
+| `project-manager` | 38/38 statements on what clears, resets or persists | C01 ×2 |
+
+GATED intact, read: C03-T, C11, C14, C15, C18, C19, C41, C81.
+
+### Also fixed
+
+- **C01**: `feed-digest.md` said `Persistent=true` catches a missed digest up at boot; the timer
+  starts before the unlock and the service requires `/mnt/data`, so the catch-up fails and the
+  day is lost (deduced, never observed). `claude-code.md` said both vault units loop forever.
+- **This file and `settled.md`**: `get_throttled = 0x0` was read as "never throttled since boot";
+  the hwmon driver clears its bits every 2 s.
+
+### Rejected or requalified
+
+- `backup`'s "`homelab-image-retention` missed two weekly runs": the timer is monthly.
+- `ansible-deploy`'s dnsproxy hash mismatch: an instrument limit, see `settled.md`.
+- Observations, no work: the needrestart cache sees only dpkg changes (two agents, 0 affected
+  processes); the 48 h update grace is keyed on "nonzero", not on the package (two agents, 0 false
+  alerts); the Nextcloud app-install task skips an app left `disabled`; the offsite quirk reboot
+  reads `cmdline.txt`, not `/proc/cmdline`; SMART counters stay DOWN once tripped (all 0).
+- Rule 5: three agents wrote short-lived scratch files on homelab, one reproduced the start limit
+  with a throwaway user unit on the workstation, one printed a secret's prefix into its transcript.
 
 ## The run of 2026-09-29 (TWENTY-SIXTH) — the key was `determinism`, and it minted zero
 
@@ -3949,7 +4009,7 @@ are.
 
 ### Clean, and measured — the negatives that closed questions
 
-Thermal margin 37 K with `get_throttled = 0x0` sticky bits included; 49 % memory
+Thermal margin 37 K (`get_throttled = 0x0` covers the last 2 s only: the hwmon driver clears its bits); 49 % memory
 available; swap flat at 50.4 % (containers never restarted since the boot, so
 cold pages, not drift). **The tightest margin is I/O: PSI io `full` at 2.56 % of
 wall time over 7 d 16 h — a continuous baseline, not a peak.** 16/16 static

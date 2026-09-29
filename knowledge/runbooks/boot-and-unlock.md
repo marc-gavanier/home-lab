@@ -97,8 +97,10 @@ swapon --show                                         # /mnt/data/swapfile (HDD)
 
 ### The orchestrator aborts (`FATAL` in the journal)
 
-A FATAL retries twice more, 60 s apart, then the unit stays `failed`. Check
-first:
+A FATAL retries twice more, 60 s apart, then the unit stays `failed` and
+systemd refuses any start of it for up to 2 h. Every fix below that restarts it needs
+`sudo systemctl reset-failed homelab-stack-startup` first; `homelab-unlock`
+runs it itself. Check first:
 
 ```bash
 systemctl status homelab-stack-startup.service   # activating = a retry is pending
