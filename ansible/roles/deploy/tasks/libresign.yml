@@ -88,13 +88,15 @@
     executable: /bin/bash
     cmd: >
       path='{{ libresign_cfg.config_path | default('') }}';
-      [ -n "$path" ] || exit 1;
-      docker exec -u www-data nextcloud test -f "$path/ca.pem" || exit 1;
-      docker exec -u www-data nextcloud test -f "$path/ca-key.pem"
+      [ -n "$path" ] || { echo absent; exit 0; };
+      docker exec -u www-data nextcloud sh -c '
+      [ -d "$1" ] && [ -r "$1" ] && [ -x "$1" ] || exit 0;
+      if [ -f "$1/ca.pem" ] && [ -f "$1/ca-key.pem" ]; then echo present; else echo absent; fi
+      ' _ "$path"
   register: libresign_ca
   changed_when: false
   check_mode: false
-  failed_when: false
+  failed_when: libresign_ca.stdout | default('') not in ['present', 'absent']
   when: nextcloud_up | default(false)
 
 - name: libresign | Refuse to mint the root certificate from empty values
@@ -113,7 +115,7 @@
     quiet: true
   when:
     - nextcloud_up | default(false)
-    - libresign_ca.rc | default(1) != 0
+    - libresign_ca.stdout | default('') == 'absent'
 
 - name: libresign | Generate the root certificate (once — see the header)
   ansible.builtin.command:
@@ -133,7 +135,7 @@
   changed_when: true
   when:
     - nextcloud_up | default(false)
-    - libresign_ca.rc | default(1) != 0
+    - libresign_ca.stdout | default('') == 'absent'
 
 - name: libresign | Re-read the configuration after the generation
   ansible.builtin.command:

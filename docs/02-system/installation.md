@@ -122,7 +122,9 @@ are unrecoverable.
 
 ## Step 7 — Provision
 
-Run phase by phase; every command needs `--ask-vault-pass`:
+Run phase by phase; every command needs `--ask-vault-pass`. The first `storage` run
+carries `-e data_disk_force_format=true`, which lets it erase and encrypt the blank data
+disk; never run it again with that flag.
 
 ```bash
 cd ~/Storage/Workspace/learn/home-lab/ansible
@@ -132,7 +134,7 @@ ansible-playbook playbooks/site.yml --tags base --ask-vault-pass
 # Reboot required after base (cgroup memory for Docker)
 ssh homelab "sudo reboot"
 # Wait ~30 seconds
-ansible-playbook playbooks/site.yml --tags storage --ask-vault-pass
+ansible-playbook playbooks/site.yml --tags storage --ask-vault-pass -e data_disk_force_format=true
 ansible-playbook playbooks/site.yml --tags security --ask-vault-pass
 ansible-playbook playbooks/site.yml --tags docker --ask-vault-pass
 ansible-playbook playbooks/site.yml --tags observability --ask-vault-pass

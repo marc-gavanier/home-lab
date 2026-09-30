@@ -152,12 +152,15 @@ link).
 With `network_mode: "service:<other>"`, restarting the host container destroys the namespace;
 the guest keeps running, detached, and never recovers. Here the pair is `pihole` and
 `dnsproxy` (Pi-hole's only DoH upstream, `127.0.0.1#5053`). Restarting Pi-hole alone causes a
-LAN-wide DNS outage while both containers read `healthy`.
+LAN-wide DNS outage while Pi-hole reads `healthy` and dnsproxy `Up`.
 
 Symptoms:
 
-- The `Pi-hole DNS` Kuma monitor goes down (`queryA ETIMEOUT`). It is the fastest and usually
-  the only signal: check Kuma first.
+- The `Pi health` Kuma monitor goes down with `dns upstream unreachable, sustained`, 5 to 10
+  minutes after the restart. The posture check flags
+  `dnsproxy-shares-the-current-pihole-namespace` at its next run.
+- The `Pi-hole DNS + split-DNS` monitor stays **green**: it asks for a local record that Pi-hole
+  answers without any upstream. Confirm with a query for an outside name against the Pi.
 - Pi-hole's log shows:
 
   ```

@@ -24,6 +24,37 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-09-30 (TWENTY-NINTH run) — key `degradation`, one PR
+
+- **Restores tell the sync clients the server went back** (C148): Immich sets
+  `session."isPendingSyncReset"` before the server starts; Vaultwarden exports from a client
+  while the server is down, then "Force clients to resync"; DAVx5 and Remotely Save get their
+  client-side step.
+- **No format on a failed read** (C03): the homelab data disk must read `crypto_LUKS`, the
+  offsite disk `ext4`, or the run stops unless `data_disk_force_format` /
+  `offsite_disk_force_format` is set for one run; `mkfs` runs only under that flag. The
+  LibreSign CA is minted only when its directory reads and a file is missing.
+- **The vault-mount posture probe waits for its file on Nextcloud** before removing it (C50).
+- **`container-config-changes.md` names the real dnsproxy signals** (C01), plus three partials.
+
+## Decisions taken on 2026-09-30 (twenty-ninth run) — do not re-propose
+
+- **The kill switch keeps `curl -sN` without `-f`**: the operator corrected the explanation
+  of the mismatch messages, not the script.
+- **Observations kept as such**: no timeout on backup units, dumps, timer oneshots and deploy
+  waits (no hang on record); `homelab-gate.sh` silent on an unwritable state; Nextcloud's login
+  throttle reset with Redis; the offsite SD fullness and NTP loss unwatched; the Immich ML
+  backlog (37 assets) is a one-click job, no detector.
+
+## Instrument traps paid on 2026-09-30 (twenty-ninth run)
+
+- **`/run/traefik/access.log` is the redactor's raw input**: reading it prints live
+  Vaultwarden access tokens (2 h lifetime). Read the redacted stream, `docker logs
+  traefik-log-redactor`, unless the raw line is the point.
+- **An Ansible module's "absent" can mean "could not read"**: `luks_device`, `filesystem`
+  and `blkid` rc 2 all conclude "empty" from a failed read. Read what a module probes before
+  trusting its idempotence on an irreversible step.
+
 ## Shipped on 2026-09-30 (TWENTY-EIGHTH run) — key `monotonicity`, one PR, documentation only
 
 - **Nextcloud's database restore runs `occ upgrade`, `maintenance:data-fingerprint` and
@@ -406,8 +437,10 @@ Two kinds of entry, and the distinction matters:
 - **Nightly dumps defeating restic dedup are accepted**: ~105 MiB a night, ~11 GiB a
   year offsite against 1.3 TB free.
 - **`containerd.service` can never reach `failed`, on purpose**: no drop-in.
-- **Unexplained keyword-mismatch messages on the kill-switch topic: risk accepted**,
-  no rotation. The keyword is the remaining barrier.
+- **Keyword-mismatch messages on the kill-switch topic: explained, no rotation.** They
+  come in bursts of 7 lines on the 5 s reconnect cadence (86 on 09-23): the provider's error
+  pages read line by line by `curl -sN` without `-f`, not posts to the topic (corrected on
+  2026-09-30). The keyword stays the barrier.
 - **No logrotate stanza for `homelab-ddns.log`**: 1.7 MB a year, all in the journal.
 
 ## Instrument traps paid on 2026-09-26 late night (eighteenth run)

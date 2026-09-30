@@ -105,7 +105,8 @@ under the recorded `config_path` — rather than on a flag or on the presence of
 that path. The directory is created when the app is installed, well before any
 CA exists; a guard on the path would have skipped the generation forever, and a
 guard on a "done" marker would never repair a generation that died halfway.
-Both files present means never touch it. Either missing means retry.
+Both files present means never touch it. Either missing means retry. A directory
+the check cannot read stops the run: it cannot tell a missing CA from a failed read.
 
 This is the same lesson as the richdocuments discovery cache in ADR-021, in the
 other direction: **a step that must run exactly once needs its condition read

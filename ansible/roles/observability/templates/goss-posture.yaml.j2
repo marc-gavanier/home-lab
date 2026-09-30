@@ -1153,12 +1153,19 @@ command:
       t=/home/claude/vault/Inbox/.goss-vault-probe
       runuser -u claude -- sh -c '
         t=/home/claude/vault/Inbox/.goss-vault-probe
-        printf probe > "$t" 2>/dev/null || { echo "vault mount: write failed"; exit 1; }
-        [ "$(cat "$t" 2>/dev/null)" = probe ] || { echo "vault mount: read-back mismatch"; rm -f "$t"; exit 1; }
+        v="probe-$(date +%s)"
+        printf "%s" "$v" > "$t" 2>/dev/null || { echo "vault mount: write failed"; exit 1; }
+        [ "$(cat "$t" 2>/dev/null)" = "$v" ] || { echo "vault mount: read-back mismatch"; rm -f "$t"; exit 1; }
+        i=0
+        until [ "$(RCLONE_CONFIG=/mnt/data/secrets/claude/rclone.conf rclone cat nextcloud:Notes/Inbox/.goss-vault-probe 2>/dev/null)" = "$v" ]; do
+          i=$((i + 1))
+          [ "$i" -lt 15 ] || { echo "vault mount: write never reached Nextcloud"; rm -f "$t"; exit 1; }
+          sleep 2
+        done
         rm -f "$t" 2>/dev/null || { echo "vault mount: remove failed"; exit 1; }
       '
     exit-status: 0
-    timeout: 60000
+    timeout: 90000
 
   claude-state-is-on-the-encrypted-volume:
     exec: |

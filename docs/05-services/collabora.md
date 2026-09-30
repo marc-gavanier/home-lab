@@ -72,7 +72,7 @@ brings it back.
 |---|---|---|
 | "Failed to load Nextcloud Office (Collabora)", then a plain download; Collabora log empty | `wopi_url` or `public_wopi_url` points at `collabora:9980`; browser console shows the CSP block below | Check `public_wopi_url`; redeploy |
 | Container `running`, discovery answers, no document opens; log loops on `Waiting for a new child` | `no-new-privileges` was added | Remove it; redeploy |
-| ~20 `ERR` lines about `coolmount` / `CAP_SYS_ADMIN` after start | Expected bind-mount fallback (ADR-021) | None |
+| `ERR` lines about `coolmount` / `CAP_SYS_ADMIN`, about 4 at each document kit spawn, all day | Expected bind-mount fallback (ADR-021) | None |
 | `ERR` about `CLONE_NEWUSER unshare failed` / AppArmor user namespaces | Expected: jails built by `coolforkit-caps` | None — do not apply the suggested sysctl |
 
 CSP block seen in the browser console:

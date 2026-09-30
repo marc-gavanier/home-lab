@@ -174,6 +174,11 @@ docker exec -u www-data nextcloud php occ files:scan --all
   it they treat the server as authoritative and delete, on the desktop, every file
   created since the dump.
 - `files:scan` re-indexes the files still on disk that the older dump does not list.
+- The fingerprint reaches the desktop client only. DAVx5 on the phone keeps contacts
+  and events the server lost and never fetches the ones it got back: export them on
+  the phone, then remove and re-add the account. Obsidian on the phone (Remotely Save)
+  deletes the notes the server lacks: let the desktop client re-upload before opening
+  it.
 
 ## Restore Vaultwarden (SQLite)
 
@@ -197,13 +202,17 @@ torn WAL. Attachments, sends and RSA keys sit beside the database in
    docker compose down vaultwarden
    ```
 
-3. Restore attachments, sends and keys (skip if only the database was lost):
+3. If entries were created or changed since the snapshot, export the vault now from a
+   client that is still unlocked. With the server down it cannot sync, so the export
+   holds the newer entries; step 6 removes them from every device.
+
+4. Restore attachments, sends and keys (skip if only the database was lost):
 
    ```bash
    rsync -a --delete /mnt/data/tmp/restore/mnt/data/services/vaultwarden/ /mnt/data/services/vaultwarden/
    ```
 
-4. Drop the WAL/SHM, copy the dump over the database, start:
+5. Drop the WAL/SHM, copy the dump over the database, start:
 
    ```bash
    rm -f /mnt/data/services/vaultwarden/db.sqlite3-wal /mnt/data/services/vaultwarden/db.sqlite3-shm
@@ -211,6 +220,11 @@ torn WAL. Attachments, sends and RSA keys sit beside the database in
       /mnt/data/services/vaultwarden/db.sqlite3
    docker compose up -d vaultwarden
    ```
+
+6. Tell the clients the server went back: admin page (`/admin`) → Users → **Force
+   clients to resync**. Without it they keep their newer cache until the next change
+   on the server, then drop it silently. Re-create from the step 3 export only the
+   entries newer than the snapshot.
 
 ## Restore Immich (PostgreSQL — VectorChord / pgvecto.rs)
 
@@ -292,7 +306,14 @@ The datadir is not: the dump is the **only** copy.
        --single-transaction --set ON_ERROR_STOP=on
    ```
 
-7. Start the rest:
+7. Tell the phones the server went back. Without it, the app treats the photos
+   uploaded since the dump as backed up and never sends them again:
+
+   ```bash
+   docker exec immich-db psql -U immich -d immich -c 'update session set "isPendingSyncReset" = true;'
+   ```
+
+8. Start the rest:
 
    ```bash
    docker compose up -d immich-server immich-machine-learning immich-redis
@@ -310,7 +331,8 @@ docker exec immich-db psql -U immich -d immich -tAc \
 
 Expected: the asset count matches `$BEFORE_ASSETS`. If the old database was already
 gone, compare with the 2026-07-19 drill: 66 tables, 9 283 assets. Then log in and
-check the timeline and search.
+check the timeline and search. On the phone, the backup screen must list as pending
+the photos taken since the dump.
 
 The photos and videos themselves are in `services/immich/upload` and `media/photos`:
 restore those too if they were lost.
@@ -599,7 +621,9 @@ Check it worked:
 1. **Re-provision the OS.** Flash Ubuntu, then run **phase 1 only**, from `ansible/`.
    The full playbook would start the whole stack on empty data (fresh databases) and
    write secrets from `local.yml` that the restored ones then replace. The LUKS disk is
-   passphrase-based and hardware-independent.
+   passphrase-based and hardware-independent. The run stops if the data disk does not
+   read as LUKS: add `-e data_disk_force_format=true` only if it is a new, blank disk,
+   since that flag erases it.
 
    ```bash
    ansible-playbook playbooks/site.yml --tags phase1 --ask-vault-pass
