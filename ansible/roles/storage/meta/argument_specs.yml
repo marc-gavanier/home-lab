@@ -7,6 +7,10 @@ argument_specs:
         type: str
         required: true
         description: Partition holding the LUKS container, e.g. /dev/sda1.
+      data_disk_force_format:
+        type: bool
+        required: true
+        description: Safety latch — set true (one run) to allow formatting a data disk that does not read as LUKS.
       data_filesystem:
         type: str
         required: true

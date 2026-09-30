@@ -60,7 +60,8 @@ hold. This page lists the controls per layer and where each one is decided.
   - Docker ranges are in `ignoreip`, so a broken `X-Forwarded-For` cannot ban
     Traefik and take the stack offline.
   - A missing `logpath` stops fail2ban entirely (all jails, `sshd` included), so
-    Ansible creates the log files.
+    Ansible creates the log files. They live on the encrypted volume, so fail2ban is
+    down from boot until the unlock.
   - A jail with a broken action or filter is skipped silently. The posture check
     compares jails in `jail.local` against jails loaded.
 - **unattended-upgrades**: security updates auto-installed, no auto-reboot on

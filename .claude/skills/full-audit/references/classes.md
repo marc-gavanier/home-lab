@@ -254,6 +254,14 @@ moves forward. The operator admitted it although its first fix is a runbook, whi
 admission check's step 3 would have refused; the register's own warning about zeros earned by
 declining candidates decided it.
 
+**The twenty-ninth run, on 2026-09-30, used `degradation` and minted zero.** **Consecutive
+zero-mint runs: 1.** C148 closed by enumeration, so both the OPEN table and the first half of the
+criterion are empty again. Same reserve as every zero before it: earned partly by assignment, the
+confirmed instances going to C148, C03 (a slice its 107/107 never covered), C50 and C01. No agent
+proposed a mint. The key asked what a mechanism does when a dependency is half there; seven of
+eight domains found every consumer bounded or honest, and the one real gap was a check reading
+"could not read" as "absent" before an irreversible step.
+
 ---
 
 # The register
@@ -616,7 +624,18 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
-## OPEN — 1 (after the TWENTY-EIGHTH run of 2026-09-30, key `monotonicity`)
+## OPEN — 0 (after the TWENTY-NINTH run of 2026-09-30, key `degradation`)
+
+**Empty.** C148 swept 13/13 and ENUMERATED; C03 and C50 each took a missed slice — see "The
+run of 2026-09-30 (TWENTY-NINTH)" below.
+
+| ID | Property | State |
+|---|---|---|
+| C148 | **A restore that moves a server's state back while its sync clients assume that state only moves forward, without the signal the vendor provides for it** | **ENUMERATED 2026-09-30 (twenty-ninth run)**: `backup` and `services` converged, 9 services with synchronising clients, 13/13 client types. 3 members, all fixed in `restore-from-backup.md`: Nextcloud desktop (`maintenance:data-fingerprint`, twenty-eighth run), Immich mobile (`session."isPendingSyncReset"`, before the server starts), Vaultwarden (admin page "Force clients to resync", after exporting from a client while the server is down — the resync drops what the server lacks). Outside the property, no vendor signal, recorded as client-side steps: DAVx5 (a sync token from the future returns no changes, silently), Remotely Save (deletes local notes the server lacks; the row's earlier "Obsidian covered by the same fingerprint" held for the desktop only). Clean: Nextcloud Android, rclone vault, Jellyfin, Navidrome, Calibre-Web (sync unused), Miniflux, Forgejo, Prowlarr. The Immich step is read from source (`sync.service.ts`), not yet exercised by a drill |
+| C03 | A validation whose instrument answers a different question from the one its comment claims | **Missed slice, 2026-09-30**: checks inside Ansible tasks and modules that decide "absent, so create it" — 5/5 irreversible creations swept by `ansible-deploy`, 4 members, none fired: `luks_device` treats any non-zero `cryptsetup isLuks` as "not LUKS" and runs `luksFormat -q`; `filesystem` always passes `-F`; the offsite guard let `blkid` rc 2 (blank or unreadable) through to `mkfs`; the LibreSign CA check read a failed `docker exec` as a missing CA. All four now require a positive reading or a one-run force flag. The 107/107 of 2026-08 covered shell scripts and goss only |
+| C50 | A liveness probe whose subject answers without the component the probe claims to prove | **Missed member, 2026-09-30**: `vault-mount-is-writable-not-just-mounted` removed its file inside rclone's 2 s write-back window, so the upload was cancelled and the probe proved the local cache, never Nextcloud. It now waits until `rclone cat` on the remote returns the value it wrote. C50's space had not included goss probes |
+
+### The twenty-eighth run's table read:
 
 **C148**, minted this run — see "The run of 2026-09-30 (TWENTY-EIGHTH)" below.
 
@@ -1294,6 +1313,67 @@ separate correction — **the marker is not a provenance instrument.**
 C92 and C03-R were closed as review rules once their spaces proved non-derivable.
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
+
+## The run of 2026-09-30 (TWENTY-NINTH) — the key was `degradation`, and it minted zero
+
+The key, chosen by the operator over `composition` and `attribution`: **does a mechanism behave
+correctly when something it depends on is half there — slow, partial, read-only or full, in a
+fallback, or answering with an error that looks like data — and does anything say so?** Five
+forms, D1 to D5 in that order. Borders declared before the fan-out: C22, C45, C50, C83, C91,
+C100, C102, C112, C118, C120, C127, C134, C145, and the keys `tolerance`, `exhaustion`,
+`interruption`, `dependency`, `quiescence`, `staleness`, `fidelity`, `actionability`,
+`interference`.
+
+### The counter: 1 OPEN in, 0 OPEN out, 0 minted, 0 gates broken, class total 148
+
+No proposal reached the admission check.
+
+### The sweep
+
+| Domain | Space | Result |
+|---|---|---|
+| `system` | 29/29 (17 homelab, 12 offsite) | C50 (vault probe) |
+| `security` | 33/33 control-dependency pairs | clean; the kill-switch premise corrected in `settled.md` |
+| `network` | 20/20 consumer-dependency pairs | clean |
+| `services` | 33/33 dependency edges; 8/8 sync protocols for C148 | C148; Immich ML backlog, observation |
+| `backup` | 18/18 components; C148 13/13 client types | C148 |
+| `observability` | 45/45 detectors + 12 health sub-checks | clean |
+| `ansible-deploy` | 640 tasks in 7 slices | C03 (4, none fired) |
+| `project-manager` | 62/62 degradation statements | C01 (1 contradicted, 3 partial) |
+
+GATED intact, read or made to fail in a scratch copy: C03-T, C07, C11, C14, C15, C18, C19, C41,
+C81.
+
+### Also fixed
+
+- **C01**: `container-config-changes.md` sent the reader of a dnsproxy outage to `Pi-hole DNS`,
+  which asks for a local record and stays green; the signals are `Pi health` and the posture
+  check. Three partials: fail2ban is down from boot to unlock (`03-security`), Collabora's
+  `coolmount` lines recur at every kit spawn, ADR-015's heal timer re-attaches dnsproxy only
+  after a Pi-hole restart it made itself. `libresign.md` said "both missing" where the code
+  says "either".
+- **Register corrections**: C19's row cites `homelab-health.sh.j2:615-616`; since `0db00aa` the
+  checks sit at `:324-351`. The `wg0` MTU disagreement recorded UNRESOLVED on the host side is
+  settled for TCP from live sockets (`mss:1368` both ends); nothing in use sends non-TCP over
+  1420.
+
+### Rejected or requalified
+
+- `backup`'s "Vaultwarden has no vendor signal": `services` cites the admin page's "Force
+  clients to resync", whose tooltip names the restore case. Decided for `services`.
+- Vaultwarden access tokens seen in the Traefik log by `network`: the raw tmpfs buffer, root
+  only, by design; the redactor masks them (15 `access_token=***` in 24 h, 0 in clear).
+- Observations, no work: no timeout on the backup units, the dumps, 12 timer oneshots and 66
+  deploy tasks (no hang on record, push monitors catch it); a stalled offsite would delay the
+  local backup in the same unit; `homelab-gate.sh` returns silently if it cannot write its state
+  (no trace); the unhealthy-container alarm clears below its sample floor (C07/C120, posture
+  covers it); the adapter never reads alarm freshness (455 distinct messages in 478 beats);
+  Nextcloud's login throttle resets with Redis; the disk key stays 39-63 s in memory on a tamper
+  poweroff; the offsite SD has no fullness check (2 %); NTP loss is not forwarded (0 in 60 days).
+- Immich: 37 of 9 483 assets never went through machine learning (24 from one 2026-06-18
+  burst). A one-click job for the operator; a detector was not proposed.
+- Kuma or Discord degraded with nothing saying so: C45, the declined C116 and external
+  supervision.
 
 ## The run of 2026-09-30 (TWENTY-EIGHTH) — the key was `monotonicity`, and it minted one
 

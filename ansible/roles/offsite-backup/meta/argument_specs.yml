@@ -22,7 +22,7 @@ argument_specs:
       offsite_disk_force_format:
         type: bool
         required: true
-        description: Safety latch — set true (one run) to allow formatting a disk that carries a non-ext4 filesystem.
+        description: Safety latch — set true (one run) to allow formatting a backup disk that does not read as ext4.
       usb_storage_quirks:
         type: str
         required: false

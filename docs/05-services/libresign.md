@@ -43,8 +43,9 @@ free text (`editorFreeText`). No admin setting gates them.
 ### The root CA is created once
 
 `libresign:configure:openssl` replaces the CA silently (exit 0) and orphans every
-certificate issued from it. The deploy only creates the CA when `ca.pem` and
-`ca-key.pem` are both missing.
+certificate issued from it. The deploy creates the CA only when it can read the CA
+directory and `ca.pem` or `ca-key.pem` is missing; a directory it cannot read stops the
+run.
 
 - `libresign_cert_cn` / `_o` / `_c` in `local.yml` are read only at creation.
 - Losing `ca-key.pem` keeps signed documents valid, but no new certificate can be issued.

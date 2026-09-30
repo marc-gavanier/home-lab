@@ -91,7 +91,9 @@ anycast plus `restart: unless-stopped` is deemed reliable enough.
   external resolution: if it is down, Pi-hole has no working upstream. Mitigated
   by `restart: unless-stopped` (Tier 0, same as Pi-hole), which does not save it
   from running healthy on a dead network namespace after Pi-hole is recreated;
-  the deploy and the heal timer re-attach it. Two detectors see the failure:
+  the deploy re-attaches it, and the heal timer only after a Pi-hole restart it
+  made itself — after any other restart it stays detached until someone acts on
+  the detectors. Two detectors see the failure:
   `homelab-health.sh` pushes `dns upstream unreachable, sustained` through the
   `Pi health` monitor, and the posture spec's
   `dnsproxy-shares-the-current-pihole-namespace` flags an orphaned sidecar. Kuma's

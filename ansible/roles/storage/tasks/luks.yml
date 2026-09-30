@@ -8,6 +8,23 @@
       - smartmontools
     state: present
 
+- name: luks | Read the signature on the data disk
+  ansible.builtin.command: blkid -p -o value -s TYPE {{ data_disk_device }}
+  register: data_disk_type
+  changed_when: false
+  failed_when: data_disk_type.rc not in [0, 2]
+  check_mode: false
+
+- name: luks | Refuse to format a disk that does not read as LUKS
+  ansible.builtin.assert:
+    that: data_disk_type.stdout == 'crypto_LUKS' or data_disk_force_format
+    fail_msg: >-
+      {{ data_disk_device }} reads as '{{ data_disk_type.stdout }}', not crypto_LUKS.
+      A blank disk, an unreadable one and another disk under this name look the same
+      here, and the next task formats. Set data_disk_force_format=true (one run) only
+      for a disk meant to be erased.
+    quiet: true
+
 - name: luks | Format (first time only) and open the LUKS volume
   community.crypto.luks_device:
     device: "{{ data_disk_device }}"
@@ -21,3 +38,4 @@
     fstype: ext4
     dev: /dev/mapper/{{ luks_mapper_name }}
     opts: -L homelab-data
+  when: data_disk_force_format
