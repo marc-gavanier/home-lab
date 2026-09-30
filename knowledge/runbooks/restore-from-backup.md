@@ -83,7 +83,7 @@ dump is the consistent copy):
 | `--include` path       | What comes back                          | Then also do                                                  |
 |------------------------|------------------------------------------|---------------------------------------------------------------|
 | `services/miniflux`    | the empty directory only                 | [Restore Miniflux](#restore-miniflux-postgresql)              |
-| `services/nextcloud`   | `data/` (user files), no `db`            | [Restore a database](#restore-a-database)                     |
+| `services/nextcloud`   | `data/` (web root + user files), no `db` | [Restore a database](#restore-a-database)                     |
 | `services/immich`      | `upload/`, `ml-cache`, no `db`           | [Restore Immich](#restore-immich-postgresql--vectorchord--pgvectors) |
 | `services/uptime-kuma` | the directory, no `kuma.db`              | [Restore Uptime Kuma](#restore-uptime-kuma-sqlite)            |
 | `services/pihole`      | config, gravity, lists, no query history | nothing: it rebuilds                                          |
@@ -161,8 +161,19 @@ docker exec -u www-data nextcloud php occ maintenance:mode --on
 docker exec -i nextcloud-db sh -c \
   'MYSQL_PWD=$(cat /run/secrets/nextcloud_db_password) mariadb -u"$MYSQL_USER" "$MYSQL_DATABASE"' \
   < /mnt/data/tmp/restore/mnt/data/backups/dumps/nextcloud.sql
+docker exec -u www-data nextcloud php occ upgrade
+docker exec -u www-data nextcloud php occ maintenance:data-fingerprint
 docker exec -u www-data nextcloud php occ maintenance:mode --off
+docker exec -u www-data nextcloud php occ files:scan --all
 ```
+
+- `upgrade` replays the migrations a dump older than the image misses; it says
+  "already latest version" otherwise. The container does not run it: `version.php`
+  did not change.
+- `data-fingerprint` tells the sync clients the server went back in time. Without
+  it they treat the server as authoritative and delete, on the desktop, every file
+  created since the dump.
+- `files:scan` re-indexes the files still on disk that the older dump does not list.
 
 ## Restore Vaultwarden (SQLite)
 
@@ -623,8 +634,9 @@ Check it worked:
    > import, then run the full playbook. It has never been run on the Pi — treat
    > it as a lead, not a procedure, and check each database before going on.
 
-4. **Sanity-check services.** Re-run `occ files:scan` if media browsing looks stale.
-   Run the [ownership fix](#ownership-after-a-restore).
+4. **Sanity-check services.** Check that the Nextcloud import ran `upgrade` and
+   `maintenance:data-fingerprint` ([Restore a database](#restore-a-database)) before any
+   desktop client reconnects. Run the [ownership fix](#ownership-after-a-restore).
 
 5. **Re-enable the timers** and check they are armed, not just enabled:
 
