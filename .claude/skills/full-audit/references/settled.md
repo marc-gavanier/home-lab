@@ -24,6 +24,27 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-09-30 (TWENTY-EIGHTH run) — key `monotonicity`, one PR, documentation only
+
+- **Nextcloud's database restore runs `occ upgrade`, `maintenance:data-fingerprint` and
+  `files:scan --all`**, and full DR checks they ran before a desktop client reconnects (C148).
+- **`data/` under `services/nextcloud` is the web root**, not just the user files (C01).
+
+## Decisions taken on 2026-09-30 (twenty-eighth run) — do not re-propose
+
+- **A mint whose only fix is a runbook can be admitted by the operator**, when it names a
+  property no class had; C148 was. It is the operator's call, not an agent's.
+- **Observations kept as such**: the 16-bit SMART self-test hour counter (wraps in ~7 years),
+  the lynis ratchet reset on an unreadable version, the `version not in stdout` install guard,
+  no machine check against a pin going down.
+
+## Instrument traps paid on 2026-09-30 (twenty-eighth run)
+
+- **`/var/log/lynis-report.dat` may not hold the hardening index**: any lynis run outside the
+  timer rewrites it. Read the index in `/var/lib/homelab-lynis/last-green-report.dat`.
+- **`Metadata.LastTagTime` reads `0001-01-01` for every image on homelab**: a pin's history
+  comes from git, not from the image store.
+
 ## Shipped on 2026-09-29 (TWENTY-SEVENTH run) — key `hysteresis`, one PR
 
 - **`homelab-unlock` runs `reset-failed homelab-stack-startup` before starting the stack**, and the

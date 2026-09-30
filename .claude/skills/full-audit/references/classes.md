@@ -246,12 +246,20 @@ reserve: the zero was earned partly by assignment, two missed members going to C
 statements to C01; no agent proposed a mint. The key asked whether a result depends on the path
 taken rather than on the present state; six of eight domains swept it clean.
 
+**The twenty-eighth run, on 2026-09-30, used `monotonicity` and minted one** (C148).
+**Consecutive zero-mint runs: 0.** Eight domains swept clean on what they were asked —
+nothing on either host misreads a value that goes back, resets or is reused. The mint came from
+the one place no class looked: the CLIENTS of a restored server, which assume its state only
+moves forward. The operator admitted it although its first fix is a runbook, which the
+admission check's step 3 would have refused; the register's own warning about zeros earned by
+declining candidates decided it.
+
 ---
 
 # The register
 
 Runs of 2026-08-15 through 2026-09-21 (TWELFTH run, key `durability`).
-**Current state: see the OPEN table after the TWENTY-SIXTH run of 2026-09-29 (key `determinism`) — 147 classes, 0 OPEN. The counts below this line are the twelfth run's.**
+**Current state: see the OPEN table after the TWENTY-EIGHTH run of 2026-09-30 (key `monotonicity`) — 148 classes, 1 OPEN. The counts below this line are the twelfth run's.**
 **121 recorded classes: 3 OPEN — and the membership is C121, C34 and C01,
 written as a list because every time this line carried a rule for reconstructing
 the count instead, the count was wrong. 9 GATED, 7 closed by decision, plus the
@@ -608,7 +616,15 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
-## OPEN — 0 (after the TWENTY-SEVENTH run of 2026-09-29, key `hysteresis`)
+## OPEN — 1 (after the TWENTY-EIGHTH run of 2026-09-30, key `monotonicity`)
+
+**C148**, minted this run — see "The run of 2026-09-30 (TWENTY-EIGHTH)" below.
+
+| ID | Property | State |
+|---|---|---|
+| C148 | **A restore that moves a server's state back while its sync clients assume that state only moves forward, without the signal the vendor provides for it** | **MINTED 2026-09-30 (twenty-eighth run), OPEN.** Instance: Nextcloud — every restore path (the database section, full DR, offsite DR through full DR) omitted `occ maintenance:data-fingerprint`, so a desktop client (1 active over 7 days) treats the older server as authoritative and deletes locally every file created since the snapshot. FIXED in the runbook, with `occ upgrade` and `files:scan --all`. Space: the services whose clients keep a synchronised copy of server state. Not swept: Vaultwarden (5 devices; clients resync only when the server's revision date is LATER than their last sync — suspected, no vendor signal), Immich mobile (re-uploads: the safe direction, suspected), Obsidian through Nextcloud (covered by the same fingerprint), the rest unlisted. Closing it means listing every such service and stating, per service, what its clients do when the server goes back |
+
+### The twenty-seventh run's table read:
 
 **Empty.** Nothing minted — see "The run of 2026-09-29 (TWENTY-SEVENTH)" below.
 
@@ -1278,6 +1294,58 @@ separate correction — **the marker is not a provenance instrument.**
 C92 and C03-R were closed as review rules once their spaces proved non-derivable.
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
+
+## The run of 2026-09-30 (TWENTY-EIGHTH) — the key was `monotonicity`, and it minted one
+
+The key, chosen by the operator over `composition` and `degradation`: **does a mechanism assume
+a value only moves one way — grows, advances, is never reused — when it can go back, reset or
+return?** Five forms: (M1) a cumulative counter read as a delta, (M2) a version or generation
+that goes down, (M3) a clock or timestamp that is not monotonic, (M4) an identifier assumed never
+reused, (M5) a one-way ratchet. Borders declared before the fan-out: C42, C67, C80, C88, C103,
+C120, C138, and the keys `hysteresis`, `staleness`, `determinism`, `reversibility`, `time`,
+`order`, `identity`.
+
+### The counter: 0 OPEN in, 1 OPEN out, 1 minted, 0 gates broken, class total 147 -> 148
+
+| Proposal | From | Verdict |
+|---|---|---|
+| Restore without the sync-client signal | `backup`, converging with `services` and `project-manager` on the same runbook | **ADMITTED as C148** by the operator — 1 confirmed, fixed in the runbook; step 3 (real work on the infrastructure) waived |
+
+### The sweep
+
+| Domain | Space | Result |
+|---|---|---|
+| `system` | 36/36 `Persistent=` stamps, 6/6 boots, 37/37 delta or order sites, the 0db00aa caches | clean; offsite superblock "in the future" once in 6 boots, C17, no effect |
+| `security` | 30/30: lynis ratchet, fail2ban, downgrade protections, stored comparisons, append-only, VPN | clean |
+| `network` | 20/20 | clean |
+| `services` | 20 versioned services, 32 pins, 28 healthchecks | clean; restore version mismatch, fixed with C148 |
+| `backup` | 27/27 consumers, 12/12 restore sections | C148 |
+| `observability` | 53/53: 7 alarms, 30 stored-value sites, 15 push monitors, Kuma ids, digest | clean |
+| `ansible-deploy` | 46/46 pins, 3/3 version guards, 6/6 id allocations; 0 of 93 pin changes in git went down | clean |
+| `project-manager` | 46/46 statements | C01 |
+
+GATED intact, read: C03-T, C07, C11, C14, C15, C18, C19, C41, C81. C81 made to fail on purpose
+in a scratch copy.
+
+### Also fixed
+
+- **C01**: `restore-from-backup.md` described Nextcloud's `data/` as user files; it is the whole
+  web root, code and `config.php` included.
+
+### Rejected or requalified
+
+- Observations, no work: the SMART self-test `LifeTime` is 16 bits and wraps in about 7 years
+  (three agents); the lynis ratchet resets once if `lynis show version` fails while the audit
+  succeeds (improbable); the `version not in stdout` install guard misses 0.4.10 -> 0.4.1 (0
+  cases); nothing machine-checks a pin going down (0 of 93); orphan timer stamps; apt
+  `Check-Date` at the vendor default; 1 s between NTP sync and `wg0` on the offsite; tunnel
+  addresses reusable only if a peer is deleted; a never-completed handshake printed as 56 years
+  (the check fails correctly); the Immich dump freshness check would pass a future mtime (C42's
+  ground, no instance).
+- Suspected, not measured: MariaDB and Miniflux start silently on an older image; the wg-easy
+  auto-rollback puts an older `compose.yaml` over migrated data.
+- `ansible-deploy`'s hardcoded gid 1003 in the Sonarr restore: correct on the host.
+- Rule 5: `services` created and removed an empty file in `/dev/shm` (verified gone).
 
 ## The run of 2026-09-29 (TWENTY-SEVENTH) — the key was `hysteresis`, and it minted zero
 
