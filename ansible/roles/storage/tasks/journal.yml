@@ -33,6 +33,8 @@
       Type=oneshot
       RemainAfterExit=yes
       ExecStart=/usr/bin/journalctl --flush
+      Restart=on-failure
+      RestartSec=30s
   notify: Reload systemd units
 
 - name: journal | Ensure the journal directory exists on the encrypted volume
