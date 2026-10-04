@@ -24,6 +24,43 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-10-04 (THIRTIETH run) — key `composition`, one PR
+
+- **The socket proxy allowlists its paths** (C143, ADR-037): `wollomatic/socket-proxy` replaces
+  `tecnativa/docker-socket-proxy`, whose `CONTAINERS=1` also served `archive` and `export`.
+  Read-only, uid 65534 with the docker group, `-allowfrom` the `socketproxy` subnet, now pinned in
+  compose. Posture: `socket-proxy-refuses-file-reads`, made to fail on purpose.
+- **Traefik publishes 80/443 on `0.0.0.0` only** (C74): no `[::]` listener re-originating IPv6
+  connections from an address inside `vpn-only`.
+- **The reflash path works end to end on paper** (C134): `restic` in `base`, Full DR sources
+  `/mnt/data/secrets/backup.env`, every first run after a reflash carries `-e homelab_ssh_port=22`.
+  Offsite DR hands over to Full DR step 2 (C34); the copy check reads the newest offsite snapshot
+  (C03); bootstrap prints what its check passed (C51).
+- **Rotating `transmission_password` updates Sonarr and Radarr** (C12).
+- **Kuma reminders count DOWN beats** (C149): six `resend_interval` values re-derived, formula fixed.
+- **fail2ban's real scope is written down** (C56, C57): no VPN client can be banned; the Nextcloud
+  jail sees web-form logins; two dead failregexes removed. `fail2ban` is now a tag.
+
+## Decisions taken on 2026-10-04 (thirtieth run) — do not re-propose
+
+- **No copy of a vendor's rules file to patch an image**: the operator wants no drift from
+  official images. Change the image, or configure it through its documented options.
+- **Recovering a VPN client's address for fail2ban stays declined** (3f4646a, confirmed): it
+  re-routes the tunnel, the only way in.
+- **`miniflux_db_password` is not rotated** after an audit agent printed it into the session
+  transcript: `internal` network only.
+- **Daily and weekly push monitors keep `resend 1`**: every beat is the formula's floor.
+
+## Instrument traps paid on 2026-10-04 (thirtieth run)
+
+- **A mask written for one secret format leaks another**: a `sed` built for a URL DSN printed a
+  libpq `key=value` DSN in clear. Compare secrets by hash (`sha256sum | cut -c1-12`), never print
+  and mask.
+- **Kuma keeps raw heartbeats about a day**: a count over several days from `heartbeat` is an
+  extrapolation. State the window.
+- **Adding `ipam` to an existing compose network recreates it**, with every container on it,
+  even when the subnet is unchanged (measured, compose v5.5.1).
+
 ## Shipped on 2026-09-30 (TWENTY-NINTH run) — key `degradation`, one PR
 
 - **Restores tell the sync clients the server went back** (C148): Immich sets
@@ -315,9 +352,9 @@ Two kinds of entry, and the distinction matters:
   Vaultwarden Firefox device) are the operator's devices, not defects.
 - **Vaultwarden's offline cache on a lost device** survives a master-password change by
   design of end-to-end encryption; the runbook already says so.
-- **Open, the operator's to answer**: the workstation's netdata MCP key matches no key on the
-  Pi since the 07-27 regeneration; one MCP journal query settles whether MCP lost journal and
-  process access (suspected C12).
+- **DECLINED by the operator, the same day**: resetting the Kuma push tokens (old values may
+  survive in freed SD blocks), checking whether the workstation's netdata MCP key still works
+  (suspected C12), and deleting the dormant Nextcloud "Obsidian desktop" token.
 - **Secret fragments printed into audit transcripts** (8 characters of each WireGuard
   private key, 20 of the Calibre-Web session): no rotation, below any usable length.
 

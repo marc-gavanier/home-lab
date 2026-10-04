@@ -6,30 +6,30 @@ old credential in force.
 
 ## Which is which
 
-| Secret                         | Consumer                     | Does a deploy rotate it?                                                                   |
-|--------------------------------|------------------------------|--------------------------------------------------------------------------------------------|
-| `cf_dns_api_token`             | traefik + cloudflare-ddns.sh | **yes**, but the two carriers sit behind different tags; see [below](#cf_dns_api_token)    |
-| `transmission_password`        | transmission                 | **yes**, then update the copy in Kuma; see [below](#transmission_password)                 |
-| `dozzle_users.yml`             | dozzle                       | **yes** (read at start)                                                                    |
-| `forgejo_secret_key`           | forgejo                      | **yes**, but see [below](#forgejo_secret_key)                                              |
-| `miniflux_database_url`        | miniflux                     | **yes**, but alone it breaks the app; see [Rotating a database password](#rotating-a-database-password) |
-| `pihole_password`              | pihole                       | **yes**                                                                                    |
-| `nextcloud_redis_password`     | nextcloud-redis + nextcloud  | **yes** (password file, `redis.conf`, config all notify)                                   |
-| `nextcloud_redis.conf`         | nextcloud-redis              | **yes**, rendered from `nextcloud_redis_password`; host edits are overwritten              |
-| `searxng_secret_key`           | searxng                      | **yes**, via `searxng_settings`, read at start                                             |
-| `restic_password`              | resticprofile, `restic init` | **no, and never rotate it alone**; see [restic](#the-restic-passwords-key-add-first-always) |
-| `offsite_restic_password`      | resticprofile (offsite)      | **no, and never rotate it alone**; see [restic](#the-restic-passwords-key-add-first-always) |
-| `luks_passphrase`              | cryptsetup / `luks_device`   | **no, and the deploy reports `ok`**; see [LUKS](#the-luks-passphrase-a-green-deploy-is-not-evidence) |
-| `wg_password`                  | wg-easy admin UI             | **no**, the deploy never sets it; see [wg-easy](#wg_password-the-deploy-never-sets-it-at-all) |
+| Secret                         | Consumer                     | Does a deploy rotate it?                                                                                   |
+|--------------------------------|------------------------------|------------------------------------------------------------------------------------------------------------|
+| `cf_dns_api_token`             | traefik + cloudflare-ddns.sh | **yes**, but the two carriers sit behind different tags; see [below](#cf_dns_api_token)                    |
+| `transmission_password`        | transmission                 | **yes**, then update the copies in Kuma, Sonarr and Radarr; see [below](#transmission_password)            |
+| `dozzle_users.yml`             | dozzle                       | **yes** (read at start)                                                                                    |
+| `forgejo_secret_key`           | forgejo                      | **yes**, but see [below](#forgejo_secret_key)                                                              |
+| `miniflux_database_url`        | miniflux                     | **yes**, but alone it breaks the app; see [Rotating a database password](#rotating-a-database-password)    |
+| `pihole_password`              | pihole                       | **yes**                                                                                                    |
+| `nextcloud_redis_password`     | nextcloud-redis + nextcloud  | **yes** (password file, `redis.conf`, config all notify)                                                   |
+| `nextcloud_redis.conf`         | nextcloud-redis              | **yes**, rendered from `nextcloud_redis_password`; host edits are overwritten                              |
+| `searxng_secret_key`           | searxng                      | **yes**, via `searxng_settings`, read at start                                                             |
+| `restic_password`              | resticprofile, `restic init` | **no, and never rotate it alone**; see [restic](#the-restic-passwords-key-add-first-always)                |
+| `offsite_restic_password`      | resticprofile (offsite)      | **no, and never rotate it alone**; see [restic](#the-restic-passwords-key-add-first-always)                |
+| `luks_passphrase`              | cryptsetup / `luks_device`   | **no, and the deploy reports `ok`**; see [LUKS](#the-luks-passphrase-a-green-deploy-is-not-evidence)       |
+| `wg_password`                  | wg-easy admin UI             | **no**, the deploy never sets it; see [wg-easy](#wg_password-the-deploy-never-sets-it-at-all)              |
 | `rclone_webdav_pass`           | vault-mount (rclone)         | **yes**, but the old app password stays valid; see [below](#app-passwords-and-api-keys-delete-the-old-one) |
-| `miniflux_api_key`             | feed digest                  | **yes**, but the old key stays valid; see [below](#app-passwords-and-api-keys-delete-the-old-one) |
-| `vaultwarden_admin_token_hash` | vaultwarden                  | **no**, `config.json` overrides the environment; see [Vaultwarden](#rotating-the-vaultwarden-admin-token) |
-| `nextcloud_db_password`        | nextcloud-db + config.php    | **no**, `initdb` only                                                                      |
-| `nextcloud_db_root_password`   | nextcloud-db                 | **no**, `initdb` only                                                                      |
-| `immich_db_password`           | immich-db + immich-server    | **no**, `initdb` only                                                                      |
-| `miniflux_db_password`         | miniflux-db                  | **no**, `initdb` only                                                                      |
-| `miniflux_admin_password`      | miniflux                     | **no**, `CREATE_ADMIN` runs once                                                           |
-| `forgejo_admin_password`       | forgejo CLI                  | **no**, first deploy only                                                                  |
+| `miniflux_api_key`             | feed digest                  | **yes**, but the old key stays valid; see [below](#app-passwords-and-api-keys-delete-the-old-one)          |
+| `vaultwarden_admin_token_hash` | vaultwarden                  | **no**, `config.json` overrides the environment; see [Vaultwarden](#rotating-the-vaultwarden-admin-token)  |
+| `nextcloud_db_password`        | nextcloud-db + config.php    | **no**, `initdb` only                                                                                      |
+| `nextcloud_db_root_password`   | nextcloud-db                 | **no**, `initdb` only                                                                                      |
+| `immich_db_password`           | immich-db + immich-server    | **no**, `initdb` only                                                                                      |
+| `miniflux_db_password`         | miniflux-db                  | **no**, `initdb` only                                                                                      |
+| `miniflux_admin_password`      | miniflux                     | **no**, `CREATE_ADMIN` runs once                                                                           |
+| `forgejo_admin_password`       | forgejo CLI                  | **no**, first deploy only                                                                                  |
 
 ### `cf_dns_api_token`
 
@@ -153,13 +153,16 @@ behaviour.
 
 ### `transmission_password`
 
-The deploy rotates it, but the Uptime Kuma monitor authenticates with its own
-copy in `kuma.db`.
+The deploy rotates it, but three consumers keep their own copy: the Uptime Kuma
+monitor in `kuma.db`, Sonarr and Radarr in their databases.
 
 1. Deploy.
 2. In Kuma: **Transmission → Edit → HTTP Options → Authentication**, set the new
    password. The monitor is red between steps 1 and 2; that is expected.
-3. Check the monitor returns `200 - OK, keyword is found`.
+3. In Sonarr, then Radarr: **Settings → Download Clients → Transmission**, set the new
+   password, then **Test**. Until then their grabs fail, and only their health banner
+   says so.
+4. Check the monitor returns `200 - OK, keyword is found`.
 
 Any change that makes a monitor authenticate creates a credential copy in Kuma.
 Transmission is currently the only one.

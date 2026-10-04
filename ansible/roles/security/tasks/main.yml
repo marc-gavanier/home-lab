@@ -7,6 +7,7 @@
 
 - name: Configure fail2ban on SSH
   ansible.builtin.import_tasks: fail2ban.yml
+  tags: [fail2ban]
 
 - name: Enable unattended security updates
   ansible.builtin.import_tasks: updates.yml

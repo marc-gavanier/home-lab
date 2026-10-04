@@ -68,26 +68,34 @@ networks:
   socketproxy:
     driver: bridge
     internal: true
+    ipam:
+      config:
+        - subnet: ${SOCKETPROXY_SUBNET}
 
 services:
 
   socket-proxy:
-    image: tecnativa/docker-socket-proxy:v0.5.0
+    image: wollomatic/socket-proxy:1.13.1
     container_name: socket-proxy
     restart: unless-stopped
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
-    environment:
-      CONTAINERS: 1
-      INFO: 1
-      IMAGES: 1
-      POST: 0
+    read_only: true
+    user: "65534:${DOCKER_GID}"
+    command:
+      - "-listenip=0.0.0.0"
+      - "-allowfrom=${SOCKETPROXY_SUBNET}"
+      - "-allowGET=(/v1\\.[0-9]+)?/(_ping|version|info|events|images/json|containers/json|containers/[a-zA-Z0-9_.-]+/(json|logs|stats))"
+      - "-allowHEAD=(/v1\\.[0-9]+)?/_ping"
+      - "-allowhealthcheck"
+      - "-watchdoginterval=60"
+      - "-stoponwatchdog"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       - socketproxy
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2375/_ping"]
+      test: ["CMD", "/healthcheck"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -109,8 +117,8 @@ services:
     secrets:
       - cf_dns_api_token
     ports:
-      - "80:80"
-      - "443:443"
+      - "0.0.0.0:80:80"
+      - "0.0.0.0:443:443"
     volumes:
       - ${SERVICES_DATA_DIR}/traefik/acme:/acme
       - ./configs/traefik/traefik.yml:/etc/traefik/traefik.yml:ro

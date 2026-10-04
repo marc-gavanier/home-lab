@@ -39,8 +39,10 @@ Use this page every time the homelab Pi comes back up: reboot, power cut,
    - Expected (your shutdown, a power cut, a kill-switch or usb-tamper trigger
      you remember): go to step 3.
    - Unexplained: **do not unlock.** Reflash the SD and re-provision with
-     Ansible (~1 h, nothing is lost), then reboot once so `config.txt` and
-     `cmdline.txt` apply (`Pi pending action` flags it until then).
+     Ansible ([installation, step 7](../../docs/02-system/installation.md#step-7--provision):
+     the first runs need `-e homelab_ssh_port=22`; ~1 h, nothing is lost), then
+     reboot once so `config.txt` and `cmdline.txt` apply (`Pi pending action`
+     flags it until then).
    - The journal cannot decide: before the unlock only this boot's volatile
      journal is readable.
 
@@ -58,12 +60,13 @@ Use this page every time the homelab Pi comes back up: reboot, power cut,
      [ADR-008](../decisions/ADR-008-usb-tamper-poweroff.md)).
    - The mount starts the units that need the volume
      ([ADR-011](../decisions/ADR-011-secrets-off-sd.md)): `wg-quick@wg0`,
-     `vault-mount`, `homelab-ddns`, `homelab-journal-persist`. Authority:
+     `vault-mount`, `homelab-ddns`, `homelab-journal-persist`,
+     `home-claude-.claude.mount`. Authority:
      `ls /etc/systemd/system/mnt-data.mount.wants/`.
    - Every 30 days `Checking data volume integrity...` runs a full scan with a
      progress bar for minutes. **Do not interrupt it.**
    - The command returns at once; the startup waves run in the background
-     (~5–8 min):
+     (~10 min):
 
    ```bash
    journalctl -t homelab-startup -b -f

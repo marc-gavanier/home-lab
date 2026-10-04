@@ -403,9 +403,10 @@ The table is maintained by hand. To check it, compare against `problems+=(` in
   lets a single legitimate restart pass.
 - **Timers, last result**: timer services rest at `inactive/dead`; the check reads the last run's
   result and enumerates timers, so new ones are covered automatically.
-- **Unhealthy container** only covers containers that declare a healthcheck. `socket-proxy` probes
-  `/_ping` through the proxy (unhealthy ~105 s after it stops answering) because Traefik keeps
-  serving from memory while blind to container changes. `nextcloud-notify-push` has no healthcheck;
+- **Unhealthy container** only covers containers that declare a healthcheck. `socket-proxy` checks
+  the Docker socket behind the proxy with its own binary (unhealthy ~105 s after it stops
+  answering), and its watchdog exits the proxy for a restart if the socket breaks, because
+  Traefik keeps serving from memory while blind to container changes. `nextcloud-notify-push` has no healthcheck;
   the hourly self-test watches it.
 
 ### The weekly Lynis audit

@@ -43,6 +43,7 @@
       - lsof
       - ncdu
       - python3-pip
+      - restic
     state: present
 
 - name: system | Silence smartd's unreachable mail channel

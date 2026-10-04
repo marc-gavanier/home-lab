@@ -53,10 +53,16 @@ hold. This page lists the controls per layer and where each one is decided.
   arrives on `wg0`. The same applies to `offsite`, reached by `ProxyJump`
   through this host.
 - **fail2ban**: jails `sshd`, Nextcloud and Vaultwarden (the latter two for a
-  compromised VPN or LAN client already past `vpn-only`).
+  compromised LAN client already past `vpn-only`).
+  - **A VPN client cannot be banned.** wg-easy masquerades it and Docker's proxy
+    hands it to Traefik as `172.18.0.1`, which is in `ignoreip`; every VPN client
+    shares that one address, so the services' own throttles share one bucket too.
+    Recovering the address means re-routing the tunnel, the only way in: not done.
+  - The Nextcloud jail sees web-form logins only. At Nextcloud's log level, WebDAV
+    and app logins log their failures at debug, so nothing reaches the file.
   - Filters are **custom**: fail2ban's `bitwarden` filter never matches
     Vaultwarden.
-  - Bans go to **`DOCKER-USER`**: these services' packets never cross `INPUT`.
+  - Bans go to **`DOCKER-USER`**: LAN packets to these services never cross `INPUT`.
   - Docker ranges are in `ignoreip`, so a broken `X-Forwarded-For` cannot ban
     Traefik and take the stack offline.
   - A missing `logpath` stops fail2ban entirely (all jails, `sshd` included), so
@@ -90,8 +96,9 @@ hold. This page lists the controls per layer and where each one is decided.
   attach still denied (ADR-018). The deploy role ships and loads the profile; if
   it is missing the container refuses to start.
 - **Docker socket never mounted raw.** Traefik, Netdata and Dozzle use a
-  read-only `docker-socket-proxy` (CONTAINERS read-only, POST denied, internal
-  network). Netdata uses it for container names, Dozzle for logs.
+  socket proxy with an allowlist: only the read paths they use (container list,
+  inspect, logs, stats, events, `info`, image list), only from their network, which
+  is internal (ADR-037). Netdata uses it for container names, Dozzle for logs.
 - **No `privileged`; `cap_drop: ALL` on every service**, each re-adding only
   what it was observed to need. Sixteen of 32 keep no capability. Needs are
   rarely guessable, for example:
@@ -129,7 +136,9 @@ hold. This page lists the controls per layer and where each one is decided.
   the same linuxserver s6 shape. Not narrowed yet: "unmeasured", not
   "structural" (ADR-036).
 - **Secrets as files, not environment variables** (ADR-016). The socket-proxy
-  allows `GET /containers/{id}/json`, which exposes every container's `Env`.
+  allows `GET /containers/{id}/json`, which exposes every container's `Env`, and
+  refuses the endpoints that read a container's files (`archive`, `export`), so
+  the files stay out of its reach; the posture check asserts the refusal (ADR-037).
   Passwords, including the Cloudflare DNS-01 token, mount at `/run/secrets/`
   via each image's convention (`*_FILE`, `FILE__*`). No secret is passed
   inline. The wg-easy admin password is in
@@ -150,13 +159,12 @@ hold. This page lists the controls per layer and where each one is decided.
   - mount the *leaf* (`/run/mysqld`), never the parent, or the server aborts;
   - Docker mounts `tmpfs` `noexec`, which breaks init systems that stage
     executables there.
-- **The nine writable ones** (reasons in ADR-019):
+- **The eight writable ones** (reasons in ADR-019):
 
   | Service | Why not read-only |
   |---------|-------------------|
   | pihole | `setcap` on its own binary; read-only leaves it *Up* with the resolver dead |
   | nextcloud | writes `redis-session.ini` among 21 shipped `.ini` files |
-  | socket-proxy | writes `haproxy.cfg` beside its template |
   | transmission | stops honouring `PUID`/`PGID` and the CIS `UMASK` |
   | Collabora | works read-only, but copies each document jail (759 MB) into `tmpfs`: 1.257 GiB RAM instead of 573 MiB (ADR-021) |
   | Calibre-Web | `docker diff` shows 1797 entries: it patches `/app` on every start |
