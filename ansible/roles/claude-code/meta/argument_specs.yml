@@ -10,7 +10,7 @@ argument_specs:
       homelab_ip:
         type: str
         required: true
-        description: LAN IP used to pin drive.<domain> (hairpin workaround).
+        description: LAN IP used to pin drive.<domain>.
       rclone_webdav_pass:
         type: str
         required: true

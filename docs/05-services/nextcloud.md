@@ -31,7 +31,7 @@ The deploy (`roles/deploy`) re-applies on every run:
 - HSTS by the Traefik middleware `nextcloud-headers` (`stsSeconds: 31536000`).
 - Redis for `memcache.locking`, APCu for `memcache.local`.
 - `backgroundjobs_mode=cron`, `maintenance_window_start=4` (UTC), `default_phone_region=FR`.
-- `extra_hosts` pins `drive.example.com` to the Pi's LAN IP (DNS hairpin).
+- `extra_hosts` pins `drive.example.com` to the Pi's LAN IP (the name has no public record).
 - `richdocuments` (Collabora) is configured by the deploy, not the admin UI.
 
 ### Media browsing (read-only External Storage, ADR-003)

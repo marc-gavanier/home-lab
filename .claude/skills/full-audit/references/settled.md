@@ -24,6 +24,29 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-10-04 (THIRTY-FIRST run) — key `attribution`, one PR, documentation only
+
+- **Dozzle's socket-proxy remedy keeps only Dozzle's address** (C01): the posture check's deliberate
+  `archive`/`export` refusals come from netdata's, and those two paths are never allowed.
+- **A lost DNS pin reads as "Could not resolve host", not 403** (C01), in the four pages that said
+  otherwise; a 403 means a source outside the `vpn-only` allow-list.
+
+## Measured and left as observations on 2026-10-04 (thirty-first run)
+
+- **Heal's log line stays as it is**: the reason for an unhealthy restart survives in the container's
+  `json-file` log until the next recreate, and a probe that discards its output has nothing to log.
+- **The Nextcloud `admin` account keeps its shared app passwords**: no file has ever been restored from
+  the trash, so naming the device behind a deletion buys nothing today.
+
+## Instrument traps paid on 2026-10-04 (thirty-first run)
+
+- **Traefik's access log drops every request header by default**: user-agent and referer read `-` on
+  every line. An "empty user-agent" there identifies nobody.
+- **netdata's per-container swap (`cgroup.mem_usage`, `swap`) reads 0 for every container** while the
+  kernel counts it per cgroup. Use `app.swap_usage` to name who swaps.
+- **The kill switch and USB tamper log before powering off; a power cut logs nothing.** An absent line
+  does not prove a power cut: the line lives on the SD card, the medium the boot runbook distrusts.
+
 ## Shipped on 2026-10-04 (THIRTIETH run) — key `composition`, one PR
 
 - **The socket proxy allowlists its paths** (C143, ADR-037): `wollomatic/socket-proxy` replaces
@@ -5097,7 +5120,9 @@ of them OPEN. Counts live in `classes.md` and **only** there.
   but the masked traffic is **Uptime Kuma's own probes** (`/healthcheck`,
   `/ping`, `/health`, `/alive`, empty user-agent on 4459 of 4459). VPN clients
   appear in the clear as `10.8.0.x` and are in no ignored range. The headline
-  survived; the causal claim did not.
+  survived; the causal claim did not. **Overturned 2026-10-04 (thirtieth and
+  thirty-first runs)**: the access log drops the user-agent on every line, and
+  full-tunnel VPN clients do arrive as `172.18.0.1` (C56).
 - **"Collabora carries `coolmount cap_sys_admin`, so the capability sweep's
   blindness is an exposure."** Half. The blindness is real and confirmed — the
   container has no shell, so `getcap` cannot run there — but `CapBnd` decodes to

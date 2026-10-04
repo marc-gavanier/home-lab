@@ -62,6 +62,6 @@ Restore: re-run the deploy role. It re-renders `dozzle_users.yml` and starts the
 
 | Symptom | Cause | Action |
 |---|---|---|
-| Exits 1 with `Could not connect to any Docker Engine` | `socket-proxy` refuses `/info` | `docker logs socket-proxy \| grep "blocked request"`, then add the path to its `-allowGET` |
+| Exits 1 with `Could not connect to any Docker Engine` | `socket-proxy` refuses `/info` | `docker logs socket-proxy \| grep "blocked request"`, keep only Dozzle's `socketproxy` address (the posture check's own refusals come from netdata's), then add the path to its `-allowGET`. Never allow `archive` or `export` |
 | `FTL Failed to hash password error="bcrypt: password length exceeds 72 bytes"` | Password over 72 bytes | Use a shorter password |
 | UI loads but shows no containers | Docker API lost (socket-proxy down) | Check `socket-proxy` |

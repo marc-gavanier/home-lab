@@ -17,7 +17,7 @@ hand in the UI: Kuma is v2, and the Ansible tooling targets v1 only.
 ## DNS
 
 - The 21 service names are pinned to the Pi's LAN IP in `extra_hosts` (`x-kuma-hosts` in compose).
-  Without the pin a lookup can return the public IP, and Traefik blocks the request as non-VPN.
+  Without the pin a lookup that reaches 1.1.1.1 fails: only `vpn` has a public record.
 - The container's resolvers (`dns: [${PI_LAN_IP}, 1.1.1.1]`) only serve names outside that list.
 - `Pi-hole DNS + split-DNS` queries Pi-hole explicitly, so it does not depend on either.
 
