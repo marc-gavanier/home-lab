@@ -35,8 +35,6 @@
       {% raw %}[Definition]
       _groupsre = (?:(?:,?\s*"\w+":(?:"[^"]*"|[\w\.]+))*)
       failregex = ^\{%(_groupsre)s,?\s*"remoteAddr":"<HOST>"%(_groupsre)s,?\s*"message":"Login failed:
-                  ^\{%(_groupsre)s,?\s*"remoteAddr":"<HOST>"%(_groupsre)s,?\s*"message":"Trusted domain error
-                  ^\{%(_groupsre)s,?\s*"remoteAddr":"<HOST>"%(_groupsre)s,?\s*"message":"Bruteforce attempt
       ignoreregex =
       journalmatch ={% endraw %}
   notify: Restart fail2ban

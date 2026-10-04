@@ -1,9 +1,7 @@
 ---
-- name: backup | Install restic and sqlite3
+- name: backup | Install sqlite3
   ansible.builtin.apt:
-    name:
-      - restic
-      - sqlite3
+    name: sqlite3
     state: present
 
 - name: backup | Create scripts directory

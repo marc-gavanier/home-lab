@@ -95,12 +95,15 @@ ansible homelab -m command -a "lsblk"
 
 ## Step 6 — Configure Secrets
 
-All secrets live in `local.yml`, encrypted with Ansible Vault.
+All secrets live in `local.yml`, encrypted with Ansible Vault. The Pi's address and
+other private, non-secret values live in `private.yml`, gitignored and not encrypted.
 
 ```bash
 cd ~/Storage/Workspace/learn/home-lab/ansible/inventory/host_vars/homelab
 cp local.example.yml local.yml
+cp private.example.yml private.yml
 # Edit local.yml — fill in real values (domain, username, passwords)
+# Edit private.yml — set homelab_ip
 ```
 
 Generate the passwords in your password manager, then encrypt:
@@ -124,18 +127,20 @@ are unrecoverable.
 
 Run phase by phase; every command needs `--ask-vault-pass`. The first `storage` run
 carries `-e data_disk_force_format=true`, which lets it erase and encrypt the blank data
-disk; never run it again with that flag.
+disk; never run it again with that flag. A fresh card listens on port 22 while the
+inventory targets the hardened port: the runs up to and including `security`, which
+moves sshd, carry `-e homelab_ssh_port=22`.
 
 ```bash
 cd ~/Storage/Workspace/learn/home-lab/ansible
 
 # Phase 1 — Foundations
-ansible-playbook playbooks/site.yml --tags base --ask-vault-pass
+ansible-playbook playbooks/site.yml --tags base --ask-vault-pass -e homelab_ssh_port=22
 # Reboot required after base (cgroup memory for Docker)
-ssh homelab "sudo reboot"
+ssh -p 22 homelab "sudo reboot"
 # Wait ~30 seconds
-ansible-playbook playbooks/site.yml --tags storage --ask-vault-pass -e data_disk_force_format=true
-ansible-playbook playbooks/site.yml --tags security --ask-vault-pass
+ansible-playbook playbooks/site.yml --tags storage --ask-vault-pass -e homelab_ssh_port=22 -e data_disk_force_format=true
+ansible-playbook playbooks/site.yml --tags security --ask-vault-pass -e homelab_ssh_port=22
 ansible-playbook playbooks/site.yml --tags docker --ask-vault-pass
 ansible-playbook playbooks/site.yml --tags observability --ask-vault-pass
 

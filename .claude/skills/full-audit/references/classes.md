@@ -262,12 +262,19 @@ proposed a mint. The key asked what a mechanism does when a dependency is half t
 eight domains found every consumer bounded or honest, and the one real gap was a check reading
 "could not read" as "absent" before an irreversible step.
 
+**The thirtieth run, on 2026-10-04, used `composition` and minted one** (C149). **Consecutive
+zero-mint runs: 0.** The key had been offered four times and passed over because it "risks landing in
+`interference`"; the brief declared that border and twenty others, and the one mint fits none of them.
+Every class before it asked about a mechanism; this one asked about the SEAM between two, and found a
+counter fed by two sources whose threshold was sized for one. The other ten confirmed instances went to
+existing classes, the worst being C143: a proxy grant that read every secret file.
+
 ---
 
 # The register
 
 Runs of 2026-08-15 through 2026-09-21 (TWELFTH run, key `durability`).
-**Current state: see the OPEN table after the TWENTY-EIGHTH run of 2026-09-30 (key `monotonicity`) — 148 classes, 1 OPEN. The counts below this line are the twelfth run's.**
+**Current state: see the OPEN table after the THIRTIETH run of 2026-10-04 (key `composition`) — 149 classes, 0 OPEN. The counts below this line are the twelfth run's.**
 **121 recorded classes: 3 OPEN — and the membership is C121, C34 and C01,
 written as a list because every time this line carried a rule for reconstructing
 the count instead, the count was wrong. 9 GATED, 7 closed by decision, plus the
@@ -624,7 +631,25 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
-## OPEN — 0 (after the TWENTY-NINTH run of 2026-09-30, key `degradation`)
+## OPEN — 0 (after the THIRTIETH run of 2026-10-04, key `composition`)
+
+**Empty.** C149 minted and ENUMERATED in the same run; eight existing classes took missed members —
+see "The run of 2026-10-04 (THIRTIETH)" below.
+
+| ID | Property | State |
+|---|---|---|
+| C149 | **A count threshold sized in one event source's unit, consumed by a counter that also increments on events from another source** — the configurer assumes one event per period, the counter merges streams, so the threshold trips N / (sum of rates) instead of N × period | **MINTED and ENUMERATED 2026-10-04 (thirtieth run)**: `observability`, 85/85 count thresholds on an alerting path (37 Kuma `resend_interval`, 37 `maxretries`, heal's `FailingStreak × interval`, 4 netdata `delay` multipliers, 6 gate keys). Only `resend_interval` on push monitors has two sources: the script's pushes and Kuma's own `No heartbeat in the time window` beat every `interval` while DOWN. 15 members; 6 with `resend > 1` reminded 2 to 4 times too often (`Pi pending action` every 6 h against 24 h, measured from 5 counter resets in 24 h); the 9 daily and weekly ones sit at 1, every beat, the formula's floor. FIXED: 6 values re-derived in the UI (`uptime-kuma.md` table) and the formula now counts beats. Not GATED: `kuma-every-active-monitor-resends` tests `!= 0` only |
+| C143 | A credential held by an automatic actor whose reach at the provider exceeds the task written for its holders | **Missed member, 2026-10-04**: the socket proxy's `CONTAINERS=1` also granted `GET /containers/{id}/archive` and `/export`, so Traefik, Netdata and Dozzle could read the 17 secret files of 14 containers that ADR-016 moved out of `Env`. The token sweep 9/9 could not see a grant held through network membership. FIXED by ADR-037 (allowlisting proxy, image changed). GATED in effect by `socket-proxy-refuses-file-reads`, made to fail on purpose against the old image (200) and with the proxy gone (control 000) |
+| C134 | A documented remedy whose execution needs a component that the failure it answers — or the remedy itself — removes | **3 missed members, 2026-10-04**: the reflash → phase 1 → restore chain had never been run end to end. Phase 1 did not install `restic` (now in `base`); the only documented repository opener, `/opt/homelab/backup.env`, is created by the deploy role (Full DR now sources `/mnt/data/secrets/backup.env`); every "reflash and re-provision" step targeted the hardened SSH port while a fresh card listens on 22 (`-e homelab_ssh_port=22` added to Full DR, installation step 7, boot-and-unlock) |
+| C12 | A rotated secret a consumer never receives | **Missed member, 2026-10-04**: Sonarr and Radarr each store `transmission_password` in their databases (hash-compared equal); `rotate-a-secret.md` named Kuma as the only copy. FIXED in the runbook |
+| C34 | A documentary artefact contradicting the sibling it cites | **Missed member, 2026-10-04**: `offsite-backup.md` DR re-provisioned unqualified and put data back, then handed over to Full DR, which forbids that and restores again. FIXED: it now hands over at Full DR step 2 |
+| C03 | A validation whose instrument answers a different question from the one its comment claims | **Missed slice, 2026-10-04**: runbook prose — "compare snapshot counts" (35 local after retention, 113 offsite append-only) cannot show a copy landed. FIXED: newest offsite snapshot and its date |
+| C51 | A procedure whose written order differs from the order the machine imposes | **Reappeared, 2026-10-04**: `bootstrap.sh`'s check passes the IP, user and key that its printed command dropped, and sent the reader to `group_vars/all.yml`, which has held no IP since 2026-09-13. FIXED with the README quick start and installation step 6 (`private.yml`) |
+| C56 | An authorization or an attribution decided after the caller's identity has already been lost | **Instance + C01, 2026-10-04**: VPN clients reach Traefik as `172.18.0.1` (wg-easy masquerade, then docker-proxy), which is in fail2ban's `ignoreip`, so the Nextcloud and Vaultwarden jails cannot ban one; the security doc said they could. Documented; recovering the address re-routes the only way in and stays declined (3f4646a) |
+| C57 | An authentication failure recorded without an identity | **Edge, 2026-10-04**: at Nextcloud loglevel 2, "Bruteforce attempt" (notice) and "Trusted domain error" (info) are never written, and WebDAV login failures log at debug. The two dead failregexes removed; the jail's scope (web form, LAN) documented |
+| C74 | A rule whose decision is pre-empted by another component acting earlier on the same object | **Latent member, 2026-10-04**: docker-proxy on `[::]:443` re-originated IPv6 connections from `172.18.0.1`, inside `vpn-only`, while UFW admits 443 over IPv6. Zero impact (link-local only). FIXED: 80/443 published on `0.0.0.0`, asserted by `traefik-pinned-port-bindings` |
+
+### The twenty-ninth run's table read:
 
 **Empty.** C148 swept 13/13 and ENUMERATED; C03 and C50 each took a missed slice — see "The
 run of 2026-09-30 (TWENTY-NINTH)" below.
@@ -1313,6 +1338,58 @@ separate correction — **the marker is not a provenance instrument.**
 C92 and C03-R were closed as review rules once their spaces proved non-derivable.
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
+
+## The run of 2026-10-04 (THIRTIETH) — the key was `composition`, and it minted one
+
+The key, chosen by the operator over `attribution` and `extremity`: **two mechanisms, each correct and
+verified on its own, wired so that the output, state or guarantee of one is the input or premise of the
+other — does the contract at the seam hold, or does each side assume it and the composite fail while
+every component's own check stays green?** Four forms: K1 semantic seam, K2 budgets that do not nest,
+K3 properties that do not compose, K4 verified by parts. Borders declared: C03, C45, C50, C59, C74, C75,
+C77, C78, C80, C81, C90, C94, C118, C120, C122, C123, C124, C127, C130, C134, C135, C143, and the keys
+`interference`, `dependency`, `propagation`, `amplification`, `delegation`, `degradation`.
+
+### The counter: 0 OPEN in, 0 OPEN out, 1 minted, 0 gates broken, class total 148 -> 149
+
+One proposal, admitted: not a duplicate (C107 is grain, C120 trip distance, C35 the message), no settled
+position on reminder cadence, and a confirmed instance re-measured by the main session (monitor 36's
+counter reset at 04:40, 10:40, 16:40, 22:40 and 04:40 UTC) whose fix the operator ordered.
+
+### The sweep
+
+| Domain | Seams | Result |
+|---|---|---|
+| `system` | 30/30 | clean; 3 observations |
+| `security` | 27/27 | C143, C56 + C01, C57 |
+| `network` | 23/23 | C74 latent |
+| `services` | 31/31 | C12 |
+| `backup` | 34/34 | clean; 3 observations |
+| `observability` | 34/34 | C149 minted; C120 latent (DDNS) |
+| `ansible-deploy` | 125/125 | C03 and C83 latent |
+| `project-manager` | 65/65 | C134 ×3, C34, C03, C51, C01 ×2 |
+
+GATED intact, read or made to fail in a scratch copy: C03-T, C07, C11, C14, C15, C18, C19, C41, C81.
+
+### Also fixed
+
+- **C01**: `boot-and-unlock.md` gained `home-claude-.claude.mount` in the units the mount starts, and
+  "~10 min" for the startup waves (10.4 measured this boot, against "~5–8").
+
+### Rejected or requalified
+
+- "About 16 reminders over 99 h" (`observability`): extrapolated; raw heartbeats are kept about a day.
+  Only the 6 h period is measured.
+- The 9 daily and weekly push monitors in `observability`'s fix table: at `resend 1` they remind at every
+  beat, the formula's floor; not over-reminding against its 6 h aim. Left at 1.
+- Observations, no work: Docker waits for the journal flush's first attempt, not its retry (#411, never
+  fired); `vault-mount` fails once per boot before the startup is queued; `/var/log/journal` fails to
+  unmount at shutdown (3/3, fsck clean after each); the offsite's 04:00 reboot never hit a copy (0/45);
+  about 1 h between the Immich dump and the library snapshot (orphan files at worst); the offsite
+  stale-lock check looks for a local process; `wg-easy-setup.env` exit 2 read as "changed" (parses
+  today); one false `# floor:` note out of 7; netdata `delay:` inert on the Kuma path; DDNS worst case
+  258 s against 180 s of slack (measured max 39 s); a reminder could carry "No heartbeat" text.
+- Conduct: `services` printed the live `miniflux_db_password` into the session transcript (not rotated,
+  operator's decision); three agents wrote scratch files on the homelab, all verified gone.
 
 ## The run of 2026-09-30 (TWENTY-NINTH) — the key was `degradation`, and it minted zero
 

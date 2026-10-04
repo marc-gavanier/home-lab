@@ -221,7 +221,14 @@ command:
     exec: docker inspect {{ cname }} | jq -r '[.[0].HostConfig.SecurityOpt[]?] | join(" ") | test("(^| )no-new-privileges:true( |$)")'
     exit-status: 0
     stdout: ["/^{{ nnp }}$/"]
-{% if usr %}
+{% if usr and '${DOCKER_GID}' in usr %}
+  {{ cname }}-user:
+    exec: |
+      want="{{ usr | replace('${DOCKER_GID}', '$(getent group docker | cut -d: -f3)') }}"
+      got=$(docker inspect {{ cname }} | jq -r '.[0].Config.User')
+      [ "$got" = "$want" ] || { echo "{{ cname }} runs as $got, compose declares $want"; exit 1; }
+    exit-status: 0
+{% elif usr %}
   {{ cname }}-user:
     exec: docker inspect {{ cname }} | jq -r '.[0].Config.User'
     exit-status: 0
@@ -263,6 +270,17 @@ command:
             | jq -r '.[] | select([.Mounts[]?.Source] | index("/var/run/docker.sock")) | .Name' \
             | tr -d '/' | sort | tr '\n' ' ')
       [ "$n" = "socket-proxy " ] || { echo "docker.sock is mounted by: $n"; exit 1; }
+    timeout: 60000
+    exit-status: 0
+
+  socket-proxy-refuses-file-reads:
+    exec: |
+      ping=$(docker exec netdata curl -s -o /dev/null -w '%{http_code}' http://socket-proxy:2375/_ping)
+      [ "$ping" = 200 ] || { echo "control failed: /_ping through the proxy answered $ping, so no refusal below can be trusted"; exit 1; }
+      for p in archive export; do
+        c=$(docker exec netdata curl -s -o /dev/null -w '%{http_code}' "http://socket-proxy:2375/containers/socket-proxy/$p?path=/")
+        [ "$c" = 403 ] || { echo "the socket proxy answers $c to /containers/{id}/$p: every container's files are readable through it"; exit 1; }
+      done
     timeout: 60000
     exit-status: 0
 

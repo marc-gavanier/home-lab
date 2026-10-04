@@ -607,7 +607,8 @@ Check it worked:
 
 - Plan on **2 to 9 hours** for the 90.9 GiB snapshot of 2026-09-26; see [Drill record](#drill-record)
   for the rates and how to recompute it.
-- **Disable the timers first.** The nightly backup `rm -rf`s
+- **Disable the timers first** when restoring onto the running host; a reflashed card
+  has none until step 3. The nightly backup `rm -rf`s
   `/mnt/data/backups/dumps` at its first step, even if it then fails, so a 03:00 run
   destroys the dumps step 2 restores — and step 3 finds an empty directory that looks
   like success. The heal timer restarts whatever crashes mid-restore.
@@ -623,14 +624,25 @@ Check it worked:
    write secrets from `local.yml` that the restored ones then replace. The LUKS disk is
    passphrase-based and hardware-independent. The run stops if the data disk does not
    read as LUKS: add `-e data_disk_force_format=true` only if it is a new, blank disk,
-   since that flag erases it.
+   since that flag erases it. A fresh card listens on port 22, and the inventory targets
+   the hardened port, so this first run needs `-e homelab_ssh_port=22`; it moves sshd to
+   the hardened port itself. Clear the old host keys first
+   ([installation, step 5](../../docs/02-system/installation.md#step-5--verify-ansible-connectivity)).
 
    ```bash
-   ansible-playbook playbooks/site.yml --tags phase1 --ask-vault-pass
+   ansible-playbook playbooks/site.yml --tags phase1 --ask-vault-pass -e homelab_ssh_port=22
    ```
 
 2. **Restore the data.** Point Restic at the local repo, or at the offsite one
-   ([`offsite-backup.md`](offsite-backup.md)). Secrets first, on their own:
+   ([`offsite-backup.md`](offsite-backup.md)). Phase 1 installs `restic` but not
+   `/opt/homelab/backup.env`, so read the local repo's settings from the disk itself:
+
+   ```bash
+   sudo -i
+   set -a; . /mnt/data/secrets/backup.env; set +a
+   ```
+
+   Secrets first, on their own:
    `/opt/homelab` holds symlinks into `/mnt/data/secrets` (ADR-011). This path does
    not need `local.yml` (gitignored, not backed up), and it brings back `wg0.conf`,
    so the tunnel. The dumps exist only in the snapshot, and step 3 needs them.

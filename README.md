@@ -70,8 +70,8 @@ Only `vpn.example.com` stays in public DNS, to bootstrap the tunnel. See ADR-014
 # 3. Bootstrap (from your workstation)
 ./ops/bootstrap.sh <PI_IP>
 
-# 4. Provision the entire system
-cd ansible && ansible-playbook playbooks/site.yml
+# 4. Provision: run the command the bootstrap prints, phase by phase
+#    (docs/02-system/installation.md, step 7)
 ```
 
 ## Project Structure

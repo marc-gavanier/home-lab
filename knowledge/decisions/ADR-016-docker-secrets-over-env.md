@@ -106,6 +106,8 @@ strip it. No-newline is the single form that satisfies every consumer.
 **Positive**
 - No plaintext service password is reachable through the socket-proxy's
   inspect endpoint.
+  > **Amended by ADR-037.** The same grant also read the secret files through
+  > `/containers/{id}/archive`; the proxy now allowlists its paths.
 - The service passwords also leave `docker/.env` entirely — Ansible renders the
   secret files straight from the vault — so no single file aggregates every
   credential any more. No credential remains there since wg-easy v15 (ADR-020).

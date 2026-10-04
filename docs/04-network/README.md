@@ -117,7 +117,7 @@ Details: [Traefik](../05-services/traefik.md).
 |---------------|-----------------------|-----------------|-----------------------------------------|
 | `proxy`       | `proxy`               | `172.18.0.0/16` | Services exposed via Traefik            |
 | `internal`    | `homelab_internal`    | `172.19.0.0/16` | Inter-service communication (DB, cache) |
-| `socketproxy` | `homelab_socketproxy` | `172.20.0.0/16` | Traefik ↔ docker-socket-proxy only      |
+| `socketproxy` | `homelab_socketproxy` | `172.20.0.0/16` | Traefik, Netdata, Dozzle ↔ socket-proxy |
 
 - `proxy` is `external: true`, so it has no prefix. The other two carry the project prefix.
 - Use the host name: `docker network inspect internal` returns `[]`.
@@ -127,15 +127,15 @@ Details: [Traefik](../05-services/traefik.md).
 
 Each one is pinned, derived at run time from whoever assigns it, or watched.
 
-| Address                | Assigned by          | Treatment |
-|------------------------|----------------------|-----------|
-| Public IPv4            | ISP                  | Derived: the DDNS job re-reads it every 15 min |
-| Offsite endpoint       | DHCP at remote site  | Derived: `offsite-wg-reresolve` re-resolves the peer name |
-| homelab LAN address    | router, one-day lease | Watched: `lan-address-is-the-one-the-configuration-hardcodes` |
-| LAN subnet             | router               | Neither; accepted |
-| `proxy` network        | Docker default pool  | Watched: `traefik-allowlist-covers-the-live-proxy-subnet` |
-| `homelab_internal`     | Docker default pool  | Watched: `docker-networks-are-where-the-configuration-expects-them` |
-| `homelab_socketproxy`  | Docker default pool  | Same assertion |
+| Address               | Assigned by           | Treatment                                                                       |
+|-----------------------|-----------------------|---------------------------------------------------------------------------------|
+| Public IPv4           | ISP                   | Derived: the DDNS job re-reads it every 15 min                                  |
+| Offsite endpoint      | DHCP at remote site   | Derived: `offsite-wg-reresolve` re-resolves the peer name                       |
+| homelab LAN address   | router, one-day lease | Watched: `lan-address-is-the-one-the-configuration-hardcodes`                   |
+| LAN subnet            | router                | Neither; accepted                                                               |
+| `proxy` network       | Docker default pool   | Watched: `traefik-allowlist-covers-the-live-proxy-subnet`                       |
+| `homelab_internal`    | Docker default pool   | Watched: `docker-networks-are-where-the-configuration-expects-them`             |
+| `homelab_socketproxy` | Pinned in compose     | From `docker_expected_subnets`, the value the socket proxy's `-allowfrom` reads |
 
 - **LAN address** (`<pi-lan-ip>`) is hardcoded through `homelab_ip` into every split-DNS record,
   the compose env and the resolver given to VPN clients. If it changes, first restore the address

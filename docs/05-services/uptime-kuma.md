@@ -84,21 +84,29 @@ script sent, so the alert names the wrong thing.
 ### Resend: every active monitor reminds
 
 Kuma notifies once, at the state change, and stays quiet while the monitor stays red. So every
-active monitor carries a `resend_interval`, counted in checks, aiming at a reminder every ~6 h:
+active monitor carries a `resend_interval`, aiming at a reminder every ~6 h (`T` = 21600 s). It
+counts **DOWN beats**, not checks. A push monitor that is DOWN gets two kinds: each push its script
+sends, and the `No heartbeat in the time window` beat Kuma adds every `interval` anyway. So:
 
 ```
-resend_interval = max(1, round(21600 / interval))
+active check:   resend_interval = max(1, round(T / interval))
+push monitor:   resend_interval = max(1, round(T × (1/push_period + 1/interval)))
 ```
 
-A 60s check gets 360, a 600s push monitor 36, a daily or weekly push 1. A new monitor starts at
-`0`, and the posture assertion `kuma-every-active-monitor-resends` fails until it is set.
+`push_period` is how often the script pushes. A 60s check gets 360; a daily or weekly push 1,
+which reminds at every beat. A new monitor starts at `0`, and the posture assertion
+`kuma-every-active-monitor-resends` fails until it is set; it does not check the value.
 
-Two monitors deviate on purpose — check before "correcting" them:
+| Monitor                 | Interval | Pushes every | `resend_interval` | Reminder       |
+|-------------------------|----------|--------------|-------------------|----------------|
+| `Pi health`             | 600s     | 300s         | 108               | 6 hours        |
+| `Pi resources`          | 900s     | 300s         | 96                | 6 hours        |
+| `DDNS`                  | 1080s    | 900s         | 44                | 6 hours        |
+| `Nextcloud notify_push` | 5400s    | 3600s        | 10                | 6 hours        |
+| `Netdata — containers`  | 600s     | 300s         | 18                | **1 hour**     |
+| `Pi pending action`     | 900s     | 300s         | 384               | **24 hours**   |
 
-| Monitor                | Interval | `resend_interval` | Formula would give | Actual reminder |
-|------------------------|----------|-------------------|--------------------|-----------------|
-| `Netdata — containers` | 600s     | 6                 | 36                 | **1 hour**      |
-| `Pi pending action`    | 900s     | 96                | 24                 | **24 hours**    |
+The last two deviate from `T` on purpose — check before "correcting" them.
 
 `Netdata — containers` carries two curated alarms (container down, container unhealthy); without a
 resend, a second alarm firing behind the first reaches nobody. Conditions may share a monitor only
@@ -149,8 +157,8 @@ them would hold `Pi security posture` red for the length of the outage.
 
 ## Common tasks
 
-- Add a monitor: in the UI, then set its `resend_interval` from the formula and, for a push
-  monitor, retries 0. Export with `ops/kuma-dump.sh` afterwards.
+- Add a monitor: in the UI, then set its `resend_interval` from the formula (for a push
+  monitor, measure its push period first) and, for a push monitor, retries 0. Export with `ops/kuma-dump.sh` afterwards.
 - Upgrade: follow [the migration runbook](../../knowledge/runbooks/uptime-kuma-migration-failure.md#before-any-kuma-upgrade).
 
 ## Restore

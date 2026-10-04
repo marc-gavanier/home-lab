@@ -61,7 +61,7 @@ next image version adds. Both trade a visible limitation for an invisible one.
 |--------------|-----------------------------------------------------------|
 | pihole | Container stays **Up**, `setcap` on `/usr/bin/pihole-FTL` fails, `getcap` returns empty, FTL never starts, `:53` refuses connections. Read-only would convert a loud failure into a silent one |
 | nextcloud | Exit 2 — `cannot create /usr/local/etc/php/conf.d/redis-session.ini`, a directory that also holds the 21 `.ini` files the image ships |
-| socket-proxy | Exit 1 — `can't create /usr/local/etc/haproxy/haproxy.cfg`, generated from the template beside it |
+| socket-proxy | Exit 1 — `can't create /usr/local/etc/haproxy/haproxy.cfg`, generated from the template beside it. Read-only since ADR-037 changed the image |
 | transmission | Starts, but the image itself announces that `PUID`/`PGID` and `UMASK` stop having any effect. Both are load-bearing: ownership of the downloads, and the `UMASK 022` that came out of a CIS finding (7.1.11, world-writable downloads) |
 | collabora | Added later. Read-only works, but the document-jail copy then lives in `tmpfs`: 1.257 GiB of RAM instead of 573 MiB. A priced trade, not a block (ADR-021) |
 | calibre-web | Added 2026-08-05. `docker diff` shows 1797 entries: the image patches its own source tree and writes bytecode under `/app` on every start (ADR-025) |

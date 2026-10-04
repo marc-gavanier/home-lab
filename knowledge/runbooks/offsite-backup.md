@@ -18,17 +18,15 @@ The repo password is deliberately **not** stored on it.
 - **A red copy monitor that turns green the next night has self-healed.** Every
   night copies all missing snapshots; re-offering existing ones creates no
   duplicates. No manual copy needed.
-- The copy beat only says `offsite copy completed`. To see what was copied, compare
-  snapshot counts. `sudo` is required on both sides (`snapshots/` is `0700`);
-  without it `ls` is denied and `wc -l` prints a small number, not an error.
+- The copy beat only says `offsite copy completed`. To see that last night's copy
+  landed, read the newest snapshot on the offsite: its date must be last night,
+  after 03:00. Counts never match, since retention prunes the local repo and not
+  the append-only one. `sudo` is required (`snapshots/` is `0700`); without it `ls`
+  is denied and prints nothing, not an error.
 
   ```bash
-  sudo ls /mnt/data/backups/restic-repo/snapshots | wc -l
-  ssh offsite 'sudo ls /mnt/backup/restic/snapshots | wc -l'
+  ssh offsite 'sudo ls -lt --time-style=+%F_%T /mnt/backup/restic/snapshots | sed -n 2p'
   ```
-
-  The first runs on the homelab (local repo), the second reads the offsite
-  filesystem.
 
 ### Why "offsite health" is DOWN
 
@@ -280,10 +278,10 @@ rest-server, then run the check again.
 
 2. Restore, on any machine, with the offsite password:
    `restic -r /mnt/backup/restic restore latest --target /restore`.
-3. Re-provision a new Pi from the git repo (`ansible/`) and put back
-   `/restore/mnt/data/...`. The `.env` files are in `/restore/mnt/data/secrets`;
-   `/restore/opt/homelab` holds only symlinks to them (ADR-011).
-4. Follow [Full disaster recovery](restore-from-backup.md#full-disaster-recovery).
+3. Follow [Full disaster recovery](restore-from-backup.md#full-disaster-recovery). At
+   its step 2, copy the same paths from `/restore` onto the new Pi instead of running
+   `restic restore`, secrets first; `/restore/opt/homelab` holds only symlinks into
+   `/restore/mnt/data/secrets` (ADR-011).
 
 See also: ADR-010, [`backup-monitoring.md`](backup-monitoring.md),
 [`restore-from-backup.md`](restore-from-backup.md).

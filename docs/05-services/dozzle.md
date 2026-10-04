@@ -23,11 +23,11 @@ uptime already were.
   stolen WireGuard key or compromised LAN device must not be enough.
 - Credentials are rendered by the deploy role and bind-mounted read-only at `/data/users.yml` as a
   file — never through its directory, which would resolve in the container's namespace.
-- Reads Docker through the shared read-only `socket-proxy`, never the raw `docker.sock`.
-- The proxy needs `INFO=1`: without it Dozzle logs `Could not connect to any Docker Engine` and
-  exits 1. Traefik and Netdata gain `/info` too; it returns daemon metadata, no secrets.
-- `POST` stays `0`. Keep `DOZZLE_ENABLE_ACTIONS` and `DOZZLE_ENABLE_SHELL` at `false`: those
-  buttons would fail against the proxy.
+- Reads Docker through the shared `socket-proxy` and its allowlist (ADR-037), never the raw `docker.sock`.
+- The proxy must allow `/info`: without it Dozzle logs `Could not connect to any Docker Engine`
+  and exits 1. Traefik and Netdata get `/info` too; it returns daemon metadata, no secrets.
+- The proxy allows no `POST`. Keep `DOZZLE_ENABLE_ACTIONS` and `DOZZLE_ENABLE_SHELL` at `false`:
+  those buttons would fail against the proxy.
 - The container list shows mount paths (e.g. `/mnt/data/secrets/docker/immich_db_password`), never
   secret values.
 - `read_only: true` (empty `docker diff`) with `/tmp:size=8m`; runs as uid 65534 (`nobody`) with
@@ -62,6 +62,6 @@ Restore: re-run the deploy role. It re-renders `dozzle_users.yml` and starts the
 
 | Symptom | Cause | Action |
 |---|---|---|
-| Exits 1 with `Could not connect to any Docker Engine` | `socket-proxy` lacks `INFO=1` | Set `INFO=1` on the proxy |
+| Exits 1 with `Could not connect to any Docker Engine` | `socket-proxy` refuses `/info` | `docker logs socket-proxy \| grep "blocked request"`, then add the path to its `-allowGET` |
 | `FTL Failed to hash password error="bcrypt: password length exceeds 72 bytes"` | Password over 72 bytes | Use a shorter password |
 | UI loads but shows no containers | Docker API lost (socket-proxy down) | Check `socket-proxy` |

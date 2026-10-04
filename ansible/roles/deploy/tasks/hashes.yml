@@ -4,6 +4,11 @@
     database: passwd
     key: "{{ ansible_user }}"
 
+- name: hashes | Lookup the GID of the docker group
+  ansible.builtin.getent:
+    database: group
+    key: docker
+
 - name: hashes | Install python3-argon2 on Pi
   ansible.builtin.apt:
     name: python3-argon2
