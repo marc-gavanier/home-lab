@@ -13,6 +13,7 @@
     content: |
       [Unit]
       RequiresMountsFor={{ data_mount_point }}
+      After=homelab-journal-persist.service
       PartOf=homelab-services.target
 
       [Install]
