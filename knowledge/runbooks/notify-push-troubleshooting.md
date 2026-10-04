@@ -41,8 +41,8 @@ Expected:
 
 ## If it fails
 
-**"can't connect to push server: 403 Forbidden"**: DNS hairpin, the name resolves to
-the public IP inside `nextcloud`. Confirm (a public IP is the bug):
+**"can't connect to push server: Could not resolve host"**: the `extra_hosts` pin is
+missing; the name has no public record. Confirm (empty output is the bug):
 
 ```bash
 docker exec nextcloud getent hosts drive.<domain>
@@ -56,8 +56,9 @@ extra_hosts:
   - "drive.${DOMAIN}:${PI_LAN_IP}"
 ```
 
-**"can't connect to push server: Could not resolve host"**: a `dns:` override points
-at an unreachable Pi-hole. Remove it, use `extra_hosts`.
+**"can't connect to push server: 403 Forbidden"**: the request reached Traefik from an
+address outside the `vpn-only` allow-list. Find the client address of the refused
+request in Traefik's access log; the pin does not fix this.
 
 **"nextcloud is not configured as a trusted domain"**: redeploy; the role writes
 `localhost`, `drive.<domain>`, `nextcloud` to `trusted_domains`. Editing

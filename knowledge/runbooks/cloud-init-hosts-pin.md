@@ -1,12 +1,14 @@
 # Runbook: LAN host pins disappear after a reboot
 
 Use this page when a host-side service works after a deploy but fails after a
-reboot with a 403 or a mount error.
+reboot with "Could not resolve host" or a mount error.
 
 Some host services must resolve a homelab domain to an address inside the
 allow-list (the Pi's LAN IP on the homelab, its WireGuard address on offsite).
-Resolved to the public IP, the request hairpins through NAT and the `vpn-only`
-`ipAllowList` rejects it with **403** ([ADR-002](../decisions/ADR-002-vpn-only-by-default.md)).
+The hosts resolve through public DNS, where only `vpn` has a record, so without
+the pin the name does not resolve at all. A **403** is a different fault: the
+request arrived from an address outside the `vpn-only` `ipAllowList`
+([ADR-002](../decisions/ADR-002-vpn-only-by-default.md)), and re-pinning does not fix it.
 
 | Pin        | Host        | Who needs it                    | Defined in                                          |
 |------------|-------------|---------------------------------|-----------------------------------------------------|
@@ -16,10 +18,11 @@ Resolved to the public IP, the request hairpins through NAT and the `vpn-only`
 
 ## Symptom
 
-The vault mount fails / Claude Code won't start, or the backup Kuma push 403s.
+The vault mount fails / Claude Code won't start, or the backup Kuma push fails
+with curl exit 6.
 
 ```bash
-getent hosts drive.<domain>      # shows the PUBLIC ip = the pin was wiped
+getent hosts drive.<domain>      # prints nothing = the pin was wiped
 ```
 
 ## Cause
@@ -57,5 +60,5 @@ ssh offsite "getent hosts services.<domain>; grep services /etc/cloud/templates/
 
 ## Related
 
-- `notify-push-troubleshooting.md` — the same hairpin inside a container, fixed
-  with `extra_hosts` instead.
+- `notify-push-troubleshooting.md` — the same pin inside a container, set with
+  `extra_hosts` instead.
