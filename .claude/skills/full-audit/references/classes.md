@@ -287,7 +287,7 @@ probe answering "installed" through a whole upgrade.
 # The register
 
 Runs of 2026-08-15 through 2026-09-21 (TWELFTH run, key `durability`).
-**Current state: see the OPEN table after the THIRTY-FIRST run of 2026-10-04 (key `attribution`) — 149 classes, 0 OPEN. The counts below this line are the twelfth run's.**
+**Current state: see the OPEN table after the THIRTY-THIRD run of 2026-10-05 (key `extremity`) — 149 classes, 0 OPEN. The counts below this line are the twelfth run's.**
 **121 recorded classes: 3 OPEN — and the membership is C121, C34 and C01,
 written as a list because every time this line carried a rule for reconstructing
 the count instead, the count was wrong. 9 GATED, 7 closed by decision, plus the
@@ -644,7 +644,15 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
-## OPEN — 0 (after the THIRTY-SECOND run of 2026-10-05, key `totality`)
+## OPEN — 0 (after the THIRTY-THIRD run of 2026-10-05, key `extremity`)
+
+**Empty.** No mint; missed members of C120 — see "The run of 2026-10-05 (THIRTY-THIRD)" below.
+
+| ID | Property | State |
+|---|---|---|
+| C120 | A guard whose trip point sits at the wrong distance from the rupture it guards | **7 missed members, 2026-10-05 (thirty-third run), all on one dated edge**: on 2026-10-25 the hour 02:00-03:00 local happens twice and systemd 255 fires a local-time calendar timer only in the first pass. `homelab-health` and `homelab-netdata-kuma` (`*:0/5`, `*:2/5`) fall silent 65 min, `homelab-ddns` (`*:0/15`) 75 min, `homelab-notify-push` (`hourly`) 120 min, against Kuma windows of 600 to 5400 s with 0 retries: monitors 20, 35, 36, 37, 28, 33 go DOWN. Monitor 18 `Offsite health` (90 000 s) against a 25 h day plus a daily-redrawn 15 min delay: DOWN about one DST day in two. Computed on the host with `systemd-analyze calendar`, ordinary-day and ` UTC` controls; no history reaches the spring change. FIXED: ` UTC` on the four specs, monitor 18 at 93 600 s |
+
+### The thirty-second run's table read:
 
 **Empty.** No mint; missed members of C50, C03, C66 and C01 — see "The run of 2026-10-05 (THIRTY-SECOND)" below.
 
@@ -1370,6 +1378,54 @@ separate correction — **the marker is not a provenance instrument.**
 C92 and C03-R were closed as review rules once their spaces proved non-derivable.
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
+
+## The run of 2026-10-05 (THIRTY-THIRD) — the key was `extremity`, and it minted zero
+
+The key, chosen by the operator over `ownership` and `reversibility`: **at the exact edge of a domain a
+mechanism declares — the threshold value itself, exactly one element, the last item, the largest value a
+field or window allows, a calendar edge — does it behave as in the interior, and would anything see it?**
+Forms: X1 threshold equality, X2 singleton and last element, X3 maximum of the domain, X4 calendar edges
+(the DST change of 2026-10-25 named as a dated edge). Discriminant: edge reachable, behaviour at the edge
+shown, detector named or shown absent. Borders declared: `vacuity`, `scale`, `exhaustion`, `truncation`,
+`totality`, `initiality`, C80, C91.
+
+### The counter: 0 OPEN in, 0 OPEN out, 0 minted, 0 gates broken, class total 149
+
+Third consecutive zero-mint run on a different key; the termination criterion holds. The reserve the
+`propagation` pair carried applies: this zero was earned partly by assignment — the run's one live defect
+went to C120, which already owned the property.
+
+### The sweep
+
+| Domain | Edges | Result |
+|---|---|---|
+| `system` | 117/117 | C120 (DST night) |
+| `security` | 22/22 | clean |
+| `network` | 26/26 | C120 (DST night); tunnel MTU 1392 measured at the edge |
+| `services` | 66/66 | clean |
+| `backup` | 30/30 | C120 (monitor 18); retention exact at every bucket edge |
+| `observability` | 54/54 | C120 (DST night, monitor 18) |
+| `ansible-deploy` | 95/95 | clean; 4 latent observations |
+| `project-manager` | 65/65 | C120 (DST night); no confirmed C01 |
+
+GATED intact, read or made to fail in a scratch copy: C03-T, C11, C14, C15, C18, C19, C41, C81. C07 was
+not read this run.
+
+### Rejected or requalified
+
+- The mint proposed by `system`, `observability` and `project-manager` — "a job scheduled in local time
+  watched by a window in elapsed seconds": rejected at admission step 1. C120's property already covers
+  a guard shorter than the gap the mechanism permits itself; the DST night is a new edge, not a new
+  property. `network` and `backup` filed it there unprompted.
+- `ansible-deploy`'s "all 16 `OnCalendar` clean across 2026-10-25": it iterated only the daily and weekly
+  timers from a base the evening before; the sub-daily ones were never stepped through the repeated hour.
+- `project-manager`'s "no host checks on either host for an hour": the offsite's sub-daily timers are
+  vendor ones; the blind hour is the homelab's.
+- Zero-impact observations, no work: `uptime -s` without timezone (C80, latent), ADR-029's "under 150 s"
+  against `-gt 150`, ">48h" in a message that fires at 48 h, `-ge 0` accepted as a floor by
+  `check-empty-set-floors.py` (0 sites), the root tune2fs mapping, `lineinfile backrefs` on a one-line
+  `cmdline.txt`, the Collabora wait, the offsite reboot instant on the DST night, `claude-code.md`'s
+  `vault-mount` wording (suspected, unproven).
 
 ## The run of 2026-10-05 (THIRTY-SECOND) — the key was `totality`, and it minted zero
 
