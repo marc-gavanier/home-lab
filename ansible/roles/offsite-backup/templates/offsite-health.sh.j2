@@ -57,8 +57,11 @@ fi
 
 APT_CHECK=/usr/lib/update-notifier/apt-check
 if [ -x "$APT_CHECK" ]; then
-    sec=$("$APT_CHECK" 2>&1 | cut -d';' -f2); sec=${sec//[^0-9]/}; sec=${sec:-0}
-    if [ "$sec" -gt 0 ]; then
+    apt_out=$("$APT_CHECK" 2>&1); apt_rc=$?
+    if [ "$apt_rc" -ne 0 ] || ! [[ "${apt_out##*$'\n'}" =~ ^[0-9]+\;([0-9]+)$ ]]; then
+        problems+=("apt-check failed (rc=$apt_rc: ${apt_out%%$'\n'*}) — security updates are not being counted")
+    elif [ "${BASH_REMATCH[1]}" -gt 0 ]; then
+        sec=${BASH_REMATCH[1]}
         [ -n "$(gate security-updates 172800 nonzero)" ] &&
             problems+=("$sec security updates unapplied >48h")
     else

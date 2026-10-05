@@ -275,6 +275,13 @@ its cause; eight domains found that it does, 249 effects swept. Same reserve as 
 instances went to C01, both runbook diagnoses the estate had moved away from. One proposal was refused at
 the admission check's third step.
 
+**The thirty-second run, on 2026-10-05, used `totality` and minted zero.** **Consecutive zero-mint runs: 2**
+(`attribution`, `totality`). With the OPEN table empty, **both halves of the termination criterion hold
+again.** Same reserve: earned partly by assignment, the confirmed instances going to C50, C03, C66 and C01;
+no agent proposed a mint. The key asked whether every outcome a producer can emit has a branch at its
+consumer; 455 consumers swept, and the one outcome that had actually happened unhandled was a readiness
+probe answering "installed" through a whole upgrade.
+
 ---
 
 # The register
@@ -637,7 +644,18 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
-## OPEN — 0 (after the THIRTY-FIRST run of 2026-10-04, key `attribution`)
+## OPEN — 0 (after the THIRTY-SECOND run of 2026-10-05, key `totality`)
+
+**Empty.** No mint; missed members of C50, C03, C66 and C01 — see "The run of 2026-10-05 (THIRTY-SECOND)" below.
+
+| ID | Property | State |
+|---|---|---|
+| C50 | A liveness probe whose subject answers without the component the probe claims to prove | **Missed member, 2026-10-05**: the deploy's "Wait for Nextcloud to be ready" accepted `installed`, true through a whole image upgrade; on 2026-09-27 it passed at 20:25:24Z and `background:cron`, 7 `notify_push:setup` and `app:enable` ran inside the upgrade window (2/2 bumps in the journal, each rerun by hand). FIXED: wait for the container's `healthy` (600 s), then `maintenance` and `needsDbUpgrade` false |
+| C03 | A validation whose instrument answers a different question from the one its comment claims | **2 missed members, 2026-10-05, none fired**: both health scripts parsed `apt-check`'s error text as the count (`E: Error: BrokenCount > 0` → `0`, gate reset, green); the offsite never read the exit code. FIXED: count accepted only on rc 0 and a last line `N;N`, otherwise an `apt-check failed` alert. `nextcloud.yml`'s cron task matched `set to cron`, which 35.0.1 never prints. FIXED: reads `backgroundjobs_mode` first |
+| C66 | A correction applied to the instance that revealed it, whose siblings were never enumerated | **Latent member, 2026-10-05**: Collabora and LibreSign re-enable an app the upgrade disabled; the 7-app loop does not. ACCEPTED: an app disabled by an upgrade is incompatible, so an automatic enable would fail every deploy until upstream ships; step 4 of the upgrade runbook is the remedy |
+| C01 | A documentary statement whose content contradicts the deployed artefact | **4 missed members, 2026-10-05**: `boot-and-unlock.md` required no `starting` container once waves were dispatched (start periods reach 1320 s); `installation.md` ran `homelab-unlock` and a restic prompt without `-t`; `feed-digest.md` sent every `claude -p failed` to a re-login; `nextcloud.md` said the upgrade deploy stops on the first `occ` call (it stopped on the 15th). FIXED |
+
+### The thirty-first run's table read:
 
 **Empty.** No mint; two missed members of C01 — see "The run of 2026-10-04 (THIRTY-FIRST)" below.
 
@@ -1352,6 +1370,44 @@ separate correction — **the marker is not a provenance instrument.**
 C92 and C03-R were closed as review rules once their spaces proved non-derivable.
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
+
+## The run of 2026-10-05 (THIRTY-SECOND) — the key was `totality`, and it minted zero
+
+The key, chosen by the operator over `extremity` and `ownership`: **for every mechanism that branches on an
+outcome it receives — an exit code, a systemd `Result`, an HTTP status, a container or alarm state, a parsed
+line, an empty result — does every outcome its producer can emit have a defined branch, or does one fall
+into a default that reads as success?** Forms: T1 unhandled value into a success default, T2 a chain with
+no final branch, T3 a parser dropping unrecognised lines, T4 an enumerated set narrower than the
+producer's, T5 a runbook decision table missing an outcome. Borders declared: `degradation`, `vacuity`,
+`determinism`, `extremity`, C03, C120, C149.
+
+### The counter: 0 OPEN in, 0 OPEN out, 0 minted, 0 gates broken, class total 149
+
+### The sweep
+
+| Domain | Consumers | Result |
+|---|---|---|
+| `system` | 29/29 | clean; 4 unreached branches |
+| `security` | 30/30 | C03 (`apt-check`, both hosts) |
+| `network` | 31/31 | clean; 4 unreached branches |
+| `services` | 66/66 | C50 (Nextcloud readiness), C01 |
+| `backup` | 36/36 | clean; restic 0.16.4 exit 3 fails the run and stops the copy |
+| `observability` | 20/20 | clean; 6 unreached branches |
+| `ansible-deploy` | 124/124 | C03 (cron `changed_when`), C66 (latent) |
+| `project-manager` | 119/119 decision points | C01 ×3 |
+
+GATED intact, read or made to fail in a scratch copy: C03-T, C07, C11, C14, C15, C18, C19, C41, C81.
+C11's assertion count is now 10: `socket-proxy` declares a user since ADR-037.
+
+### Rejected or requalified
+
+- `security`'s link between a broken `apt-check` and the interrupted unattended-upgrades runs of 09-11
+  and 09-22: the 09-11 log reads `SIGTERM received, will stop`, a different cause. Observation.
+- Kill-switch `keyword mismatch` lines: settled 2026-09-30.
+- Unreached branches, no work: `auto-restart-queued` (named by `system` and `observability`
+  independently), Traefik 404 read as admitted by the `vpn-only` probes, notify_push's `🗴`, smartctl bits
+  5 and 6, pihole's healthcheck accepting any rcode, heal exiting 0 after an `ERROR` restart.
+- Conduct: `network` tried to write to `/dev/shm` on the homelab; blocked, verified empty.
 
 ## The run of 2026-10-04 (THIRTY-FIRST) — the key was `attribution`, and it minted zero
 
@@ -8944,7 +9000,7 @@ check, and it is stated as one.
 | ID | Property | Gate |
 |-----|------------------------------------------------------|--------------------------------------------------------|
 | C10 | A credential store readable beyond its service | **Left this table on 2026-09-11 — REOPENED, then CLOSED as ENUMERATED on 2026-09-12; see its ENUMERATED row, NOT the OPEN table.** This pointer said "see the OPEN table" for seven days after C10 had left it, which is a C01 instance inside the register itself — corrected 2026-09-19 (fourth run). The gate is genuinely derived and it still holds over the space it derives: the runtime set from `docker inspect`, plus a floor derived from `compose.yaml` since 09-05, plus two named assertions that are a list because the derivation cannot see what they cover. What reopened the class is that the derivation keys on **container mounts**, so a credential file no container mounts is outside it by construction — and two are |
-| C11 | A container whose running `Config.User` differs from what compose declares | posture assertion, 9 services (#145). **NOT broken — the "BROKEN" verdict of 2026-09-05 midday measured a property C11 does not state, and was corrected the same evening.** The figures stand (9 assertions, 11 containers with a non-empty `Config.User`), but `socket-proxy` and `collabora` DECLARE nothing, so there is nothing for the assertion to disagree with: `Config.User` carries the IMAGE's user when compose is silent, and asserting the complement would write upstream's values into this repo. The deployed template argues exactly this at `goss-posture.yaml.j2:322-340`. Under its own property the gate is derived 9/9. A service that loses its `user:` is caught by review of `compose.yaml`, not by a probe of the result |
+| C11 | A container whose running `Config.User` differs from what compose declares | posture assertion, 10 services since ADR-037 (9 before; #145). **NOT broken — the "BROKEN" verdict of 2026-09-05 midday measured a property C11 does not state, and was corrected the same evening.** The figures stand (9 assertions, 11 containers with a non-empty `Config.User`), but `socket-proxy` and `collabora` DECLARE nothing, so there is nothing for the assertion to disagree with: `Config.User` carries the IMAGE's user when compose is silent, and asserting the complement would write upstream's values into this repo. The deployed template argues exactly this at `goss-posture.yaml.j2:322-340`. Under its own property the gate is derived 9/9. A service that loses its `user:` is caught by review of `compose.yaml`, not by a probe of the result |
 | C12 | A rotated secret a consumer never receives | **ENUMERATED 2026-09-20 (tenth run) by TWO COMPLEMENTARY BOUNDS, neither containing the other — the shape that closed C107 and C113.** `security` derived the VALUES from the live host and swept **76/76** (value, consumer) pairs over 39 values: 31 values × 64 carriers = 1 984 tests, planted positive control found, negative control not; 39 pairs are single-consumer, 28 are self-detecting Kuma push URLs, and 8 of the 9 remaining redundant copies are already gated. `ansible-deploy` parsed the DECLARATIONS and swept **52/52** render sites over the 39 `no_log: true` options; 66 notify targets, 0 orphans, 7 `creates:` and none on a secret. The two cardinals disagree on purpose and reconcile: 39 declared, some with no persisted carrier. **Zero live divergence on the day** — 6 multi-carrier values hash-compared on the host, all matching. **The live defect it leaves behind is STRUCTURAL and was fixed on 2026-09-20**: `deploy/tasks/main.yml` advertised `--tags secrets` as a rotation route while that tag reaches 19 of the role's 31 secret renders, missing `configs.yml`, `backup.yml` (7 values), `wireguard.yml` (`wg0.conf`) and `ddns.yml`. That is what let the 2026-09-12 Cloudflare rotation reach Traefik and not the DDNS for eight days. The old gate remains what it was — `posture.yaml secret-mounts-carry-the-current-value`, 14 pairs derived from `compose.services[*].secrets` against 17 file binds under the secrets directory, a coverage asymmetry measured at 0/28 mismatch and deliberately NOT widened (the three uncovered files are `volumes:` binds that never land at `/run/secrets/<name>`, so the comparison path would have to change, and the risk of turning a working gate into a silent green outweighed the gain) | **ENUMERATED** |
 | C13 | A declared environment value shadowed by a persisted config file | **Left this table on 2026-08-30 — see the downgrade above.** The assertion is hardcoded to vaultwarden (#124, #159); a list of one is not a gate |
 | C14 | A certificate with no expiry watch, or a silent ACME failure | `homelab-health.sh` parses `acme.json` directly, 21-day threshold. **21/21 live, not the 18/18 this row carried — and the growth from 18 with ZERO edits to the script is positive proof of derivation, which is worth more than the number.** Three-way set equality holds at 21 (acme.json = Traefik `/api/overview` = distinct `Host()` names = split-DNS records) and it is delivered (Kuma monitor 20 read `certs 30d/21` at 21:31:43). **The "silent ACME failure" half is a PROXY only**: expiry < 21 d plus a one-directional count ratchet. A name that never OBTAINS a certificate is invisible by construction, and the script says so in its own comment (#157). **That blind spot was MEASURED EMPTY 2026-09-13 night-second, with a control**: all 21 names serve a real Let's Encrypt leaf over SNI (correct subject, issuer CN YR1/YR2), while two uncovered names returned `SSL alert 112 unrecognized name, no peer certificate` — the probe discriminates, and no name is invisible. One real ACME failure did occur (2026-09-11T21:44:28Z, missing `_acme-challenge` TXT, 403) and self-healed; it is verbatim the case `homelab-health.sh.j2:384` says it deliberately does not report, so it CONFIRMS the design rather than breaching it |

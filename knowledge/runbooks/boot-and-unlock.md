@@ -96,6 +96,9 @@ docker ps --filter health=unhealthy --filter health=starting   # must be empty
 swapon --show                                         # /mnt/data/swapfile (HDD)
 ```
 
+`starting` is normal for about 10 minutes after `all waves dispatched`: some
+start periods reach 22 min. Still `starting` after 25 min → `docker logs <name>`.
+
 ## If it fails
 
 ### The orchestrator aborts (`FATAL` in the journal)

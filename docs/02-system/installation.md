@@ -202,7 +202,7 @@ unlock must come from the LAN (the VPN config is on the locked volume). Full
 procedure: [boot & unlock runbook](../../knowledge/runbooks/boot-and-unlock.md).
 
 ```bash
-ssh homelab "sudo homelab-unlock"
+ssh -t homelab "sudo homelab-unlock"
 # Enter LUKS passphrase when prompted → /mnt/data mounted → Docker starts
 ```
 
@@ -297,7 +297,7 @@ ssh homelab "sudo systemctl start homelab-backup.service"
 ```
 
 ```bash
-ssh homelab "sudo restic -r /mnt/data/backups/restic-repo snapshots"
+ssh -t homelab "sudo restic -r /mnt/data/backups/restic-repo snapshots"
 # Enter restic password when prompted
 ```
 

@@ -43,7 +43,7 @@ ssh offsite 'sudo sh -c "grep -oE \"^  [^ #][^:]*:\" /etc/goss/offsite-health.ya
   output: if the count drops, suspect the pattern before the spec.
 
 One condition is outside the spec: security updates still pending after 48 h
-(two daily runs), checked by `offsite-health.sh`. There is no reboot condition: the
+(two daily runs), or `apt-check` failing, checked by `offsite-health.sh`. There is no reboot condition: the
 host reboots itself at 04:00 (ADR-013).
 
 ### Why "offsite health" says "No heartbeat"

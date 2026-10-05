@@ -15,7 +15,9 @@ earlier — which would have sent eight agents to re-derive settled work. Rebuil
 it from `classes.md`'s OPEN table at the start of every run; if the two
 disagree, `classes.md` wins.
 
-As of the THIRTY-FIRST run of 2026-10-04, key `attribution`: **0 OPEN** — the table below is the fifteenth run's, kept for its C01 history.
+As of the THIRTY-SECOND run of 2026-10-05, key `totality`: **0 OPEN** — the table below is the fifteenth run's, kept for its C01 history.
+
+**FIFTY-ONE keys are now spent.** `totality` (thirty-second run, 0 mints). `extremity` and `ownership` are still unspent.
 
 **FIFTY keys are now spent.** `attribution` (thirty-first run, 0 mints). `extremity` is still unspent; `ownership` (one declared owner that creates and removes each live resource) was offered and not chosen.
 

@@ -21,23 +21,48 @@
   when: not nextcloud_up
 
 
+- name: nextcloud | Wait for the Nextcloud container to report healthy
+  ansible.builtin.command:
+    cmd: "docker inspect -f '{{ '{{' }}.State.Health.Status{{ '}}' }}' nextcloud"
+  register: nc_health
+  until: nc_health.stdout == 'healthy'
+  retries: 120
+  delay: 5
+  changed_when: false
+  check_mode: false
+  when: nextcloud_up
+
 - name: nextcloud | Wait for Nextcloud to be ready
   ansible.builtin.command:
     cmd: docker exec -u www-data nextcloud php occ status --output=json
   register: nc_status
-  until: nc_status.rc == 0 and (nc_status.stdout | from_json).installed | default(false)
+  until: >-
+    nc_status.rc == 0
+    and (nc_status.stdout | from_json).installed | default(false)
+    and not (nc_status.stdout | from_json).maintenance | default(true)
+    and not (nc_status.stdout | from_json).needsDbUpgrade | default(true)
   retries: 30
   delay: 5
   changed_when: false
   check_mode: false
   when: nextcloud_up
 
+- name: nextcloud | Read the background jobs mode
+  ansible.builtin.command:
+    cmd: docker exec -u www-data nextcloud php occ config:app:get core backgroundjobs_mode
+  register: nc_cron_mode
+  changed_when: false
+  check_mode: false
+  failed_when: false
+  when: nextcloud_up
+
 - name: nextcloud | Set Nextcloud background jobs to cron mode
   ansible.builtin.command:
     cmd: docker exec -u www-data nextcloud php occ background:cron
-  register: nc_cron
-  changed_when: "'set to cron' in nc_cron.stdout"
-  when: nextcloud_up
+  changed_when: true
+  when:
+    - nextcloud_up
+    - nc_cron_mode.stdout | default('') | trim != 'cron'
 
 - name: nextcloud | Read Nextcloud system configuration
   ansible.builtin.command:

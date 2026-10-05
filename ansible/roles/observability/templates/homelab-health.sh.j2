@@ -134,16 +134,21 @@ esac
 APT_CHECK=/usr/lib/update-notifier/apt-check
 if [ -x "$APT_CHECK" ]; then
     apt_key="$dpkg_mtime $(stat -c %Y /var/lib/apt/lists 2>/dev/null || echo 0)"
-    cached_apt_key=""; sec=""
+    cached_apt_key=""; sec=""; apt_err=""
     read -r cached_dpkg cached_lists sec 2>/dev/null < "$STAMP_DIR/apt-check" || true
     [ -n "${cached_dpkg:-}" ] && cached_apt_key="$cached_dpkg $cached_lists"
     if [ "$cached_apt_key" != "$apt_key" ] || [ -z "$sec" ]; then
         apt_out=$("$APT_CHECK" 2>&1); apt_rc=$?
-        sec=$(cut -d';' -f2 <<< "$apt_out"); sec=${sec//[^0-9]/}
-        [ "$apt_rc" -eq 0 ] && [ -n "$sec" ] && printf '%s %s\n' "$apt_key" "$sec" > "$STAMP_DIR/apt-check"
+        if [ "$apt_rc" -eq 0 ] && [[ "${apt_out##*$'\n'}" =~ ^[0-9]+\;([0-9]+)$ ]]; then
+            sec=${BASH_REMATCH[1]}
+            printf '%s %s\n' "$apt_key" "$sec" > "$STAMP_DIR/apt-check"
+        else
+            sec=""; apt_err="rc=$apt_rc: ${apt_out%%$'\n'*}"
+        fi
     fi
-    sec=${sec:-0}
-    if [ "$sec" -gt 0 ]; then
+    if [ -n "$apt_err" ]; then
+        pending+=("apt-check failed ($apt_err) — security updates are not being counted")
+    elif [ "$sec" -gt 0 ]; then
         report+=("$sec security updates pending")
         [ -n "$(gate security-updates 172800 nonzero)" ] &&
             pending+=("$sec security updates unapplied >48h")
