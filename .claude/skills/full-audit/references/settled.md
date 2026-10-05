@@ -24,6 +24,21 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-10-05 (THIRTY-SECOND run) — key `totality`, one PR
+
+- **The Nextcloud deploy waits out an upgrade** (C50): the container's `healthy`, then `occ status` with
+  `maintenance` and `needsDbUpgrade` false, before any `occ` write.
+- **A failing `apt-check` raises an alert on both hosts** (C03) instead of reading as zero pending updates.
+- **The cron-mode task reads `backgroundjobs_mode` before writing** (C03).
+- **Four runbook lines** (C01): `starting` after boot, `ssh -t` for prompts, replay before re-login for the
+  digest, the upgrade deploy's new behaviour.
+
+## Declined on 2026-10-05 (thirty-second run)
+
+- **No automatic re-enable of Nextcloud apps an upgrade disabled** (C66): the upgrade disables them for
+  incompatibility, so an enable task would fail every deploy until upstream ships; step 4 of the upgrade
+  runbook stays the remedy.
+
 ## Shipped on 2026-10-04 (THIRTY-FIRST run) — key `attribution`, one PR, documentation only
 
 - **Dozzle's socket-proxy remedy keeps only Dozzle's address** (C01): the posture check's deliberate

@@ -111,7 +111,7 @@ the cause.
 | `ExecStartPre` failed, nothing else | the unit on the host is older than the repo (the gate now lives in `digest.sh`) | redeploy `--tags claude-code` |
 | `missing API key at …` | key file absent or unreadable | redeploy `--tags claude-code`; check `miniflux_api_key` is set in `local.yml` |
 | `curl … (22)` on `/v1/entries` | Miniflux or Traefik down | `curl $R https://rss.<domain>/healthcheck` → expect 200 |
-| `claude -p failed` | claude.ai session expired | re-login the `claude` user, same procedure as Remote Control 401 |
+| `claude -p failed` | transient API failure, or claude.ai session expired | replay first (`sudo systemctl start homelab-feed-digest.service`); re-login the `claude` user only if Remote Control logs a 401 |
 | `claude -p returned an empty digest` | model returned nothing | replay; if it repeats, the prompt is the suspect |
 | Timer never fired at all | Pi was off | the boot catch-up runs before the unlock and fails; after `homelab-unlock`, if today's note is missing, `sudo systemctl start homelab-feed-digest.service` |
 
