@@ -24,6 +24,35 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-10-05 (THIRTY-THIRD run) — key `extremity`, one PR
+
+- **The four sub-hourly and hourly `homelab-*` timers are scheduled in UTC** (C120): health, netdata-kuma,
+  ddns, notify-push. In local time, systemd 255 fires a calendar timer only in the first pass of the
+  repeated autumn hour, so each fell silent 65 to 120 min and six Kuma push windows (600 to 5400 s)
+  expired. The minute grid is unchanged, so C91's stagger holds.
+- **Kuma monitor 18 `Offsite health` is 93 600 s** (C120): its 25 h window equalled the 25-hour day, and the
+  timer redraws its 15 min random delay every day.
+
+## Measured and left as observations on 2026-10-05 (thirty-third run)
+
+- **Vendor calendar timers keep local time**: fake-hwclock-save, sysstat-collect, fwupd-refresh lose the
+  repeated hour on both hosts; nothing watches them in elapsed seconds.
+- **The offsite may reboot at 03:00 CET instead of 04:00 on the DST night** if Saturday's upgrade needs it
+  (~7 %); the earliest offsite copy in 28 runs started 03:02, and rest-server is back in ~30 s.
+- **`uptime -s` carries no timezone** (C80): wrong by one hour only for a boot inside the first pass of the
+  repeated hour.
+- **Equality falls on the documented side everywhere it matters**: fail2ban bans on the 3rd failure, the
+  certificate alarm under 21 days, Miniflux unschedules at 15 errors and posture reads `>= 15`, restic
+  buckets days by each snapshot's own offset and counts ISO week 53 as one week.
+
+## Instrument traps paid on 2026-10-05 (thirty-third run)
+
+- **A DST check that samples daily timers proves nothing for sub-daily ones.** Iterate the calendar
+  through the repeated hour (`systemd-analyze calendar --base-time="<date> 02:50:00 CEST" --iterations=N`)
+  with an ordinary-day control and the same spec suffixed ` UTC`.
+- **No journal or Kuma history reaches back to the spring change**: the homelab journal starts in
+  September, Kuma in July. A DST claim on this estate is computed, not observed.
+
 ## Shipped on 2026-10-05 (THIRTY-SECOND run) — key `totality`, one PR
 
 - **The Nextcloud deploy waits out an upgrade** (C50): the container's `healthy`, then `occ status` with
@@ -989,9 +1018,9 @@ columns against a live 120; a goss floor called itself `5x` above metadata at
   rationale for the v3 default does not apply, but an unbounded read still holds
   a connection forever on a proxy that has a rate-limit middleware and trusted
   clients only.
-- **Kuma monitor 18 `Offsite health` stays at 90 000 s.** Its retained red beats
-  are substantive failures (`ssh.service`, `goss spec missing`), not window
-  expiries, so the tightening applied to 15/16/23/30 does not apply to it.
+- **Kuma monitor 18 `Offsite health` stayed at 90 000 s** until 2026-10-05: its
+  retained red beats were substantive failures, not window expiries. Superseded by
+  the thirty-third run — a 25-hour DST day is a window expiry, so it is 93 600 s.
 
 ## Withdrawn after measurement on 2026-09-20/21 (eleventh run) — 2
 

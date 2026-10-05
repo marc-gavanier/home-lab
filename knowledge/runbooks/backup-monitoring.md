@@ -20,7 +20,7 @@ it goes red on a failed run and when no run happened at all.
 | Pi restic prune+check | `resticprofile -n homelab prune`+`check` (Tue 01:00)    | 691200 s (8 d) | `local_maintenance_kuma_push_url` (homelab local)  |
 | Offsite backup        | resticprofile `copy` (homelab, nightly)                 | 93600 s (26 h) | `offsite_copy_kuma_push_url` (homelab local.yml)   |
 | Offsite check         | `resticprofile -n offsite check` (Tue 02:00)            | 700000 s (8 d) | `offsite_check_kuma_push_url` (homelab local.yml)  |
-| Offsite health        | `offsite-health.sh` (offsite Pi, 08:00 + ≤15 min)       | 90000 s (25 h) | `offsite_health_kuma_push_url` (offsite local.yml) |
+| Offsite health        | `offsite-health.sh` (offsite Pi, 08:00 + ≤15 min)       | 93600 s (26 h) | `offsite_health_kuma_push_url` (offsite local.yml) |
 
 - 26 h on the nightly monitors, counted from the last push: a missed run turns red ~2 h after the
   expected time, later if a manual run pushed since.
