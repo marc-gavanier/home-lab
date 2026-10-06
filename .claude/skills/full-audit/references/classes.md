@@ -282,12 +282,21 @@ no agent proposed a mint. The key asked whether every outcome a producer can emi
 consumer; 455 consumers swept, and the one outcome that had actually happened unhandled was a readiness
 probe answering "installed" through a whole upgrade.
 
+**The thirty-third run, on 2026-10-05, used `extremity` and minted zero.** **Consecutive zero-mint runs: 3**.
+Its one live defect, the repeated autumn hour, went to C120.
+
+**The thirty-fourth run, on 2026-10-06, used `externality` and minted zero.** **Consecutive zero-mint runs:
+4** (`attribution`, `totality`, `extremity`, `externality`). The criterion still holds. Same reserve: the
+confirmed instances went to C03 and C01. The key was a new dimension, what the estate assumes of things it
+does not control; 232 assumptions swept, and the one defect live that day was the security count reading 0
+while a Docker security release waited, because it counted only the channel it was built for.
+
 ---
 
 # The register
 
 Runs of 2026-08-15 through 2026-09-21 (TWELFTH run, key `durability`).
-**Current state: see the OPEN table after the THIRTY-THIRD run of 2026-10-05 (key `extremity`) — 149 classes, 0 OPEN. The counts below this line are the twelfth run's.**
+**Current state: see the OPEN table after the THIRTY-FOURTH run of 2026-10-06 (key `externality`) — 149 classes, 0 OPEN. The counts below this line are the twelfth run's.**
 **121 recorded classes: 3 OPEN — and the membership is C121, C34 and C01,
 written as a list because every time this line carried a rule for reconstructing
 the count instead, the count was wrong. 9 GATED, 7 closed by decision, plus the
@@ -644,7 +653,16 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
-## OPEN — 0 (after the THIRTY-THIRD run of 2026-10-05, key `extremity`)
+## OPEN — 0 (after the THIRTY-FOURTH run of 2026-10-06, key `externality`)
+
+**Empty.** No mint; missed members of C03 and C01 — see "The run of 2026-10-06 (THIRTY-FOURTH)" below.
+
+| ID | Property | State |
+|---|---|---|
+| C03 | A validation whose instrument answers a different question from the one its comment claims | **2 missed members, 2026-10-06 (thirty-fourth run), one live**: `apt-check` counts Ubuntu's security pocket against the local lists, so it read `6;0` while Docker 29.8.2 (CVE-2026-92543) waited at least 4 days in a repository excluded from unattended-upgrades; and `apt.systemd.daily` exits 0 on a failed `apt-get update`, so frozen lists read 0 indefinitely (named 2026-09-18, never decided). ADR-013's "can no longer hide" rested on both. FIXED: origin `Docker` upgradable → `Pi pending action` at once; `update-success-stamp` > 72 h → pending (homelab) / problem (offsite); each made to fail on purpose on the host; 29.8.2 applied |
+| C01 | A documentary statement whose content contradicts the deployed artefact | **6 missed members, 2026-10-06**: `CLAUDE.md` "enforced … CI" while `Repository checks (ops/)` was not a required check (FIXED in the ruleset); `claude-code.md` put `~claude/.claude` on the SD card; `docs/06-backup` omitted the Docker store from what is not backed up; no doc ran the Galaxy install; `bootstrap.sh` advised `pip install ansible`; a dead DSub link. FIXED |
+
+### The thirty-third run's table read:
 
 **Empty.** No mint; missed members of C120 — see "The run of 2026-10-05 (THIRTY-THIRD)" below.
 
@@ -1378,6 +1396,53 @@ separate correction — **the marker is not a provenance instrument.**
 C92 and C03-R were closed as review rules once their spaces proved non-derivable.
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
+
+## The run of 2026-10-06 (THIRTY-FOURTH) — the key was `externality`, and it minted zero
+
+The key, chosen by the operator over `ownership` and a confirmation-only pass: **for every assumption the
+estate makes about something it does not control — a third-party service, an upstream artefact, a provider,
+the physical or network environment, a vendor's behaviour — is it written, is it checked, and the day it
+turns false does the estate fail visibly, degrade cleanly, or stay green?** Forms: E1 service availability
+or contract, E2 upstream artefact, E3 time- or quota-bounded grant, E4 physical and network environment,
+E5 vendor behaviour change. Borders declared: C14, C43, C60, C86, C108, C112, C121, C143, C146, C147, C03,
+C50, C120, C44.
+
+### The counter: 0 OPEN in, 0 OPEN out, 0 minted, 0 gates broken, class total 149
+
+Fourth consecutive zero-mint run on a different key. Same reserve as the three before it: the live defect
+went to C03, which already owned the property.
+
+### The sweep
+
+| Domain | Assumptions | Result |
+|---|---|---|
+| `system` | 19/19 | C03 (dead apt feed) |
+| `security` | 20/20 | C03 (Docker security release unseen); C01 |
+| `network` | 23/23 | clean; 4 unwritten, each loud or harmless |
+| `services` | 30/30 | clean |
+| `backup` | 23/23 | clean |
+| `observability` | 46/46 | clean; missed the apt feed |
+| `ansible-deploy` | 39/39 | C03 (dead apt feed); C01 |
+| `project-manager` | 32/32 | C01 (ruleset, two docs) |
+
+GATED intact, read or made to fail in a scratch copy: C03-T, C07, C11, C14, C15, C18, C19, C41, C81.
+
+### Rejected or requalified
+
+- `system` filed the dead apt feed under C112: requalified to C03. The enforcer is local; the instrument
+  answers "pending against the lists I have", not "pending upstream".
+- The non-required CI job was filed as C144 by the main session first: requalified to C01. The ruleset is
+  configuration, the claim is prose; no automatic actor carries a hold.
+- Observations, no work: `accept_ra=0` bypassed by networkd's userspace RA (offsite has a global SLAAC
+  address; UFW6 drops, exposure nil — two agents); monitor 12 `Pi (ping)` never leaves the host (Kuma's
+  bridge reaches the host's LAN address locally); the served chain validates only through the cross-sign
+  to ISRG Root X1 (loud if dropped); domain registration to 2035 unwatched; Let's Encrypt's shorter
+  lifetimes keep the 21-day alarm's margin; EEPROM updates applied unattended at boot; the DR runbooks
+  assume registries, GitHub releases, Galaxy and apt without saying so (all resolve, all fail loudly);
+  the Pi's claude.ai session expires 2026-10-21 (visible); three latent C03 parses (`smartctl` self-test,
+  empty `df`, renamed lynis key).
+- Re-raised decisions held: push tokens printed into a transcript again (no reset); C102 wildcard endpoint
+  installed three times, each corrected within a minute; SearXNG's empty first answers under audit load.
 
 ## The run of 2026-10-05 (THIRTY-THIRD) — the key was `extremity`, and it minted zero
 
