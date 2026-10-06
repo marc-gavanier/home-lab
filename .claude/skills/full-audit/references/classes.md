@@ -291,12 +291,17 @@ confirmed instances went to C03 and C01. The key was a new dimension, what the e
 does not control; 232 assumptions swept, and the one defect live that day was the security count reading 0
 while a Docker security release waited, because it counted only the channel it was built for.
 
+**The thirty-fifth run, on 2026-10-06, used `ownership` and minted zero.** **Consecutive zero-mint runs:
+5.** The criterion still holds. Same reserve: the four confirmed instances went to C89, C87, C66 and C01.
+The key asked whether every live object has exactly one declared owner that can create, change and retire
+it; 1 000-odd objects swept, and every gap that was not latent had a class that already named it.
+
 ---
 
 # The register
 
 Runs of 2026-08-15 through 2026-09-21 (TWELFTH run, key `durability`).
-**Current state: see the OPEN table after the THIRTY-FOURTH run of 2026-10-06 (key `externality`) — 149 classes, 0 OPEN. The counts below this line are the twelfth run's.**
+**Current state: see the OPEN table after the THIRTY-FIFTH run of 2026-10-06 (key `ownership`) — 149 classes, 0 OPEN. The counts below this line are the twelfth run's.**
 **121 recorded classes: 3 OPEN — and the membership is C121, C34 and C01,
 written as a list because every time this line carried a rule for reconstructing
 the count instead, the count was wrong. 9 GATED, 7 closed by decision, plus the
@@ -653,7 +658,18 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
-## OPEN — 0 (after the THIRTY-FOURTH run of 2026-10-06, key `externality`)
+## OPEN — 0 (after the THIRTY-FIFTH run of 2026-10-06, key `ownership`)
+
+**Empty.** No mint; missed members of C89, C87, C66 and C01 — see "The run of 2026-10-06 (THIRTY-FIFTH)" below.
+
+| ID | Property | State |
+|---|---|---|
+| C89 | A live secret VALUE present anywhere outside the store meant to hold it | **1 missed member, 2026-10-06 (thirty-fifth run)**: the feed digest's Kuma push URL (monitor 30) rendered into `~claude/.local/share/feed-digest/digest.sh` on the homelab SD card, the one push URL the 2026-09-27 move to `kuma-push.env` missed (that file is root-only, the digest runs as `claude`). FIXED: `/mnt/data/secrets/claude/feed_digest_kuma_push_url`, 0400 claude, read at run time; ADR-011 and `claude-code.md` list it. Old value may survive in freed SD blocks; token reset stays declined |
+| C87 | A hand-made artefact that outlives its operation | **1 missed member, 2026-10-06**: Nextcloud apps `notes` (enabled, contradicting ADR-005) and `maps` (disabled) installed by hand, in no commit; C87's git-history string match excluded the word. 10/10 tables empty. FIXED: `occ app:remove`, on the operator's instruction |
+| C66 | A correction applied to the instance that revealed it, whose siblings were never enumerated | **2 missed members, 2026-10-06**: the operator's rule "vendor call-home is cut wherever a setting allows it" was applied in 2026-09-28 to the 32 containers, never to the hosts. `motd-news` (`ENABLED=1`) and Ubuntu Pro `apt_news` (`True`) fetched from Canonical daily on both hosts. FIXED in the `base` role |
+| C01 | A documentary statement whose content contradicts the deployed artefact | **1 missed member, 2026-10-06**: ADR-016's 2026-09-26 amendment said the deploy sets the wg-easy admin password; `homelab-wg-easy-config.sh` only logs in with it. FIXED |
+
+### The thirty-fourth run's table read:
 
 **Empty.** No mint; missed members of C03 and C01 — see "The run of 2026-10-06 (THIRTY-FOURTH)" below.
 
@@ -1396,6 +1412,53 @@ separate correction — **the marker is not a provenance instrument.**
 C92 and C03-R were closed as review rules once their spaces proved non-derivable.
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
+
+## The run of 2026-10-06 (THIRTY-FIFTH) — the key was `ownership`, and it minted zero
+
+The key, chosen by the operator over a confirmation-only pass and `leakage`: **a live resource, or a piece
+of live state, whose owner — the single party entitled to create it, change it and retire it — is not
+exactly one and declared.** Forms: W1 two writers with no declared winner, W2 an owner that cannot retire
+(judged forward, on the removal path), W3 rebuild authority undeclared, W4 a human or account owner the
+operator does not control or read. The "orphan on the host" sense was excluded before launch: that is
+`residue` R1 and C87. Borders declared: C87, C88, C27, C123, C146, C64, C16, C28, C141, C145, C148, C18,
+C125, C126, `exclusivity`, `interference`, `externality` E3.
+
+### The counter: 0 OPEN in, 0 OPEN out, 0 minted, 0 gates broken, class total 149
+
+Fifth consecutive zero-mint run on a different key. No agent proposed a mint.
+
+### The sweep
+
+| Domain | Objects | Result |
+|---|---|---|
+| `system` | 112/112 | clean; motd-news handed on (C66) |
+| `security` | 88/88 | clean |
+| `network` | 125/125 | clean |
+| `services` | 32/32 containers, 21/21 dual-writer surfaces | C87 (Nextcloud apps) |
+| `backup` | 68/68 | clean |
+| `observability` | 139/139 | C89 (digest push URL) |
+| `ansible-deploy` | 385/385 tasks | C87 (Nextcloud apps) |
+| `project-manager` | 20/20 accounts, 38/38 ownership statements | C01 (ADR-016) |
+
+GATED intact, read or made to fail in a scratch copy: C03-T, C07, C11, C14, C15, C18, C19, C41, C81.
+
+### Rejected or requalified
+
+- `observability` filed the digest push URL under C01: requalified to C89. The defect is the value on the
+  card, not a sentence.
+- `ansible-deploy` filed the Nextcloud apps under W1: requalified to C87. No repo task writes the app set
+  for those two; they were made by hand and maintained by nothing.
+- Observations, no work: after a lost data disk the deploy's plain `restic init` gives the local repo
+  fresh chunker parameters and the first copy re-uploads ~91 GiB into the append-only offsite (1.3 T free);
+  the Let's Encrypt account has no contact (C14 needs none); the deploy forces Jellyfin AutoDiscovery and
+  Transmission NAT-PMP off with no doc saying so; `nextcloud.md`'s re-applied list omits three settings;
+  Transmission rewrites `settings.json` 0644 under a 0700 parent; a hand-made operator `rclone.conf` holds
+  a Nextcloud app password matching no live token; W2 latent toggles (`zram_enabled`, `free_port_53`,
+  `gpio_fan_pin`, `usb_storage_quirks`, UFW rules, `health.d`) are C88's declined shape, 0 leftovers;
+  the claude.ai account behind the Pi's session was not read (classifier refusal), left to the operator;
+  netdata's registry announce is browser-side, unmeasured.
+- Rule breaches, harmless: one ~2 min recursive grep on the homelab (`observability`), one read-only
+  `goss validate` on the offsite (`backup`).
 
 ## The run of 2026-10-06 (THIRTY-FOURTH) — the key was `externality`, and it minted zero
 
@@ -9129,7 +9192,7 @@ check, and it is stated as one.
 | C16 | A read-write bind mount its container cannot create files in | **Left this table on 2026-09-11 — downgraded to ENUMERATED.** The enumeration is derived; the PREDICATE is a proxy (`owner == OPERATOR_UID`). 15 of 27 mounts reach the test and 0 of the 15 can ever fail it |
 | C17 | A filesystem never checked, and boot triggers reset every boot | **Left this table on 2026-09-05 evening — downgraded to ENUMERATED.** The three assertions are hardwired to `/`: one filesystem of four, and `Last checked` is asserted nowhere, six days after this file first recorded that omission. Nothing is proposed — the only live instance is the offsite root, and the operator DECLINED it on 2026-09-02 |
 | C18 | A database dump absent, stale, or empty | **BROKEN on 2026-09-13 and repaired the same evening — see the run section.** Its derivation keys on the dump VARIABLES rather than on the databases present, so three services deployed that night were backed up live, in WAL mode, with no dump and no assertion. PR #352 adds them (15 assertions, 31 → 46). **The wrong-axis defect itself is untouched, and 2026-09-13 night DEMONSTRATED it rather than arguing it**: `sonarr/logs.db`, `radarr/logs.db` and `prowlarr/logs.db` sit under a backed-up path with no dump and no assertion, and the deployed spec mentions `logs` zero times (46 assertions live, verified). They hold app logs, so the impact is low — their value is as proof that a database outside `backup_sqlite_dumps` is invisible to this gate by construction, which is the same shape that reopened C10. goss `backup-dumps`, now **26** checks (2x3 + 3x5 + 5, counted on the deployed spec 2026-09-05 evening), generated from the dump variables so a database cannot get a dump without a check (#177, ADR-032). **The `empty` word is no longer an overstatement** — the derived `-content` floor shipped 2026-09-05 10:39 and 2x3+3x4+4 = 22 matches the host. The derivation half recorded as defective that morning is **FIXED**: `-container-present` is now generated in the same loop, and the residue is a list of one (Immich) |
-| C19 | A failed systemd unit, or a timer whose service did not succeed | **CORRECTED 2026-09-13 (night-second): the AUTO-RESTART half of the script IS DERIVED, not a list** — `homelab-health.sh.j2:615-616` filters on the systemd sub-state and names no unit; the `:552` comment about units being "enumerated and NAMED" explains why that half cannot move into goss. Swept the same night for CONSEQUENCE: **33/33 units with `Restart!=no` across both hosts at `NRestarts=0`, zero auto-restart loops**, with a positive control (`vault-mount` genuinely reached restart counter 4 at 12:41:39 that day and reads 0 now). **QUANTIFIED 2026-09-13 (late evening): the goss half is A LIST — 6 named `service:` entries + 8 named `command:` assertions, 1 of 15 DERIVED (`systemd-no-failed-units`, from `systemctl --failed`), and that one still exits 0 with the binary absent, byte-identical to 2026-09-05.** The script half is genuinely derived and its floor fires (`timers_seen` 13 healthy, 0 under `PATH=/nonexistent`) — **at `homelab-health.sh:351` (re-read in the deployed script 2026-10-04; it was `:665` before, `:592` before that).** Also structural: `systemctl --failed` cannot see an auto-restart loop, and `fail2ban` and `claude-remote-control` both carry `StartLimitIntervalSec=0`, so that half of the property lives only in the script. goss `units.yaml` plus the health script's last-run check — **homelab only; the offsite half is C02**. **Only the GOSS half is vacuous at zero** — corrected 2026-09-05 evening by two agents independently: the script half now carries a derived floor (`timers_seen -eq 0`, `homelab-health.sh:592`, shipped 2026-09-05). The goss half still exits 0 with the binary absent (positive control: `PATH=/nonexistent`), rescued by composition rather than by assertion |
+| C19 | A failed systemd unit, or a timer whose service did not succeed | **CORRECTED 2026-09-13 (night-second): the AUTO-RESTART half of the script IS DERIVED, not a list** — `homelab-health.sh.j2:615-616` filters on the systemd sub-state and names no unit; the `:552` comment about units being "enumerated and NAMED" explains why that half cannot move into goss. Swept the same night for CONSEQUENCE: **33/33 units with `Restart!=no` across both hosts at `NRestarts=0`, zero auto-restart loops**, with a positive control (`vault-mount` genuinely reached restart counter 4 at 12:41:39 that day and reads 0 now). **QUANTIFIED 2026-09-13 (late evening): the goss half is A LIST — 6 named `service:` entries + 8 named `command:` assertions, 1 of 15 DERIVED (`systemd-no-failed-units`, from `systemctl --failed`), and that one still exits 0 with the binary absent, byte-identical to 2026-09-05.** The script half is genuinely derived and its floor fires (`timers_seen` 13 healthy, 0 under `PATH=/nonexistent`) — **at `homelab-health.sh:396` (re-read in the deployed script 2026-10-06; it was `:351` before, `:665` and `:592` before that).** Also structural: `systemctl --failed` cannot see an auto-restart loop, and `fail2ban` and `claude-remote-control` both carry `StartLimitIntervalSec=0`, so that half of the property lives only in the script. goss `units.yaml` plus the health script's last-run check — **homelab only; the offsite half is C02**. **Only the GOSS half is vacuous at zero** — corrected 2026-09-05 evening by two agents independently: the script half now carries a derived floor (`timers_seen -eq 0`, `homelab-health.sh:592`, shipped 2026-09-05). The goss half still exits 0 with the binary absent (positive control: `PATH=/nonexistent`), rescued by composition rather than by assertion |
 | C20 | A secret that a deploy reports as rotated without rotating it | **Left this table on 2026-09-03 — downgraded to ENUMERATED.** 4 hand-written probes over a space of 16 secret files; a list of four is not a gate (#159 fixed the case-mismatch bug, which is a different question) |
 | C21 | A snapshot that missed its offsite copy and is never retried | **LEAVES THE GATED TABLE 2026-09-19 (fifth run) — DOWNGRADED TO ENUMERATED.** It is an ARGUMENT, not a gate, and that is now measured rather than suspected: over the 3 463 lines of deployed posture, **exactly one assertion opens `resticprofile.yaml` and it reads only the `library/` categories**; `grep snapshot` returns a single comment. Nothing reads `copy:`, and nothing compares the two snapshot sets — so a bound added to the deployed `copy:` would pass unnoticed and the copy would stay green. A structural guarantee plus a push monitor is not an assertion on the property. Historic text follows. **ROW STALE FOR THE THIRD TIME, and the stale word is "monitor" — there IS no retention monitor.** The guarantee is STRUCTURAL (`copy:` carries no bound, verified in the deployed file AND in `resticprofile show`) plus the copy push monitor. 91 offsite / 34 local snapshots, 0 locks on either, 2026-09-13. The class holds; the description has now been wrong three times. Formerly cited as the retention monitor (#158, #168). **The "time-window filter" this row used to name no longer exists** — re-verified 2026-09-03: `copy:` carries no bound, every snapshot is re-offered nightly, 31 local / 81 offsite with no gaps. The class holds; the description was stale for the second time |
 | C81 | A byte written into a file whose consumer reads it back through a narrower encoding than the producer's | `ops/check-ascii-system-files.py` in pre-commit, proven to fail in both directions (2026-09-04); re-exercised 2026-09-05 evening in a sandbox, 3 flags with both negative controls passing. **Its `marker:` half is derived; its path filter is a LIST OF ONE** — `ASCII_STRICT_PREFIXES = ("/etc/ufw/",)`. Kept GATED rather than downgraded because, unlike C17, no live instance has ever existed outside that prefix; its two blind spots (`*.yaml`, `.j2` into `/etc/ufw/`) are empty today |

@@ -58,8 +58,9 @@ offline-crackable at best, not replayable — which is why the residual risk is
 accepted rather than worked around with a wrapper entrypoint.
 
 > **Amended 2026-09-26.** wg-easy is on v15, which has no `PASSWORD_HASH`: the
-> admin credential lives in its own database and the deploy sets it through the
-> host-side `wg-easy-setup.env`, which no container reads. Nothing credential-
+> admin credential lives in its own database and is changed in its UI; the
+> deploy only logs in with it, through the host-side `wg-easy-setup.env`, which
+> no container reads. Nothing credential-
 > bearing is left in `environment:`.
 
 Vaultwarden's Argon2 token and Traefik's Cloudflare token were both in this

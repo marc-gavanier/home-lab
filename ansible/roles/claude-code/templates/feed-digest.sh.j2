@@ -20,7 +20,15 @@ FOLDER_NAME="${FOLDER##*/}"
 PROMPT_DEFAULT="/home/claude/.local/share/feed-digest/prompt.md"
 CLAUDE_BIN="/home/claude/.local/bin/claude"
 LOG="/home/claude/.local/share/feed-digest/digest.log"
-KUMA_PUSH_URL="{{ feed_digest_kuma_push_url | default('') }}"
+KUMA_PUSH_URL_FILE="/mnt/data/secrets/claude/feed_digest_kuma_push_url"
+KUMA_PUSH_URL=""
+if [ -r "$KUMA_PUSH_URL_FILE" ]; then
+    KUMA_PUSH_URL="$(cat "$KUMA_PUSH_URL_FILE")"
+{% if feed_digest_kuma_push_url | default('') | length > 0 %}
+else
+    echo "kuma-push-url-missing: $KUMA_PUSH_URL_FILE is unreadable, /mnt/data is probably not unlocked — this report reaches nobody" >&2
+{% endif %}
+fi
 
 MAX_ENTRIES={{ feed_digest_max_entries | default(400) }}
 

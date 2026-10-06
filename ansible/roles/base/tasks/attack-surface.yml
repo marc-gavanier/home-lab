@@ -59,3 +59,21 @@
       install {{ mod }} /bin/false
       blacklist {{ mod }}
       {% endfor %}
+
+- name: attack-surface | Stop the daily motd news fetch from Canonical
+  ansible.builtin.lineinfile:
+    path: /etc/default/motd-news
+    regexp: '^ENABLED='
+    line: 'ENABLED=0'
+
+- name: attack-surface | Read the Ubuntu Pro apt news setting
+  ansible.builtin.command:
+    cmd: pro config show apt_news
+  register: pro_apt_news
+  changed_when: false
+
+- name: attack-surface | Stop the apt news fetch from Canonical
+  ansible.builtin.command:
+    cmd: pro config set apt_news=false
+  when: pro_apt_news.stdout.split() | last != 'False'
+  changed_when: true

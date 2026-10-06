@@ -39,6 +39,22 @@
     state: absent
   when: miniflux_api_key | default('') | length == 0
 
+- name: digest | Write the digest's Kuma push URL
+  ansible.builtin.copy:
+    dest: /mnt/data/secrets/claude/feed_digest_kuma_push_url
+    content: "{{ feed_digest_kuma_push_url }}"
+    owner: claude
+    group: claude
+    mode: "0400"
+  no_log: true
+  when: feed_digest_kuma_push_url | default('') | length > 0
+
+- name: digest | Remove the digest's Kuma push URL when it is not configured
+  ansible.builtin.file:
+    path: /mnt/data/secrets/claude/feed_digest_kuma_push_url
+    state: absent
+  when: feed_digest_kuma_push_url | default('') | length == 0
+
 - name: digest | Create the digest systemd service
   ansible.builtin.copy:
     dest: /etc/systemd/system/homelab-feed-digest.service
