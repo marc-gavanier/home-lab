@@ -86,14 +86,15 @@ entries read ([ADR-027](../../knowledge/decisions/ADR-027-feed-digest.md)). Oper
 replaying a digest and the failure tree:
 [feed-digest runbook](../../knowledge/runbooks/feed-digest.md).
 
-| Unit / file                                  | Role                                          |
-|----------------------------------------------|-----------------------------------------------|
-| `homelab-feed-digest.timer`                  | 06:30 + ≤5 min, `Persistent=true`             |
-| `homelab-feed-digest.service`                | oneshot, `User=claude`, `TimeoutStartSec=900` |
-| `~claude/.local/share/feed-digest/digest.sh` | Miniflux API → `claude -p` → vault → mark read |
-| `~claude/.local/share/feed-digest/prompt.md` | generic English default, Ansible-owned        |
-| `<vault>/<folder>/prompt.local.md`           | personal override — **wins when present**     |
-| `/mnt/data/secrets/claude/miniflux_api_key`  | 0400, claude-owned                            |
+| Unit / file                                          | Role                                           |
+|------------------------------------------------------|------------------------------------------------|
+| `homelab-feed-digest.timer`                          | 06:30 + ≤5 min, `Persistent=true`              |
+| `homelab-feed-digest.service`                        | oneshot, `User=claude`, `TimeoutStartSec=900`  |
+| `~claude/.local/share/feed-digest/digest.sh`         | Miniflux API → `claude -p` → vault → mark read |
+| `~claude/.local/share/feed-digest/prompt.md`         | generic English default, Ansible-owned         |
+| `<vault>/<folder>/prompt.local.md`                   | personal override — **wins when present**      |
+| `/mnt/data/secrets/claude/miniflux_api_key`          | 0400, claude-owned                             |
+| `/mnt/data/secrets/claude/feed_digest_kuma_push_url` | 0400, claude-owned                             |
 
 - The note lands in `<folder>/YYYY-MM-DD - <suffix>.md` (not `Inbox/`), with two sections:
   what changed, and zero to three post angles.

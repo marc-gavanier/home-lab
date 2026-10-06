@@ -24,20 +24,22 @@ Credential-bearing files live in `/mnt/data/secrets/` on the LUKS volume;
 the historical paths remain as **symlinks**, so scripts, systemd units and
 docs are unchanged:
 
-| Historical path                             | Real location (LUKS)                     |
-|---------------------------------------------|------------------------------------------|
-| `/opt/homelab/.env`                         | `/mnt/data/secrets/homelab.env`          |
-| `/opt/homelab/backup.env`                   | `/mnt/data/secrets/backup.env`           |
-| `/opt/homelab/ddns.env`                     | `/mnt/data/secrets/ddns.env`             |
-| ~~`/opt/homelab/configs/searxng/settings.yml`~~ (see note) | `/mnt/data/secrets/docker/searxng_settings` |
-| `/etc/wireguard/wg0.conf`                   | `/mnt/data/secrets/wg0.conf`             |
-| claude rclone config (`RCLONE_CONFIG`)      | `/mnt/data/secrets/claude/rclone.conf`   |
-| operator rclone config (`RCLONE_CONFIG`)    | `/mnt/data/secrets/<user>/rclone.conf`   |
-| Kuma push URLs in `/usr/local/bin/homelab-*.sh` | `/mnt/data/secrets/kuma-push.env`   |
+| Historical path                                                           | Real location (LUKS)                                 |
+|---------------------------------------------------------------------------|------------------------------------------------------|
+| `/opt/homelab/.env`                                                       | `/mnt/data/secrets/homelab.env`                      |
+| `/opt/homelab/backup.env`                                                 | `/mnt/data/secrets/backup.env`                       |
+| `/opt/homelab/ddns.env`                                                   | `/mnt/data/secrets/ddns.env`                         |
+| ~~`/opt/homelab/configs/searxng/settings.yml`~~ (see note)                | `/mnt/data/secrets/docker/searxng_settings`          |
+| `/etc/wireguard/wg0.conf`                                                 | `/mnt/data/secrets/wg0.conf`                         |
+| claude rclone config (`RCLONE_CONFIG`)                                    | `/mnt/data/secrets/claude/rclone.conf`               |
+| operator rclone config (`RCLONE_CONFIG`)                                  | `/mnt/data/secrets/<user>/rclone.conf`               |
+| Kuma push URLs in `/usr/local/bin/homelab-*.sh`                           | `/mnt/data/secrets/kuma-push.env`                    |
+| feed digest Kuma push URL in `~claude/.local/share/feed-digest/digest.sh` | `/mnt/data/secrets/claude/feed_digest_kuma_push_url` |
 
 The two rclone rows have no historical path and no symlink: each reader is
 pointed at the file by `RCLONE_CONFIG`, set in the claude vault mount unit and
-in the operator's shell profile. The health scripts source `kuma-push.env`
+in the operator's shell profile. The feed digest reads its push URL file
+directly, with no symlink. The health scripts source `kuma-push.env`
 themselves; before the unlock they log `kuma-push-env-missing` and report
 nothing, which costs nothing since Kuma itself lives on the volume.
 

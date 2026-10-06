@@ -24,6 +24,25 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-10-06 (THIRTY-FIFTH run) — key `ownership`, one PR
+
+- **The feed digest's Kuma push URL is off the SD card** (C89): rendered to
+  `/mnt/data/secrets/claude/feed_digest_kuma_push_url` (0400 claude) and read at run time, since
+  `kuma-push.env` is root-only. The push tokens are not reset (declined 2026-09-27).
+- **Nextcloud `notes` and `maps` removed** (C87): hand-installed, empty, `notes` against ADR-005.
+- **Host call-home cut where a setting allows it** (C66): `motd-news` `ENABLED=0` and Ubuntu Pro
+  `apt_news=false` on both hosts, in the `base` role. `fwupd-refresh`, `update-notifier` and `ua-timer`
+  stay: they serve updates, not news.
+- ADR-016's wg-easy sentence corrected (C01).
+
+## Measured and left as observations on 2026-10-06 (thirty-fifth run)
+
+- A lost data disk gives the rebuilt local restic repo fresh chunker parameters; the first copy then
+  re-uploads the whole set into the append-only offsite. Improbable, loud, room to spare.
+- The Let's Encrypt account carries no contact; certificate expiry is watched without mail (C14).
+- Values the repo stops declaring keep their last value (`FTLCONF_*`, wg-easy payload keys, base toggles,
+  UFW rules): C88's declined shape, nothing left over today.
+
 ## Shipped on 2026-10-06 (THIRTY-FOURTH run) — key `externality`, one PR (#416)
 
 - **A Docker update is reported to `Pi pending action` as soon as it is available** (C03): any upgradable
