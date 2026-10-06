@@ -175,11 +175,22 @@ deliberate reboot posture.
 4. **Visibility.** The Pi health monitor (observability role) already pushes DOWN
    on `/var/run/reboot-required`; it now also reports the pending-security-update
    count (via `apt-check`), age-gated to alarm only after 48 h so the daily u-u
-   cycle doesn't flash it red. A held/failed/stuck update can no longer hide.
+   cycle doesn't flash it red.
    > **Amended by the monitor split.** Both conditions now wait on a person, so
    > `homelab-health.sh` pushes them to the **`Pi pending action`** monitor, not
    > `Pi health` (which stays UP on a pending reboot — measured 2026-09-24). They
    > fold back into `Pi health` only when the pending push URL is not configured.
+   >
+   > **Amended 2026-10-06 — the count saw only one channel.** `apt-check` counts
+   > Ubuntu's security pocket against the local package lists. It read `0` while
+   > Docker 29.8.2 (CVE-2026-92543) waited four days, because Docker's
+   > repository is excluded from unattended-upgrades (§2) and is not Ubuntu's;
+   > and `apt.systemd.daily` exits 0 when `apt-get update` fails, so frozen lists
+   > would read `0` indefinitely. Two checks now close both: any upgradable
+   > package from origin `Docker` is reported to `Pi pending action` at once
+   > (it never installs itself, so no grace period), and an
+   > `update-success-stamp` older than 72 h is reported on both hosts
+   > (`Pi pending action` on the homelab, `Offsite health` on the offsite).
 5. **Containers** (the bulk of the exposed surface) — Renovate weekly PRs +
    manual merge. No channel reports a CVE in a container image:
    `osvVulnerabilityAlerts` covers none of this repository's datasources

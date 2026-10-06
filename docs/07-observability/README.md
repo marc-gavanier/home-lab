@@ -52,13 +52,13 @@ by `netdata-health-engine-has-verdicts` in the posture spec.
 
 Conditions that send you to the same place share a monitor:
 
-| Monitor                  | What it carries                                                                                                             | Fed by                              | What you would do        |
-|--------------------------|-----------------------------------------------------------------------------------------------------------------------------|-------------------------------------|--------------------------|
-| **Pi health**            | `/` and `/mnt/data` usage, undervoltage, DNS, mirror, certificate store, failed units and timers, restart loops, crash-heal | `homelab-health.sh`                 | look at the host         |
-| **Pi resources**         | temperature, undervoltage, memory, swap                                                                                     | curated alarms via the Kuma adapter | load, or PSU and cable   |
-| **Pi disk health**       | `/mnt/data` usage, SMART, drive temperature, pending sectors, ext4 state                                                    | `homelab-disk.sh`                   | look at the disk         |
-| **Pi pending action**    | reboot pending, services on replaced libraries, journal skew under pressure, security updates, certificate expiry           | `homelab-health.sh`                 | schedule an intervention |
-| **Netdata — containers** | containers down, containers unhealthy                                                                                       | curated alarms via the Kuma adapter | look at the stack        |
+| Monitor                  | What it carries                                                                                                                                        | Fed by                              | What you would do        |
+|--------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------|--------------------------|
+| **Pi health**            | `/` and `/mnt/data` usage, undervoltage, DNS, mirror, certificate store, failed units and timers, restart loops, crash-heal                            | `homelab-health.sh`                 | look at the host         |
+| **Pi resources**         | temperature, undervoltage, memory, swap                                                                                                                | curated alarms via the Kuma adapter | load, or PSU and cable   |
+| **Pi disk health**       | `/mnt/data` usage, SMART, drive temperature, pending sectors, ext4 state                                                                               | `homelab-disk.sh`                   | look at the disk         |
+| **Pi pending action**    | reboot pending, services on replaced libraries, journal skew under pressure, security updates, Docker updates, stale package lists, certificate expiry | `homelab-health.sh`                 | schedule an intervention |
+| **Netdata — containers** | containers down, containers unhealthy                                                                                                                  | curated alarms via the Kuma adapter | look at the stack        |
 
 - Few monitors keeps the hand-built Kuma surface flat.
 - **Group by lifetime, not subject.** A condition waiting for a human stays red for days; folded in
@@ -352,6 +352,8 @@ third column says what actually evaluates each condition:
 | Stale libraries      | after a package change since boot, `needrestart` still lists services running replaced libraries — waits on a reboot                                               | `homelab-health.sh`                   |
 | Boot record at risk  | this boot's journal starts > 10 min before the machine did and the journal is ≥ **80 %** of its cap, or the kernel's first boot line is already gone               | `homelab-health.sh`                   |
 | Security updates     | still pending after **48 h** (age-gated: unattended-upgrades runs daily), or `apt-check` fails and nothing is counted                                             | `homelab-health.sh`                   |
+| Docker updates       | any upgradable package from origin `Docker` — excluded from unattended-upgrades, so it waits on a `base` run; no grace period                                     | `homelab-health.sh`                   |
+| Stale package lists  | `update-success-stamp` older than **72 h**, or absent — `apt.systemd.daily` exits 0 when `apt-get update` fails                                                   | `homelab-health.sh`                   |
 | Disk capacity        | `/` or `/mnt/data` ≥ **85 %** full                                                                                                                                 | `homelab-health.sh`                   |
 | Available memory     | `MemAvailable` < **800 MiB** sustained over a **5 min** window (`lookup: max -5m`)                                                                                 | netdata `homelab-memory`              |
 | Swap occupancy       | > **85 %** of the 4 GiB swap file — provisional threshold, see below                                                                                               | netdata `homelab-swap`                |

@@ -5,13 +5,13 @@ AI agent on the Pi that manages the Obsidian notes vault, driven from the Claude
 
 ## At a glance
 
-| Item         | Value                                                                                  |
-|--------------|----------------------------------------------------------------------------------------|
-| Access       | Remote Control (outbound HTTPS only) — no URL, no inbound port                         |
-| User         | dedicated unprivileged `claude`                                                        |
+| Item         | Value                                                                                                                                                                                              |
+|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Access       | Remote Control (outbound HTTPS only) — no URL, no inbound port                                                                                                                                     |
+| User         | dedicated unprivileged `claude`                                                                                                                                                                    |
 | Sandbox      | `~claude/.claude/settings.json`: writes confined to the vault, network to one domain, reads denied on the account's credentials file and the secrets directory; there is no `/sandbox` on the host |
-| Ansible role | `claude-code`                                                                          |
-| Backup       | vault content lives in Nextcloud; `~claude/.claude` is on the SD card                  |
+| Ansible role | `claude-code`                                                                                                                                                                                      |
+| Backup       | vault content lives in Nextcloud; `~claude/.claude` is on the encrypted data volume (`/mnt/data/claude`), not backed up                                                                            |
 
 | Path                                                               | Content                                              |
 |--------------------------------------------------------------------|------------------------------------------------------|

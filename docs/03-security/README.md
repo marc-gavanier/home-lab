@@ -72,7 +72,8 @@ hold. This page lists the controls per layer and where each one is decided.
     compares jails in `jail.local` against jails loaded.
 - **unattended-upgrades**: security updates auto-installed, no auto-reboot on
   the homelab; `needrestart` reloads patched libraries; kernel updates on a
-  manual cadence. See
+  manual cadence. Docker's own repository is excluded: its updates land with a
+  `base` run, and `Pi pending action` reports one as soon as it is available. See
   [ADR-013](../../knowledge/decisions/ADR-013-update-patching-strategy.md).
 - **Non-root where the image allows it**: 11 of 32 containers run as a service
   uid. The other 21 start as root; section 3 says why.
