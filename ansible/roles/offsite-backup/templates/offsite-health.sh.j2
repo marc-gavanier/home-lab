@@ -67,6 +67,13 @@ if [ -x "$APT_CHECK" ]; then
     else
         gate security-updates 172800
     fi
+
+    lists_ok=$(stat -c %Y /var/lib/apt/periodic/update-success-stamp 2>/dev/null || echo "")
+    if [ -z "$lists_ok" ]; then
+        problems+=("no successful apt update on record — the security count cannot see new fixes")
+    elif [ $(( $(date +%s) - lists_ok )) -gt 259200 ]; then
+        problems+=("package lists last refreshed $(( ($(date +%s) - lists_ok) / 3600 ))h ago — apt update is failing, so the security count cannot see new fixes")
+    fi
 fi
 
 disk=$(df --output=pcent "$MOUNT" 2>/dev/null | tail -1 | tr -dc '0-9')

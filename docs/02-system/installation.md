@@ -9,6 +9,9 @@ On the workstation:
 - SSH key pair (`~/.ssh/id_ed25519`)
 - Raspberry Pi Imager (`sudo apt install rpi-imager`)
 - Ansible (`pipx install ansible --include-deps`)
+- The pinned collections and roles, from the repository root:
+  `ansible-galaxy collection install -r ansible/requirements.yml` and
+  `ansible-galaxy role install -r ansible/requirements.yml`
 - nmap (`sudo apt install nmap`)
 - An SD card reader
 

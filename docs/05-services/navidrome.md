@@ -11,7 +11,7 @@ which the workstation mounts as `~/Music`.
 | Music    | `/mnt/data/media/music/` = `~/Music` over sshfs ([ADR-033](../../knowledge/decisions/ADR-033-mount-the-music-library-not-copy-into-it.md)) |
 | App data | `/mnt/data/services/navidrome/` (database, cache)                               |
 | Backup   | Restic, daily (app data, and music with `/mnt/data/media`)                      |
-| Clients  | Android: [Subtracks](https://play.google.com/store/apps/details?id=com.subtracks), [Ultrasonic](https://play.google.com/store/apps/details?id=org.moire.ultrasonic), [DSub](https://play.google.com/store/apps/details?id=github.daneren2005.dsub). iOS: [play:Sub](https://apps.apple.com/app/play-sub-music-streamer/id955329386), [Amperfy](https://apps.apple.com/app/amperfy-music/id1530145038) |
+| Clients  | Android: [Subtracks](https://play.google.com/store/apps/details?id=com.subtracks), [Ultrasonic](https://play.google.com/store/apps/details?id=org.moire.ultrasonic). iOS: [play:Sub](https://apps.apple.com/app/play-sub-music-streamer/id955329386), [Amperfy](https://apps.apple.com/app/amperfy-music/id1530145038) |
 
 ## How it works
 

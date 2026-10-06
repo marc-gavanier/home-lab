@@ -28,8 +28,8 @@ it goes red on a failed run and when no run happened at all.
   read-data check on the run in the first 7 days of the month. Its variable is optional.
 - Offsite health alarms on SMART early-warning counters (not the overall `smartctl -H` verdict),
   the monthly long self-test (`offsite-smart-test.timer`, 1st at 04:00 + up to 15 min), SSD temperature ≥ 70 °C,
-  CPU temperature ≥ 70 °C, undervoltage, and security updates unapplied after 48 h. Exact DOWN
-  conditions: the offsite runbook.
+  CPU temperature ≥ 70 °C, undervoltage, security updates unapplied after 48 h, and package lists not
+  refreshed for 72 h. Exact DOWN conditions: the offsite runbook.
 
 ## Create a monitor (Uptime Kuma UI)
 

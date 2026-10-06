@@ -155,6 +155,46 @@ if [ -x "$APT_CHECK" ]; then
     else
         gate security-updates 172800
     fi
+
+    now=$(date +%s)
+    lists_ok=$(stat -c %Y /var/lib/apt/periodic/update-success-stamp 2>/dev/null || echo "")
+    if [ -z "$lists_ok" ]; then
+        pending+=("no successful apt update on record — the security count cannot see new fixes")
+    elif [ $((now - lists_ok)) -gt 259200 ]; then
+        pending+=("package lists last refreshed $(( (now - lists_ok) / 3600 ))h ago — apt update is failing, so the security count cannot see new fixes")
+    fi
+
+    DOCKER_UPDATES="$STAMP_DIR/docker-updates"
+    docker_key=""; docker_waiting=""
+    { read -r docker_key; docker_waiting=$(cat); } 2>/dev/null < "$DOCKER_UPDATES" || true
+    if [ "$docker_key" != "$apt_key" ]; then
+        if docker_out=$(python3 - <<'PYEOF' 2>&1
+import apt_pkg
+
+apt_pkg.init()
+cache = apt_pkg.Cache(None)
+depcache = apt_pkg.DepCache(cache)
+waiting = []
+for pkg in cache.packages:
+    cur = pkg.current_ver
+    cand = depcache.get_candidate_ver(pkg) if cur else None
+    if not cand or apt_pkg.version_compare(cand.ver_str, cur.ver_str) <= 0:
+        continue
+    if any(pf.origin == "Docker" for pf, _ in cand.file_list):
+        short = lambda v: v.split(":")[-1].split("-")[0]
+        waiting.append(f"{pkg.name} {short(cur.ver_str)} → {short(cand.ver_str)}")
+print(", ".join(sorted(waiting)))
+PYEOF
+        ); then
+            docker_waiting=$docker_out
+            printf '%s\n%s\n' "$apt_key" "$docker_waiting" > "$DOCKER_UPDATES"
+        else
+            docker_waiting=""
+            pending+=("Docker update check failed (${docker_out##*$'\n'}) — a Docker release would go unseen")
+        fi
+    fi
+    [ -n "$docker_waiting" ] &&
+        pending+=("Docker update waiting: $docker_waiting — apply with the base playbook")
 fi
 
 DISK_THRESHOLD=85
