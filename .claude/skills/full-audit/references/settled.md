@@ -24,6 +24,42 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-10-06 (THIRTY-FOURTH run) — key `externality`, one PR (#416)
+
+- **A Docker update is reported to `Pi pending action` as soon as it is available** (C03): any upgradable
+  package from origin `Docker`, no grace period, because the repository is excluded from unattended-upgrades
+  and only a `base` run installs it. Docker 29.8.2 (CVE-2026-92543) applied the same day.
+- **Package lists older than 72 h are reported on both hosts** (C03): `apt.systemd.daily` exits 0 on a failed
+  `apt-get update`, so the `update-success-stamp` age is the only signal. Closes the 2026-09-18 note.
+- **`Repository checks (ops/)` is a required status check** on `main`'s ruleset (C01): `CLAUDE.md`'s "pre-commit
+  and CI" now holds.
+- Docs corrected (C01): ADR-013 §4, `claude-code.md`, `docs/06-backup`, `installation.md`, `bootstrap.sh`,
+  `navidrome.md`.
+
+## Measured and left as observations on 2026-10-06 (thirty-fourth run)
+
+- **`accept_ra=0` does not stop RA under systemd-networkd**: the offsite holds a global SLAAC address and a
+  router-advertised default route; UFW filters IPv6 the same, so exposure is nil.
+- **Monitor 12 `Pi (ping)` never leaves the host**: Kuma's bridge reaches the host's LAN address locally. A Pi
+  cut from the LAN shows elsewhere.
+- **External dependencies a full rebuild needs** (registries, GitHub releases, Galaxy, apt) are unwritten in the
+  DR runbooks; all resolve and each fails loudly.
+- **A Docker engine upgrade bounced the stack for ~14 min, not 3.5**: Traefik's own healthcheck took 9.4 s
+  against a 5 s timeout under load 10 and read `unhealthy` for ~12 min while serving 17/18 HTTP probes; it
+  recovered unaided as the load fell.
+- **Kuma wrote a `No heartbeat in the time window` beat 37 s after a DOWN push** on monitor 36 (2026-10-06
+  09:40:54Z, `important=0`, no extra notification). Not seen after the ten earlier DOWN pushes; unexplained.
+
+## Instrument traps paid on 2026-10-06 (thirty-fourth run)
+
+- **A wait loop whose success test never matches waits for its timeout.** The main session's `case` pattern
+  expected the exact output shape and ran 8 min past an all-green estate. Print the state each pass, and test
+  the success predicate against a known-green sample before trusting the loop.
+- **Clean a temporary file by its name, never by a glob.** `rm -f /tmp/tmp.*` on a host deletes every such file
+  the account owns; the main session ran it on the offsite (no root, sticky `/tmp`, nothing else lost).
+- **Three agents started a whole-tree scan** (`du` over the Docker store, `grep` over the Traefik binary,
+  `journalctl -g` over a boot) and killed it past the timeout. Rule 6 bounds the command, not just its intent.
+
 ## Shipped on 2026-10-05 (THIRTY-THIRD run) — key `extremity`, one PR
 
 - **The four sub-hourly and hourly `homelab-*` timers are scheduled in UTC** (C120): health, netdata-kuma,
