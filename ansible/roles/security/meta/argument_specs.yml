@@ -16,7 +16,7 @@ argument_specs:
         type: int
         required: true
         no_log: true
-        description: Non-standard SSH port (vault — the port is deliberately not published).
+        description: Non-standard SSH port (vault).
       ssh_allowed_users:
         type: list
         elements: str

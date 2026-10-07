@@ -94,7 +94,7 @@ Read `docker/configs/traefik/dynamic/middlewares.yml` before tightening any of t
 
 **Do not diagnose the host with `resolvectl`.** The host resolves through glibc and
 `/etc/resolv.conf`; `resolvectl` asks systemd-resolved, which uses Pi-hole from DHCP and answers
-like a LAN client (`192.168.1.100` for split-DNS names). Use:
+like a LAN client (`<pi-lan-ip>` for split-DNS names). Use:
 
 ```bash
 getent ahostsv4 <name>

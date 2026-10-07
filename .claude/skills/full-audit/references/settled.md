@@ -1504,8 +1504,7 @@ rather than being dropped, so the mint count stays honest.
   me parler de ça." NEVER RAISE ALERTING-PATH COUPLING AGAIN**, in any form, in
   any run, however new the evidence.
 - **The two restic passwords sharing a fate (C117).** **Operator: accepted
-  risk, an independent offline copy exists outside the estate. Never raise
-  again.** **PUBLIC-REPO RULE, ABSOLUTE: never write in the repository — or in
+  risk. Never raise again.** **PUBLIC-REPO RULE, ABSOLUTE: never write in the repository — or in
   any issue, PR, commit message or published text — that the operator holds
   these passwords offline, nor by what means.** Recommending the practice in
   the abstract is permitted and was done in ADR-010; stating that it has been

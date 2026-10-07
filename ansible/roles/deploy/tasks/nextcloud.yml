@@ -142,6 +142,14 @@
     - nc_app_install.rc != 0
     - "'not compatible' not in nc_app_install.stdout"
 
+- name: nextcloud | Disable the vendor announcements feed (it calls pushfeed.nextcloud.com daily)
+  ansible.builtin.command:
+    cmd: docker exec -u www-data nextcloud php occ app:disable nextcloud_announcements
+  changed_when: true
+  when:
+    - nextcloud_up
+    - "'nextcloud_announcements' in (nc_app_list.stdout | default('{}') | from_json).enabled"
+
 - name: nextcloud | Restart notify_push to reload Nextcloud config  # noqa: no-handler
   ansible.builtin.command:
     cmd: docker restart nextcloud-notify-push

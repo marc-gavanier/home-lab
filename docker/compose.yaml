@@ -273,6 +273,7 @@ services:
       - "127.0.0.1:51821:51821"
     environment:
       INSECURE: "true"
+      DISABLE_VERSION_CHECK: "true"
       DISABLE_IPV6: "true"
     volumes:
       - ${SERVICES_DATA_DIR}/wireguard:/etc/wireguard
@@ -759,6 +760,8 @@ services:
   prowlarr:
     image: lscr.io/linuxserver/prowlarr:2.6.5
     container_name: prowlarr
+    dns:
+      - ${PI_LAN_IP}
     restart: "no"
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
@@ -1066,6 +1069,8 @@ services:
   miniflux:
     image: miniflux/miniflux:2.3.3
     container_name: miniflux
+    dns:
+      - ${PI_LAN_IP}
     restart: "no"
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
