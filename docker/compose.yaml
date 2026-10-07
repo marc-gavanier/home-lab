@@ -1069,8 +1069,6 @@ services:
   miniflux:
     image: miniflux/miniflux:2.3.3
     container_name: miniflux
-    dns:
-      - ${PI_LAN_IP}
     restart: "no"
     security_opt: *no-new-privs
     cap_drop: *cap-drop-all
