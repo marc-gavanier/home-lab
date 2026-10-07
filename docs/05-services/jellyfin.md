@@ -22,6 +22,8 @@ Video streaming server — a personal Netflix for films, series and home videos.
 ## How it works
 
 - The four host sources above mount into one `/media/videos/...` tree in the container.
+- On the workstation they are `~/Videos/{Films,Séries,Clips,Perso}` over sshfs; films and
+  series read-only, so changes there go through Radarr and Sonarr (ADR-038).
 - Films and series are torrent-sourced and kept until watched: losing them costs a re-download.
 - Transcoding is software only: the container gets no video device, though the host has one
   (`/dev/video19`, `h264_v4l2m2m` / `hevc_v4l2m2m` in Jellyfin's ffmpeg). Prefer direct play; cap
