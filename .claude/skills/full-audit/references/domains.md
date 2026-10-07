@@ -15,6 +15,8 @@ earlier — which would have sent eight agents to re-derive settled work. Rebuil
 it from `classes.md`'s OPEN table at the start of every run; if the two
 disagree, `classes.md` wins.
 
+**FIFTY-FIVE keys are now spent.** `leakage` (thirty-sixth run, 0 mints), `admission` (thirty-seventh run, 0 mints). `credulity` and `reachability` were offered and not chosen.
+
 **FIFTY-THREE keys are now spent.** `ownership` (thirty-fifth run, 0 mints). `leakage` (what a mechanism emits beyond its output, and which boundary that crosses) was offered and not chosen.
 
 As of the THIRTY-SECOND run of 2026-10-05, key `totality`: **0 OPEN** — the table below is the fifteenth run's, kept for its C01 history.

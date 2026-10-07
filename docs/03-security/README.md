@@ -154,7 +154,7 @@ hold. This page lists the controls per layer and where each one is decided.
 - **No web UI published directly**; all route through Traefik (vpn-only).
   Published ports: Traefik's 80/443, DNS, WireGuard, Transmission's peer port,
   and wg-easy's admin UI on host loopback only.
-- **Read-only rootfs on 23 of 32 services** (ADR-019). Writable paths are
+- **Read-only rootfs on all but eight services** (ADR-019). Writable paths are
   explicit (sized `tmpfs` or bind mounts), plus an insurance `/tmp` because
   `docker diff` misses code paths never run. Two rules:
   - mount the *leaf* (`/run/mysqld`), never the parent, or the server aborts;

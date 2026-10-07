@@ -35,9 +35,7 @@ Model B. This page shows the layout and the principles every change follows.
 │  ┌──────┴────────────────────┴───────────────┐  │
 │  │           Docker Network (proxy)           │  │
 │  │                                            │  │
-│  │  Nextcloud  Vaultwarden                   │  │
-│  │  Jellyfin   Navidrome    Immich           │  │
-│  │  Uptime Kuma  Netdata                     │  │
+│  │  Routed services: docs/05-services         │  │
 │  └────────────────────────────────────────────┘  │
 │                                                  │
 │  ┌────────────────────────────────────────────┐  │

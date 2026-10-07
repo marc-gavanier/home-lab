@@ -23,6 +23,8 @@ Domain: example.com
 | Notes           | Obsidian (synced via Nextcloud)                      |
 | Monitoring      | Uptime Kuma + Netdata                                |
 
+Every deployed service: `docs/05-services/README.md`.
+
 ## Project Structure
 
 - `docs/` — Structured documentation by domain (markdown)

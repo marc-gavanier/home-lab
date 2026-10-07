@@ -289,11 +289,9 @@ is back, no dead-man's switch is watching. Monitor list and settings:
 
 ### Reachability (Kuma active checks)
 
-- Real health endpoints, not `200 on /`: Nextcloud `/status.php`, Vaultwarden `/alive`, Jellyfin
-  `/health`, Navidrome `/ping`, SearXNG `/healthz`, Dozzle `/healthcheck` (ADR-023), Calibre-Web
-  `/login`, Collabora `/hosting/capabilities`, Transmission `/transmission/web/` (authenticated,
-  keyword), plus IT-Tools, Immich, wg-easy, Traefik on :443, Pi-hole on :53, an ICMP ping of the Pi
-  and the BitTorrent peer port.
+- Real health endpoints, not `200 on /`, plus Traefik on :443, Pi-hole on :53, an ICMP ping of the
+  Pi and the BitTorrent peer port. Each monitor and its endpoint:
+  [uptime-kuma.md](../05-services/uptime-kuma.md#monitors-configured).
 - Checks run from the Pi itself (ADR-014): they prove the service works, not that it is reachable
   from the internet.
 

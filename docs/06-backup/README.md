@@ -37,7 +37,8 @@ Mirrors the profile's `source` list: keep both in sync. All daily.
 **Not backed up:** `/mnt/data/library` (torrent video, re-obtainable, kept until
 watched — ADR-035), `/mnt/data/log` (the persistent journal), `/mnt/data/claude`
 (the `claude` account's working files and rclone write cache), `/mnt/data/docker` (the
-images, pulled again from their registries on a rebuild), and the OS.
+images, pulled again from their registries on a rebuild), `/mnt/data/tmp` (restore staging, empty
+between restores), and the OS.
 
 The deployed spec is the list of dumped databases that cannot drift (one line per
 database, ten today):
