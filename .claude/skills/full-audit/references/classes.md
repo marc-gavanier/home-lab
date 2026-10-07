@@ -658,7 +658,19 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
-## OPEN — 0 (after the THIRTY-FIFTH run of 2026-10-06, key `ownership`)
+## OPEN — 0 (after the THIRTY-SIXTH run of 2026-10-07, key `leakage`)
+
+**Empty.** No mint; missed members of C89, C26, C10, C66, C01 and C143/C131 (accepted) — see "The run of 2026-10-07 (THIRTY-SIXTH)" below.
+
+| ID | Property | State |
+|---|---|---|
+| C89 | A live secret VALUE present anywhere outside the store meant to hold it | **1 missed member, 2026-10-07**: a plaintext copy of the whole vaulted `local.yml` (24 keys) in the workstation's local Ansible tmp since 2026-07-12, left by an interrupted `ansible-vault edit`; the workstation was never in the space. FIXED: shredded; no backup had copied it |
+| C26 | A credential reaching a trace | **1 missed member, 2026-10-07**: Subsonic's `u`/`t`/`s` triple in the redacted access log (141 lines), invisible to the redactor and its gate, which share one key list. FIXED: `t` and `p` masked in both, redactor recreated |
+| C10 | A credential store readable beyond its service | **1 missed member, 2026-10-07**: the watch folder's `.torrent.added` carried the tracker passkey, readable by `claude`; `credential_store_exemptions` excludes the folder. FIXED: Transmission trashes dropped torrents |
+| C66 | A correction applied to the instance that revealed it, whose siblings were never enumerated | **4 missed members, 2026-10-07**: Netdata's dashboard registry, `nextcloud_announcements`, wg-easy's version check, Claude Code's telemetry on the Pi. FIXED |
+| C01 | A documentary statement whose content contradicts the deployed artefact | **2 missed members, 2026-10-07**: the SSH port "deliberately not published"; Transmission "seeding official resources". FIXED |
+
+### The thirty-fifth run's table read:
 
 **Empty.** No mint; missed members of C89, C87, C66 and C01 — see "The run of 2026-10-06 (THIRTY-FIFTH)" below.
 
@@ -1412,6 +1424,50 @@ separate correction — **the marker is not a provenance instrument.**
 C92 and C03-R were closed as review rules once their spaces proved non-derivable.
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
+
+## The run of 2026-10-07 (THIRTY-SIXTH) — the key was `leakage`, and it minted zero
+
+The key, chosen by the operator over a confirmation-only pass, `reachability` and `consent`: **private
+information — not only secrets — leaving the perimeter the estate claims to keep it in, toward a recipient
+the operator did not choose, with nothing showing it.** Forms: F1 to a third party, F2 to a neighbour on
+the same host, F3 to a trace with wider retention or rights, F4 to a public surface, F5 in clear on a
+shared segment, F6 by the answer to an unauthorised asker. Borders declared: C89, C26, C10, C131, C66,
+C125, C143, C55, C57, C30, C56, C102, `externality` E5.
+
+### The counter: 0 OPEN in, 0 OPEN out, 0 minted, 0 gates broken, class total 149
+
+Sixth consecutive zero-mint run on a different key. Every live defect went to a class that already owned
+the property.
+
+### The sweep
+
+| Domain | Objects | Result |
+|---|---|---|
+| `system` | 53/53 stores, 33/33 host objects | C131 (sudo trail on the card, accepted) |
+| `security` | 33/33 modes, 6/6 groups, 83/83 mounts, 49/49 answers | C10 (passkey); C143 (logs grant, accepted) |
+| `network` | 8/8 resolution paths, 9/9 flows, 27/27 answers | C66 (wg-easy, Claude Code telemetry) |
+| `services` | 32/32 containers | C66 (Netdata registry, Nextcloud announcements, wg-easy) |
+| `backup` | 14/14 copies | clean; retention observation |
+| `observability` | 15/15 channels, 16/16 stores | C26 (Subsonic token); C66 (Netdata registry) |
+| `ansible-deploy` | 183/183 file-writing tasks, CI | C89 (workstation plaintext vault copy) |
+| `project-manager` | 13/13 public surfaces, 14/14 privacy claims | F4 rewordings; C01 (SSH port, Transmission) |
+
+GATED intact, read: C03-T, C07, C11, C14, C15, C18, C19, C41, C81, and the C143 assertion.
+
+### Rejected or requalified
+
+- `backup` proposed "a copy whose retention outlives the original's": rejected at step 3. The only reader
+  is the restic key holder, so no recipient is new; observation under C68.
+- `project-manager` proposed "a forbidden private fact on a public surface": rejected at step 3, the fix is
+  prose only. The instances were corrected anyway.
+- `network` set aside CT's publication of hostnames itself: the public repo already publishes them.
+- `observability` filed Kuma's update check under C66: settled on 2026-09-28 as a UI-only toggle.
+- `services` held that Pi-hole cannot see container lookups while `observability` counted Kuma's in it:
+  both true, only containers carrying `dns:` reach Pi-hole.
+- The `miniflux` half of the DNS change was reverted after deploy: its lookups to the host's LAN address
+  time out from the `internal` network.
+- Rule breaches, harmless: two Kuma push tokens and the operator's home address printed into agent
+  transcripts (not into reports); one wg-easy probe triggered one GitHub call.
 
 ## The run of 2026-10-06 (THIRTY-FIFTH) — the key was `ownership`, and it minted zero
 

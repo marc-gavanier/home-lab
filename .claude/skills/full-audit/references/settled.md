@@ -24,6 +24,52 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-10-07 (THIRTY-SIXTH run) — key `leakage`, one PR
+
+- **A plaintext copy of the vaulted `local.yml` left on the workstation** by an interrupted
+  `ansible-vault edit` (C89): shredded. No workstation backup had copied it. The workstation's local
+  Ansible tmp is now part of C89's space.
+- **Subsonic's `t` and `p` masked** in the access-log redactor and in the gate that reads it (C26):
+  Navidrome's replayable login token reached the durable log. The redactor was recreated to drop the
+  lines already written.
+- **Transmission deletes each dropped `.torrent` once added** (C10): the watch-folder copy carried the
+  tracker passkey to any local account; Transmission keeps its own copy under the 0700 `config/`.
+- **Call-home cut where a setting allows it** (C66): Netdata's dashboard announces to its own registry,
+  `nextcloud_announcements` disabled, wg-easy `DISABLE_VERSION_CHECK`, Claude Code on the Pi with
+  `DISABLE_TELEMETRY` and `DISABLE_ERROR_REPORTING`.
+- **`prowlarr` resolves through Pi-hole only** (ADR-015).
+- Public surfaces (F4): the register's two sentences on how the restic passwords are held reworded, PR
+  bodies #17 and #305 neutralised (GitHub keeps their edit history until the operator deletes the
+  revisions), the LAN address masked again in the network README, the SSH port description and the
+  Transmission summary corrected (C01).
+
+## Accepted on 2026-10-07 (thirty-sixth run)
+
+- **The sudo trail on the SD card** (C131): `auth.log` and `sudo.log` keep 28 days of command lines that
+  name paths of the encrypted volume. Moving them would leave no sudo trail before the unlock.
+- **The socket proxy grants `containers/*/logs` to all three clients** (C143): only Dozzle needs it.
+  Per-container allowlists exist in the image, but their interaction with the global list is
+  undocumented and a mistake cuts Traefik's routing. Low impact, not built.
+- **Kuma's update check stays on**: it is a UI-only toggle, already covered by the 2026-09-28 rule.
+
+## Measured and left as observations on 2026-10-07 (thirty-sixth run)
+
+- Backups keep, forever, history the source rotates (Pi-hole's 91-day query log, the *arr debug logs):
+  the only reader is the restic key holder. Nearest class C68. Not a fifth proposal on the frozen groups.
+- Certificate Transparency publishes every service hostname; the public repo already does.
+- The real domain is the surname in every commit's author field; masking it in the repo hides nothing.
+- `miniflux` cannot resolve through the host's LAN address: its default route is the `internal`
+  network and the query times out. It stays on Docker's resolver, so the reading list leaves in clear.
+- Immich map tiles come from the vendor; SearXNG's own log held search terms until its failing engines
+  were disabled; one LAN device uses a hard-coded resolver.
+- Netdata's dashboard still reaches the vendor's cloud UI and news feed; no setting was confirmed.
+
+## Instrument traps paid on 2026-10-07 (thirty-sixth run)
+
+- **Pi-hole's query log sees only the containers that carry `dns:`** (Kuma, and now prowlarr). For
+  every other container its silence proves nothing; capture on the host instead.
+- **Pi-hole records container queries under a bridge gateway address**, not the container's own.
+
 ## Shipped on 2026-10-06 (THIRTY-FIFTH run) — key `ownership`, one PR
 
 - **The feed digest's Kuma push URL is off the SD card** (C89): rendered to
