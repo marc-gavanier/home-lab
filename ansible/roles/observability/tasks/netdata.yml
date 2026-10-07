@@ -42,9 +42,9 @@
   loop_control:
     label: "{{ item.name }}"
 
-- name: netdata | Declare the dbengine retention (class C68)
-  ansible.builtin.copy:
-    src: "{{ playbook_dir }}/../../docker/configs/netdata/netdata.conf"
+- name: netdata | Declare the dbengine retention (class C68) and keep the dashboard's registry local
+  ansible.builtin.template:
+    src: netdata.conf.j2
     dest: "{{ services_data_dir }}/netdata/netdata.conf"
     owner: root
     group: root

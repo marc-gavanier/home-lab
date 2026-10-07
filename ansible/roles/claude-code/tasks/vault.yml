@@ -175,6 +175,10 @@
     mode: "0644"
     content: |
       {
+        "env": {
+          "DISABLE_TELEMETRY": "1",
+          "DISABLE_ERROR_REPORTING": "1"
+        },
         "sandbox": {
           "enabled": true,
           "failIfUnavailable": true,

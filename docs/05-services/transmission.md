@@ -1,18 +1,18 @@
 # Transmission
 
-Headless BitTorrent client seeding official resources on a public IPv4. Web UI over
+Headless BitTorrent client on a public IPv4. Web UI over
 the VPN.
 
 ## At a glance
 
-| Item    | Value                                                                        |
-|---------|------------------------------------------------------------------------------|
+| Item    | Value                                                                                     |
+|---------|-------------------------------------------------------------------------------------------|
 | URL     | `https://share.example.com`, user `admin`, password `transmission_password` (`local.yml`) |
-| Port    | 51413 TCP+UDP, forwarded by hand on the SFR box to `<pi-lan-ip>:51413`       |
-| Config  | `/mnt/data/services/transmission/config/` (`settings.json`, resume state)    |
-| Watch   | `/mnt/data/services/transmission/watch/`: a dropped `.torrent` is added      |
-| Data    | `/mnt/data/library/downloads/` (ADR-035)                                     |
-| Monitor | Kuma keyword monitor, [uptime-kuma.md](uptime-kuma.md#monitors-configured)   |
+| Port    | 51413 TCP+UDP, forwarded by hand on the SFR box to `<pi-lan-ip>:51413`                    |
+| Config  | `/mnt/data/services/transmission/config/` (`settings.json`, resume state)                 |
+| Watch   | `/mnt/data/services/transmission/watch/`: a dropped `.torrent` is added, then deleted     |
+| Data    | `/mnt/data/library/downloads/` (ADR-035)                                                  |
+| Monitor | Kuma keyword monitor, [uptime-kuma.md](uptime-kuma.md#monitors-configured)                |
 
 ## How it works
 

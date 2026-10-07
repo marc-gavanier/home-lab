@@ -42,6 +42,17 @@
     - transmission_up
     - "'Port forwarding enabled: Yes' in transmission_portmap.stdout | default('')"
 
+- name: transmission | Delete each dropped .torrent once added (it carries the tracker passkey)
+  ansible.builtin.command:
+    cmd: >
+      docker exec transmission sh -c
+      'TR_AUTH="{{ transmission_user | default("admin") }}:$(cat /run/secrets/transmission_password)"
+      transmission-remote 127.0.0.1:9091 -ne --trash-torrent'
+  changed_when: true
+  when:
+    - transmission_up
+    - "'Delete automatically added torrents: No' in transmission_portmap.stdout | default('')"
+
 - name: transmission | Check whether settings.json exists yet
   ansible.builtin.stat:
     path: "{{ services_data_dir }}/transmission/config/settings.json"
@@ -52,6 +63,15 @@
     path: "{{ services_data_dir }}/transmission/config/settings.json"
     regexp: '^(\s*)"port-forwarding-enabled":\s*true,'
     line: '\1"port-forwarding-enabled": false,'
+    backrefs: true
+    state: present
+  when: transmission_settings.stat.exists
+
+- name: transmission | Persist the deletion in settings.json so a hard restart cannot revert it
+  ansible.builtin.lineinfile:
+    path: "{{ services_data_dir }}/transmission/config/settings.json"
+    regexp: '^(\s*)"trash-original-torrent-files":\s*false,'
+    line: '\1"trash-original-torrent-files": true,'
     backrefs: true
     state: present
   when: transmission_settings.stat.exists

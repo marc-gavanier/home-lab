@@ -952,7 +952,7 @@ command:
         echo "traefik-log-redactor is not running — no access line reaches any log"
         exit 1
       fi
-      pat='[?&]([Aa]ccess_?[Tt]oken|[Aa]pi_?[Kk]ey|token|auth|secret|password|sig|signature)='
+      pat='[?&]([Aa]ccess_?[Tt]oken|[Aa]pi_?[Kk]ey|token|auth|secret|password|sig|signature|t|p)='
       pat_path='/api/push/'
       window=48h
       set -- $( { docker logs --since "$window" traefik 2>&1

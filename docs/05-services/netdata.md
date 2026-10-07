@@ -6,12 +6,12 @@ flagged something; its alarms reach Kuma only through the adapter (see
 
 ## At a glance
 
-| Item       | Value                                                                                                   |
-|------------|---------------------------------------------------------------------------------------------------------|
-| URL        | `https://system.example.com` (VPN only)                                                                 |
-| Config     | `netdata.conf` (retention tiers), the `go.d` Docker collector, six curated `health.d` alarms — all rendered by Ansible |
-| Data       | `/mnt/data/services/netdata/lib` and `/mnt/data/services/netdata/cache` (ADR-019)                        |
-| Supervision | Kuma HTTP monitor `Netdata` on `/api/v1/info`                                                          |
+| Item        | Value                                                                                                                                  |
+|-------------|----------------------------------------------------------------------------------------------------------------------------------------|
+| URL         | `https://system.example.com` (VPN only)                                                                                                |
+| Config      | `netdata.conf` (retention tiers, local registry), the `go.d` Docker collector, six curated `health.d` alarms — all rendered by Ansible |
+| Data        | `/mnt/data/services/netdata/lib` and `/mnt/data/services/netdata/cache` (ADR-019)                                                      |
+| Supervision | Kuma HTTP monitor `Netdata` on `/api/v1/info`                                                                                          |
 
 ## Where to look
 

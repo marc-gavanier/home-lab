@@ -87,6 +87,13 @@ anycast plus `restart: unless-stopped` is deemed reliable enough.
   remote path is a tunnel that starts inside that stack. The claim is corrected
   to the perimeter that was actually built; widening the perimeter stays open in
   #219 as a separate decision.
+
+  Widened on 2026-10-07 for the two services whose lookups describe the
+  household rather than the machine: `miniflux` (the reading list, one burst per
+  poll) and `prowlarr` (a private tracker's name, about 140 lookups a day) carry
+  `dns: [${PI_LAN_IP}]` with no public fallback. Neither is on the remote-access
+  path, so the start-order objection does not apply; while Pi-hole is down they
+  resolve nothing and say so in their own logs.
 - The sidecar — dnsproxy since 2026-07-27 — is on the **critical path** for all
   external resolution: if it is down, Pi-hole has no working upstream. Mitigated
   by `restart: unless-stopped` (Tier 0, same as Pi-hole), which does not save it
