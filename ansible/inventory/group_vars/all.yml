@@ -151,7 +151,6 @@ credential_store_shared:
   - nextcloud/data
 
 credential_store_exemptions:
-  transmission/downloads: completed torrents — media the operator browses, no credential
   transmission/watch: the .torrent drop folder, written from outside the container
   pihole/dnsmasq: dnsmasq configuration fragments, no credential
   pihole/etc: >-

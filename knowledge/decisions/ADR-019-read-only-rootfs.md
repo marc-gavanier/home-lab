@@ -21,7 +21,7 @@ That assumption was wrong, and the correction is the interesting part.
 
 `read_only: true` on every service whose write set allows it, with each writable
 path declared explicitly — a sized `tmpfs` for state meant to be lost, a bind
-mount for state that is not. **17 of 21 services** at the time; **23 of 32**
+mount for state that is not. **17 of 21 services** at the time; **24 of 32**
 today. The others keep a writable rootfs with the reason written in the table
 below, the same rule applied to the residual `DAC_OVERRIDE` grants in ADR-017.
 
@@ -98,7 +98,7 @@ and a rollback whose "backup" already contained the change.
 ## Consequences
 
 **Positive**
-- 23 of 32 containers cannot modify the code they run (17 of 21 when this
+- 24 of 32 containers cannot modify the code they run (17 of 21 when this
   was decided).
 - Every writable path is now declared and sized, rather than being wherever the
   image happened to write.

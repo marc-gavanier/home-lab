@@ -296,12 +296,20 @@ while a Docker security release waited, because it counted only the channel it w
 The key asked whether every live object has exactly one declared owner that can create, change and retire
 it; 1 000-odd objects swept, and every gap that was not latent had a class that already named it.
 
+**The thirty-sixth run, on 2026-10-07, used `leakage` and minted zero.** **Consecutive zero-mint runs: 6.**
+
+**The thirty-seventh run, on 2026-10-07, used `admission` and minted zero.** **Consecutive zero-mint runs:
+7.** The criterion still holds. The key asked what each mechanism does with a subject born after it was
+written; every set-scoped mechanism of the eight domains was swept, and every protective obligation reached all eight
+youngest services. The confirmed instances were documentary and went to C01 and C114: the lists written by
+hand had stopped at the members that existed when they were written.
+
 ---
 
 # The register
 
 Runs of 2026-08-15 through 2026-09-21 (TWELFTH run, key `durability`).
-**Current state: see the OPEN table after the THIRTY-FIFTH run of 2026-10-06 (key `ownership`) — 149 classes, 0 OPEN. The counts below this line are the twelfth run's.**
+**Current state: see the OPEN table after the THIRTY-SEVENTH run of 2026-10-07 (key `admission`) — 149 classes, 0 OPEN. The counts below this line are the twelfth run's.**
 **121 recorded classes: 3 OPEN — and the membership is C121, C34 and C01,
 written as a list because every time this line carried a rule for reconstructing
 the count instead, the count was wrong. 9 GATED, 7 closed by decision, plus the
@@ -658,7 +666,16 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
-## OPEN — 0 (after the THIRTY-SIXTH run of 2026-10-07, key `leakage`)
+## OPEN — 0 (after the THIRTY-SEVENTH run of 2026-10-07, key `admission`)
+
+**Empty.** No mint; missed members of C01 and C114 — see "The run of 2026-10-07 (THIRTY-SEVENTH)" below.
+
+| ID | Property | State |
+|---|---|---|
+| C01 | A documentary statement whose content contradicts the deployed artefact | **1 missed member, 2026-10-07**: read-only rootfs "23 of 32" in the security README and twice in ADR-019, 24 live since socket-proxy went read-only on 2026-10-04. FIXED: the README says "all but eight", the ADR 24 |
+| C114 | A documentary enumeration of a live, machine-derivable set, verified only in the direction listed ⊂ live | **4 missed members, 2026-10-07**: the observability README's endpoint list (12 of 18 HTTPS monitors), the root README and `CLAUDE.md` service tables (10 rows), the architecture diagram's `proxy` box (7 of 21), the backup README's "Not backed up" (missing `/mnt/data/tmp` and a 16 KiB wg-easy v14 copy). FIXED: lists replaced by a pointer to the complete one; `tmp` listed; the copy deleted on the operator's instruction |
+
+### The thirty-sixth run's table read:
 
 **Empty.** No mint; missed members of C89, C26, C10, C66, C01 and C143/C131 (accepted) — see "The run of 2026-10-07 (THIRTY-SIXTH)" below.
 
@@ -1424,6 +1441,51 @@ separate correction — **the marker is not a provenance instrument.**
 C92 and C03-R were closed as review rules once their spaces proved non-derivable.
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
+
+## The run of 2026-10-07 (THIRTY-SEVENTH) — the key was `admission`, and it minted zero
+
+The key, chosen by the operator over `credulity`, `reachability` and a confirmation-only pass: **for every
+mechanism that applies to a set of subjects, what does it do with a subject born after it was written —
+does the newcomer fall inside, is it refused visibly, or is it silently outside while everything stays
+green?** Forms: A1 enumerated scope, A2 admitted on a weaker default (only where the estate itself claims
+"every"), A3 the admission procedure's per-member obligations, A4 subjects born at run time. Test subjects:
+the eight youngest services (the *arr stack, forgejo, miniflux, calibre-web, it-tools, dozzle, libresign).
+Borders declared: C54, C114, C86, C02, C13, C66, C78, C83, C94, C111, C05, C62, C88, C87, C146, C147, C64,
+C65, C28, C48, C09, C10, C26.
+
+### The counter: 0 OPEN in, 0 OPEN out, 0 minted, 0 gates broken, class total 149
+
+Seventh consecutive zero-mint run on a different key. No agent proposed a mint.
+
+### The sweep
+
+| Domain | Mechanisms | Result |
+|---|---|---|
+| `system` | 18/18, both hosts | clean; host start lists after the unlock (C54, gap empty), swap unasserted (C05, accepted shape) |
+| `security` | 28/28 | C01 (read-only count); three latent lint gaps, 0 live |
+| `network` | 18/18 | clean; Traefik middlewares at the entrypoint, split-DNS and C14 derived |
+| `services` | 30/30, 32 services | C01 (read-only count) |
+| `backup` | 14/14, 7/7 obligations, 13/13 run-time cases | C114 ("Not backed up") |
+| `observability` | 30/30 | clean |
+| `ansible-deploy` | 56 loops, 16 inventory sets, 7 script lists, 20 steps | clean; stale `transmission/downloads` exemption |
+| `project-manager` | 29/29 obligations, 45 "every" statements | C114 (three lists), C01 (read-only count) |
+
+GATED intact, read: C03-T, C07, C11, C14, C15, C18, C19, C41, C81, and the C143 assertion. Derived: C07,
+C11, C14, C41, C03-T. Lists whose gap is already written in their own row: C18, C19 (goss half), C81.
+
+### Rejected or requalified
+
+- `immich-redis` answers its `internal` neighbours without a password: the image default, and no text
+  promises otherwise (the Redis password of September is Nextcloud's). Observation under C147.
+- No "add a service" procedure exists: 16 of 29 per-service obligations rest on the operator's memory, and
+  all eight youngest services received every protective one. Observation, not built.
+- The secret-write lint passes a write with no `mode:`, and the secret-variable lint keys on a name suffix
+  and misses four vaulted names: 24/24 writes declare a mode, none of the four reaches a task environment.
+  Observations under C10 and C02.
+- Kuma's `extra_hosts` pins (C78), host start lists after the unlock (C54) and 12 inventory keys without an
+  `argument_specs` entry (C28): gaps empty today.
+- Rule breaches, harmless: one command run inside socket-proxy failed at once (no shell); one read-only
+  `PING` to `immich-redis` from a neighbour.
 
 ## The run of 2026-10-07 (THIRTY-SIXTH) — the key was `leakage`, and it minted zero
 

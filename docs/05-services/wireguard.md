@@ -12,7 +12,6 @@ The VPN, and the only way into the home lab from outside. Clients get an address
 | Login         | username `admin` (`WG_ADMIN_USERNAME`) + password |
 | Settings      | SQLite, re-asserted by the deploy from `/mnt/data/secrets/wg-easy-setup.env` (ADR-020) |
 | Data          | `/mnt/data/services/wireguard/`: `wg-easy.db` (server key, peers), `wg0.conf` |
-| Rollback copy | `/mnt/data/backups/wg-easy-v14/`: pre-migration `wg0.json` |
 | Backup        | restic (`/mnt/data/services`) + a SQLite dump of `wg-easy.db` (`backup_sqlite_dumps`, ADR-031) |
 
 > Restart wg-easy only with someone able to reach the Pi physically: it is the only path to this Pi and to the offsite

@@ -24,6 +24,26 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-10-07 (THIRTY-SEVENTH run) — key `admission`, one PR, documentation only
+
+- **Read-only rootfs count** (C01): the security README says "all but eight" instead of a number that
+  every new member makes wrong; ADR-019 says 24.
+- **Hand-written lists replaced by a pointer to the complete one** (C114): the observability README's
+  endpoint list, the root README and `CLAUDE.md` service tables, the architecture diagram's `proxy` box.
+- **`/mnt/data/tmp` listed as not backed up** (restore staging); **the wg-easy v14 rollback copy deleted**
+  on the operator's instruction, and its row removed from `wireguard.md`.
+- **The `transmission/downloads` credential-store exemption removed**: the directory is gone since ADR-035.
+
+## Measured and left as observations on 2026-10-07 (thirty-seventh run)
+
+- `immich-redis` has no password and answers its `internal` neighbours: the image default, nothing
+  promises otherwise.
+- No "add a service" procedure: 16 of 29 per-service obligations rest on the operator's memory, none was
+  missed on the eight youngest services. Not written.
+- The secret-write lint passes a write with no `mode:`; the secret-variable lint misses four vaulted names
+  by suffix. No live instance.
+- The swap is the one member enabled after the unlock with no assertion that it is active (5/5 boots).
+
 ## Shipped on 2026-10-07 (THIRTY-SIXTH run) — key `leakage`, one PR
 
 - **A plaintext copy of the vaulted `local.yml` left on the workstation** by an interrupted

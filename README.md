@@ -36,6 +36,8 @@ Personal home lab on Raspberry Pi 4 — self-hosted services, full automation, h
 | Backup            | Restic                | Encrypted incremental backup  |
 | Monitoring        | Uptime Kuma + Netdata | Uptime and system monitoring  |
 
+Every deployed service: [docs/05-services](docs/05-services/README.md).
+
 ## Network Architecture
 
 ```
