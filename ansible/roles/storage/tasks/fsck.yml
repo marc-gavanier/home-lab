@@ -58,8 +58,9 @@
         exit 1
       fi
 
-      if mountpoint -q "$MOUNT"; then
-        echo "$MOUNT is mounted — e2fsck on a mounted filesystem corrupts it." >&2
+      if findmnt -rn -S "/dev/mapper/$MAPPER" >/dev/null; then
+        echo "/dev/mapper/$MAPPER is mounted — e2fsck on a mounted filesystem corrupts it." >&2
+        findmnt -rn -o TARGET -S "/dev/mapper/$MAPPER" >&2
         echo "Stop the stack and unmount first (knowledge/runbooks/boot-and-unlock.md)." >&2
         exit 1
       fi

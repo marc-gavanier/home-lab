@@ -24,6 +24,45 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-10-08 (THIRTY-EIGHTH run) — key `credulity`, one PR
+
+- **The journal releases the encrypted volume when it stops** (C03): `homelab-journal-persist.service`
+  runs `journalctl --relinquish-var` on stop, so `stop mnt-data.mount` really frees `data_crypt`.
+  `homelab-fsck`, `homelab-unlock` and `homelab-lock` decide on `findmnt -S /dev/mapper/<mapper>`, not on
+  `mountpoint /mnt/data`; the lock refuses to close a mapper still mounted and names the holder.
+- **Restore runbook** (C03, C01): an empty restore reads `Restored 0` in restic's `Summary:` line, it is
+  never silent; the Immich check compares with the dump's own `COPY asset` and `CREATE TABLE` counts; the
+  Kuma restore no longer fetches the service directory, and says the push URLs live in the secrets.
+- **Nextcloud's missing indices** are added after a major upgrade (`db:add-missing-indices`, step 4 of
+  the service page); `taskp_status_type_upd` created on 2026-10-08.
+
+## Accepted on 2026-10-08 (thirty-eighth run)
+
+- **A VPN client or a container on `proxy` can reach Nextcloud and Vaultwarden without Traefik and choose
+  the client address they see** (Nextcloud trusts `X-Forwarded-For` from `172.16.0.0/12`, Vaultwarden
+  `X-Real-IP` from any peer, wg-easy forwards `wg0` onto `proxy`). Dodges their throttling, can get a LAN
+  address banned for an hour. Needs a VPN key already: same reasoning as the VPN key of 2026-09-27. Do not
+  re-propose narrowing `trusted_proxies` or filtering wg-easy's forward.
+
+## Measured and left as observations on 2026-10-08 (thirty-eighth run)
+
+- The `WireGuard` monitor probes wg-easy's web UI, not the tunnel; the offsite push is its end-to-end
+  witness (C50).
+- If `transmission-remote -si` fails, the deploy skips the port-map and torrent-deletion corrections
+  silently; the values on the host are correct.
+- Partial-stack check falls back to "at least 1 container" when `compose config` fails; `homelab-disk`
+  names `/dev/sda`; the digest trusts the rclone cache write. 0 occurrences.
+
+## Instrument traps paid on 2026-10-08 (thirty-eighth run)
+
+- **`mountpoint -q /mnt/data` does not say whether the filesystem is mounted**: a bind mount of a
+  subdirectory (`/var/log/journal`, `/home/claude/.claude`) keeps it live after `/mnt/data` is gone. Ask
+  `findmnt -rn -S /dev/mapper/<mapper>`, with a nonexistent mapper as control (rc 1).
+- **`occ db:add-missing-indices --dry-run` prints "table updated successfully"** and writes nothing:
+  confirm with `occ db:schema:check`, not with the dry-run's wording.
+- **A `journalctl --grep` over weeks takes more than 120 s on the Pi**: bound it with `-u`, `-b` or
+  `--since`. Paid twice.
+
 ## Shipped on 2026-10-07 (THIRTY-SEVENTH run) — key `admission`, one PR, documentation only
 
 - **Read-only rootfs count** (C01): the security README says "all but eight" instead of a number that

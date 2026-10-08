@@ -33,6 +33,7 @@
       Type=oneshot
       RemainAfterExit=yes
       ExecStart=/usr/bin/journalctl --flush
+      ExecStop=/usr/bin/journalctl --relinquish-var
       Restart=on-failure
       RestartSec=30s
   notify: Reload systemd units

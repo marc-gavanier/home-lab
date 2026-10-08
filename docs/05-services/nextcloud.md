@@ -84,13 +84,15 @@ Major upgrade (a Renovate PR `nextcloud:N` → `N+1`). The deploy keeps the app 
 3. Deploy `nextcloud nextcloud-cron nextcloud-notify-push` together. It waits up to
    10 min for the container to be `healthy` while the upgrade runs, then configures it.
 4. List what the upgrade disabled (`docker logs nextcloud | grep 'Disabled incompatible'`),
-   then open the store, update and re-enable each, and close it:
+   then open the store, update and re-enable each, close it, and add the indices the
+   upgrade left out (it reports success without them):
 
    ```bash
    occ() { docker exec -u www-data nextcloud php occ "$@"; }
    occ config:system:set appstoreenabled --type=boolean --value=true
    occ app:update <app> && occ app:enable <app>
    occ config:system:set appstoreenabled --type=boolean --value=false
+   occ db:add-missing-indices
    ```
 
 5. Deploy again: it converts a document through Collabora and checks LibreSign's binaries.
