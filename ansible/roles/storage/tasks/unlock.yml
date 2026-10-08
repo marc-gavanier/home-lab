@@ -35,8 +35,8 @@
         cryptsetup open --type luks "$DEVICE" "$MAPPER"
       fi
 
-      if mountpoint -q "$MOUNT"; then
-        SKIP="integrity check SKIPPED: $MOUNT was already mounted when the check was due"
+      if findmnt -rn -S "/dev/mapper/$MAPPER" >/dev/null; then
+        SKIP="integrity check SKIPPED: /dev/mapper/$MAPPER was already mounted when the check was due"
         echo "WARNING: $SKIP" >&2
         logger -t homelab-unlock -p daemon.warning "$SKIP"
       else
@@ -60,12 +60,14 @@
           echo "  4. homelab-unlock"
           exit 1
         fi
-        clear_gate
-        echo "Mounting $MOUNT..."
-        systemctl start mnt-data.mount
       fi
 
       clear_gate
+
+      if ! mountpoint -q "$MOUNT"; then
+        echo "Mounting $MOUNT..."
+        systemctl start mnt-data.mount
+      fi
 
       if [ -x /usr/local/bin/homelab-tamper-arm ]; then
         /usr/local/bin/homelab-tamper-arm
@@ -98,6 +100,12 @@
 
       echo "Unmounting $MOUNT..."
       systemctl stop mnt-data.mount || true
+
+      if findmnt -rn -S "/dev/mapper/$MAPPER" >/dev/null; then
+        echo "/dev/mapper/$MAPPER is still mounted — not locking:" >&2
+        findmnt -rn -o TARGET -S "/dev/mapper/$MAPPER" >&2
+        exit 1
+      fi
 
       echo "Locking volume..."
       cryptsetup close "$MAPPER"

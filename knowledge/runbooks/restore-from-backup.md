@@ -24,8 +24,9 @@ Rules that apply to every procedure on this page:
   has been unhealthy for 15 minutes (ADR-007). `down` removes the container from its view.
 - **`<service>` is the compose service name.** It matches the container name
   everywhere except `immich-machine-learning` (container `immich-ml`).
-- **An `--include` that matches nothing restores zero files and exits 0.** No
-  output means nothing was restored. Check the path with `restic ls` first.
+- **An `--include` that matches nothing restores zero files and exits 0.** restic
+  still prints its `Summary:` line: `Restored 0 files/dirs` means nothing was
+  restored. Check the path with `restic ls` first.
 - Run `ansible-playbook playbooks/site.yml --tags storage --ask-vault-pass` after every restore: see
   [Ownership after a restore](#ownership-after-a-restore).
 
@@ -62,8 +63,8 @@ Expected: a list of snapshots, the newest from last night's 03:00 run or from a 
    restic restore latest --target / --include "/mnt/data/media/photos/2019-08-15 - Bretagne"
    ```
 
-3. Check it worked: restic reported restored files. No output means the path matched
-   nothing — go back to step 1.
+3. Check it worked: the last line, `Summary: Restored N files/dirs`, must show N > 0.
+   `Restored 0` means the path matched nothing — go back to step 1.
 
 ## Restore one service
 
@@ -272,12 +273,13 @@ The datadir is not: the dump is the **only** copy.
 
    Expected: `dump integrity: yes`. If `no`, stop here.
 
-3. Record the current asset count, to compare after the restore:
+3. Count what the dump holds, to compare after the restore:
 
    ```bash
-   BEFORE_ASSETS=$(docker exec immich-db psql -U immich -d immich -tAc \
-     'select count(*) from asset;' 2>/dev/null || echo unknown)
-   echo "asset rows before restore: $BEFORE_ASSETS"
+   DUMP_ASSETS=$(sudo gunzip --stdout "$DUMP" \
+     | awk '/^COPY public."?asset"? /{f=1;next} f&&/^\\\.$/{print n+0;exit} f{n++}')
+   DUMP_TABLES=$(sudo gunzip --stdout "$DUMP" | grep -c '^CREATE TABLE public\.')
+   echo "dump: $DUMP_ASSETS assets, $DUMP_TABLES tables"
    ```
 
 4. Remove the Immich containers and empty the DB directory, so the container re-runs
@@ -329,8 +331,7 @@ docker exec immich-db psql -U immich -d immich -tAc \
   "select count(*) from information_schema.tables where table_schema='public';"
 ```
 
-Expected: the asset count matches `$BEFORE_ASSETS`. If the old database was already
-gone, compare with the 2026-07-19 drill: 66 tables, 9 283 assets. Then log in and
+Expected: exactly `$DUMP_ASSETS` assets and `$DUMP_TABLES` tables. Then log in and
 check the timeline and search. On the phone, the backup screen must list as pending
 the photos taken since the dump.
 
@@ -458,15 +459,14 @@ Restore it **early**: every dead-man's switch ends in a Kuma push monitor, so no
 watches the recovery until Kuma is back. The database is the only copy of the
 monitors (Kuma v2 has no config export).
 
-1. Get the dumps and the service directory **from the same snapshot**. The push
-   tokens are in the database; an older database than the config leaves every push
-   monitor silently DOWN.
+1. Get the dumps. The push tokens are in the database and the URLs the pushers use
+   are in `/mnt/data/secrets`: a push monitor recreated after the snapshot goes DOWN
+   once restored — recreate it, or put its old URL back in the secret.
 
    ```bash
    sudo rm -rf /mnt/data/tmp/restore
    restic restore latest --target /mnt/data/tmp/restore \
-     --include /mnt/data/backups/dumps \
-     --include /mnt/data/services/uptime-kuma
+     --include /mnt/data/backups/dumps
    ```
 
 2. Stop the service, drop the stale WAL/SHM, copy the dump in, start it:

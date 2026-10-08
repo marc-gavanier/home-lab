@@ -304,6 +304,12 @@ written; every set-scoped mechanism of the eight domains was swept, and every pr
 youngest services. The confirmed instances were documentary and went to C01 and C114: the lists written by
 hand had stopped at the members that existed when they were written.
 
+**The thirty-eighth run, on 2026-10-08, used `credulity` and minted zero.** **Consecutive zero-mint runs:
+8.** The criterion still holds. The key asked whether each mechanism acting on a claim from elsewhere
+believes it where the claim was cheap to verify; 584 believers swept over eight domains, and no agent
+proposed a mint. The one live defect went to C03: three scripts read `mountpoint /mnt/data` as "the
+volume is not in use" while the journal's bind mount held it.
+
 ---
 
 # The register
@@ -666,7 +672,16 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
-## OPEN — 0 (after the THIRTY-SEVENTH run of 2026-10-07, key `admission`)
+## OPEN — 0 (after the THIRTY-EIGHTH run of 2026-10-08, key `credulity`)
+
+**Empty.** No mint; missed members of C03 and C01 — see "The run of 2026-10-08 (THIRTY-EIGHTH)" below.
+
+| ID | Property | State |
+|---|---|---|
+| C03 | A validation whose instrument answers a different question from the one its comment claims | **3 missed members, 2026-10-08, one live**: `homelab-fsck`, `homelab-unlock` and `homelab-lock` took `mountpoint -q /mnt/data` = no for "the filesystem is not mounted", while `var-log-journal.mount` stayed bound on `data_crypt` (journald never relinquished it: "target is busy" on 3/3 shutdowns since 2026-09-20). FIXED: `ExecStop=journalctl --relinquish-var` on `homelab-journal-persist.service`, guards on `findmnt -S /dev/mapper/<mapper>`. Runbook: restic's "no output" for an empty restore (it always prints `Summary: Restored N`), and the Immich reference count (9 283 from July against 9 525 live). FIXED: N > 0, and the dump's own `COPY asset` and `CREATE TABLE` counts |
+| C01 | A documentary statement whose content contradicts the deployed artefact | **1 missed member, 2026-10-08**: the Kuma restore's "same snapshot" reason pointed at the service directory, which holds no push URL (they are in `/mnt/data/secrets`). FIXED |
+
+### The thirty-seventh run's table read:
 
 **Empty.** No mint; missed members of C01 and C114 — see "The run of 2026-10-07 (THIRTY-SEVENTH)" below.
 
@@ -1441,6 +1456,58 @@ separate correction — **the marker is not a provenance instrument.**
 C92 and C03-R were closed as review rules once their spaces proved non-derivable.
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
+
+## The run of 2026-10-08 (THIRTY-EIGHTH) — the key was `credulity`, and it minted zero
+
+The key, chosen by the operator over `reachability`, `consent` and a confirmation-only pass: **for every
+mechanism that acts on a claim from elsewhere — an exit code, a status, a file's presence, a timestamp, a
+peer's answer, a header, a label, a stored value — does it believe the claim where the thing claimed was
+cheap to verify at the point of use, and has the source ever lied?** Forms: K1 a producer's self-report
+taken for the effect, K2 presence taken for validity, K3 an input from a less trusted party accepted at a
+trust boundary, K4 a stored belief reused after its basis changed, K5 a label believed instead of the
+content. Borders declared: C03, C03-T, C50, C22, C59, C83, C35, C45, C46, C111, C115, C125, C126, C96,
+C108, C132, C42, C98, C99, C136, C100, C94.
+
+### The counter: 0 OPEN in, 0 OPEN out, 0 minted, 0 gates broken, class total 149
+
+Eighth consecutive zero-mint run on a different key. No agent proposed a mint.
+
+### The sweep
+
+| Domain | Believers | Result |
+|---|---|---|
+| `system` | 88/88 (55 units, 24 scripts, 9 OS mechanisms), both hosts | C03 (`mountpoint` guards, live) |
+| `security` | 47/47 | clean; C96 observation, accepted |
+| `network` | 27/27 | clean; forged `X-Forwarded-For`/`X-Real-IP` overwritten at Traefik, measured |
+| `services` | 60/60 | clean; same C96 observation; one missing Nextcloud index |
+| `backup` | 31/31 | clean; the 10 dumps are judged on content, restic rc 3 skips the copy |
+| `observability` | 37 monitors + 127 decision points | clean; three latent observations |
+| `ansible-deploy` | 190/190 | clean |
+| `project-manager` | 111/111 (63 runbook steps, 48 "X verifies Y") | C03 ×2, C01 in `restore-from-backup.md` |
+
+GATED intact, read: C03-T, C07, C11, C14, C15, C18, C19, C41, C81 (made to fail on a planted tree in the
+scratchpad), and the C143 assertion.
+
+### Rejected or requalified
+
+- Nextcloud trusts `X-Forwarded-For` from all of `172.16.0.0/12` and Vaultwarden trusts `X-Real-IP` from
+  any peer; wg-easy sits on `proxy` and forwards `wg0` with a MASQUERADE, so a VPN client or a container on
+  `proxy` reaches both apps without Traefik and chooses the address they log, throttle and fail2ban bans.
+  Measured by the main session, never exercised. A C96 instance, not a mint; ACCEPTED by the operator on
+  2026-10-08 under the same reasoning as the VPN key of 2026-09-27.
+- The `WireGuard` monitor probes wg-easy's web UI, not the tunnel (C50, named by `network` and
+  `observability` independently); the offsite push is the tunnel's only end-to-end witness. Observation.
+- Nextcloud's `taskp_status_type_upd` index missing since the 35 upgrade (114 KB table). Created on the
+  operator's instruction; the major-upgrade procedure now runs `db:add-missing-indices`.
+- `ansible-deploy` filed the Transmission port-map read under C29; C29 is the redactor healthcheck. A
+  latent K1 observation: if `transmission-remote -si` fails, two corrections are skipped silently, the
+  values on the host are correct.
+- Latent, 0 occurrence: the partial-stack check falls back to "at least 1 container" when `compose config`
+  fails; `homelab-disk` names `/dev/sda`; the digest trusts the rclone cache write. Prowlarr, Sonarr and
+  Radarr `/ping` counted sound without proof.
+- Rule breaches, harmless: one ERROR line in `fail2ban.log` (the settled `get <unknown attribute>` trap,
+  again); two `status.php` GETs; `/tmp/x.json` written and deleted on the Pi; two heavy `journalctl` greps
+  killed; a `compose --dry-run`.
 
 ## The run of 2026-10-07 (THIRTY-SEVENTH) — the key was `admission`, and it minted zero
 
