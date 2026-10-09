@@ -25,6 +25,29 @@
       for a disk meant to be erased.
     quiet: true
 
+- name: luks | Look for the unlock workflow
+  ansible.builtin.stat:
+    path: /usr/local/bin/homelab-unlock
+  register: luks_unlock_script
+
+- name: luks | Look for the opened data volume
+  ansible.builtin.stat:
+    path: "/dev/mapper/{{ luks_mapper_name }}"
+  register: luks_mapper
+
+- name: luks | Refuse to unlock a volume that homelab-unlock owns
+  ansible.builtin.assert:
+    that: >-
+      luks_mapper.stat.exists
+      or not luks_unlock_script.stat.exists
+      or data_disk_force_format
+    fail_msg: >-
+      /dev/mapper/{{ luks_mapper_name }} is absent and homelab-unlock is installed:
+      the volume is locked on a provisioned host. Opening it here would skip the
+      unlock workflow (the expected-poweroff question, fsck, the staged startup and
+      the USB tamper arming). Run homelab-unlock on the host, then re-run.
+    quiet: true
+
 - name: luks | Format (first time only) and open the LUKS volume
   community.crypto.luks_device:
     device: "{{ data_disk_device }}"
