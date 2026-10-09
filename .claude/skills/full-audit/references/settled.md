@@ -24,6 +24,39 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-10-10 (FORTIETH run) — key `consent`, one PR
+
+- **A full `site.yml` no longer unlocks a locked, provisioned host** (C62): `storage/tasks/luks.yml`
+  refuses to open the volume when `homelab-unlock` is installed and the mapper is absent, so the
+  expected-poweroff question, fsck, staged startup and tamper arming cannot be skipped by a deploy.
+- **A deploy keeps the operator's timer pauses** (C144): `homelab-stack-heal.timer` and
+  `homelab-backup.timer` are resumed or enabled only if they were running, and left alone when installed
+  and stopped. The runbooks' `stop`/`disable --now` now survive a deploy during maintenance or a restore.
+- **An emptied restic password is no longer deleted before the assert refuses it** (C74): the removal
+  task is gone; the opt-out it served cannot exist while the assert stands.
+- **Heal re-attaches dnsproxy only if it exists** (C145).
+
+## Measured and left as observations on 2026-10-09 (fortieth run)
+
+- The offsite copy crossed the offsite's 04:00 auto-reboot once (2026-10-08, 03:34–05:07, 29 GiB added
+  in one night); it usually takes under a minute. No reboot was pending; the next night would catch up.
+- Heal selects containers of any compose project, not only `homelab` (only `homelab` exists).
+- An empty `deploy_services` deploys the whole stack (`docker_compose_v2` reads `[]` as every service).
+- needrestart restarted `claude-remote-control` twice in July; those sessions are the operator's.
+- Navidrome's forced full scan would purge missing tracks without the manual count (0 missing today).
+- The MariaDB 13 hold is the only Renovate rule without a description.
+- `retired.yml`'s `acme.json.bak` path would delete an operator backup of that exact name (none exists).
+- The CIS package removal also autoremoves orphans if one of its four packages reappears (none installed).
+
+## Instrument traps paid on 2026-10-09 (fortieth run)
+
+- **Kuma 2.5.5 writes a `No heartbeat in the time window` row every 900 s for any push monitor that is
+  not UP** (`monitor.js:761-766`), at a fixed phase; a row one second after a real push is a phase
+  coincidence, not a second event.
+- **ansible-lint rejects `command: systemctl is-active`**: read a unit's state with
+  `ansible.builtin.systemd` and only `name:`; it fails on nothing and reports `status.ActiveState`
+  (`inactive` for a missing unit).
+
 ## Shipped on 2026-10-08 (THIRTY-NINTH run) — key `reachability`, one PR
 
 - **The Jellyfin Live TV playlist deploys again** (C29): its gitignored source was restored on the
@@ -202,7 +235,8 @@ Two kinds of entry, and the distinction matters:
   against a 5 s timeout under load 10 and read `unhealthy` for ~12 min while serving 17/18 HTTP probes; it
   recovered unaided as the load fell.
 - **Kuma wrote a `No heartbeat in the time window` beat 37 s after a DOWN push** on monitor 36 (2026-10-06
-  09:40:54Z, `important=0`, no extra notification). Not seen after the ten earlier DOWN pushes; unexplained.
+  09:40:54Z, `important=0`, no extra notification). Explained on 2026-10-09: Kuma 2.5.5 writes that row
+  every 900 s for any push monitor not UP.
 
 ## Instrument traps paid on 2026-10-06 (thirty-fourth run)
 
