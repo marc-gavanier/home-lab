@@ -24,6 +24,36 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-10-08 (THIRTY-NINTH run) — key `reachability`, one PR
+
+- **The Jellyfin Live TV playlist deploys again** (C29): its gitignored source was restored on the
+  workstation from the host copy (identical sha256). The task had been skipped since 2026-09-13.
+- **`homelab-wg-easy-config` names a wg-easy that is not answering** (C29): the login capture no longer
+  exits under `set -e` before its `000)` case.
+- **The plan-vs-results comparison is gone from the four goss consumers** (C03): goss 0.4.10 writes the
+  plan line after the results, the branch could never be true; "goss asserted nothing" catches a killed run.
+- **Three runbook lines** (C01): the post-#423 SKIP message, `No upgrade required.`, and `kuma-push-failed`
+  instead of a curl exit code nothing logs.
+
+## Measured and left as observations on 2026-10-08 (thirty-ninth run)
+
+- `dump-nextcloud-present` and `dump-miniflux-present` cannot fail; `-complete` and `-content` cover them.
+- `cgroup_memory=1 cgroup_enable=memory` are unknown to kernel 6.8 on both hosts; the memory controller is
+  on by default.
+- netdata's default email notification fails ~20 times a week; Kuma is the channel.
+- Dozzle asks for a new login after every restart (read-only rootfs).
+
+## Instrument traps paid on 2026-10-08 (thirty-ninth run)
+
+- **goss's TAP plan line is the count PRODUCED, written last**: comparing it with the result lines proves
+  nothing. A truncated run shows as a missing plan line.
+- **`VAR="$(cmd)"` under `set -e` exits on `cmd`'s failure**: a `case` on the captured value after it is
+  unreachable for that failure. Append `|| :` and test the value.
+- **`miniflux -config-dump` prints `DATABASE_URL` with its password**: do not run it in an audit.
+- **Grepping the Traefik binary for a key is heavy and proves nothing** (its negative control matched);
+  read the startup log or the API. `collabora` has no `cat`: read its files from the host.
+- **`occ upgrade` is not a read**: quote its message from the source or a log, never run it to see it.
+
 ## Shipped on 2026-10-08 (THIRTY-EIGHTH run) — key `credulity`, one PR
 
 - **The journal releases the encrypted volume when it stops** (C03): `homelab-journal-persist.service`
@@ -2236,6 +2266,8 @@ rule each one now encodes:
   `offsite-health.sh` now compare the TAP plan line against the number of result
   lines. The corrected form already existed at `homelab-health.sh:747` and had not
   travelled to its two siblings.
+  **Superseded 2026-10-08 (thirty-ninth run)**: goss 0.4.10 writes the plan after the results, the
+  comparison was dead and was removed from all four scripts.
 - **A container that writes timestamps must be told the host's timezone.**
   `vaultwarden` had no `TZ`, wrote UTC on a CEST host, and fail2ban's own remedy —
   re-stamping entries to *now* — turned `findtime = 600` into "3 failures since the
