@@ -95,6 +95,16 @@
       EnvironmentFile=/opt/homelab/backup.env
       Environment=HOME=/root
 
+- name: backup | Look for an installed backup timer
+  ansible.builtin.stat:
+    path: /etc/systemd/system/homelab-backup.timer
+  register: backup_timer_unit
+
+- name: backup | Read whether the backup timer is running
+  ansible.builtin.systemd:
+    name: homelab-backup.timer
+  register: backup_timer_active
+
 - name: backup | Create backup systemd timer
   ansible.builtin.copy:
     dest: /etc/systemd/system/homelab-backup.timer
@@ -110,12 +120,14 @@
       [Install]
       WantedBy=timers.target
 
-- name: backup | Enable backup timer
+- name: backup | Enable backup timer unless the operator paused it
   ansible.builtin.systemd:
     name: homelab-backup.timer
-    enabled: true
-    state: started
+    enabled: "{{ omit if backup_timer_paused else true }}"
+    state: "{{ omit if backup_timer_paused else 'started' }}"
     daemon_reload: true
+  vars:
+    backup_timer_paused: "{{ backup_timer_unit.stat.exists and backup_timer_active.status.ActiveState != 'active' }}"
 
 - name: backup | Remove the superseded local maintenance script
   ansible.builtin.file:

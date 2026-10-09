@@ -99,7 +99,7 @@ while read -r name; do
     fi
     if [ "$rc" = 0 ]; then
         healed=$((healed + 1))
-        if [ "$svc" = pihole ]; then
+        if [ "$svc" = pihole ] && docker inspect dnsproxy >/dev/null 2>&1; then
             if docker compose up -d --force-recreate dnsproxy >/dev/null 2>&1; then
                 log "re-attached dnsproxy to pihole's new network namespace"
             else

@@ -21,6 +21,16 @@
       Type=oneshot
       ExecStart=/usr/local/sbin/homelab-stack-heal.sh
 
+- name: heal | Look for an installed crash-recovery timer
+  ansible.builtin.stat:
+    path: /etc/systemd/system/homelab-stack-heal.timer
+  register: heal_timer_unit
+
+- name: heal | Read whether the crash-recovery timer is running
+  ansible.builtin.systemd:
+    name: homelab-stack-heal.timer
+  register: heal_timer_active
+
 - name: heal | Install the crash-recovery systemd timer
   ansible.builtin.copy:
     dest: /etc/systemd/system/homelab-stack-heal.timer
@@ -37,9 +47,11 @@
       [Install]
       WantedBy=homelab-services.target
 
-- name: heal | Wire the crash-recovery timer into homelab-services.target
+- name: heal | Wire the crash-recovery timer into homelab-services.target unless the operator paused it
   ansible.builtin.systemd:
     name: homelab-stack-heal.timer
-    enabled: true
-    state: started
+    enabled: "{{ omit if heal_timer_paused else true }}"
+    state: "{{ omit if heal_timer_paused else 'started' }}"
     daemon_reload: true
+  vars:
+    heal_timer_paused: "{{ heal_timer_unit.stat.exists and heal_timer_active.status.ActiveState != 'active' }}"

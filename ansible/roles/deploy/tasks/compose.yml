@@ -17,10 +17,10 @@
     project_src: /opt/homelab
     services: "{{ deploy_services.split() if deploy_services is defined else omit }}"
 
-- name: compose | Check whether the crash-heal timer is installed
-  ansible.builtin.stat:
-    path: /etc/systemd/system/homelab-stack-heal.timer
-  register: compose_heal_timer
+- name: compose | Read whether crash-heal is running
+  ansible.builtin.systemd:
+    name: homelab-stack-heal.timer
+  register: compose_heal_active
 
 - name: compose | Deploy services, with crash-heal suspended
   block:
@@ -29,7 +29,7 @@
         name: homelab-stack-heal.timer
         state: stopped
       changed_when: false
-      when: compose_heal_timer.stat.exists
+      when: compose_heal_active.status.ActiveState == 'active'
 
     - name: compose | Deploy services
       community.docker.docker_compose_v2:
@@ -43,7 +43,7 @@
         name: homelab-stack-heal.timer
         state: started
       changed_when: false
-      when: compose_heal_timer.stat.exists
+      when: compose_heal_active.status.ActiveState == 'active'
 
 - name: compose | Show deployment actions
   ansible.builtin.debug:
