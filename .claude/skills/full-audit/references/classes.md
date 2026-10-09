@@ -672,7 +672,17 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
-## OPEN — 0 (after the THIRTY-EIGHTH run of 2026-10-08, key `credulity`)
+## OPEN — 0 (after the THIRTY-NINTH run of 2026-10-08, key `reachability`)
+
+**Empty.** No mint; missed members of C29, C03 and C01 — see "The run of 2026-10-08 (THIRTY-NINTH)" below.
+
+| ID | Property | State |
+|---|---|---|
+| C29 | A construct that disables a feature silently | **2 missed members, 2026-10-08**: the Jellyfin Live TV playlist task (`when: … is file`) skipped on every deploy since 2026-09-13, its source gitignored and absent from the workstation; `homelab-wg-easy-config.sh` left under `set -e` on curl's rc 7 before its `000)` case could name the cause. FIXED: the file restored from the host (identical sha256), `\|\| :` on the capture |
+| C03 | A validation whose instrument answers a different question from the one its comment claims | **4 dead members, 2026-10-08, none live**: the plan-vs-results comparison in `backup-notify.sh`, `offsite-health.sh`, `homelab-posture.sh` and `homelab-health.sh` — goss 0.4.10 prints `1..N` after collecting every result, so N is the count produced and the branch can never be true; a killed goss prints no plan and lands in "asserted nothing". REMOVED. Latent, kept: `dump-nextcloud-present` and `dump-miniflux-present` cannot fail (the shell's `>` creates the file), `-complete` and `-content` still catch an empty dump |
+| C01 | A documentary statement whose content contradicts the deployed artefact | **3 missed members, 2026-10-08**: `luks-header-backup.md` quoted the pre-#423 SKIP message, `restore-from-backup.md` quoted "already latest version" for `occ upgrade` (35.0.1 prints `No upgrade required.`), `cloud-init-hosts-pin.md` named "curl exit 6", which `backup-notify.sh` never logs. FIXED |
+
+### The thirty-eighth run's table read:
 
 **Empty.** No mint; missed members of C03 and C01 — see "The run of 2026-10-08 (THIRTY-EIGHTH)" below.
 
@@ -1456,6 +1466,55 @@ separate correction — **the marker is not a provenance instrument.**
 C92 and C03-R were closed as review rules once their spaces proved non-derivable.
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
+
+## The run of 2026-10-08 (THIRTY-NINTH) — the key was `reachability`, and it minted zero
+
+The key, chosen by the operator over `consent`, a confirmation-only pass and not running at all: **for
+every declared branch — a guard's failure path, an alarm, a fallback, an error handler, an `else`, a
+`rescue:`, a `when:`, a failregex, a rule, a runbook decision row, a configuration directive — can the
+condition that leads into it occur on the running system, does execution arrive there, and does its
+effect land?** Forms: R1 the condition cannot be true, R2 it can but execution never arrives, R3 the
+branch runs but its effect cannot land, R4 a written directive the deployed software does not read.
+Borders declared: C03, C03-T, C05, C22, C29, C44, C45, C46, C50, C53, C57, C70, C74, C83, C86, C102,
+C111, C120, C134. R4 had no dedicated class and found no live member: 104 env vars, 63 config keys,
+14 mounted files, 89 sysctl keys, 56 units, 22 sshd directives all read by the running versions.
+
+### The counter: 0 OPEN in, 0 OPEN out, 0 minted, 0 gates broken, class total 149
+
+Ninth consecutive zero-mint run on a different key. No agent proposed a mint.
+
+### The sweep
+
+| Domain | Branches | Result |
+|---|---|---|
+| `system` | 365/365, both hosts | C29 (`wg-easy-config` under `set -e`); `cgroup_*` cmdline params unknown to kernel 6.8, inert |
+| `security` | 132/132 | clean; 6 failregexes replayed against current formats with positive and negative lines |
+| `network` | 136/136 | clean; 7 inert-by-construction branches, harmless |
+| `services` | 316/316 | clean; redactor healthcheck = C29 already declined |
+| `backup` | 72/72 | C03 (plan-vs-results, dead), `dump-*-present` latent |
+| `observability` | 208/208 | clean; 3 unreached branches already on file |
+| `ansible-deploy` | 445/445 | C29 (Jellyfin playlist task) |
+| `project-manager` | 249/249 | C01 ×3 |
+
+GATED intact, read: C03-T, C11, C14, C15, C18, C19, C41, C81, and the C143 assertion — each one's red
+path shown reachable.
+
+### Rejected or requalified
+
+- `services` offered the redactor's `pgrep -f` liveness half as a finding: C29, DECLINED twice, not
+  re-proposed.
+- `network`'s "dead" `forceSTSHeader`, 5 wg-easy ACCEPT hooks and `vpn-only` deny: inert by construction,
+  0 occurrences, no work.
+- `system`'s `[Install]` in a drop-in: refuted by its own test, systemd 255 reads it.
+- Observations, no work: Dozzle re-asks for login after a restart (read-only rootfs keeps no session
+  secret); `/etc/pihole/logrotate` is an inert leftover in the volume; netdata's default email method
+  fails 20 times a week, delivery goes through Kuma; a kill-switch message sent while the stream
+  reconnects is lost (kill switch declined).
+- Rule breaches, harmless: the main session ran `occ upgrade` instead of reading it (answered
+  `No upgrade required.`, no change); a Kuma push token printed in a subagent transcript (no-reset
+  decision applies); `miniflux -config-dump` printed `DATABASE_URL` into a tool output; temporary files
+  in `/tmp` on the Pi and in the Nextcloud container, deleted; one unbounded `journalctl --grep` on the
+  offsite, killed.
 
 ## The run of 2026-10-08 (THIRTY-EIGHTH) — the key was `credulity`, and it minted zero
 
@@ -5300,6 +5359,9 @@ have warned: there is nothing in the documentation to warn about.
    this codebase at `homelab-health.sh:747` — *"The floor is the DECLARED count, not
    one"*. **Shipped to both scripts, and made to fail on purpose**: plan 3 / 1 result
    / 0 `not ok` is caught, plan 3 / 3 results stays green.
+   **WRONG for goss 0.4.10, corrected 2026-10-08 (thirty-ninth run)**: `outputs/tap.go` prints `1..N`
+   AFTER collecting every result, so N always equals the results; a killed goss prints no plan. The
+   comparison was dead in all four scripts and was removed.
 
 ### The key's own instances
 

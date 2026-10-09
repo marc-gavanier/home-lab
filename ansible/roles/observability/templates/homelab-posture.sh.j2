@@ -46,7 +46,6 @@ origin() {
 problems=()
 checked=0
 goss_total=0
-goss_seen=0
 containers_seen=0
 mounts_seen=0
 creds_probed=0
@@ -71,12 +70,8 @@ else
     goss_out=$(goss -g "$GOSS_SPEC" validate --max-concurrent 8 --format tap 2>&1) || true
     goss_total=$(printf '%s\n' "$goss_out" | sed -n 's/^1\.\.\([0-9]*\)$/\1/p')
     goss_total=${goss_total:-0}
-    goss_seen=$(printf '%s\n' "$goss_out" | grep -cE '^(not )?ok [0-9]+ ') || true
     if [ -z "$goss_total" ] || [ "$goss_total" -eq 0 ]; then
         problems+=("goss produced no assertions — spec unreadable or empty")
-    elif [ "$goss_seen" -ne "$goss_total" ]; then
-        checked=$((checked + goss_seen))
-        problems+=("goss declared $goss_total assertions and produced $goss_seen — the run was cut short")
     else
         checked=$((checked + goss_total))
         while IFS= read -r line; do

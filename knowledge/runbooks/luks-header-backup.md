@@ -99,9 +99,9 @@ different `Epoch` means the copy is stale: re-take it.
 
 6. Unlock with `homelab-unlock`, never a raw `luksOpen`. A raw open lets units
    with `RequiresMountsFor=/mnt/data` mount the volume within ~0.5 s, so the
-   integrity check is skipped (`integrity check SKIPPED: /mnt/data was already
-   mounted when the check was due`) right when the filesystem most likely needs
-   `e2fsck`.
+   integrity check is skipped (`integrity check SKIPPED: /dev/mapper/data_crypt
+   was already mounted when the check was due`) right when the filesystem most
+   likely needs `e2fsck`.
 
    ```bash
    sudo homelab-unlock

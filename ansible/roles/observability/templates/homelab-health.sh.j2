@@ -344,11 +344,8 @@ if command -v systemctl >/dev/null 2>&1 && mountpoint -q /mnt/data; then
     else
         units_tap=$(goss -g "$UNITS_SPEC" validate --format tap 2>&1) || true
         units_total=$(printf '%s\n' "$units_tap" | sed -n 's/^1\.\.\([0-9]*\)$/\1/p')
-        units_seen=$(printf '%s\n' "$units_tap" | grep -cE '^(not )?ok [0-9]+ ') || true
         if [ -z "$units_total" ] || [ "$units_total" -eq 0 ]; then
             problems+=("goss produced no unit assertions — spec unreadable or empty")
-        elif [ "$units_seen" -ne "$units_total" ]; then
-            problems+=("goss declared $units_total unit assertions and produced $units_seen — the run was cut short")
         else
             units_bad=$(printf '%s\n' "$units_tap" |
                         sed -n 's/^not ok [0-9]* - [A-Za-z]*: \([^:]*\):.*/\1/p' | sort -u)

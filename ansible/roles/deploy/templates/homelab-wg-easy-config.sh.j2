@@ -36,7 +36,7 @@ AUTH_CODE="$(curl -s -o /dev/null -w '%{http_code}' -c "$COOKIE" \
 import json,os
 print(json.dumps({'username': os.environ['WG_ADMIN_USERNAME'],
                   'password': os.environ['WG_ADMIN_PASSWORD'],
-                  'remember': False}))"))"
+                  'remember': False}))"))" || :
 
 case "$AUTH_CODE" in
     200) ;;

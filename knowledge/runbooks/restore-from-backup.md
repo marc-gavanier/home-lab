@@ -169,7 +169,7 @@ docker exec -u www-data nextcloud php occ files:scan --all
 ```
 
 - `upgrade` replays the migrations a dump older than the image misses; it says
-  "already latest version" otherwise. The container does not run it: `version.php`
+  "No upgrade required." otherwise. The container does not run it: `version.php`
   did not change.
 - `data-fingerprint` tells the sync clients the server went back in time. Without
   it they treat the server as authoritative and delete, on the desktop, every file

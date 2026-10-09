@@ -19,7 +19,7 @@ request arrived from an address outside the `vpn-only` `ipAllowList`
 ## Symptom
 
 The vault mount fails / Claude Code won't start, or the backup Kuma push fails
-with curl exit 6.
+(`kuma-push-failed` in the backup unit's journal).
 
 ```bash
 getent hosts drive.<domain>      # prints nothing = the pin was wiped
