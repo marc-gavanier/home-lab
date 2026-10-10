@@ -24,6 +24,30 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-10-10 (FORTY-THIRD run) — key `selectivity`, one PR
+
+- **Split DNS answers AAAA and HTTPS on site** (C31): a `local=` line beside each `address=` line, so the
+  21 internal names no longer reach Quad9 for those types. Deployed, second run `changed=0`.
+- **The decoder bypass is keyed by a router-reserved IP, not by MAC** (C01): Pi-hole never sees a LAN
+  MAC. Do not propose the MAC again.
+- **Four operator commands** (C03): `restic snapshots --compact latest`, `journalctl -k -b -g
+  'apparmor="DENIED"'`, a per-container listing of the posture spec's expected values, the tamper grep
+  over `syslog` and `syslog.1`.
+- **Three pre-commit hooks lost their `files:` filter** (C78): each checker scans the repository itself.
+
+## Instrument traps paid on 2026-10-10 (forty-third run)
+
+- **`restic snapshots --latest N` is per host AND path set**: with several path groups it prints one row
+  per group, the newest last. `restic snapshots --compact latest` answers "last night's snapshot".
+- **The kernel ring is not a log here**: UFW's BLOCK lines push everything out within hours; read
+  `journalctl -k`.
+- **Pi-hole's network table is not a MAC inventory**: LAN clients are `ip-<address>` placeholders, the
+  real-looking MACs are Docker's.
+- **A mask needs its own positive control**: a `sed` mask on `KEY=value` missed `KEY="value"` and printed
+  the value.
+- **A pre-commit `files:` filter can be narrower than the checker it runs**: `pre-commit run <id> --files
+  <path>` printing `Skipped` on a file the checker reads is the test.
+
 ## Shipped on 2026-10-10 (FORTY-SECOND run) — key `calibration`, one PR
 
 - **Kuma monitor 16 `Offsite backup` gets 100 800 s (28 h)** (C120), set by hand in the UI and in the
@@ -925,8 +949,8 @@ Two kinds of entry, and the distinction matters:
 - **The full-disaster-recovery import order is flagged as untested, not
   rewritten as a procedure.** Its fix belongs to a restore attempt, not to an
   audit (the timed drill stays DECLINED).
-- **The Pi-hole bypass rule is still keyed by IP in the Pi-hole admin**; moving it
-  to the MAC is an operator action in the UI, recorded in `pihole.md`.
+- **The Pi-hole bypass rule is keyed by IP, and stays so** (2026-10-10, forty-third run): Pi-hole
+  never sees a LAN MAC; the IP is reserved in the router, recorded in `pihole.md`.
 - **Netdata's "none of those is routed" was left unverified**: proving it needs a
   test mail.
 
