@@ -41,10 +41,11 @@ journalctl -t usb-tamper -b           # every usb add/remove is logged, armed or
 
 A spontaneous USB reset of the HDD registers as `remove`+`add` and powers the Pi
 off while armed. The persistent journal lives on the encrypted volume, but rsyslog also writes the
-`usb-tamper` lines to `/var/log/syslog` on the card, readable before the unlock:
+`usb-tamper` lines to `/var/log/syslog` on the card (`syslog.1` once the weekly rotation has run,
+which the boot can trigger before the unlock), readable before the unlock:
 
 ```bash
-ssh homelab 'sudo grep usb-tamper /var/log/syslog'
+ssh homelab 'sudo grep usb-tamper /var/log/syslog /var/log/syslog.1'
 ```
 
 A `usb remove` then `usb add` of the disk's vendor:model just before `TRIGGER while armed` is a

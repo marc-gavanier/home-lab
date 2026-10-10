@@ -77,7 +77,7 @@ mistaken for the cause of some future incident.
 
 **Negative / cost**
 - A netdata image update can need a new rule. The failure will be an AppArmor
-  `DENIED` in `dmesg`, which is at least explicit — unlike the capability
+  `DENIED` in the kernel journal, which is at least explicit — unlike the capability
   failures of ADR-017, which were silent.
 - One more host-level artefact for a fresh provision to get right. It is
   codified (`ansible/roles/deploy/tasks/apparmor.yml`), and its absence stops

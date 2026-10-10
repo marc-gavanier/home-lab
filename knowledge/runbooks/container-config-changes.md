@@ -144,8 +144,12 @@ link).
 
 8. **Changing capabilities, `read_only` or `security_opt`.** The posture check's expectations
    are generated from `compose.yaml` into a goss spec. The render is `tags: always`, so any
-   tagged run, `--tags deploy` included, refreshes it. After a deploy, compare `sudo grep <service> /etc/goss/posture.yaml` with the compose
-   block before chasing a posture finding.
+   tagged run, `--tags deploy` included, refreshes it. After a deploy, compare the expected values with the compose block before chasing a
+   posture finding (a `grep` on the name misses the `stdout:` lines that hold them):
+
+   ```bash
+   sudo python3 -c 'import sys, yaml; s = sys.argv[1]; [print(k, v.get("stdout")) for k, v in yaml.safe_load(open("/etc/goss/posture.yaml"))["command"].items() if f"docker inspect {s} " in v.get("exec", "")]' <service>
+   ```
 
 ## Restarting a container that others share a namespace with
 

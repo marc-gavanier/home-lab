@@ -49,7 +49,6 @@ repos:
         name: no iteration over a derived set without a floor
         entry: ops/check-empty-set-floors.py
         language: system
-        files: (goss-.*\.ya?ml\.j2|\.sh(\.j2)?)$
         pass_filenames: false
 
       - id: goss-specs-render
@@ -70,14 +69,12 @@ repos:
         name: no secret in an `environment:`, and no secret file misfiled either way
         entry: ops/check-secret-in-environment.py
         language: system
-        files: (^ansible/roles/.*/tasks/.*\.yml|^ansible/playbooks/.*\.yml|^docker/compose\.yaml)$
         pass_filenames: false
 
       - id: shell-cmds-parse
         name: every embedded shell program parses as shell
         entry: ops/check-shell-cmds-parse.py
         language: system
-        files: (^ansible/roles/.*/(tasks|handlers)/.*\.yml|^ansible/playbooks/.*\.yml)$
         pass_filenames: false
 
       - id: shell-cmds-parse-selftest
