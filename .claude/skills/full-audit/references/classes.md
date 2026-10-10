@@ -1567,6 +1567,9 @@ GATED intact, read: C03-T, C14, C19, C41, the `-e` word-split refusal, and the s
 - The `~` estimate rows of the RAM table drift by up to 2×: labelled as estimates.
 - The growth projection of 2026-08-31 in `settled.md` was 3 to 5 times low: replaced by the rule that
   regenerates it; the 85 % thresholds still leave 107 to 190 days of lead.
+- Deploying this run's fix exposed two known members, not new ones: a lost `Restart SSH` on the offsite
+  (C84, risk accepted 2026-09-26) that the posture check could not see (C44, remedy declined), and a
+  root-owned `remote_tmp` that failed the run (fixed in the same PR, a first play owning it as the user).
 - Rule breaches: `security` and `observability` each copied a helper script to a host's `/tmp` and removed
   it. The brief said most containers were recreated at 00:45Z; 29 were only restarted with Docker at
   2026-10-09 22:48Z (`ansible-deploy` corrected it), which changed no conclusion.

@@ -47,7 +47,18 @@ Two kinds of entry, and the distinction matters:
 - `inotify max_user_instances` 128, a kernel default, is 45 % used by uid 0 on the homelab, never failed.
 - Swappiness 10 and the 1 500 MB journal cap, copied to the offsite, do no harm there.
 
+- **The accepted lost-handler risk (C84) happened, live, on the offsite** while deploying this run: the
+  failed `--tags security` run wrote `sshd_config`, the host went UNREACHABLE before `Restart SSH`, and the
+  next run reported `changed=0` with the daemon on its 09-30 values. Reloaded by hand. The posture check
+  stayed green, as C44 predicts: `sshd -T` reads the file, not the daemon.
+
 ## Instrument traps paid on 2026-10-10 (forty-second run)
+
+- **The sshd listener's process title shows the limits it actually runs**: `pgrep -a -f 'sshd.*listener'`
+  prints `0 of 20-60 startups`; `sshd -T` only re-parses the file.
+- **A root task can create `remote_tmp` before the user does**: on a host where no session outlives a
+  deploy, `/run/user/1000` is reborn every run and the first creator owns `ansible/` 0700. Fixed by a first
+  play that creates it as the user.
 
 - **sshd 9.6 logs nothing when `PerSourceMaxStartups` refuses a connection**: the client sees
   `kex_exchange_identification: Connection closed by remote host`. Measure the overlap instead, by pairing
