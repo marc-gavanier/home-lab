@@ -90,8 +90,9 @@ Exempted devices are recorded in `pihole_bypass_clients` (list of `{ mac, label 
   signals FTL to reopen and can fail silently, leaving FTL writing to the rotated file.
 - `FTL.log` and `webserver.log` keep the image's `create` rotation.
 - The only rotator is `pihole flush once quiet` (cron, midnight), which runs
-  `logrotate --force`. So every stanza rotates daily; `rotate 21` keeps three weeks of
-  `FTL.log` and `webserver.log`, `pihole.log` keeps 5 days.
+  `logrotate --force`. So every stanza rotates daily; `rotate 21` keeps up to three weeks
+  of `FTL.log` and `webserver.log`, `pihole.log` keeps 5 days, and all three start over when the
+  container is recreated.
   Empty logs are not rotated (`notifempty`).
 
 `pihole-ftl-writes-the-current-log` checks which file FTL actually has open. Run it on the host

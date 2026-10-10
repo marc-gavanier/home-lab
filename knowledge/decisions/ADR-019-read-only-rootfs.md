@@ -111,7 +111,7 @@ and a rollback whose "backup" already contained the change.
 - `tmpfs` sizes are a judgement call. They are set from observed usage with
   headroom (InnoDB's temporary files get 256 MB, most get 8–64 MB) on a machine
   with 8 GB of RAM.
-- Nine services keep a writable rootfs, and the reason for each is in the
+- Eight services keep a writable rootfs, and the reason for each is in the
   table above.
 
 ## Alternatives considered

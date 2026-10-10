@@ -102,7 +102,7 @@ of the month and checks metadata otherwise. It is the only step that reads backe
 the first week silently degrades that month to metadata only. `restic-deep-check-not-stale` reads
 Kuma's heartbeat history for the last "data subset re-read" beat and fails past **45 days** (healthy
 gaps are 24–37 days). It works because this monitor is weekly and keeps all its beats; do not count
-on Kuma's `keepDataPeriodDays` (180): raw beats are pruned by a per-monitor row budget (~45.6 h for
+on Kuma's `keepDataPeriodDays` (180): raw beats are pruned by a per-monitor row budget (~31 h for
 an ordinary beat on the 5-minute health monitor).
 
 When it fires, that month's slice (`<month>/12`) was not read, and the next scheduled run reads the
@@ -116,8 +116,8 @@ restic check --read-data-subset=<month>/12
 This pushes nothing, so the assertion stays red until the next first-week run clears it.
 
 **Access log.** The redacted access log (ADR-034) is the only trace the offsite host leaves here,
-and it writes once a week. The log carries its own `logging:` block, 10 x 20 MB (~32 days of
-capacity at ~6 MB/day). The ring belongs to the container and restarts empty on every recreation,
+and it writes once a week. The log carries its own `logging:` block, 10 x 20 MB (~19 days of
+capacity at ~11 MB/day). The ring belongs to the container and restarts empty on every recreation,
 so a weekly writer is answerable only once the redactor has run for more than a week. The
 `window=48h` of `traefik-access-log-carries-no-credential` is met by its `seen>=1` floor.
 

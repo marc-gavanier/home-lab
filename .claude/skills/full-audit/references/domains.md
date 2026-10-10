@@ -15,6 +15,8 @@ earlier — which would have sent eight agents to re-derive settled work. Rebuil
 it from `classes.md`'s OPEN table at the start of every run; if the two
 disagree, `classes.md` wins.
 
+**SIXTY keys are now spent.** `calibration` (forty-second run, 0 mints): does the reference each chosen number was sized against still hold on the running system.
+
 **FIFTY-NINE keys are now spent.** `obsolescence` (forty-first run, 1 mint: C150). `liveness` (does every wait, lock and retry have a bound) and `precision` (an instrument's resolution against the margin of the decision it feeds) were offered and not chosen.
 
 **FIFTY-EIGHT keys are now spent.** `consent` (fortieth run, 0 mints). No offered key remains unspent.

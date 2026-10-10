@@ -699,7 +699,7 @@ command:
       if [ "$day" -le 7 ]; then
         [ "$secs" -ge 300 ] || {
           echo "the check of $t fell in the deep window (day $day) but took ${secs}s"
-          echo "a deep read-data-subset takes ~1540s here; metadata takes ~30s"
+          echo "a deep read-data-subset takes ~1700s here; metadata takes ~30s"
           echo "the subset flag was almost certainly dropped — restic-arguments-filter is on"
           exit 1
         }

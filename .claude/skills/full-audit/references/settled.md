@@ -24,6 +24,39 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-10-10 (FORTY-SECOND run) — key `calibration`, one PR
+
+- **Kuma monitor 16 `Offsite backup` gets 100 800 s (28 h)** (C120), set by hand in the UI and in the
+  backup-monitoring runbook. The 93 600 s window had been sized on an ordinary night; a night that ingests
+  ~30 GiB ends its copy past 05:00 and left 454 s of margin. The other nightly windows keep 26 h.
+- **`PerSourceMaxStartups` 16 and `MaxStartups` 20:30:60 on both hosts** (C120): the cap of 8 was sized as
+  "twice the measured peak of 4" and the real peak was already 8. Sharing connections on the workstation
+  (`ControlMaster`) was DROPPED: `MaxSessions 10` would refuse the eleventh concurrent command outright,
+  and a stalled master would block every session. Do not propose it again without that figure.
+- **C01**: the redacted access log holds ~19 days, not 32; Kuma keeps ~31 h of ordinary beats, not 45.6 h;
+  ADR-019 counts eight writable rootfs, not nine; Pi-hole's `rotate 21` starts over at every recreation;
+  the deep-check message says ~1700 s.
+
+## Measured and left as observations on 2026-10-10 (forty-second run)
+
+- About 700 chosen values swept over eight domains; none sits above 90 % of its limit except the two
+  above. A generous timeout, tmpfs or grace period costs nothing on this estate: do not propose shrinking one.
+- Miniflux's 15-error limit means 15 days of silence for a feed polled daily; 0 errors today.
+- Containers left at Docker's 10 s stop grace are killed at shutdown; the general extension is declined and
+  transmission's 60 s is C97, declined 2026-09-21.
+- `inotify max_user_instances` 128, a kernel default, is 45 % used by uid 0 on the homelab, never failed.
+- Swappiness 10 and the 1 500 MB journal cap, copied to the offsite, do no harm there.
+
+## Instrument traps paid on 2026-10-10 (forty-second run)
+
+- **sshd 9.6 logs nothing when `PerSourceMaxStartups` refuses a connection**: the client sees
+  `kex_exchange_identification: Connection closed by remote host`. Measure the overlap instead, by pairing
+  each pid's `Connection from` with its `Accepted publickey` in `auth.log*`.
+- **A sizing measured over a week can miss a peak a month old still in the logs**: read the whole retention
+  before writing "measured peak".
+- **A container restarted by a `docker.service` restart is not recreated**: `StartedAt` moves, `Created`
+  does not, and `memory.peak` covers only the time since the restart.
+
 ## Shipped on 2026-10-10 (FORTY-FIRST run) — key `obsolescence`, one PR
 
 - **Renovate can order the three pins it could not** (C150): `versioning` regexes for Jellyfin (two- or
@@ -5535,9 +5568,10 @@ proposals, five OPEN at the end. Counts live in `classes.md` and **only** there.
 Five leads closed with numbers and needing no action. Recorded so no future run
 re-derives them:
 
-- `/mnt/data` grows **+0.913 GiB/day** -> 85 % in ~8.8 years. Offsite
-  **+0.524 GiB/day** -> 85 % in ~6.3 years with 525 days of lead. Level
-  thresholds are sufficient; **a trend watcher was considered and is not needed.**
+- Disk growth comes in steps (library ingests), not as a slope; measure it over
+  the whole Netdata history and the offsite pack dates, never over a quiet week.
+  Re-measured 2026-10-10: the level thresholds still leave months of lead at
+  85 %. **A trend watcher was considered and is not needed.**
 - SD card: **1.97 GB/day = 11.5 card-writes per year.** Decades of endurance.
 - The data volume's forced fsck falls due ~2026-09-25 and costs **3 min 27 s** —
   dominated by a fixed 152.6 M-inode table, so it does **not** grow with the data.
