@@ -101,7 +101,7 @@ services:
       retries: 3
 
   traefik:
-    image: traefik:v3.7.13
+    image: traefik:v3.7.14
     container_name: traefik
     restart: unless-stopped
     security_opt: *no-new-privs
@@ -229,7 +229,7 @@ services:
       start_period: 120s
 
   dnsproxy:
-    image: adguard/dnsproxy:v0.85.0
+    image: adguard/dnsproxy:v0.86.0
     container_name: dnsproxy
     restart: unless-stopped
     security_opt: *no-new-privs
@@ -465,7 +465,7 @@ services:
       - "traefik.http.services.notify-push.loadbalancer.server.port=7867"
 
   collabora:
-    image: collabora/code:26.04.4.2.1
+    image: collabora/code:26.04.5.1.1
     healthcheck:
       start_period: 1320s
       start_interval: 15s
@@ -491,7 +491,7 @@ services:
       - "traefik.http.services.collabora.loadbalancer.server.port=9980"
 
   vaultwarden:
-    image: vaultwarden/server:1.37.3
+    image: vaultwarden/server:1.37.4
     container_name: vaultwarden
     restart: "no"
     security_opt: *no-new-privs
@@ -914,7 +914,7 @@ services:
       - "traefik.http.services.searxng.loadbalancer.server.port=8080"
 
   netdata:
-    image: netdata/netdata:v2.11.1
+    image: netdata/netdata:v2.12.1
     container_name: netdata
     restart: "no"
     stop_grace_period: 90s
@@ -971,7 +971,7 @@ services:
       - "traefik.http.services.netdata.loadbalancer.server.port=19999"
 
   dozzle:
-    image: amir20/dozzle:v11.1.1
+    image: amir20/dozzle:v11.3.0
     container_name: dozzle
     restart: "no"
     security_opt: *no-new-privs
@@ -1031,7 +1031,7 @@ services:
       - "traefik.http.services.it-tools.loadbalancer.server.port=80"
 
   calibre-web:
-    image: crocodilestick/calibre-web-automated:v4.0.7
+    image: crocodilestick/calibre-web-automated:v4.0.8
     container_name: calibre-web
     restart: "no"
     security_opt: *no-new-privs
