@@ -1,4 +1,17 @@
 ---
+- name: Own the remote tmp directory before any task runs as root
+  hosts: homelab
+  become: false
+  gather_facts: false
+  tasks:
+    - name: Create the remote tmp directory as the connecting user
+      ansible.builtin.file:
+        path: "{{ lookup('ansible.builtin.config', 'remote_tmp', plugin_type='shell', plugin_name='sh') }}"
+        state: directory
+        mode: "0700"
+      changed_when: false
+      tags: [always]
+
 - name: Provision Home Lab
   hosts: homelab
   become: true
