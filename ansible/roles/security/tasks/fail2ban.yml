@@ -71,7 +71,7 @@
       # [critical]: if X-Forwarded-For handling breaks, this jail bans Traefik's address and takes the whole stack off the network
       {% else %}
       {% endif %}
-      ignoreip = 127.0.0.1/8 ::1 172.16.0.0/12 {{ ansible_default_ipv4.address | mandatory }}
+      ignoreip = 127.0.0.1/8 ::1 172.16.0.0/12 {{ ansible_facts.default_ipv4.address | mandatory }}
 
       [sshd]
       enabled = true

@@ -24,7 +24,7 @@ required — enabling `richdocuments` — was reverted to a byte-identical confi
 
 ## Decision
 
-Deploy `collabora/code:26.04.4.1.1` behind Traefik at `office.<domain>`,
+Deploy `collabora/code:26.04.4.2.1` behind Traefik at `office.<domain>`,
 VPN-only like every other service, wired to Nextcloud's `richdocuments`
 connector by the deploy rather than by the admin UI.
 

@@ -93,5 +93,7 @@ Asking for a film exits 0 either way, and neither tells you what happened:
 
 - `restic restore latest --include /mnt/data/library/...` restores **nothing**:
   `latest` is the newest snapshot, which lacks that path.
-- `restic restore latest --path /mnt/data/library/movies` restores the
-  **2026-09-13 copy**, without mentioning its age.
+- `restic restore latest --path /mnt/data/library/movies` restores the **whole
+  2026-09-13 snapshot**, without mentioning its age: `--path` picks the
+  snapshot, it does not filter files. Add `--include /mnt/data/library/movies/<film>`
+  to get the film alone.

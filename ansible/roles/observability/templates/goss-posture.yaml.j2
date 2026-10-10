@@ -198,7 +198,7 @@ command:
 {%- set caps = ('CAP_' ~ caplist | join(' CAP_')) if caplist else '' %}
 {%- set ro = 'true' if svc.read_only | default(false) else 'false' %}
 {%- set optstr = (svc.security_opt | default([])) | join(' ') %}
-{%- set nnp = 'true' if 'no-new-privileges:true' in (svc.security_opt | default([])) else 'false' %}
+{%- set nnp = 'false' if cname in ['collabora', 'netdata'] else 'true' %}
 {%- set aa = optstr.split('apparmor=')[1].split(' ')[0] if 'apparmor=' in optstr else '' %}
 {%- set usr = svc.user | default('') %}
   {{ cname }}-not-privileged:
@@ -218,7 +218,7 @@ command:
     exit-status: 0
     stdout: ["/^{{ ro }}$/"]
   {{ cname }}-no-new-privileges:
-    exec: docker inspect {{ cname }} | jq -r '[.[0].HostConfig.SecurityOpt[]?] | join(" ") | test("(^| )no-new-privileges:true( |$)")'
+    exec: docker inspect {{ cname }} | jq -r '[.[0].HostConfig.SecurityOpt[]?] | join(" ") | test("(^| )no-new-privileges([:=]true)?( |$)")'
     exit-status: 0
     stdout: ["/^{{ nnp }}$/"]
 {% if usr and '${DOCKER_GID}' in usr %}
@@ -354,7 +354,7 @@ command:
 
   netdata-serves-every-context-a-curated-alarm-reads:
     exec: |
-      contexts=$(docker exec netdata curl -s --max-time 10 http://127.0.0.1:19999/api/v3/contexts | jq -r '.contexts | keys[]')
+      contexts=$(docker exec netdata curl -s --max-time 10 http://127.0.0.1:19999/api/v3/contexts | jq -r '.contexts | to_entries[] | select(.value.live) | .key')
       [ -n "$contexts" ] && [ "$(printf '%s\n' "$contexts" | wc -l)" -ge 1 ] || {
         echo "the contexts API returned nothing — a dead collector and a dead API would both pass a floor here"; exit 1; }
       wanted=$(grep -hE '^[[:space:]]+on:[[:space:]]+' {{ services_data_dir }}/netdata/health.d/homelab-*.conf 2>/dev/null | awk '{print $2}' | sort -u)

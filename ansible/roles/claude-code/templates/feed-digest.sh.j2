@@ -33,6 +33,7 @@ fi
 MAX_ENTRIES={{ feed_digest_max_entries | default(400) }}
 
 CONTENT_CHARS={{ feed_digest_content_chars | default(600) }}
+SIGNAL_CHARS={{ feed_digest_signal_chars | default(1500) }}
 
 mkdir -p "$(dirname "$LOG")"
 log() { printf '[%s] %s\n' "$(date -u +%FT%TZ)" "$*" | tee -a "$LOG"; }
@@ -154,13 +155,21 @@ if [ "$DROPPED" -gt 0 ]; then
     log "WARNING: ${DROPPED} entries beyond the cap, left unread for the next run"
 fi
 
-INPUT="$(jq -r --argjson n "$CONTENT_CHARS" '
+INPUT="$(jq -r --argjson n "$CONTENT_CHARS" --argjson m "$SIGNAL_CHARS" '
   .entries[]
+  | ((.content // "") | gsub("<[^>]*>"; " ") | gsub("\\]\\([^)]*\\)"; "]") | gsub("\\s+"; " ")) as $t
+  | ([$t[$n:] | splits("(?<=[.!?]) ")
+      | if test("deprecat|will be removed|breaking change|no longer (be )?supported"; "i") then {p: 0, s: .[0:300]}
+        elif test("end of (life|support)|sunset"; "i") then {p: 1, s: .[0:300]}
+        else empty end]
+     | sort_by(.p) | map(.s)
+     | reduce .[] as $s ([]; if (map(length) | add // 0) + ($s | length) > $m then . else . + [$s] end)) as $sig
   | "## \(.title)\n"
   + "- flux : \(.feed.category.title // "?") / \(.feed.title)\n"
   + "- date : \(.published_at)\n"
   + "- lien : \(.url)\n"
-  + "- extrait : " + ((.content // "") | gsub("<[^>]*>"; " ") | gsub("\\s+"; " ") | .[0:$n]) + "\n"
+  + "- extrait : " + $t[0:$n] + "\n"
+  + (if ($sig | length) > 0 then "- signaux plus loin dans le texte :\n" + ($sig | map("  - " + .) | join("\n")) + "\n" else "" end)
 ' <<<"$ENTRIES")"
 
 TODAY="$(date +%F)"

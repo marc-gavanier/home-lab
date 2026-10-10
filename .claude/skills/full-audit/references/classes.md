@@ -321,12 +321,20 @@ domains, no mint proposed that survived admission. Four latent instances, none e
 timers whatever the operator had paused), C74 (an emptied restic password deleted before the assert
 refusing it) and C145 (heal recreated a removed dnsproxy).
 
+**The forty-first run, on 2026-10-10, used `obsolescence` and minted one** (C150). **Consecutive
+zero-mint runs: 0.** The key asked whether a component the estate uses already announces, in its logs, its
+output or a dated schedule, that what the estate relies on will stop working, and whether anything sees it
+coming. Every class before it asked whether a mechanism was configured, timed or guarded; none asked whether
+the CHANNEL that brings upstream change to the operator can see the change. The update bot could not: three
+pins in tag formats it cannot compare sat behind upstream while the dashboard listed them as current, one of
+them Jellyfin, two majors behind a critical advisory.
+
 ---
 
 # The register
 
 Runs of 2026-08-15 through 2026-09-21 (TWELFTH run, key `durability`).
-**Current state: see the OPEN table after the FORTIETH run of 2026-10-09 (key `consent`) — 149 classes, 0 OPEN. The counts below this line are the twelfth run's.**
+**Current state: see the OPEN table after the FORTY-FIRST run of 2026-10-10 (key `obsolescence`) — 150 classes, 0 OPEN. The counts below this line are the twelfth run's.**
 **121 recorded classes: 3 OPEN — and the membership is C121, C34 and C01,
 written as a list because every time this line carried a rule for reconstructing
 the count instead, the count was wrong. 9 GATED, 7 closed by decision, plus the
@@ -683,7 +691,32 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
-## OPEN — 0 (after the THIRTY-NINTH run of 2026-10-08, key `reachability`)
+## OPEN — 0 (after the FORTY-FIRST run of 2026-10-10, key `obsolescence`)
+
+**Empty.** C150 minted and ENUMERATED in the same run; missed members of C04, C03, C111 and C01 — see
+"The run of 2026-10-10 (FORTY-FIRST)" below.
+
+| ID | Property | State |
+|---|---|---|
+| C150 | **A version pin written in a tag format the update channel cannot order against upstream's current tags** — so the channel reports "no update" while upstream moves on, and the dashboard lists the pin as current | **MINTED and ENUMERATED 2026-10-10 (forty-first run)**: `services`, 30/30 image references in compose. 3 members, all listed by Renovate in #8 with no update: `jellyfin/jellyfin:10.11.11` (upstream moved to two-part versions with 12.0 on 2026-09-08; the critical and high advisories of 2026-09-22 are fixed only in 12.x), `linuxserver/transmission:4.1.3-r0-ls354` (the `-lsNNN` rebuild read as a fixed suffix, nine rebuilds behind, the one container with an internet-facing port), `searxng/searxng:2026.7.13-9e25585ae` (the commit hash read as a fixed suffix, 88 days behind). FIXED: Jellyfin migrated to 12.2, the two others bumped, a `versioning` regex per package in `renovate.json`. Nearest: C108 (a mutable tag diverging from its referent). Not GATED |
+| C04 | A working detector whose delivery path cannot reach a human | **Missed member, 2026-10-10**: `deprecation_warnings = False` in `ansible.cfg` since the first commit hid three announced removals (`DEFAULT_MANAGED_STR` in 2.23 behind 54 templates, injected facts in 2.24 at 3 sites, `apt_repository` in 2.25); ansible-lint passes with 0 warnings. FIXED: line removed, `ansible_managed` a group variable with the same string, `ansible_facts[...]`, `deb822_repository` |
+| C03 | A validation whose instrument answers a different question from the one its comment claims | **2 missed members, 2026-10-10**: the feed digest's prompt promises "breaking changes — deprecations" while the script sent 600 characters of each entry (Netdata v2.12.0 announced the end of APIs v1/v2 at character 147 979); `netdata-serves-every-context-a-curated-alarm-reads` counted the 37 contexts netdata keeps with `live:false`, so it stayed green while go.d was disabled. FIXED: the digest adds the sentences that announce a deprecation, a removal or an end of support, within a 1 500-character budget; the check selects `.value.live` |
+| C111 | An assertion whose expected value is regenerated from the same declaration that produces the state it observes | **Latent member, 2026-10-10**: both sides of `-no-new-privileges` matched the literal `no-new-privileges:true`, the spelling dockerd has called deprecated 220 times in 14 days; following its advice (`=`) would have made 30 checks expect and find `false`. FIXED: the expected value is an intent in the template (on, except `collabora` and `netdata`), and the check accepts `:`, `=` and the bare form |
+| C01 | A documentary statement whose content contradicts the deployed artefact | **Missed members, 2026-10-10**: 7 version pins in 6 files (ADR-021/022/023/025, `dozzle.md` ×2, `collabora.md`) left by the 2026-09-27 Renovate batch; `alpine:3.20` in the Kuma runbook; `docs/06-backup/README.md` said `restore latest --path …/movies` restores "the 2026-09-13 copy" of the film, measured: `--path` selects snapshot `1329a592`, which holds seven paths, and restores all of them. And this register: the fortieth run had no section and no OPEN table, its four instances appended to superseded tables. FIXED |
+
+### The fortieth run's table read:
+
+**Empty.** No mint; four latent members recorded in the rows of C62, C144, C74 and C145 where they were
+first written — see "The run of 2026-10-09 (FORTIETH)" below.
+
+| ID | Property | State |
+|---|---|---|
+| C62 | An announced exclusion that the mechanism does not enforce | **Missed member, 2026-10-09**: a full `site.yml` on a locked, provisioned host opened the volume past `homelab-unlock`. FIXED |
+| C144 | A restriction the operator placed on an automatic actor that its active configuration does not carry | **2 latent members, 2026-10-09**: deploys resumed `homelab-stack-heal.timer` and re-enabled `homelab-backup.timer` whatever the operator had paused. FIXED |
+| C74 | A rule whose decision is pre-empted by another component acting earlier on the same object | **Latent member, 2026-10-09**: an emptied restic password deleted before the assert refusing it. FIXED |
+| C145 | An automatic start whose dependency resolution brings up an object the operator stopped on purpose | **Missed member, 2026-10-09**: heal force-recreated dnsproxy without checking it exists. FIXED |
+
+### The thirty-ninth run's table read:
 
 **Empty.** No mint; missed members of C29, C03 and C01 — see "The run of 2026-10-08 (THIRTY-NINTH)" below.
 
@@ -1477,6 +1510,61 @@ separate correction — **the marker is not a provenance instrument.**
 C92 and C03-R were closed as review rules once their spaces proved non-derivable.
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
+
+## The run of 2026-10-10 (FORTY-FIRST) — the key was `obsolescence`, and it minted one
+
+The key, invented for this run and chosen by the operator over `liveness`, `precision` and a
+confirmation-only pass: **for every component the estate runs or depends on, does the component itself
+already announce — in its logs, its output, its release notes or a dated schedule — that what the estate
+uses will stop working, change meaning or lose support, and does anything see it coming?** Forms: O1 a
+deprecation warning already emitted that nothing reads, O2 a support line ended or ending before its
+replacement, O3 a dated cliff nothing watches, O4 a usage the next automatic upgrade removes. Borders
+declared: C01, C14, C66, C86, C120, C121, C126, C144, C146, C147.
+
+### The counter: 0 OPEN in, 0 OPEN out, 1 minted (C150), 0 gates broken, class total 150
+
+Consecutive zero-mint runs: 0.
+
+### The sweep
+
+| Domain | Components | Result |
+|---|---|---|
+| `system` | 79/79, both hosts | clean; dockerd's `:` warning observed |
+| `security` | 44/44 | C111 latent (`no-new-privileges` spelling) |
+| `network` | 23/23 | clean; Let's Encrypt lifetimes keep the 21-day margin |
+| `services` | 30/30 image references, 32 containers | C150 minted, 3 members |
+| `backup` | 17/17 | clean; repositories at format 2, dump clients match servers |
+| `observability` | 14/14 | C03 ×2 |
+| `ansible-deploy` | 80/80 | C04 |
+| `project-manager` | 38 ADR premises, 33 versions, 12 CLIs | C01, C04 (converged with `ansible-deploy`) |
+
+GATED intact, read: C03-T, C07, C11, C14, C15, C18, C19, C41, C81, and the C143 assertion.
+
+### Rejected or requalified
+
+- `observability` proposed "a reader that sees only a fixed slice of each item" as a mint: the same
+  property as C03 (the digest's instrument does not answer the question its prompt asks). Refused at the
+  admission check's first step.
+- `network` wrote that switching compose to `=` would turn about 30 checks red; `security` measured that
+  they would turn silently green. `security` was right, which is why the instance is C111's.
+- The netdata incident of the night (go.d disabled at 00:58 under the deploy's load, Kuma down at 01:13
+  and 01:17, heal at 01:23): detected, alerted and healed. No work.
+- Observations, no work: Netdata APIs v1/v2 end at the next major, six consumers fail loudly; Forgejo 16
+  support ends 2026-10-29 and Renovate will offer 17; ansible-core 2.21 is the last line on the
+  workstation's Python, supported to November 2027; `ubuntu-latest` moves to 26.04 from 2026-10-19; lynis
+  has no end-of-life entry for 24.04; SearXNG's Tor engines fail to load (no Tor proxy); nothing in the
+  estate reads deprecation warnings.
+- Suspected, for the operator: whether the Cloudflare token has an expiry date; which GnuPG version the
+  offline copy needs.
+- Rule breaches: `system` ran `sudo sysctl --system` on both hosts (no net change, measured); one
+  journalctl on the homelab ran past 120 s and was killed; `/tmp/nd.conf` from 2026-10-08 is still on the
+  homelab.
+
+## The run of 2026-10-09 (FORTIETH) — the key was `consent`, and it minted zero
+
+Recorded after the fact by the forty-first run: the fortieth was written only into the criterion
+paragraph and `settled.md`. 287 mechanisms swept over eight domains, no mint survived admission, four
+latent instances went to C62, C144, C74 and C145 — see "The fortieth run's table read" above.
 
 ## The run of 2026-10-08 (THIRTY-NINTH) — the key was `reachability`, and it minted zero
 

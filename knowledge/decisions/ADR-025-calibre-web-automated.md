@@ -16,7 +16,7 @@ ADR exists.
 
 ## Decision
 
-Deploy **Calibre-Web-Automated v4.0.6** behind Traefik at `books.<domain>`,
+Deploy **Calibre-Web-Automated v4.0.7** behind Traefik at `books.<domain>`,
 VPN-only, owning `/mnt/data/media/books` as the single copy of the library, with
 five capabilities and no read-only rootfs.
 

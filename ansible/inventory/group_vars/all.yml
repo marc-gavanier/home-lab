@@ -1,4 +1,5 @@
 ansible_user: pi
+ansible_managed: "Ansible managed — rendered from the home-lab repo, edits on the host will be overwritten"
 ssh_port_hardened: 22
 
 hostname: homelab

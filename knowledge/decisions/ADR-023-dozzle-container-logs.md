@@ -14,7 +14,7 @@ its effort not needing.
 
 ## Decision
 
-Deploy **Dozzle v11.1.0** (adopted at 10.6.14) as a container behind Traefik at `logs.<domain>`,
+Deploy **Dozzle v11.1.1** (adopted at 10.6.14) as a container behind Traefik at `logs.<domain>`,
 reading the daemon through the existing read-only `socket-proxy`, with its own
 password on top of the global `vpn-only` gate.
 

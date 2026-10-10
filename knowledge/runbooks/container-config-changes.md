@@ -61,7 +61,7 @@ link).
    real one may be root-owned), and non-conflicting ports:
 
    ```bash
-   docker run -d --name svc-captest --security-opt no-new-privileges:true \
+   docker run -d --name svc-captest --security-opt no-new-privileges=true \
      --cap-drop ALL --cap-add ... -v /tmp/svc-captest:/etc/<svc> <image>
    docker logs svc-captest | grep -iE "denied|not permitted|unable"
    ```

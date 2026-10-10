@@ -9,7 +9,7 @@ uptime already were.
 |---|---|
 | URL | `https://logs.example.com` (VPN-only, Pi-hole split DNS) |
 | Login | required, on top of `vpn-only` |
-| Image | `amir20/dozzle:v11.1.0` |
+| Image | `amir20/dozzle:v11.1.1` |
 | Data | none — stateless, nothing under `${SERVICES_DATA_DIR}` |
 | Credentials | `/mnt/data/secrets/docker/dozzle_users.yml`, templated by Ansible (bcrypt), in the restic set |
 | Supervision | `dozzle healthcheck` + Uptime Kuma on `/healthcheck` |
@@ -39,7 +39,7 @@ Change the password: generate a bcrypt hash with the image's CLI, then paste it 
 `dozzle_admin_password_hash` in the vaulted `local.yml` and redeploy.
 
 ```bash
-docker run -it --rm amir20/dozzle:v11.1.0 \
+docker run -it --rm amir20/dozzle:v11.1.1 \
   generate admin --email admin@localhost --name 'Admin'
 ```
 
