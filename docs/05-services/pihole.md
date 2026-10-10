@@ -1,7 +1,8 @@
 # Pi-hole
 
 DNS server for the LAN and the VPN: ad and tracker blocking, and split DNS that resolves home lab
-subdomains to the Pi's LAN address. Upstream goes through dnsproxy to Quad9 over DoH
+subdomains to the Pi's LAN address (each name also has a `local=` line, so its AAAA and HTTPS
+queries get an empty answer instead of going to Quad9). Upstream goes through dnsproxy to Quad9 over DoH
 ([Network](../04-network/README.md#resolver), ADR-015).
 
 ## At a glance
@@ -30,12 +31,14 @@ Make Pi-hole the DNS server handed out by DHCP:
 Some devices (typically an ISP TV decoder) break when filtered.
 
 1. Pi-hole admin > **Groups** > create group `bypass` (description: "Unfiltered devices — e.g. TV decoder").
-2. Pi-hole admin > **Clients** > add the device **by MAC**, not by IP.
-3. Assign it to `bypass` only (remove it from **Default**).
-4. Make sure no adlist is assigned to `bypass`.
+2. Router admin > DHCP: reserve a fixed address for the device.
+3. Pi-hole admin > **Clients** > add the device **by that IP**.
+4. Assign it to `bypass` only (remove it from **Default**).
+5. Make sure no adlist is assigned to `bypass`.
 
-Use the MAC: a rule on an IP keeps matching the old lease after the router moves it, and the
-device is silently filtered again. Pi-hole v6 resolves a MAC per query.
+Not by MAC: Pi-hole runs on Docker bridges and never sees a LAN MAC (its network table holds
+`ip-<address>` placeholders), so a MAC rule matches nothing. Without the reservation, an IP rule
+follows the old lease when the router moves the device, which is then filtered again.
 
 This is a UI change, not a deploy: the client table lives in `gravity.db`, which Ansible does not
 manage. Check what the rule holds:
@@ -46,9 +49,6 @@ sudo sqlite3 "file:/mnt/data/services/pihole/etc/gravity.db?mode=ro" \
      join client c on c.id = cg.client_id
      join 'group' g on g.id = cg.group_id;"
 ```
-
-**Still open:** the `Bypass` group is still keyed on an IP. Replace it with the MAC in the UI,
-then re-run the query.
 
 Exempted devices are recorded in `pihole_bypass_clients` (list of `{ mac, label }`) in
 `ansible/inventory/host_vars/<host>/private.yml`, gitignored because the repo is public;

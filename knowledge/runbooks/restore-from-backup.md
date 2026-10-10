@@ -688,10 +688,11 @@ Check it worked:
 
 ```bash
 restic check
-restic snapshots --latest 1
+restic snapshots --compact latest
 ```
 
-Expected: no errors, and a snapshot from last night.
+Expected: no errors, and one snapshot, from last night. `--latest 1` is not the same
+question: it keeps the latest snapshot of each path set, so older path groups print above it.
 
 To see every snapshot that exists — older ones survive the retention policy (see
 [the backup README](../../docs/06-backup/README.md#retention)), so ask the repository,
