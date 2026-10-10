@@ -52,7 +52,7 @@ name resolves only in split DNS.
 
 ```bash
 docker run --rm --network proxy --add-host drive.<domain>:<pi-lan-ip> \
-  redis:8.8.1-alpine sh -c 'wget -S -q -O /dev/null https://drive.<domain>/status.php'
+  redis:8.10.2-alpine sh -c 'wget -S -q -O /dev/null https://drive.<domain>/status.php'
 ```
 
 Remove Collabora (nothing depends on it):

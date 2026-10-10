@@ -24,6 +24,47 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-10-10 (FORTY-FIRST run) — key `obsolescence`, one PR
+
+- **Renovate can order the three pins it could not** (C150): `versioning` regexes for Jellyfin (two- or
+  three-part), linuxserver Transmission (`-rN-lsNNN`) and SearXNG (date then hash). Jellyfin migrated
+  10.11.11 → 12.2 after a copy of its `config`; Transmission `ls363`; SearXNG `2026.10.9`.
+- **Ansible's deprecation warnings are on again** (C04): `ansible_managed` is a group variable with the same
+  string, facts are read through `ansible_facts`, the Docker source is a `deb822_repository`
+  (`docker.sources`, the old `.list` removed).
+- **The feed digest reads past its excerpt for announcements** (C03): sentences naming a deprecation, a
+  removal or an end of support are added within a 1 500-character budget per entry.
+- **The Netdata contexts posture check counts only live contexts** (C03).
+- **`-no-new-privileges` declares its own intent** (C111): on for every container but `collabora` and
+  `netdata`, whatever spelling Docker reports; compose now writes `no-new-privileges=true`.
+- **C01**: seven version pins, `alpine:3.24` in the Kuma runbook, `--path` versus `--include` in the backup
+  README, and the fortieth run's missing section in the register.
+
+## Measured and left as observations on 2026-10-10 (forty-first run)
+
+- Netdata announces the end of APIs v1/v2 at its next major; six consumers in the estate use them and would
+  fail loudly, not silently. A rewrite to plan when 3.0 is announced, not before.
+- Forgejo 16 support ends 2026-10-29; Renovate offers 17 on its own.
+- ansible-core 2.21 is the newest line the workstation's Python runs (2.22 needs 3.13), supported to
+  November 2027.
+- `ubuntu-latest` moves to 26.04 from 2026-10-19; every CI dependency exists there.
+- Let's Encrypt's 64-day (2027-02) and 45-day (2028-02) lifetimes keep the 21-day alarm's margin: Traefik
+  renews at 30 days.
+- Pi-hole, Traefik, wg-easy, sshd, fail2ban, restic, rclone, systemd and cloud-init emit no deprecation about
+  anything the estate uses; no apt, GPG or SSH key in use has an expiry date.
+- A Netdata plugin that times out at start is disabled until the next restart; on 2026-10-10 the chain
+  (Kuma, Discord, heal) caught it in 25 minutes.
+
+## Instrument traps paid on 2026-10-10 (forty-first run)
+
+- **dockerd's deprecation line does not name the option**: `grep no-new-privileges` on its journal finds 0,
+  `grep -i deprecat` finds the 220 lines (`Security options with ':' as a separator…`).
+- **`restic restore latest --path X` selects a snapshot, it does not filter files**: the snapshot whose
+  path set contains X is restored whole.
+- **Heal skips a container that exited with code 0** (`[ "$code" = "0" ] && continue`): a `docker compose
+  stop` survives the timer only when the process exits 0 on SIGTERM, as Jellyfin does; one that exits 143
+  is restarted, so `docker compose down <svc>` stays the maintenance rule.
+
 ## Shipped on 2026-10-10 (FORTIETH run) — key `consent`, one PR
 
 - **A full `site.yml` no longer unlocks a locked, provisioned host** (C62): `storage/tasks/luks.yml`

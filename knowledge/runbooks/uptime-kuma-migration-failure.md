@@ -45,7 +45,7 @@ W=/mnt/data/tmp/kuma-assess
 sudo rm -rf $W && sudo mkdir -p $W
 sudo sh -c "cp -a $S/kuma.db* $W/" && sudo test -s $W/kuma.db
 
-sudo docker run --rm -v $W:/d alpine:3.20 \
+sudo docker run --rm -v $W:/d alpine:3.24 \
   sh -c 'apk add -q sqlite; sqlite3 /d/kuma.db \
     "PRAGMA integrity_check; SELECT count(*) FROM monitor; SELECT name FROM knex_migrations ORDER BY id DESC LIMIT 1;"'
 
@@ -76,7 +76,7 @@ cat > /tmp/mark.sql <<'SQL'
 INSERT INTO knex_migrations (name, batch, migration_time)
 VALUES ('<failing-file>.js', <max_batch + 1>, datetime('now'));
 SQL
-sudo docker run --rm -v $T:/d -v /tmp/mark.sql:/s.sql:ro alpine:3.20 \
+sudo docker run --rm -v $T:/d -v /tmp/mark.sql:/s.sql:ro alpine:3.24 \
   sh -c 'apk add -q sqlite; sqlite3 /d/kuma.db < /s.sql'
 
 sudo docker run -d --name kuma-trial --network none -v $T:/app/data louislam/uptime-kuma:<version>
@@ -108,7 +108,7 @@ excludes these copies by glob.
 S=/mnt/data/services/uptime-kuma
 R=$S/kuma-pre-migration-$(date +%F-%H%M)
 sudo mkdir -p $R && sudo sh -c "cp -a $S/kuma.db* $R/" && sudo test -s $R/kuma.db \
-  && sudo docker run --rm -v $S:/d -v /tmp/mark.sql:/s.sql:ro alpine:3.20 \
+  && sudo docker run --rm -v $S:/d -v /tmp/mark.sql:/s.sql:ro alpine:3.24 \
     sh -c 'apk add -q sqlite; sqlite3 /d/kuma.db < /s.sql'
 cd /opt/homelab && sudo docker compose up -d uptime-kuma
 ```

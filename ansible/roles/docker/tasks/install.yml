@@ -16,9 +16,19 @@
     mode: "0644"
 
 - name: install | Add Docker repository
-  ansible.builtin.apt_repository:
-    repo: "deb [arch=arm64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
-    state: present
+  ansible.builtin.deb822_repository:
+    name: docker
+    types: deb
+    uris: https://download.docker.com/linux/ubuntu
+    suites: "{{ ansible_facts.distribution_release }}"
+    components: stable
+    architectures: arm64
+    signed_by: /etc/apt/keyrings/docker.asc
+
+- name: install | Remove the one-line Docker source the deb822 file replaces
+  ansible.builtin.file:
+    path: /etc/apt/sources.list.d/download_docker_com_linux_ubuntu.list
+    state: absent
 
 - name: install | Create the Docker configuration directory
   ansible.builtin.file:
