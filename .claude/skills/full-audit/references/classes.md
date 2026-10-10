@@ -329,6 +329,13 @@ the CHANNEL that brings upstream change to the operator can see the change. The 
 pins in tag formats it cannot compare sat behind upstream while the dashboard listed them as current, one of
 them Jellyfin, two majors behind a critical advisory.
 
+**The forty-second run, on 2026-10-10, used `calibration` and minted zero.** **Consecutive zero-mint
+runs: 1.** The key asked, for every number the estate chose, what reference it was sized against and
+whether that reference still holds on the running system; about 700 values swept over eight domains, no
+agent proposed a mint. The two values that had lost their margin were guards, and went to C120; the stale
+measured bases whose value still fits went to C01 and C68. The next zero-mint run, with a different key,
+meets the criterion.
+
 ---
 
 # The register
@@ -690,6 +697,19 @@ of those needed action, and saying so with numbers is the point.
 the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
+
+## OPEN — 0 (after the FORTY-SECOND run of 2026-10-10, key `calibration`)
+
+**Empty.** No mint; two members of C120 and four of C01, one of C68 — see "The run of 2026-10-10
+(FORTY-SECOND)" below.
+
+| ID | Property | State |
+|---|---|---|
+| C120 | A guard whose trip point sits at the wrong distance from the rupture it guards | **2 members, 2026-10-10**: Kuma monitor 16 `Offsite backup` at 93 600 s left 454 s on an ordinary night (copy pushes 10-07 03:14:41 and 10-08 05:07:07, a 29 GiB ingest) — FIXED, 100 800 s; `PerSourceMaxStartups 8`, sized as "twice the measured peak of 4" (this file, the C142 fix) when `auth.log` already held 8 concurrent pre-auth connections from the workstation on 2026-09-11 19:00:41–47, and 7 on 09-29 — FIXED, `PerSourceMaxStartups 16`, `MaxStartups 20:30:60` (client-side `ControlMaster` dropped: `MaxSessions 10` would bind instead). Not GATED |
+| C01 | A documentary statement whose content contradicts the deployed artefact | **4 members, 2026-10-10**: the redacted access log (~19 days at ~11 MB/day, not 32 at 6), Kuma's ordinary-beat retention (~31 h, not 45.6 h), ADR-019's writable rootfs (eight, not nine), the deep-check message (~1700 s, not 1540). FIXED |
+| C68 | A store whose declared retention is overridden by a limit that is not the one written down | **Latent member, 2026-10-10**: Pi-hole's `rotate 21` promised three weeks of `FTL.log` while `/var/log/pihole` empties at every recreation (12 days held today). FIXED in `pihole.md` |
+
+### The forty-first run's table read:
 
 ## OPEN — 0 (after the FORTY-FIRST run of 2026-10-10, key `obsolescence`)
 
@@ -1510,6 +1530,46 @@ separate correction — **the marker is not a provenance instrument.**
 C92 and C03-R were closed as review rules once their spaces proved non-derivable.
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
+
+## The run of 2026-10-10 (FORTY-SECOND) — the key was `calibration`, and it minted zero
+
+The key, chosen by the operator over `precision`, `liveness` and a confirmation-only pass: **for every
+number the estate sets by choice — threshold, timeout, retry count, interval, window, grace, retention,
+quota, limit, size, budget — what reference was it sized against, and does that reference, measured today
+on the running system, still sit where the value assumes?** Forms: K1 the reference moved, K2 the written
+basis is stale, K3 no reference and mis-sized, K4 transplanted to another host, version or load. Borders
+declared: C01, C06, C08, C36, C52, C67, C68, C69, C120, C123, C127, C149.
+
+### The counter: 0 OPEN in, 0 OPEN out, 0 minted, 0 gates broken, class total 150
+
+Consecutive zero-mint runs: 1.
+
+### The sweep
+
+| Domain | Values | Result |
+|---|---|---|
+| `system` | 59/59, both hosts | clean |
+| `security` | 54/54, both hosts | C120 (`PerSourceMaxStartups`) |
+| `network` | 48/48 | C68 latent (Pi-hole logs) |
+| `services` | 159/159 | C01 (access log) |
+| `backup` | 56/56 | C120 (monitor 16) |
+| `observability` | 255/255 | C120 (monitor 16, converged with `backup`) |
+| `ansible-deploy` | 40/40 | clean |
+| `project-manager` | 32 measured bases | C01 ×3 |
+
+GATED intact, read: C03-T, C14, C19, C41, the `-e` word-split refusal, and the sshd posture check.
+
+### Rejected or requalified
+
+- Transmission force-killed at its 60 s grace on 10-04 and 10-09: C97, alarm declined 2026-09-21.
+- Immich, Calibre-Web and Collabora red at every reboot or deploy (3 × 60 s against a 15–22 min start):
+  accepted in the observability README.
+- The `~` estimate rows of the RAM table drift by up to 2×: labelled as estimates.
+- The growth projection of 2026-08-31 in `settled.md` was 3 to 5 times low: replaced by the rule that
+  regenerates it; the 85 % thresholds still leave 107 to 190 days of lead.
+- Rule breaches: `security` and `observability` each copied a helper script to a host's `/tmp` and removed
+  it. The brief said most containers were recreated at 00:45Z; 29 were only restarted with Docker at
+  2026-10-09 22:48Z (`ansible-deploy` corrected it), which changed no conclusion.
 
 ## The run of 2026-10-10 (FORTY-FIRST) — the key was `obsolescence`, and it minted one
 
