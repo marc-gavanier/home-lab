@@ -336,12 +336,22 @@ agent proposed a mint. The two values that had lost their margin were guards, an
 measured bases whose value still fits went to C01 and C68. The next zero-mint run, with a different key,
 meets the criterion.
 
+**The forty-third run, on 2026-10-10, used `selectivity` and minted zero.** **Consecutive zero-mint
+runs: 2. THE CRITERION IS MET for the first time: no OPEN class, and two consecutive runs with different
+keys (`calibration`, `selectivity`) minted nothing.** The key asked, for every selector the estate relies
+on (regex, glob, filter, include/exclude, source range, matcher), whether the set it selects today on the
+running system is the set it is meant to select; 416 selectors swept over eight domains, each with a
+control. The zero was not obtained by declining: no agent proposed a mint. The seven confirmed instances
+went to C03 (four operator commands), C01 (the Pi-hole MAC remedy), C31 (AAAA and HTTPS forwarded) and C78
+(three pre-commit filters narrower than their checkers). A later run that mints reopens the count; the
+criterion says the perimeter was complete for two independent dimensions, not that no dimension remains.
+
 ---
 
 # The register
 
 Runs of 2026-08-15 through 2026-09-21 (TWELFTH run, key `durability`).
-**Current state: see the OPEN table after the FORTY-FIRST run of 2026-10-10 (key `obsolescence`) — 150 classes, 0 OPEN. The counts below this line are the twelfth run's.**
+**Current state: see the OPEN table after the FORTY-THIRD run of 2026-10-10 (key `selectivity`) — 150 classes, 0 OPEN. The counts below this line are the twelfth run's.**
 **121 recorded classes: 3 OPEN — and the membership is C121, C34 and C01,
 written as a list because every time this line carried a rule for reconstructing
 the count instead, the count was wrong. 9 GATED, 7 closed by decision, plus the
@@ -697,6 +707,20 @@ of those needed action, and saying so with numbers is the point.
 the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
+
+## OPEN — 0 (after the FORTY-THIRD run of 2026-10-10, key `selectivity`)
+
+**Empty.** No mint; the termination criterion is met. Members of C03, C01, C31 and C78 — see "The run of
+2026-10-10 (FORTY-THIRD)" below.
+
+| ID | Property | State |
+|---|---|---|
+| C03 | A validation whose instrument answers a different question from the one its comment claims | **3 members + 1 latent, 2026-10-10**: `restic snapshots --latest 1` (restore runbook) returns the latest snapshot per path set, 4 rows with last night's at the bottom; `dmesg \| grep apparmor` (observability README, ADR-018) returns 0 because UFW's BLOCK lines fill the ring within ~13 h, against 18 AppArmor lines and 1 DENIED in the kernel journal (already named 2026-08-16, never fixed); `grep <service> /etc/goss/posture.yaml` (container-config-changes) prints none of the `stdout:` lines holding the expected values (sonarr 11 lines, 0 of 5); latent: the tamper runbook's grep read `syslog` and not `syslog.1`. FIXED: `--compact latest`, `journalctl -k -b -g`, a per-container listing of key and expected value, both files |
+| C01 | A documentary statement whose content contradicts the deployed artefact | **1 member, 2026-10-10**: `pihole.md` and `settled.md` told the operator to re-key the decoder bypass by MAC; Pi-hole sits on Docker bridges, its network table holds `ip-<address>` placeholders for every LAN client and 29 locally-administered Docker MACs, so a MAC rule matches nothing. FIXED: key by an IP the router reserves |
+| C31 | A name resolving differently inside and outside | **Missed axis, 2026-10-10 — the record type**: the 21 `address=` lines answer A locally and forwarded AAAA and HTTPS to Quad9, 723 + 362 queries in 30 days (A: 0 of 109 812), all NODATA. FIXED: a `local=` line per name, deployed, `config … is NODATA` in the log, second run `changed=0` |
+| C78 | A set of which two or more components each hold their own definition, in different grammars, with nothing comparing the definitions | **1 member, 2026-10-10**: three pre-commit hooks' `files:` narrower than their checker's globs — `empty-set-floors` skipped 95 files (every task, handler, playbook), `shell-cmds-parse` the goss templates, `secret-in-environment` the example files; 18 of 45 commits ran without the floor gate locally, 0 escaped (CI runs unfiltered). FIXED: the three `files:` removed |
+
+### The forty-second run's table read:
 
 ## OPEN — 0 (after the FORTY-SECOND run of 2026-10-10, key `calibration`)
 
@@ -1530,6 +1554,54 @@ separate correction — **the marker is not a provenance instrument.**
 C92 and C03-R were closed as review rules once their spaces proved non-derivable.
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
+
+## The run of 2026-10-10 (FORTY-THIRD) — the key was `selectivity`, and it minted zero
+
+The key, invented for this run and chosen by the operator over `executability`, `precision` and a
+confirmation-only pass: **for every selector the estate relies on — regex, glob, path prefix,
+include/exclude, label or name filter, source range, matcher — does what it selects today, on the running
+system, equal the set it is meant to select?** Forms: S1 over-selection, S2 under-selection, S3 vacuous
+selection read as "fine", S4 correct only by coincidence of the current population. Borders declared: C01,
+C03, C09, C29, C37, C56, C78, C86, C88, C94, C111, C119, C124.
+
+### The counter: 0 OPEN in, 0 OPEN out, 0 minted, 0 gates broken, class total 150
+
+Consecutive zero-mint runs: 2. **The termination criterion is met.**
+
+### The sweep
+
+| Domain | Selectors | Result |
+|---|---|---|
+| `system` | 41/41, both hosts | clean |
+| `security` | 36/36, both hosts | clean |
+| `network` | 29/29 | C31 (record-type axis), C01 (MAC remedy) |
+| `services` | 64/64 | clean |
+| `backup` | 45/45 | C03 (`--latest 1`) |
+| `observability` | 79/79 | clean |
+| `ansible-deploy` | 70/70 | C78 (pre-commit filters) |
+| `project-manager` | 52/52 | C03 ×2 + 1 latent |
+
+GATED intact, read: C03-T, C11, C14, C15, C18, C19, C41, C77's `_raw_params` assert, C81, and the netdata
+AppArmor profile.
+
+### Rejected or requalified
+
+- No mint was proposed. Every confirmed instance was re-measured by the main session with a control.
+- The heal timer's `label=com.docker.compose.project` matches any compose project: named by three agents
+  independently, already settled.
+- `homelab-disk.sh`'s `^#[[:space:]]+[0-9]+` cannot see self-test entries #10 and above; it reads only the
+  latest completed test, and the degenerate case raises "no completed self-test" rather than hiding one.
+- Observations, no work: `backup-monitoring.md` suggests `--start-at-task`, which skips `always`-tagged
+  guards (`--tags backup` keeps them); the temperature and undervoltage alarms carry no label filter (one
+  sensor each); the Netdata→Kuma adapter does not bound N; 6 album names contain `?`, each matching only
+  itself; offsite fstrim skips the SSD silently; needrestart's `docker.service` exclusion is redundant;
+  Transmission's host whitelist is inert while a password is set; the offsite `DOCKER-USER` chain is
+  orphaned; `installation.md` step 7 deploys 15 of 32 services (green-field path).
+- Rule breaches: `system`, `observability`, `ansible-deploy` wrote a file in `/dev/shm` and `project-manager`
+  one in `/tmp`, each removed within a minute; `backup` killed its own `find` past its timeout; `security`
+  printed the kill switch topic into the session transcript through a mask that did not match the quoted
+  value (the operator keeps the topic). While the fix was being written, another session moved the shared
+  tree back to `main`; the uncommitted changes followed and were committed on the branch.
 
 ## The run of 2026-10-10 (FORTY-SECOND) — the key was `calibration`, and it minted zero
 

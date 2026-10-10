@@ -15,6 +15,8 @@ earlier — which would have sent eight agents to re-derive settled work. Rebuil
 it from `classes.md`'s OPEN table at the start of every run; if the two
 disagree, `classes.md` wins.
 
+**SIXTY-ONE keys are now spent.** `selectivity` (forty-third run, 0 mints — the termination criterion is met). `executability` (does every command the docs hand the operator run as written today) and `precision` were offered and not chosen.
+
 **SIXTY keys are now spent.** `calibration` (forty-second run, 0 mints): does the reference each chosen number was sized against still hold on the running system.
 
 **FIFTY-NINE keys are now spent.** `obsolescence` (forty-first run, 1 mint: C150). `liveness` (does every wait, lock and retry have a bound) and `precision` (an instrument's resolution against the margin of the decision it feeds) were offered and not chosen.
