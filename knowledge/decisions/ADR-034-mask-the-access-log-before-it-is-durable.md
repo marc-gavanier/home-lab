@@ -7,8 +7,10 @@
 
 ## Context
 
-Traefik's access log is the only place where every HTTP request to this host is
-recorded. #259 removed its `filters.statusCodes: 400-599` on 2026-08-28, for a
+Traefik's access log is the only place where HTTP requests to this host are
+recorded: every request except those served by Traefik's own internal routers
+(dashboard, API, the HTTP→HTTPS redirect, ping), which it leaves out unless
+`accessLog.addInternals` is set. #259 removed its `filters.statusCodes: 400-599` on 2026-08-28, for a
 sound reason: filtered to refusals, the log could not answer *who is present*,
 and a census drawn from it had already produced one wrong conclusion and cost
 the offsite host a week of silence.

@@ -15,6 +15,8 @@ earlier — which would have sent eight agents to re-derive settled work. Rebuil
 it from `classes.md`'s OPEN table at the start of every run; if the two
 disagree, `classes.md` wins.
 
+**SIXTY-THREE keys are now spent.** `conservation` (forty-fifth run, 0 mints — does every flow balance, in against out plus declared rejects). `liveness`, `portability` and `precision` were offered and not chosen.
+
 **SIXTY-TWO keys are now spent.** `executability` (forty-fourth run, 1 mint: C151 — a command written without the privilege it needs). `precision` and `liveness` were offered and not chosen.
 
 **SIXTY-ONE keys are now spent.** `selectivity` (forty-third run, 0 mints — the termination criterion is met). `executability` (does every command the docs hand the operator run as written today) and `precision` were offered and not chosen.

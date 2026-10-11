@@ -22,7 +22,7 @@ notify() {
         msg="${msg:0:940}… +$(( {% raw %}${#msg}{% endraw %} - 940 )) characters, full text in the journal"
     fi
     printf 'url = "%s"\n' "$KUMA_PUSH_URL" |
-        curl -fsS -m 30 --connect-timeout 5 --retry 2 -K - -G \
+        curl -fsS -m 30 --connect-timeout 5 -K - -G \
             --data-urlencode "status=$1" --data-urlencode "msg=$msg" >/dev/null || rc=$?
     case "$rc" in
         0) ;;

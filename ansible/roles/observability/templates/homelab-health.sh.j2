@@ -25,7 +25,7 @@ push_to() {
         msg="${msg:0:940}… +$(( {% raw %}${#msg}{% endraw %} - 940 )) characters, full text in the journal"
     fi
     printf 'url = "%s"\n' "$1" |
-        curl -fsS -m 30 --connect-timeout 5 --retry 2 -K - -G \
+        curl -fsS -m 30 --connect-timeout 5 -K - -G \
             --data-urlencode "status=$2" --data-urlencode "msg=$msg" >/dev/null || rc=$?
     case "$rc" in
         0) ;;

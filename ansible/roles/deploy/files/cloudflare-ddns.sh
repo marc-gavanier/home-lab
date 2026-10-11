@@ -17,7 +17,7 @@ notify() {
     fi
     local rc=0
     printf 'url = "%s"\n' "$url" |
-        curl -fsS -m 30 --connect-timeout 5 --retry 2 -K - -G \
+        curl -fsS -m 30 --connect-timeout 5 -K - -G \
             --data-urlencode "status=$1" --data-urlencode "msg=$msg" >/dev/null || rc=$?
     case "$rc" in
         0) ;;

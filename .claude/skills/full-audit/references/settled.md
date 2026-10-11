@@ -24,6 +24,57 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-10-11 (FORTY-FIFTH run) — key `conservation`, one PR
+
+- **Kuma pushes no longer retry** (C127): `--retry 2` dropped at the eight push sites, `-m 30
+  --connect-timeout 5` kept. A `curl: (28)` means the first request may still be committing on the server;
+  retrying it made two concurrent writers for one monitor, which during the 03:00 dumps poisoned Kuma's
+  hourly stat cache and sent six DOWN notifications with no recovery. A push refused at connect is now
+  lost rather than replayed: for the nightly pushes that is one visible false DOWN, accepted. The
+  Cloudflare API calls keep their retries.
+- **C01**: `restore-from-backup.md` links installation step 6 (the steps swapped in `af54bcb`); ADR-034
+  says internal routers are not in the access log.
+
+## Declined, recorded on 2026-10-11 from the operator's decisions (absent here until now)
+
+- **A default `HD-1080p` profile in Radarr/Sonarr, and Jellyseerr**: the operator searches interactively
+  on purpose.
+- **A local fix for Calibre-Web's `book_format_checksums` ERROR**: benign, the function is off and the bug
+  is upstream.
+- **Checking or monitoring the Cloudflare token's expiry date** (2026-10-10): the forty-first run's
+  "suspected, for the operator" line about it is answered — do not raise it again.
+
+## Measured and left as observations on 2026-10-11 (forty-fifth run)
+
+- 136 flows counted in and out over eight domains: backups and offsite copies, dumps, journald,
+  rsyslog through rotation, the access-log relay, DNS, certificates, DDNS, WireGuard, fail2ban, UFW,
+  libraries, deploys, documentation inventories. All close except the C127 member above.
+- Two Sonarr series bound to the wrong TVDB show by the 2026-09-12 bulk import (Death Note, Vikings): 121
+  episode files invisible to Sonarr, 5 films unknown to Radarr. Playback unaffected; fixed in the UI, no
+  repository work.
+- `photos/2002-??-?? - été/DCP_0112.JPG` is 0 bytes in every snapshot since the first: nothing to restore.
+- UFW's 3/min log limiter drops ~13 % of the homelab's BLOCK lines; the kernel counters keep the exact
+  count.
+- Immich's integrity report holds 15 entries nobody reads (5 duplicate uploads, 10 missing `.xmp`).
+
+## Instrument traps paid on 2026-10-11 (forty-fifth run)
+
+- **`/run/traefik/access.log` is the RAW access log, before the redactor**: it holds Kuma push tokens in
+  URLs. Count its lines, never print them. A `head` on it put one token into a session transcript.
+- **`restic ls <snap> <dir>` without `--recursive` lists one level**: a file count reads as a 70 % loss.
+  To find one file across every snapshot, `restic --no-lock find <name>`.
+- **`ActiveEnterTimestamp` does not move on a reload**: a SIGHUP'd sshd reads as stale; its listener title
+  shows what it runs.
+- **A journal seqnum gap is not lost entries**: after a second flush, 1 387 seqnums existed in no file and
+  no entry was missing in the time window.
+- **Immich external-library checksums hash the path, not the content.**
+- **`pkill -f <pattern>` over `ssh` kills its own shell**: the pattern is in the remote `bash -c` argv.
+- **A `>` inside a quoted `ssh` command writes on the host**: four agents left files in `/dev/shm` or
+  `/tmp` this run; an earlier one left an empty `/etc/wireguard/wg-easy.db` on the SD card (2026-09-27).
+  Pipe to the workstation instead.
+- **A month-long `journalctl -g` on the homelab outlives a 20 s `timeout`**: bound it with `--since` of a
+  day, or `-u`.
+
 ## Shipped on 2026-10-11 (FORTY-FOURTH run) — key `executability`, one PR
 
 - **Every operator command carries the privilege it needs** (C151): `sudo` at each documented site, and in the
