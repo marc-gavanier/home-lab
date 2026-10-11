@@ -37,6 +37,11 @@ and therefore in the nightly Restic chain. `Sauvegardes/PC/` was empty.
   `Persistent=true`, so a night with the workstation off is caught up at the next
   start, and `RequiresMountsFor=`, so the backup waits for the encrypted `Storage`
   volume.
+- **Older saves are archived beside the target, not in it.** Saves extracted from a
+  retired Steam library go to `Sauvegardes/Archives/<source>`, through a separate
+  configuration whose only root is that library and which names the games to take:
+  Ludusavi always scans `$HOME` for native Linux games, so without the list it would
+  archive the current saves too.
 - **A restore never overwrites live saves.** `ludusavi restore` writes back to the
   original paths; it is tested with a copy of the configuration and a restore
   redirect to an empty folder, never in place.
@@ -49,13 +54,15 @@ and therefore in the nightly Restic chain. `Sauvegardes/PC/` was empty.
 - **Off the workstation within minutes**: the first backup (568 files) was on the
   server with identical md5 on both sides.
 - **Verified, not assumed.** The timer's service ran unattended and wrote nothing
-  when nothing had changed; one game was restored through a redirect and its 14
-  files were identical to the live ones.
+  when nothing had changed, and a differential backup when a save had; one game was
+  restored through a redirect and its 14 files were identical to the live ones.
 
 ### Cons
 
-- **Only what the manifest knows.** A game whose save path is missing from
-  PCGamingWiki is skipped silently; it needs a custom entry.
+- **Only what the manifest knows.** A save path missing from PCGamingWiki is
+  skipped silently. Two were found and closed with `extend` custom entries: Final
+  Fantasy IX's Steam Cloud save (`FF9_CloudSaveFile_ww.sav`) and Life Is Strange:
+  Before the Storm's `BackupSave_*` and `Bonus*` folders.
 - **The first interactive run waits on standard input** (the manifest prompt). Run
   by hand, it needs `< /dev/null`; the service is not affected.
 - **Manual updates** of the binary.
@@ -84,7 +91,8 @@ tar xzf ludusavi-v0.31.0-linux.tar.gz -C ~/.local/bin ludusavi
 ludusavi manifest update < /dev/null
 ```
 
-`~/.config/ludusavi/config.yaml` is the generated default with four values changed:
+`~/.config/ludusavi/config.yaml` is the generated default with four values changed
+and two custom entries added:
 
 ```yaml
 backup:
@@ -96,6 +104,15 @@ restore:
   path: /home/marc-gavanier/Storage/Games/Sauvegardes/PC
 cloud:
   synchronize: false
+customGames:
+  - name: Final Fantasy IX
+    integration: extend
+    files:
+      - "<home>/Documents/Square Enix/FINAL FANTASY IX"
+  - name: "Life Is Strange: Before the Storm"
+    integration: extend
+    files:
+      - "<home>/AppData/LocalLow/Square Enix/Life is Strange_ Before the Storm/Saves/<storeUserId>"
 ```
 
 `~/.config/systemd/user/ludusavi-backup.service`:
