@@ -34,6 +34,9 @@ Mirrors the profile's `source` list: keep both in sync. All daily.
 | SQLite DBs             | Vaultwarden, Forgejo, Uptime Kuma, wg-easy, Sonarr, Radarr, Prowlarr: `sqlite3 .backup` (WAL-safe) → `/mnt/data/backups/dumps` | dump → Restic     |
 | Immich DB              | Immich's own scheduled backup → `services/immich/upload/backups/*.sql.gz`                 | built-in → Restic |
 
+The workstation's PC game saves reach this chain as Nextcloud files: Ludusavi writes
+them into a synced folder every day ([ADR-039](../../knowledge/decisions/ADR-039-back-up-pc-game-saves-with-ludusavi.md)).
+
 **Not backed up:** `/mnt/data/library` (torrent video, re-obtainable, kept until
 watched — ADR-035), `/mnt/data/log` (the persistent journal), `/mnt/data/claude`
 (the `claude` account's working files and rclone write cache), `/mnt/data/docker` (the
