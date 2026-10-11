@@ -20,8 +20,11 @@ Keep the trigger line, with the real topic, in your offline backup.
 1. From any device with internet (no VPN, no SSH needed):
 
    ```bash
-   curl -d '<keyword>' https://ntfy.sh/<topic>
+    curl -d '<keyword>' https://ntfy.sh/<topic>
    ```
+
+   Keep the leading space: it keeps the trigger out of shell history (zsh
+   `histignorespace`, bash `HISTCONTROL=ignoreboth`).
 
    Expected: within ~1–2 s the service logs `TRIGGER received — powering off now`
    and runs `systemctl poweroff`. Any other body logs `keyword mismatch — ignored`
@@ -57,7 +60,7 @@ sudo ss -tnp state established '( dport = :443 )' | grep curl
 End-to-end test of the receive path (does **not** power off):
 
 ```bash
-curl -d 'wrong-keyword-test' https://ntfy.sh/<topic>
+ curl -d 'wrong-keyword-test' https://ntfy.sh/<topic>
 # journal should show: message received but keyword mismatch — ignored
 ```
 

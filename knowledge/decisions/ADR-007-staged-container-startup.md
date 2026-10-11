@@ -80,7 +80,7 @@ encrypted disk, and stage the containers behind it — all automated by the
   progress surface is `journalctl -t homelab-startup -b -f`.
 - **Manual stops get healed**: the heal timer cannot tell a crash (exit 137)
   from `docker stop` (often 137/143 too). Maintenance must use
-  `docker compose down <svc>` or stop the timer.
+  `docker compose -f /opt/homelab/compose.yaml down <svc>` or stop the timer.
 - **A crashed service can stay down up to 2 min** (timer cadence) instead of
   being restarted immediately by the daemon.
 

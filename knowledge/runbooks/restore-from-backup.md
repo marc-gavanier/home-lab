@@ -71,11 +71,13 @@ Expected: a list of snapshots, the newest from last night's 03:00 run or from a 
 ```bash
 cd /opt/homelab
 docker compose down <service>
-restic restore latest --target / --include /mnt/data/services/<service>
+restic restore latest --target / --include /mnt/data/services/<dir>
 docker compose up -d <service>
 ```
 
-Each service's own doc lists its exact path.
+`<dir>` is the data directory, usually the service name. Two differ: `immich` (services
+`immich-*`) and `wireguard` (service `wg-easy`); both have their own section below. Each
+service's own doc lists its exact path.
 
 **This is not a complete restore for a service with a database, and it exits 0
 either way.** The live database directories are excluded from the snapshot (the
@@ -125,8 +127,8 @@ Or let Ansible do it, from `ansible/`:
 ansible-playbook playbooks/site.yml --tags storage --ask-vault-pass
 ```
 
-`--tags storage` owns the three database directories; `immich/redis` belongs to the
-`deploy` role (`--tags deploy`).
+`--tags storage` owns the three database directories; for `immich/redis`, the `chown`
+above is enough.
 
 `nextcloud-cron` runs as root; it needs nothing.
 
@@ -605,7 +607,7 @@ Check it worked:
 
 ### Before you start
 
-- Plan on **2 to 9 hours** for the 90.9 GiB snapshot of 2026-09-26; see [Drill record](#drill-record)
+- Plan on **3 to 14 hours** for the 145.6 GiB snapshot of 2026-10-11; see [Drill record](#drill-record)
   for the rates and how to recompute it.
 - **Disable the timers first** when restoring onto the running host; a reflashed card
   has none until step 3. The nightly backup `rm -rf`s
@@ -716,13 +718,13 @@ Every drill verifies by **loading** the data, never by listing it.
 | 2026-07-19 | Local                                                      | Immich dump into a throwaway VectorChord postgres: 66 tables, 9 283 `asset`, 9 247 `smart_search`. Vaultwarden `.backup`: integrity ok. Local prune+check timer run. |
 | 2026-07-11 | Local                                                      | `restic check --read-data-subset=2%`, Vaultwarden scratch restore, Nextcloud dump into a throwaway MariaDB (156 tables).                                         |
 
-Full-restore duration through the tunnel, for the 90.9 GiB / 95 440-file snapshot of
-2026-09-26 (the rates were measured when it held 343 GiB):
+Full-restore duration through the tunnel, for the 145.6 GiB snapshot of 2026-10-11
+(the rates were measured when it held 343 GiB):
 
-| Rate       | Source                                   | Time   |
-|------------|------------------------------------------|--------|
-| 13.5 MiB/s | burst, small files                       | ~1.9 h |
-| 3.13 MB/s  | sustained nightly tunnel rate, 7 nights  | ~8.7 h |
+| Rate       | Source                                   | Time    |
+|------------|------------------------------------------|---------|
+| 13.5 MiB/s | burst, small files                       | ~3.1 h  |
+| 3.13 MB/s  | sustained nightly tunnel rate, 7 nights  | ~13.9 h |
 
 The current size is the last `scan finished … GiB` line of
 `journalctl -u homelab-backup`; divide it by both rates.

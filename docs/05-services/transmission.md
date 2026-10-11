@@ -71,11 +71,6 @@ Native client: point it at `share.example.com:443` with the admin credentials.
 sudo apt install transmission-remote-gtk
 ```
 
-Restore (resume state included, torrents resume seeding):
-
-```bash
-cd /opt/homelab
-docker compose down transmission
-restic restore latest --target / --include /mnt/data/services/transmission
-docker compose up -d transmission
-```
+Restore (resume state included, torrents resume seeding): follow
+[restore-from-backup.md](../../knowledge/runbooks/restore-from-backup.md) → "Restore one service" (as root, with
+the repository open), service `transmission`, path `/mnt/data/services/transmission`.

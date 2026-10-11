@@ -91,7 +91,7 @@ encrypted volume, pulled in by `mnt-data.mount`.
 2. On site: plug ethernet and power. Nothing to configure: the WireGuard client dials
    out to `vpn.<domain>:51820` from any network.
 3. From the homelab: `ping 10.8.0.4`, then
-   `systemctl start homelab-offsite-check.service`. Expected: Kuma goes green.
+   `sudo systemctl start homelab-offsite-check.service`. Expected: Kuma goes green.
 4. Confirm Ansible reaches it through the tunnel (`offsite_ip` tracks
    `offsite_wg_ip`): `cd ansible && ansible offsite -m ping --ask-vault-pass`. The
    `cd` matters: `ansible.cfg` points at the inventory relatively; elsewhere the host
@@ -144,7 +144,7 @@ resticprofile -c /opt/homelab/resticprofile.yaml -n homelab copy
 ```
 
 For any multi-hour seed, disable the timer and re-enable it after:
-`systemctl disable --now homelab-backup.timer`.
+`sudo systemctl disable --now homelab-backup.timer`.
 
 ## Manual retention (rare — when disk usage approaches 85%)
 
@@ -278,7 +278,7 @@ rest-server, then run the check again.
      `keys/` without it.
 
 2. Restore, on any machine, with the offsite password:
-   `restic -r /mnt/backup/restic restore latest --target /restore`.
+   `sudo restic -r /mnt/backup/restic restore latest --target /restore`.
 3. Follow [Full disaster recovery](restore-from-backup.md#full-disaster-recovery). At
    its step 2, copy the same paths from `/restore` onto the new Pi instead of running
    `restic restore`, secrets first; `/restore/opt/homelab` holds only symlinks into

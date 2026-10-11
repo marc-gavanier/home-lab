@@ -111,8 +111,8 @@ Expected: the UI asks you to log in again.
 - **Navidrome**: music apps keep the account password. Change it in Navidrome.
 - **Vaultwarden**: the mobile client keeps an encrypted offline cache. If the device may have been
   unlocked, change the master password, then invalidate sessions in `/admin` → *Users*.
-- **Nextcloud**: `occ user:auth-tokens:list <user>` then
-  `occ user:auth-tokens:delete <user> <id>`, or *Devices & sessions* in the web UI. App
+- **Nextcloud**: `docker exec -u www-data nextcloud php occ user:auth-tokens:list <user>` then
+  `docker exec -u www-data nextcloud php occ user:auth-tokens:delete <user> <id>`, or *Devices & sessions* in the web UI. App
   passwords survive a password change; sessions do not.
 - **Immich, Jellyfin**: sign out of all sessions in their settings.
 - **SSH**: if the device carried a key, remove it from `authorized_keys` on both Pis.

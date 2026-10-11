@@ -17,7 +17,7 @@ which the workstation mounts as `~/Music`.
 
 - New files: a watcher scans the changed folder within seconds; a scan every hour
   (`ND_SCANNER_SCHEDULE=1h`) catches misses. A misspelled `ND_*` is ignored
-  silently, so check `docker logs navidrome | grep -i "periodic scan"`.
+  silently, so check `docker logs navidrome 2>&1 | grep -i "periodic scan"`.
 - Tags decide, not folder names. Fix them with `mid3v2` (keeps cover art);
   `exiftool` cannot write MP3.
 - Layout: `Artist/Album/Track.ext`, plus `cover.jpg` in the album folder.
@@ -54,15 +54,9 @@ Stop here if the count is not what you expect. Then:
 docker exec navidrome navidrome scan --full
 ```
 
-Restore. Use `compose down`, never `docker stop`: the heal timer restarts a
-container that exited non-zero (ADR-007).
-
-```bash
-cd /opt/homelab
-docker compose down navidrome
-restic restore latest --target / --include /mnt/data/services/navidrome
-docker compose up -d navidrome
-```
+Restore: follow [restore-from-backup.md](../../knowledge/runbooks/restore-from-backup.md)
+→ "Restore one service" (as root, with the repository open), service `navidrome`, path
+`/mnt/data/services/navidrome`.
 
 ## Troubleshooting
 

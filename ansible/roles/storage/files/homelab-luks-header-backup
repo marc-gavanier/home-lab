@@ -35,7 +35,7 @@ echo
 echo "NEXT (this file is as sensitive as the passphrase — do NOT leave it here):"
 echo "  1. Move it off this machine, to two independent offline places"
 echo "     (the rule is in knowledge/runbooks/luks-header-backup.md)."
-echo "  2. Shred the working copy:  shred -u '$OUT'"
+echo "  2. Shred the working copy:  sudo shred -u '$OUT'"
 
 if [ -e /run/homelab/tamper-armed ]; then
     echo

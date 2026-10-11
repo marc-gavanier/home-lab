@@ -56,4 +56,4 @@
       set -euo pipefail
       rm -f /run/homelab/tamper-armed
       logger -t usb-tamper "disarmed"
-      echo "USB tamper response DISARMED — re-arm with: homelab-tamper-arm"
+      echo "USB tamper response DISARMED — re-arm with: sudo homelab-tamper-arm"

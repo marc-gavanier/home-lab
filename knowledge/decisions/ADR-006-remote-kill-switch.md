@@ -35,7 +35,8 @@ receives a message whose body **exactly matches** a secret keyword.
     public ntfy server the topic name **is** the access control, so it must be
     unguessable.
   - `killswitch_keyword` — a second secret; poweroff fires only on an exact match.
-- **Trigger** from anywhere: `curl -d '<keyword>' https://ntfy.sh/<topic>`.
+- **Trigger** from anywhere: `curl -d '<keyword>' https://ntfy.sh/<topic>`, typed
+  with a leading space so it stays out of shell history.
 - **Recovery is deliberately manual** (see the runbook): there is no remote
   power-on. Restore power physically, then bring the encrypted data volume back
   as on any boot.

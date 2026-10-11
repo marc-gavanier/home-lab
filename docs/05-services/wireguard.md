@@ -46,8 +46,8 @@ Desktop (Linux):
 
 1. `sudo apt install wireguard`
 2. Create a client in the wg-easy UI and download the `.conf` file.
-3. Import: `nmcli connection import type wireguard file client.conf`
-4. Connect: `nmcli connection up client-name`
+3. Import: `nmcli connection import type wireguard file <client>.conf`
+4. Connect: `nmcli connection up <client>` (the connection is named after the file)
 
 Removing a client: [wireguard-peer-revocation.md](../../knowledge/runbooks/wireguard-peer-revocation.md).
 

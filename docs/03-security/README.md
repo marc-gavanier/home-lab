@@ -17,7 +17,7 @@ hold. This page lists the controls per layer and where each one is decided.
   FORWARDed, where `DOCKER-USER` (1) and `DOCKER-FORWARD` (2) come before the
   `ufw-*-forward` chains (3+). Read exposure from the router and `DOCKER-USER`.
 - **Port 53 is decided in `DOCKER-USER`.** It carries eight rules
-  (`iptables -L DOCKER-USER -n -v`), a RETURN pair per allowed source and a DROP
+  (`sudo iptables -L DOCKER-USER -n -v`), a RETURN pair per allowed source and a DROP
   pair to close:
 
   ```
@@ -259,7 +259,8 @@ Powers the Pi off from anywhere without an inbound port. `killswitch.service`
 - **Two secrets**, vault-encrypted in `local.yml`: `killswitch_ntfy_topic`
   (high-entropy, gates who can subscribe) and `killswitch_keyword`
   (exact-match trigger).
-- **Trigger**: `curl -d '<keyword>' https://ntfy.sh/<topic>`
+- **Trigger**: `curl -d '<keyword>' https://ntfy.sh/<topic>`, typed with a leading
+  space so it stays out of shell history
 - **Recovery is physical**: restore power, then unlock the data volume as on
   any boot.
 

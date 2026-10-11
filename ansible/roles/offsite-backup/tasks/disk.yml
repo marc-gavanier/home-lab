@@ -53,14 +53,14 @@
       formats. Set offsite_disk_force_format=true (one run) to format it.
   when:
     - backup_disk_fstype.stdout != 'ext4'
-    - not offsite_disk_force_format
+    - not offsite_disk_force_format | bool
 
 - name: disk | Create ext4 filesystem on the backup disk
   community.general.filesystem:
     fstype: ext4
     dev: "{{ backup_disk_device }}"
     force: "{{ offsite_disk_force_format }}"
-  when: offsite_disk_force_format
+  when: offsite_disk_force_format | bool
 
 - name: disk | Read backup disk UUID
   ansible.builtin.command: blkid -o value -s UUID {{ backup_disk_device }}

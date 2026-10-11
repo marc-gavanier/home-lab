@@ -54,7 +54,7 @@
 
       if [ ! -b "/dev/mapper/$MAPPER" ]; then
         echo "Volume is locked — nothing to check." >&2
-        echo "Open it first: cryptsetup open --type luks {{ data_disk_device }} $MAPPER" >&2
+        echo "Open it first: sudo cryptsetup open --type luks {{ data_disk_device }} $MAPPER" >&2
         exit 1
       fi
 
@@ -89,6 +89,6 @@
         echo
         echo "e2fsck exited $rc — the filesystem has errors it did not fix." >&2
         echo "With -fn that is expected and means 'found, not repaired'." >&2
-        echo "Read the output before mounting; repair with: homelab-fsck -fy" >&2
+        echo "Read the output before mounting; repair with: sudo homelab-fsck -fy" >&2
       fi
       exit "$rc"

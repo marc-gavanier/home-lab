@@ -116,13 +116,13 @@ journalctl -t homelab-startup -f
 Transient causes (WAL replay, saturated disk) clear on retry. Structural ones
 fail three times:
 
-| FATAL message                              | Meaning & fix                                                              |
-|--------------------------------------------|----------------------------------------------------------------------------|
-| `... not mounted`                          | Unlock/mount failed — rerun `sudo homelab-unlock`                          |
-| `docker not responding`                    | `systemctl status docker` — the daemon failed to start                     |
-| `dockerd started before ...` (ghost store) | `systemctl restart docker`, then `systemctl restart homelab-stack-startup` |
-| `container X does not exist`               | Store/compose problem — `docker compose up -d X` by hand and inspect       |
-| `compose up failed for: ...`               | The compose error is logged right above it                                 |
+| FATAL message                              | Meaning & fix                                                                                     |
+|--------------------------------------------|---------------------------------------------------------------------------------------------------|
+| `... not mounted`                          | Unlock/mount failed — rerun `sudo homelab-unlock`                                                 |
+| `docker not responding`                    | `systemctl status docker` — the daemon failed to start                                            |
+| `dockerd started before ...` (ghost store) | `sudo systemctl restart docker`, then `sudo systemctl restart homelab-stack-startup`              |
+| `container X does not exist`               | Store/compose problem — `docker compose -f /opt/homelab/compose.yaml up -d X` by hand and inspect |
+| `compose up failed for: ...`               | The compose error is logged right above it                                                        |
 
 - Recreating Tier 0 by hand: use the list from step 4. Forgetting
   `traefik-log-redactor` loses Traefik access lines from the durable log.
@@ -148,8 +148,8 @@ non-zero or are `created`/`dead` (max once per 10 min), and those unhealthy for
 **A `docker stop` comes back within 2 minutes** (exit 137/143). Instead:
 
 ```bash
-docker compose down <svc>                    # removes it — nothing to heal
-systemctl stop homelab-stack-heal.timer     # or pause healing (restart after)
+docker compose -f /opt/homelab/compose.yaml down <svc>   # removes it — nothing to heal
+sudo systemctl stop homelab-stack-heal.timer             # or pause healing (restart after)
 ```
 
 A pause longer than 15 min turns `Pi health` red until the timer is started again.
@@ -178,8 +178,8 @@ sudo systemctl stop mnt-data.mount
 2. Read the output, then repair if needed.
 
 ```bash
-homelab-fsck            # read-only, forcing: e2fsck -fn (the default)
-homelab-fsck -fy        # repair, once you have READ the read-only output
+sudo homelab-fsck            # read-only, forcing: e2fsck -fn (the default)
+sudo homelab-fsck -fy        # repair, once you have READ the read-only output
 ```
 
 The gate clears on exit, even on errors. `homelab-unlock` refuses to run

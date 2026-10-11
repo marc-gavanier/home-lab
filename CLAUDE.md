@@ -30,7 +30,7 @@ Every deployed service: `docs/05-services/README.md`.
 - `docs/` — Structured documentation by domain (markdown)
 - `ansible/` — Ansible playbooks and roles for full provisioning
 - `docker/` — Docker Compose stacks and service configurations
-- `ops/` — Operator tools run from the workstation (bootstrap, kuma-dump)
+- `ops/` — Operator tools run from the workstation (kuma-dump, repository checks)
 - `knowledge/` — Knowledge base (ADRs, research, runbooks)
 - `.claude/agents/` — Specialized agents by domain
 
