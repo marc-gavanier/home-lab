@@ -76,7 +76,7 @@ fi
 
 rc=0
 printf 'url = "%s"\n' "$url" |
-    curl -fsS -m 30 --connect-timeout 5 --retry 2 -K - -G \
+    curl -fsS -m 30 --connect-timeout 5 -K - -G \
         --data-urlencode "status=${OUTCOME}" \
         --data-urlencode "msg=${msg}" >/dev/null 2>&1 || rc=$?
 case "$rc" in

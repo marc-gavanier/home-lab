@@ -20,7 +20,7 @@ notify() {
     [ -n "$KUMA_PUSH_URL" ] || return 0
     local rc=0
     printf 'url = "%s"\n' "$KUMA_PUSH_URL" |
-        curl -fsS -m 30 --connect-timeout 5 --retry 2 -K - -G \
+        curl -fsS -m 30 --connect-timeout 5 -K - -G \
             --data-urlencode "status=$1" --data-urlencode "msg=$2" >/dev/null || rc=$?
     case "$rc" in
         0) ;;

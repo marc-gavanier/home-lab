@@ -355,6 +355,12 @@ trap of the agents' own instruments, never as a property of what the repository 
 before it asked whether a mechanism or a statement was right; none asked whether the operator, typing the text
 as given, holds the authority it needs. The operator admitted it.
 
+**The forty-fifth run, on 2026-10-11, used `conservation` and minted zero.** **Consecutive zero-mint runs: 1.**
+The key asked whether every flow balances, in against out plus declared rejects; 136 flows swept over eight
+domains, each with a control, and no agent proposed a mint. The one live defect went to C127, whose fix had not
+held under load; the documentary ones to C34 and C01. The next zero-mint run, with a different key, meets the
+criterion again.
+
 ---
 
 # The register
@@ -716,6 +722,18 @@ of those needed action, and saying so with numbers is the point.
 the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
+
+## OPEN — 0 (after the FORTY-FIFTH run of 2026-10-11, key `conservation`)
+
+**Empty.** No mint; missed members of C127, C34 and C01 — see "The run of 2026-10-11 (FORTY-FIFTH)" below.
+
+| ID | Property | State |
+|---|---|---|
+| C127 | A request with a side effect, retried by its client after a timeout shorter than the time the server takes to commit the effect | **REOPENED and closed again 2026-10-11 (forty-fifth run)**: the 2026-09-26 fix (`-m 30`) did not hold under load. At 03:00–03:07 on 10-11, during the dumps, Kuma's SQLite pool ran out (`KnexTimeoutError` ×6); DDNS and Pi pending action each timed out and retried, two concurrent `update()` calls poisoned Kuma's hourly stat cache for monitors 28 and 36, 15 later pushes were refused with a 404 until the hour ended, 6 DOWN notifications were sent and never stored, and no recovery was sent. Re-measured by the main session: no beat for 28 between 01:01:22Z and 02:00:06Z, none for 36 between 01:06:42Z and 02:00:15Z, three beats for 28 at 02:15:35/02:16:16.308/02:16:16.496. FIXED: `--retry 2` dropped at the 8 push sites (same 8 as the original sweep). Not GATED |
+| C34 | A documentary artefact contradicting the sibling it cites | **Missed member, 2026-10-11**: `af54bcb` swapped installation steps 5 and 6 (C51) and `restore-from-backup.md:632` still linked "step 5" and an anchor that no longer exists; the only dead link of 204. FIXED |
+| C01 | A documentary statement whose content contradicts the deployed artefact | **Member, 2026-10-11**: ADR-034 said the access log records every HTTP request; Traefik 3.7 leaves `accessLog.addInternals` false, so internal routers are never logged (6 requests, 0 lines; control logged). FIXED in the ADR; `addInternals` not proposed. And `settled.md` lacked four declines the operator had recorded elsewhere. FIXED |
+
+### The forty-fourth run's table read:
 
 ## OPEN — 0 (after the FORTY-FOURTH run of 2026-10-11, key `executability`)
 
@@ -1580,6 +1598,49 @@ separate correction — **the marker is not a provenance instrument.**
 C92 and C03-R were closed as review rules once their spaces proved non-derivable.
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
+
+## The run of 2026-10-11 (FORTY-FIFTH) — the key was `conservation`, and it minted zero
+
+The key, chosen by the operator over `liveness`, `portability` and `precision`: **for every flow that moves
+discrete objects from a source to a destination, does `in = out + declared rejects + in flight` hold on the
+running system, and is every term counted somewhere?** Forms: K1 silent loss, K2 duplication, K3 a reject path
+nothing counts, K4 a balance claimed from the absence of an error rather than computed. Borders declared: C01,
+C03, C04, C68, and the classes of `fidelity`, `truncation`, `aggregation`, `totality`, `erasure`,
+`amplification`, `attribution`.
+
+### The counter: 0 OPEN in, 0 OPEN out, 0 minted, 0 gates broken, class total 151
+
+Consecutive zero-mint runs: 1.
+
+### The sweep
+
+| Domain | Flows | Result |
+|---|---|---|
+| `system` | 25/25 | clean; journal seqnum gap of 1 387 rejected as a numbering artefact |
+| `security` | 18/18 | clean; UFW log limiter drops ~13 % of BLOCK lines, kernel counters exact (observation) |
+| `network` | 11/11 | C01 (ADR-034, internal routers) |
+| `services` | 17/17 | observations: two Sonarr series on the wrong TVDB show, 5 films unknown to Radarr, a 0-byte photo |
+| `backup` | 15/15 | clean; 34 local snapshots = 34 offsite copies, 10/10 dumps, retention reproduced by hand |
+| `observability` | 23/23 | C127 (two members, one of them the 03:00 episode) |
+| `ansible-deploy` | 12/12 | clean |
+| `project-manager` | 15/15 | C34 (DR link), C01 (`settled.md` missing four declines) |
+
+GATED intact, read: C03-T, C11, C14, C15, C18, C19, C41, C81 (forced to fail in a scratch copy by two agents).
+
+### Rejected or requalified
+
+- `services` proposed the Sonarr mis-match near C78 as an observation, not a mint; kept so: the fix is in two web
+  pages, no infrastructure work (admission step 3). Re-measured: `Death Note: New Generation` (479919) on
+  `/data/shows/Death Note (2006)`, `Vikings (2015)` (296780) on `/data/shows/Vikings (2013)`.
+- The 0-byte photo was a lead for `backup`: the main session found it at 0 bytes in every snapshot from the first
+  (2026-05-25) and no twin among the album's neighbours. Nothing to restore.
+- `observability` described Kuma's notify-before-store ordering as a candidate class and did not propose it: its
+  only instance is upstream code, and C116 (near) is DECLINED.
+- The `backup` agent's copy count rests on its own journal reading; the main session's re-count timed out, and the
+  claim is corroborated by `observability`'s 34 + 34 beats sent and received.
+- Rule breaches: four agents wrote to `/dev/shm` or `/tmp` on the homelab (`system` left two files, handed to the
+  operator to remove); `system` printed two lines of the raw access log, exposing one Kuma push token in the session
+  transcript; the main session's own `journalctl -g` over a month outlived its `timeout` and was killed.
 
 ## The run of 2026-10-11 (FORTY-FOURTH) — the key was `executability`, and it minted one
 

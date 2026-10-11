@@ -629,7 +629,7 @@ Check it worked:
    since that flag erases it. A fresh card listens on port 22, and the inventory targets
    the hardened port, so this first run needs `-e homelab_ssh_port=22`; it moves sshd to
    the hardened port itself. Clear the old host keys first
-   ([installation, step 5](../../docs/02-system/installation.md#step-5--verify-ansible-connectivity)).
+   ([installation, step 6](../../docs/02-system/installation.md#step-6--verify-ansible-connectivity)).
 
    ```bash
    ansible-playbook playbooks/site.yml --tags phase1 --ask-vault-pass -e homelab_ssh_port=22
