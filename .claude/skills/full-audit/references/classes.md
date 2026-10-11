@@ -346,12 +346,21 @@ went to C03 (four operator commands), C01 (the Pi-hole MAC remedy), C31 (AAAA an
 (three pre-commit filters narrower than their checkers). A later run that mints reopens the count; the
 criterion says the perimeter was complete for two independent dimensions, not that no dimension remains.
 
+**The forty-fourth run, on 2026-10-11, used `executability` and minted one** (C151). **Consecutive zero-mint
+runs: 0.** The key asked whether every command the repository hands the operator runs as written, today, where
+the text says to run it, and does what its sentence says; 630 commands swept over eight domains. Five domains
+described the same predicate independently, a command written without the privilege its target requires, and
+none of the 150 classes named it: C97 resolves names, and the un-`sudo`'d glob had only ever been recorded as a
+trap of the agents' own instruments, never as a property of what the repository hands the operator. Every class
+before it asked whether a mechanism or a statement was right; none asked whether the operator, typing the text
+as given, holds the authority it needs. The operator admitted it.
+
 ---
 
 # The register
 
 Runs of 2026-08-15 through 2026-09-21 (TWELFTH run, key `durability`).
-**Current state: see the OPEN table after the FORTY-THIRD run of 2026-10-10 (key `selectivity`) — 150 classes, 0 OPEN. The counts below this line are the twelfth run's.**
+**Current state: see the OPEN table after the FORTY-FOURTH run of 2026-10-11 (key `executability`) — 151 classes, 0 OPEN. The counts below this line are the twelfth run's.**
 **121 recorded classes: 3 OPEN — and the membership is C121, C34 and C01,
 written as a list because every time this line carried a rule for reconstructing
 the count instead, the count was wrong. 9 GATED, 7 closed by decision, plus the
@@ -707,6 +716,23 @@ of those needed action, and saying so with numbers is the point.
 the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
+
+## OPEN — 0 (after the FORTY-FOURTH run of 2026-10-11, key `executability`)
+
+**Empty.** C151 minted and ENUMERATED in the same run; members of C89, C01, C03, C97, C51 and C129 — see "The
+run of 2026-10-11 (FORTY-FOURTH)" below.
+
+| ID | Property | State |
+|---|---|---|
+| C151 | **An operator command written without the privilege its target requires, and the text neither grants nor states it** — typed as given, it is refused, or it runs and reads less than it claims | **MINTED and ENUMERATED 2026-10-11 (forty-fourth run)**: every operator command the repository hands over (docs, runbooks, ADRs, `settled.md` remedies, alert texts, assert messages, script hints), 630/630, converged from `system`, `security`, `backup`, `observability`, `project-manager` and `ansible-deploy`. 27 members: 25 refused loudly (polkit on a locked password, `Must run as root`, EACCES on `/root`, `/run/homelab`, `/etc/goss`, a 0700 repository), 2 quiet: `needrestart -b` as the operator skips every process it does not own and reads clean (also C03), and the lynis ratchet's `awk` wrote an empty file the script then repaired. Worst member: `rotate-a-secret.md`'s `RESTIC_PASSWORD='<new>' restic …` failed AND saved the new key to the SD card's bash history. FIXED: `sudo` at each site, eight printed hints in deployed scripts and role messages, restic prompts for the password. Nearest: C97. Not GATED |
+| C89 | A live secret VALUE present anywhere outside the store meant to hold it | **Missed member, 2026-10-11**: the complete kill-switch trigger, twice (2026-06-23, 2026-07-11), in the workstation's `~/.zsh_history`, produced by the runbook's own `curl` lines; shell history was never in the swept surfaces. FIXED: the two lines removed (control: 156 unrelated lines kept), every trigger and test line prefixed with a space (zsh `histignorespace`, bash `ignoreboth`, both measured). Rotation left to the operator |
+| C01 | A documentary statement whose content contradicts the deployed artefact | **Members, 2026-10-11**: `-e data_disk_force_format=true` / `offsite_disk_force_format=true` refused by ansible-core 2.21 (a CLI string in a bare conditional; `type: bool` validates without converting) — first install, DR onto a new disk and offsite disk replacement blocked, never fired; the Jellyfin, Navidrome, Transmission and Pi-hole restore blocks run restic with no repository open, after `compose down`; `claude-code.md` waits on a journal line the unit has sent to `/dev/null` since 2026-07-28; `ops/bootstrap.sh`'s quoted `~` (README quick start dead at step 1 since 2026-05-09); the health alert's "base playbook"; the restore estimate (2–9 h for 90.9 GiB, now 3–14 h for 145.6 GiB). FIXED: `\| bool` at five sites, links to the runbook, the unit's real signals, the script retired |
+| C03 | A validation whose instrument answers a different question from the one its comment claims | **4 members, 2026-10-11**: the goss count loop printed blanks (the remote bash expanded `$f` and `$(goss …)` before `sudo sh`); `docker logs navidrome \| grep` and the wg-easy capability sandbox read stdout while both log to stderr; the rollback guard read an unset `$BAK` and always passed. FIXED |
+| C97 | A document instructs the reader to act using a name whose referent depends on where it is resolved, and does not say where | **Missed members, 2026-10-11**: four `docker compose` lines with no project directory (`boot-and-unlock.md` ×2, ADR-007, the Pi-hole troubleshooting row), bare `occ` in the peer revocation runbook, `ansible-playbook` lines with no `ansible/` cwd. FIXED |
+| C51 | A procedure whose written order differs from the order the machine imposes | **2 members, 2026-10-11**: installation step 5 pings before step 6 creates `private.yml`; `luks-header-backup.md` closes a mapper that three mounts hold. FIXED |
+| C129 | A documented step whose effect travels through a dependency the machine declares and reaches units the text does not name | **1 member, 2026-10-11**: `restore-from-backup.md` pointed at a bare `--tags deploy` mid-restore, which brings up the whole stack. FIXED |
+
+### The forty-third run's table read:
 
 ## OPEN — 0 (after the FORTY-THIRD run of 2026-10-10, key `selectivity`)
 
@@ -1554,6 +1580,62 @@ separate correction — **the marker is not a provenance instrument.**
 C92 and C03-R were closed as review rules once their spaces proved non-derivable.
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
+
+## The run of 2026-10-11 (FORTY-FOURTH) — the key was `executability`, and it minted one
+
+The key, offered twice before and chosen by the operator over `precision`, `liveness` and a confirmation-only
+pass: **for every command the repository hands the operator to type — code blocks and inline commands in docs,
+runbooks and ADRs, `settled.md` remedies, alert texts, assert messages, script usage strings — does it run as
+written, today, on the host and shell where it is typed, and does it do what its sentence says?** Forms: X1 a
+named thing absent, X2 an unstated precondition (host, user, cwd, vault, unlocked volume), X3 a copy-paste
+hazard of the shell that receives it (zsh on the workstation, quoting through `ssh '…'`), X4 runs against
+something other than its sentence. Borders declared: C01, C03, C04, C29, C31, C62, C78, C97, C114, C133–C137,
+C150.
+
+### The counter: 0 OPEN in, 0 OPEN out, 1 minted (C151), 0 gates broken, class total 151
+
+Consecutive zero-mint runs: 0.
+
+### The sweep
+
+| Domain | Commands | Result |
+|---|---|---|
+| `system` | 85/85 | C97 ×3, C151 ×13 (proposed as an observation) |
+| `security` | 61/61 | C89 (kill-switch trigger in history), C151 proposed, C51 |
+| `network` | 20/20 | C97 |
+| `services` | 117/117 | C03 ×3, C01 (three restore blocks) |
+| `backup` | 155/155 | C01 / C151 ×3, restore estimate |
+| `observability` | 50/50 | C03, C151 ×2, the health alert's playbook |
+| `ansible-deploy` | 92/92 | C01 (`force_format`), C51, C129, `bootstrap.sh` |
+| `project-manager` | 50/50 | C01 (`claude-code.md`), C03 (`needrestart -b`), `bootstrap.sh` |
+
+GATED intact, read: C03-T, C11, C14, C15, C18, C19, C41 (with a positive control), C81, the `_raw_params`
+refusal.
+
+### Admission of C151
+
+Proposed by `security`, described as an observation by `system`, `backup`, `observability`, `project-manager` and
+`ansible-deploy`: one predicate from six domains is one class. Not a duplicate: C97's six resolvers are places a
+NAME resolves, the privilege is an authority; the un-`sudo`'d glob in `settled.md` is a trap of the agents'
+instruments, not a property of the operator's commands. Not settled. Real work: eight printed hints in deployed
+scripts and role messages, plus the restic rotation that wrote a key to the SD card. The reserve, stated: 25 of
+27 members fail loudly, and the operator chose the mint over recording them under C01.
+
+### Rejected or requalified
+
+- `ansible-deploy` placed the `force_format` latch in C01, kept: the text promises a form the role refuses. The
+  main session reproduced it on a replica (string refused, JSON form passes) before accepting it. The latch still
+  protects a LUKS disk, locked or not: `blkid -p` reads `crypto_LUKS` either way.
+- The kill-switch match to the live values rests on `security`'s hash comparison: the main session's own read of
+  the secret file was refused by the permission layer; it re-measured the two lines and their dates only.
+- Observations, no work: 28 of 31 containers differ from compose only by the `no-new-privileges` spelling and
+  recreate on their next `up`; `nmcli` placeholders (fixed in passing); the FTL fd loop works only because the
+  container's user is the operator's uid; ADR-033's `gsettings` replayed alone drops ADR-038's two entries;
+  `installation.md` steps that overwrite if replayed; kill-switch bursts of 7 mismatch lines that look like ntfy
+  error pages (suspected only, ADR-006 accepts the dependency); Kuma descriptions of monitors 21, 35, 36 stale
+  (hand-entered); `pihole.md`'s `pihole_bypass_clients` still described as `{ mac, label }`.
+- Rule breaches: `system`'s `timeout` around `ssh` left a `journalctl` running on the Pi, killed by the agent;
+  `backup` tried to write in the Pi's `/dev/shm`, blocked.
 
 ## The run of 2026-10-10 (FORTY-THIRD) — the key was `selectivity`, and it minted zero
 

@@ -24,6 +24,35 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-10-11 (FORTY-FOURTH run) — key `executability`, one PR
+
+- **Every operator command carries the privilege it needs** (C151): `sudo` at each documented site, and in the
+  hints printed by `homelab-unlock`, `homelab-fsck`, the header backup, the tamper disarm and the storage role's
+  messages. The restic key rotation prompts for the password; never `sudo RESTIC_PASSWORD=…` (sudo logs it on the
+  card) and never `RESTIC_PASSWORD=… restic` typed bare (history on the card).
+- **The kill-switch trigger and test lines start with a space** (C89), so neither shell saves them. The two copies
+  in the workstation's history were removed on 2026-10-11; rotating the topic is the operator's call.
+- **The format latches take `-e …_force_format=true`** (C01): `| bool` at the five conditional sites. The latch
+  still refuses any disk that does not read as LUKS (homelab) or ext4 (offsite), locked or not.
+- **`ops/bootstrap.sh` is retired**: `installation.md` is the one install path. Do not reintroduce a wrapper.
+- Restore blocks on service pages link to `restore-from-backup.md` instead of copying it; `claude-code.md` reads
+  the unit's status, not its journal; `docker logs … 2>&1` wherever a page greps a container's log.
+
+## Instrument traps paid on 2026-10-11 (forty-fourth run)
+
+- **`-e key=true` is the string `"true"`**: ansible-core 2.19+ refuses it in a bare conditional, and an argument
+  spec's `type: bool` validates it without converting. `| bool` at the point of use, or the JSON form.
+- **`docker logs` splits the streams**: Navidrome and wg-easy write everything to stderr, so `docker logs x | grep`
+  reads nothing. Always `2>&1`.
+- **`ssh host 'sudo sh -c "… $f …"'`**: the remote login shell expands `$f` and `$(…)` before `sh` runs. Escape
+  them (`\$f`), and test the quoting with an `echo` in place of the real command.
+- **The operator's password is locked**: a `systemctl start` without `sudo` reaches a polkit prompt that cannot
+  succeed.
+- **`timeout N ssh host 'cmd'` does not stop `cmd` on the host**: put the timeout inside, `ssh host 'timeout N cmd'`.
+- **zsh's `histignorespace` and bash's `ignoreboth` are the only reason a leading space matters**: measure both
+  before relying on it.
+- **A quoted tilde is literal**: `"${VAR:-~/x}"` never expands; use `$HOME`.
+
 ## Shipped on 2026-10-10 (FORTY-THIRD run) — key `selectivity`, one PR
 
 - **Split DNS answers AAAA and HTTPS on site** (C31): a `local=` line beside each `address=` line, so the
