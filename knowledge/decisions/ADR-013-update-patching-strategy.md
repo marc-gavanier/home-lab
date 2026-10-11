@@ -226,7 +226,7 @@ deliberate reboot posture.
 
 ## Verification
 
-- `needrestart -b` after an upgrade shows no stale services; confirm
+- `sudo needrestart -b` after an upgrade prints no `NEEDRESTART-SVC:` line; confirm
   `docker.service` is *not* auto-restarted.
 - **Docker must stay outside the unattended lane**, since upgrading it bounces
   every container. The needrestart blacklist does not give this — the origin

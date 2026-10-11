@@ -82,8 +82,8 @@ Enumerate the timers, not the monitors — a job with no channel never shows up 
 channels:
 
 ```bash
-systemctl list-timers 'homelab-*'
-systemctl list-timers 'offsite-*'
+ssh homelab "systemctl list-timers 'homelab-*'"
+ssh offsite "systemctl list-timers 'offsite-*'"
 ```
 
 Messages carry readings, e.g. `dumps ok (19 checks), snapshot c8f63e2a`, `hardening index 73
@@ -140,7 +140,7 @@ ADR-032 moved assertions from shell into declared specs:
 ```bash
 for h in homelab offsite; do
   ssh $h 'sudo sh -c "for f in /etc/goss/*.yaml; do
-    printf \"%s %s\\n\" \"$f\" \"$(goss -g $f validate --format tap | grep -m1 \"^1\\.\\.\")\"
+    printf \"%s %s\\n\" \"\$f\" \"\$(goss -g \$f validate --format tap | grep -m1 \"^1\\.\\.\")\"
   done"'
 done
 ```
@@ -170,7 +170,7 @@ a process died after a clean start and forced a recovery (#391).
 **`backup-dumps.yaml` fails by hand — that is normal.** The dump directory exists only during a
 backup run (ADR-031), so outside one it fails one assertion per dump (`dump-nextcloud-present`,
 `dump-miniflux-complete`, …). Count the dump assertions with
-`grep -cE '^  dump-' /etc/goss/backup-dumps.yaml`. The spec is only meaningful as the hook.
+`sudo grep -cE '^  dump-' /etc/goss/backup-dumps.yaml`. The spec is only meaningful as the hook.
 
 **Consumers check the plan line.** goss failing to start and goss finding nothing both print no
 `not ok`. Every consumer checks, in order: spec readable → binary present → a `1..N` plan line with
@@ -270,15 +270,15 @@ docker exec netdata curl -s http://127.0.0.1:19999/api/v3/contexts \
 p=collections.Counter(k.split(".")[0] for k in c); print(len(c), dict(p.most_common(8)))'
 ```
 
-| Axis        | Expected                                                                                                   |
-|-------------|------------------------------------------------------------------------------------------------------------|
-| 1. uid      | **201** (0 means it fell back to root)                                                                     |
-| 2. plugins  | **10**: `NETWORK-VIEWER`, `apps.plugin`, `debugfs.plugin`, `go.d.plugin`, `otel-plugin`, `scripts.d.plugin`, `sd-jrnl.plugin`, `sd-unit.plugin`, `spawn-plugins`, `spawn-setns` |
-| 3. contexts | **383** — netdata 137, system 43, ipv6 26, cgroup 25, ipv4 24, mem 23, app 14, user 14                      |
+| Axis        | Expected                                                                                                                                                                                                       |
+|-------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 1. uid      | **201** (0 means it fell back to root)                                                                                                                                                                         |
+| 2. plugins  | **10**: `NETWORK-VIEWER`, `apps.plugin`, `debugfs.plugin`, `go.d.plugin`, `otel-plugin`, `scripts.d.plugi` (`comm` stops at 15 characters), `sd-jrnl.plugin`, `sd-unit.plugin`, `spawn-plugins`, `spawn-setns` |
+| 3. contexts | the count read **before** the change, within a few: it drifts with the workload (383 on 2026-10-10, 386 a day later)                                                                                           |
 
 AppArmor denials: `sudo journalctl -k -b -g 'apparmor="DENIED"'`. Not `dmesg`: UFW's BLOCK lines
-fill the kernel ring within hours. Re-measure these values whenever you change the
-container and update this table in the same commit; a stale baseline makes the check useless.
+fill the kernel ring within hours. Re-measure axes 1 and 2 whenever you change the container and
+update this table in the same commit; a stale baseline makes the check useless.
 
 ## What is actually monitored
 
@@ -423,7 +423,7 @@ The table is maintained by hand. To check it, compare against `problems+=(` in
 - A new warning keeps the monitor red on every run until it is gone. To accept one on purpose:
   `sudo cp /var/log/lynis-report.dat /var/lib/homelab-lynis/last-green-report.dat`; if it also
   lowered the index, lower the ratchet too:
-  `awk -F= '/^hardening_index=/{print $2}' /var/log/lynis-report.dat | sudo tee /var/lib/homelab-lynis/best-index`;
+  `sudo awk -F= '/^hardening_index=/{print $2}' /var/log/lynis-report.dat | sudo tee /var/lib/homelab-lynis/best-index`;
   then `sudo systemctl start homelab-lynis`.
 - `PKGS-7392` (pending security updates) is skipped in `/etc/lynis/custom.prf`: lynis refreshes the
   package lists itself and flags updates unattended-upgrades has not had a chance to install. Pi

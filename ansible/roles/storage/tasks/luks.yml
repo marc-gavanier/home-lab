@@ -17,7 +17,7 @@
 
 - name: luks | Refuse to format a disk that does not read as LUKS
   ansible.builtin.assert:
-    that: data_disk_type.stdout == 'crypto_LUKS' or data_disk_force_format
+    that: data_disk_type.stdout == 'crypto_LUKS' or data_disk_force_format | bool
     fail_msg: >-
       {{ data_disk_device }} reads as '{{ data_disk_type.stdout }}', not crypto_LUKS.
       A blank disk, an unreadable one and another disk under this name look the same
@@ -40,12 +40,12 @@
     that: >-
       luks_mapper.stat.exists
       or not luks_unlock_script.stat.exists
-      or data_disk_force_format
+      or data_disk_force_format | bool
     fail_msg: >-
       /dev/mapper/{{ luks_mapper_name }} is absent and homelab-unlock is installed:
       the volume is locked on a provisioned host. Opening it here would skip the
       unlock workflow (the expected-poweroff question, fsck, the staged startup and
-      the USB tamper arming). Run homelab-unlock on the host, then re-run.
+      the USB tamper arming). Run sudo homelab-unlock on the host, then re-run.
     quiet: true
 
 - name: luks | Format (first time only) and open the LUKS volume
@@ -61,4 +61,4 @@
     fstype: ext4
     dev: /dev/mapper/{{ luks_mapper_name }}
     opts: -L homelab-data
-  when: data_disk_force_format
+  when: data_disk_force_format | bool

@@ -82,10 +82,11 @@ different `Epoch` means the copy is stale: re-take it.
    ```
 
    A crypt child (`└─data_crypt crypt /mnt/data`) means it is open.
-3. If open, close it, and stop if the close fails:
+3. If open, lock it, and stop if it reports a holder. Locking stops WireGuard,
+   and the unlock in step 6 needs the tunnel: do this on site.
 
    ```bash
-   sudo cryptsetup luksClose data_crypt
+   sudo homelab-lock
    ```
 
 4. Run `lsblk -o NAME,TYPE,MOUNTPOINTS /dev/sda1` again. Go on only if `sda1`

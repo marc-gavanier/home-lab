@@ -62,8 +62,8 @@ All three drive the same agent:
 - **SSH**: `ssh homelab`, then `sudo -u claude -H bash -lc 'cd ~/vault && claude'`.
 
 Ghost environments: a re-auth can leave a stale duplicate "Homelab" where sessions spin
-forever. Use the environment the running `claude-remote-control` service logs, and remove the
-other in the app.
+forever. The service discards its stdout, so the journal does not name the live one: keep the
+environment where a new session starts, and remove the other in the app.
 
 ## First Steps (one-time, manual)
 
@@ -124,7 +124,7 @@ Manual steps (neither API supports them):
 
 ```sh
 systemctl list-timers homelab-feed-digest.timer   # next run
-systemctl start homelab-feed-digest.service       # run now
+sudo systemctl start homelab-feed-digest.service  # run now
 journalctl -u homelab-feed-digest.service -n 50   # what happened
 sudo -u claude tail -30 ~claude/.local/share/feed-digest/digest.log
 ```
@@ -160,10 +160,11 @@ Fix — re-login the `claude` user:
 sudo systemctl stop claude-remote-control && sudo systemctl reset-failed claude-remote-control
 sudo -u claude -H /home/claude/.local/bin/claude   # in the TUI: /login, then exit
 sudo systemctl start claude-remote-control
-journalctl -u claude-remote-control -f             # expect "Connected · vault" then "Ready"
+systemctl show -p ActiveState,NRestarts claude-remote-control   # active, NRestarts=0 after 30 s
 ```
 
-Then pick the environment the service just logged, and remove any ghost.
+The banner goes to stdout, which the unit discards: nothing new appears in the journal. Then
+start a session from the app's environment list, and remove any ghost.
 
 ### Both units fail to start → stale FUSE endpoint
 

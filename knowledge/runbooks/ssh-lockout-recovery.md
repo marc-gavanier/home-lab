@@ -19,8 +19,10 @@ for a lockout that does not expire.
    independent of SSH:
 
    ```bash
-   curl -d '<keyword>' https://ntfy.sh/<topic>
+    curl -d '<keyword>' https://ntfy.sh/<topic>
    ```
+
+   The leading space keeps the trigger out of shell history.
 
    Expected: after ~30 s the green LED stops and ping dies. The LAN loses DNS:
    point your workstation at `1.1.1.1`.

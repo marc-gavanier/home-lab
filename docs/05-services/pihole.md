@@ -114,7 +114,8 @@ running FTL gets overwritten when FTL flushes.
    docker compose down dnsproxy pihole
    ```
 
-2. Restore:
+2. Restore, as root with the repository open
+   ([restore-from-backup.md](../../knowledge/runbooks/restore-from-backup.md) → "Before you start"):
 
    ```bash
    restic restore latest --target / --include /mnt/data/services/pihole
@@ -124,6 +125,7 @@ running FTL gets overwritten when FTL flushes.
    Pi-hole:
 
    ```bash
+   cd /opt/homelab
    docker compose up -d pihole
    docker compose up -d --force-recreate dnsproxy
    ```
@@ -137,10 +139,10 @@ running FTL gets overwritten when FTL flushes.
 When Pi-hole comes back, dnsproxy stays attached to the old namespace and is unreachable. The fix
 depends on how Pi-hole came back:
 
-| Pi-hole was…                                   | Fix |
-|------------------------------------------------|-----|
-| restarted in place (`docker restart pihole`)   | `docker restart pihole && docker restart dnsproxy` |
-| recreated (`compose up`, Ansible deploy, …)    | `docker compose up -d --force-recreate dnsproxy` |
+| Pi-hole was…                                 | Fix                                                                 |
+|----------------------------------------------|---------------------------------------------------------------------|
+| restarted in place (`docker restart pihole`) | `docker restart pihole && docker restart dnsproxy`                  |
+| recreated (`compose up`, Ansible deploy, …)  | `cd /opt/homelab && docker compose up -d --force-recreate dnsproxy` |
 
 Never restart dnsproxy after a recreate: it points at the dead container ID, exits 1 and stays
 stopped. Details: [container-config-changes.md](../../knowledge/runbooks/container-config-changes.md).

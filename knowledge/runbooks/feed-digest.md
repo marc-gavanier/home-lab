@@ -46,7 +46,7 @@ stops calling.
    ```
    Put the note's look (folder, note suffix, tags, title, wording) in the gitignored,
    plain-text `private.yml`; start from `private.example.yml`.
-7. Deploy: `ansible-playbook playbooks/site.yml --tags claude-code --ask-vault-pass`
+7. Deploy, from `ansible/`: `ansible-playbook playbooks/site.yml --tags claude-code --ask-vault-pass`
 
 ## Replaying a digest
 

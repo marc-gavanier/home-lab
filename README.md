@@ -66,15 +66,8 @@ Only `vpn.example.com` stays in public DNS, to bootstrap the tunnel. See ADR-014
 
 ## Quick Start
 
-```bash
-# 1. Flash Ubuntu Server 24.04 LTS arm64 to the SD card
-# 2. First boot, note the Pi's IP address
-# 3. Bootstrap (from your workstation)
-./ops/bootstrap.sh <PI_IP>
-
-# 4. Provision: run the command the bootstrap prints, phase by phase
-#    (docs/02-system/installation.md, step 7)
-```
+Follow `docs/02-system/installation.md`: flash the card, reach the Pi over SSH,
+write the inventory, then provision phase by phase (step 7).
 
 ## Project Structure
 

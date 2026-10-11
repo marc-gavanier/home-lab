@@ -63,7 +63,7 @@ link).
    ```bash
    docker run -d --name svc-captest --security-opt no-new-privileges=true \
      --cap-drop ALL --cap-add ... -v /tmp/svc-captest:/etc/<svc> <image>
-   docker logs svc-captest | grep -iE "denied|not permitted|unable"
+   docker logs svc-captest 2>&1 | grep -iE "denied|not permitted|unable"
    ```
 
 3. **Apply critical-path changes only with an unattended rollback.** Run from
@@ -85,7 +85,7 @@ link).
      a time, or refuse a backup that already holds the new setting:
 
      ```bash
-     grep -q '<the new setting>' "$BAK" && { echo "not a rollback point"; exit 2; }
+     grep -q '<the new setting>' compose.yaml.bak && echo "not a rollback point"
      ```
 
 4. **Probe the function of each service**, not its status:

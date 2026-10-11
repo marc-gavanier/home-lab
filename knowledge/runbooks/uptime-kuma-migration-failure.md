@@ -87,7 +87,7 @@ docker logs kuma-trial 2>&1 | grep -iE 'migrat|error|Listening'
 Expected: the wait returns within about 7 minutes, and the logs show `Listening on` with no migration error.
 A timeout after 15 minutes means the repair failed.
 
-Then dump the trial schema:
+Then dump the trial schema, from the repository root on the workstation:
 
 ```bash
 KUMA_CONTAINER=kuma-trial ops/kuma-dump.sh /tmp/kuma-trial.json
@@ -130,10 +130,15 @@ posture) report on their own slower schedules and lag.
 
 Kuma has `dependencyDashboardApproval` in `renovate.json`, so it never rides the weekly batch.
 Take both backups first — the monitors exist only in this database and are re-entered by hand if
-lost:
+lost. On the workstation, from the repository root:
 
 ```bash
 ops/kuma-dump.sh .secrets/kuma-dump-pre-<version>.json
+```
+
+On the homelab:
+
+```bash
 docker exec uptime-kuma sqlite3 "file:/app/data/kuma.db?mode=ro" \
   ".backup /app/data/kuma-pre-<version>.db"
 ```

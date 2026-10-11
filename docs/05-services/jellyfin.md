@@ -41,12 +41,6 @@ Add a film, then scan from the dashboard (or wait for the periodic scan):
 scp movie.mkv homelab:/mnt/data/library/movies/
 ```
 
-Restore the config. Use `compose down`, never `docker stop`: the heal timer restarts a non-zero
-exit within 2 min (ADR-007).
-
-```bash
-cd /opt/homelab
-docker compose down jellyfin
-restic restore latest --target / --include /mnt/data/services/jellyfin
-docker compose up -d jellyfin
-```
+Restore the config: follow [restore-from-backup.md](../../knowledge/runbooks/restore-from-backup.md)
+→ "Restore one service" (as root, with the repository open), service `jellyfin`, path
+`/mnt/data/services/jellyfin`.

@@ -17,7 +17,7 @@
       if [ -e "$GATE" ] && ! mountpoint -q "$MOUNT"; then
         echo "Another integrity check holds $MOUNT (gate present, not ours)." >&2
         echo "Wait for it to finish — homelab-fsck clears the gate on exit." >&2
-        echo "If you are certain nothing is running: rm -f $GATE" >&2
+        echo "If you are certain nothing is running: sudo rm -f $GATE" >&2
         exit 1
       fi
 
@@ -54,10 +54,10 @@
           echo "NOT mounting, and nothing else can mount it either while"
           echo "$GATE exists."
           echo
-          echo "  1. rm -f $GATE       # homelab-fsck takes it back immediately"
-          echo "  2. homelab-fsck         # read-only first — READ the output"
-          echo "  3. homelab-fsck -fy     # only once you know what it will fix"
-          echo "  4. homelab-unlock"
+          echo "  1. sudo rm -f $GATE      # homelab-fsck takes it back immediately"
+          echo "  2. sudo homelab-fsck      # read-only first — READ the output"
+          echo "  3. sudo homelab-fsck -fy  # only once you know what it will fix"
+          echo "  4. sudo homelab-unlock"
           exit 1
         fi
       fi

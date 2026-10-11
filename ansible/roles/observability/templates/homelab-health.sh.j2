@@ -194,7 +194,7 @@ PYEOF
         fi
     fi
     [ -n "$docker_waiting" ] &&
-        pending+=("Docker update waiting: $docker_waiting — apply with the base playbook")
+        pending+=("Docker update waiting: $docker_waiting — apply with playbooks/site.yml --tags base")
 fi
 
 DISK_THRESHOLD=85

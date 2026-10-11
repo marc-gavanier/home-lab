@@ -34,7 +34,7 @@ every boot, wiping any pin written only to `/etc/hosts`.
 
 Each role pins in two places: `/etc/cloud/templates/hosts.debian.tmpl`
 (survives reboots) and `/etc/hosts` (immediate). Re-apply with **two
-playbooks**, because offsite is not in `site.yml`:
+playbooks**, because offsite is not in `site.yml`. From `ansible/`:
 
 ```bash
 ansible-playbook playbooks/site.yml --ask-vault-pass --tags claude-code,backup

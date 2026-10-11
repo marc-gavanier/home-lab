@@ -69,34 +69,7 @@ Expected: no password prompt, then the Ubuntu welcome message.
 4. Verify: `ssh pi@<pi-lan-ip>`
 5. Remove the old host key: `ssh-keygen -R <OLD_IP>`
 
-## Step 5 — Verify Ansible Connectivity
-
-Ansible checks host keys against your `known_hosts`. Its first connection to a new
-address or port, including the hardened SSH port after the first full run, asks you
-to confirm the key. After a reflash, remove the old entries first:
-`ssh-keygen -R <pi-lan-ip>` and `ssh-keygen -R "[<pi-lan-ip>]:<ssh-port>"`.
-
-```bash
-cd ~/Storage/Workspace/learn/home-lab/ansible
-ansible homelab -m ping
-```
-
-Expected:
-
-```
-homelab | SUCCESS => {
-    "changed": false,
-    "ping": "pong"
-}
-```
-
-Check the HDD is detected (expected: `/dev/sda` with a `sda1` partition, ~4.5T):
-
-```bash
-ansible homelab -m command -a "lsblk"
-```
-
-## Step 6 — Configure Secrets
+## Step 5 — Configure Secrets
 
 All secrets live in `local.yml`, encrypted with Ansible Vault. The Pi's address and
 other private, non-secret values live in `private.yml`, gitignored and not encrypted.
@@ -125,6 +98,33 @@ ansible-vault view inventory/host_vars/homelab/local.yml  # read-only
 
 **Save the vault password in your password manager.** Without it the secrets
 are unrecoverable.
+
+## Step 6 — Verify Ansible Connectivity
+
+Ansible checks host keys against your `known_hosts`. Its first connection to a new
+address or port, including the hardened SSH port after the first full run, asks you
+to confirm the key. After a reflash, remove the old entries first:
+`ssh-keygen -R <pi-lan-ip>` and `ssh-keygen -R "[<pi-lan-ip>]:<ssh-port>"`.
+
+```bash
+cd ~/Storage/Workspace/learn/home-lab/ansible
+ansible homelab -m ping --ask-vault-pass -e homelab_ssh_port=22
+```
+
+Expected:
+
+```
+homelab | SUCCESS => {
+    "changed": false,
+    "ping": "pong"
+}
+```
+
+Check the HDD is detected (expected: `/dev/sda` with a `sda1` partition, ~4.5T):
+
+```bash
+ansible homelab -m command -a "lsblk" --ask-vault-pass -e homelab_ssh_port=22
+```
 
 ## Step 7 — Provision
 

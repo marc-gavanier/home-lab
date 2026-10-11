@@ -53,16 +53,21 @@ holds a revoked token, you lose remote access at the next public-IP change.
 keys. Deploying a new value alone makes both backups unreadable, and nothing goes
 red until the next run. Add the new key to the repository first.
 
-1. Add the new key while the old one still works:
+The repository is root-only. Run these on the homelab and type each password at
+restic's prompt: `RESTIC_PASSWORD=` on the command line lands in shell history or
+in sudo's log, both on the SD card.
+
+1. Add the new key while the old one still works (prompts for the old, then the
+   new):
 
    ```bash
-   restic -r /mnt/data/backups/restic-repo key add
+   sudo restic -r /mnt/data/backups/restic-repo key add
    ```
 
-2. Prove the new key opens the repository:
+2. Prove the new key opens the repository, typing the NEW password:
 
    ```bash
-   RESTIC_PASSWORD='<new>' restic -r /mnt/data/backups/restic-repo snapshots | tail -3
+   sudo restic -r /mnt/data/backups/restic-repo snapshots --compact latest
    ```
 
 3. Put the new value in the vault and deploy.
@@ -71,8 +76,8 @@ red until the next run. Add the new key to the repository first.
 5. After a successful nightly run, remove the old key:
 
    ```bash
-   restic -r /mnt/data/backups/restic-repo key list
-   restic -r /mnt/data/backups/restic-repo key remove <old-id>
+   sudo restic -r /mnt/data/backups/restic-repo key list
+   sudo restic -r /mnt/data/backups/restic-repo key remove <old-id>
    ```
 
 The offsite repository is append-only: leave its old key in place unless you
@@ -180,6 +185,8 @@ shell command (a `$` expanded by the local shell once truncated one).
 
 ### 1. Vault, then deploy
 
+From `ansible/`:
+
 ```bash
 ansible-vault edit inventory/host_vars/homelab/local.yml --ask-vault-pass
 ```
@@ -189,7 +196,7 @@ saving. This prints the length, not the value:
 
 ```bash
 ansible-vault view inventory/host_vars/homelab/local.yml --ask-vault-pass \
-  | sed -n "s/^immich_db_password: *//p" | tr -d "\"'" | awk '{print "length:", length($0)}'
+  | sed -n "s/^<db>_db_password: *//p" | tr -d "\"'" | awk '{print "length:", length($0)}'
 ```
 
 ```bash
@@ -201,12 +208,12 @@ ansible-playbook playbooks/site.yml --tags deploy -e deploy_services=<svc> --ask
 The quoted here-doc (`<<'REMOTE'`) keeps the local shell out, and the password
 never appears as an argument.
 
-Postgres (`immich-db`, `miniflux-db`). `psql -c` does not interpolate psql
-variables, so the literal is built in the shell with single quotes doubled:
+Postgres (`<db>` is `immich` or `miniflux`). `psql -c` does not interpolate
+psql variables, so the literal is built in the shell with single quotes doubled:
 
 ```bash
-ssh homelab 'docker exec -i immich-db sh' <<'REMOTE'
-PW=$(cat /run/secrets/immich_db_password)
+ssh homelab 'docker exec -i <db>-db sh' <<'REMOTE'
+PW=$(cat /run/secrets/<db>_db_password)
 [ -n "$PW" ] || { echo "empty secret, aborting"; exit 1; }
 ESC=$(printf '%s' "$PW" | sed "s/'/''/g")
 psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "ALTER USER \"$POSTGRES_USER\" WITH PASSWORD '$ESC'"
