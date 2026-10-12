@@ -24,6 +24,44 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-10-12 (FORTY-SIXTH run) — key `precision`, one PR
+
+- **Kuma windows 15 `Backup` → 100 800 s and 16 `Offsite backup` → 108 000 s** (C120), by hand in the UI: the
+  2026-10-05 sizing covered the 25-hour DST day with nights of September's length; the storage reorganisation's
+  nights consumed the reserve.
+- **Alert texts**: the Forgejo mirror alert says how far the sync is overdue, not how long since the last sync;
+  the container-unhealthy summary says "more than eight minutes" (`> 100` samples at 5 s).
+- **Documentation**: swap and CPU temperature rows state their clear points; swap baseline 42 % (30-day mean).
+
+## Declined on 2026-10-12 (forty-sixth run)
+
+- **The swap threshold stays at 85 %** although occupancy sits above it: the operator's file reorganisation
+  drives it and is expected to settle within weeks. Do not re-propose raising it before that has had time to
+  happen; a new fact is occupancy still above 85 % once the bulk imports have stopped.
+- **Kuma push token 18 is not rotated** after an agent printed it in a session transcript.
+
+## Measured and left as observations on 2026-10-12 (forty-sixth run)
+
+- **lynis's hardening index is an integer division** (251/340 → 73): a one- or two-point regression does not
+  move the ratchet. No drop in the history was masked; a new warning turns the verdict red on its own.
+- **Three install guards compare versions by substring** (goss, resticprofile, rest-server): only a rollback
+  to a version whose string is contained in the installed one is skipped.
+- **Steps on a bound, all latent**: `journalctl --disk-usage` prints one decimal; the 240 s two-strike gate
+  sits on the health timer's own 60 s accuracy grid; the offsite 48 h security-update check against a daily
+  timer with a random delay; the heal timer counts nominal intervals, not wall time.
+- **The 03:00 load of the storage reorganisation** (load 16–22) turns `notify_push` red and drops unhealthy
+  containers' routes for minutes at a time; nothing proposed.
+
+## Instrument traps paid on 2026-10-12 (forty-sixth run)
+
+- **A baseline of units, containers and timers is not a baseline of the monitors**: the main session missed a
+  red Kuma monitor until an agent reported it. Read Kuma's latest beat per active monitor too.
+- **A case-sensitive `grep -v` filter on push URLs lets a token through**: filter the token out, never the
+  line around it.
+- **The full posture goss spec writes**: its vault probe creates and removes a file. Read single assertions
+  instead.
+- **Traefik's request counter is not a status code**: a first count of 429s caught `requests_total`.
+
 ## Shipped on 2026-10-11 (FORTY-FIFTH run) — key `conservation`, one PR
 
 - **Kuma pushes no longer retry** (C127): `--retry 2` dropped at the eight push sites, `-m 30

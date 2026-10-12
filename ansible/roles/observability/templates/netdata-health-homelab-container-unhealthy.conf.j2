@@ -20,6 +20,6 @@ component: Container
     units: boolean
     every: 1m
      warn: $this == 1 AND $homelab_container_health_samples > {{ ((600 / netdata_docker_update_every) * 0.833) | round | int }}
-  summary: A container has been unhealthy across a ten-minute window with at least nine minutes of samples
+  summary: A container has been unhealthy across a ten-minute window with more than eight minutes of samples
      info: Container healthcheck failing continuously for 10m, on a chart old enough to prove it — the heal timer restarts it once it has been unhealthy for 15 min
        to: silent
