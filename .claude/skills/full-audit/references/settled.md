@@ -24,6 +24,31 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-10-12 (FORTY-SEVENTH run) — key `resumability`, one PR
+
+- **`homelab-unlock` says when it did not check** (C46): it compares `Last checked` before and after `e2fsck -p`
+  and logs "integrity check not due" on a skip instead of "passed".
+- **Runbooks**: `homelab-fsck -fy` in `tmux`, rerun to completion after a cut; a reboot or Docker restart
+  undoes a restore's `compose down`; a night reported `dump checks failed` means restoring from the snapshot
+  before it; Nextcloud's disabled apps are read from `nextcloud.log`.
+- **Immich's failed ML jobs** (C84): the operator runs "Missing" once for smart search, faces and duplicates.
+
+## Measured and left as observations on 2026-10-12 (forty-seventh run)
+
+- **The offsite automatic reboot at 04:00 can meet a long copy**: it fails loudly and the next night catches up.
+- **First-provision steps not resumable** (swap file, LUKS then `mkfs`, SearXNG branding order): latent, loud
+  or self-evident, nothing proposed.
+- **`homelab-disk.sh` saves the pending-sector count before pushing the rise**; the count has stayed at 2.
+
+## Instrument traps paid on 2026-10-12 (forty-seventh run)
+
+- **`e2fsck -p` returns 0 without checking** a filesystem marked clean and not due; compare `Last checked`.
+- **`ActiveEnterTimestamp` does not move on a SIGHUP reload**: compare a config's mtime against the reload, not
+  the start.
+- **`iptables -S` must be normalised** before comparing it with UFW's `user.rules`.
+- **Ansible's `ansiballz` caches are pickles wrapping a base64 zip**: decode before concluding they hold nothing.
+- **Reading an application's settings table prints its secrets**: select the keys, never `*`.
+
 ## Shipped on 2026-10-12 (FORTY-SIXTH run) — key `precision`, one PR
 
 - **Kuma windows 15 `Backup` → 100 800 s and 16 `Offsite backup` → 108 000 s** (C120), by hand in the UI: the
@@ -6293,9 +6318,12 @@ is what a later run must not re-derive, and what it must not be caught by.
   writes `info.updated` into the TEMPORARY database and the swap is a `mv`, so a
   build that stops halfway neither refreshes the timestamp the guard reads nor
   leaves a half-built list in service.
-- **A truncated dump can neither survive nor be certified.** The dumps write in
-  place, but the C18 floor is a completion marker rather than a size, and it runs
-  after every dump and before the snapshot.
+- **A truncated dump cannot be certified, but it does survive in the snapshot.** The
+  dumps write in place; the C18 floor is a completion marker rather than a size and
+  runs after every dump and before the snapshot, so the night is reported down
+  (`dump checks failed`). Every dump step ends in `|| true`, so the snapshot is still
+  taken and becomes `latest`. Corrected 2026-10-12 (forty-seventh run):
+  `restore-from-backup.md` now says to restore from the snapshot before such a night.
 - **An interrupted offsite copy has been caught and retried, twice, in the
   historical record.** The retry is not theoretical.
 - **`dpkg` is not in a half-configured state on either host**, `copytruncate`

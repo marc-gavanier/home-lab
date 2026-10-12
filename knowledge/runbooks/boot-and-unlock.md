@@ -182,6 +182,10 @@ sudo homelab-fsck            # read-only, forcing: e2fsck -fn (the default)
 sudo homelab-fsck -fy        # repair, once you have READ the read-only output
 ```
 
+Run `-fy` inside `tmux`. A repair cut short leaves the volume marked clean, and the
+`e2fsck -p` of `homelab-unlock` then skips it: after an interruption, run `-fy` again
+until it completes before unlocking.
+
 The gate clears on exit, even on errors. `homelab-unlock` refuses to run
 while it is up. Afterwards, `sudo homelab-unlock` mounts the volume and starts the stack again.
 
