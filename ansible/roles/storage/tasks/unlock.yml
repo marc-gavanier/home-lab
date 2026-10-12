@@ -41,7 +41,7 @@
         logger -t homelab-unlock -p daemon.warning "$SKIP"
       else
         echo "Checking data volume integrity..."
-        last_checked() { tune2fs -l "/dev/mapper/$MAPPER" | sed -n 's/^Last checked: *//p'; }
+        last_checked() { LC_ALL=C tune2fs -l "/dev/mapper/$MAPPER" | sed -n 's/^Last checked: *//p'; }
         before=$(last_checked)
         rc=0; e2fsck -p -C 0 "/dev/mapper/$MAPPER" || rc=$?
         after=$(last_checked)
