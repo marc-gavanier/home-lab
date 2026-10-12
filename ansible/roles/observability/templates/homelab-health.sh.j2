@@ -251,7 +251,7 @@ if mountpoint -q /mnt/data && command -v sqlite3 >/dev/null 2>&1; then
             rm -f "$MIRROR_STAMP"
             if [ "$mirror_late" -gt "$MIRROR_GRACE" ]; then
                 report+=("mirror $((mirror_late / 3600))h overdue")
-                problems+=("forgejo mirror has not completed a sync for $((mirror_late / 3600))h — it is still serving the stale copy")
+                problems+=("forgejo mirror sync is $((mirror_late / 3600))h overdue — it is still serving the stale copy")
             else
                 report+=("mirror ok")
             fi

@@ -345,7 +345,7 @@ third column says what actually evaluates each condition:
 
 | Signal               | Alarms when                                                                                                                                                        | Watched by                            |
 |----------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------|
-| CPU temperature      | ≥ 80 °C (Pi 4 throttles at ~80-85 °C)                                                                                                                              | netdata `homelab-cputemp`             |
+| CPU temperature      | ≥ 80 °C, clears below **75 °C** (Pi 4 throttles at ~80-85 °C)                                                                                                      | netdata `homelab-cputemp`             |
 | Undervoltage         | the `rpi_volt` hwmon alarm has latched                                                                                                                             | netdata + the script ¹                |
 | Pending reboot       | `/var/run/reboot-required` exists — auto-reboot is disabled by policy, so it waits on the operator                                                                 | `homelab-health.sh`                   |
 | Stale libraries      | after a package change since boot, `needrestart` still lists services running replaced libraries — waits on a reboot                                               | `homelab-health.sh`                   |
@@ -355,7 +355,7 @@ third column says what actually evaluates each condition:
 | Stale package lists  | `update-success-stamp` older than **72 h**, or absent — `apt.systemd.daily` exits 0 when `apt-get update` fails                                                   | `homelab-health.sh`                   |
 | Disk capacity        | `/` or `/mnt/data` ≥ **85 %** full                                                                                                                                 | `homelab-health.sh`                   |
 | Available memory     | `MemAvailable` < **800 MiB** sustained over a **5 min** window (`lookup: max -5m`)                                                                                 | netdata `homelab-memory`              |
-| Swap occupancy       | > **85 %** of the 4 GiB swap file — provisional threshold, see below                                                                                               | netdata `homelab-swap`                |
+| Swap occupancy       | > **85 %** of the 4 GiB swap file, clears at **80 %** or below — provisional threshold, see below                                                                  | netdata `homelab-swap`                |
 | DNS upstream         | a cache-busting query gets no answer, or a non-answer rcode, for **240 s** (shared gate)                                                                           | `homelab-health.sh`                   |
 | Unhealthy container  | a container fails its healthcheck for > **10 min**                                                                                                                 | netdata `homelab-container-unhealthy` |
 | Container stopped    | a container present in the engine is not running for > **10 min**                                                                                                  | netdata `homelab-container-down`      |
@@ -385,7 +385,7 @@ The table is maintained by hand. To check it, compare against `problems+=(` in
 - **Memory, 800 MiB**: `MemAvailable`, not free memory (the page cache is reclaimable). Over 19 days
   the hourly minimum never went below 800 MiB; the 5-min window absorbs short dips.
 - **Swap, 85 % (provisional)**: the swap file is 4 GiB because at 2 GiB it sat saturated with cold
-  pages and occupancy meant nothing. The measured steady state is ~1.5 GiB (37 %, 55-day mean). A full
+  pages and occupancy meant nothing. The measured steady state is ~1.7 GiB (42 %, 30-day mean). A full
   swap is not memory shortage; it matters only if available memory is also low. If occupancy settles
   above 85 %, raise the threshold rather than delete it.
 - **Resizing swap is manual**: `creates:` guards it, so changing `swap_size_mb` alone does nothing.
