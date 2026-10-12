@@ -22,6 +22,11 @@ Rules that apply to every procedure on this page:
 - **`docker compose down <service>`, never `docker stop`.** The heal timer restarts,
   every two minutes, any container that exited non-zero, is `created` or `dead`, or
   has been unhealthy for 15 minutes (ADR-007). `down` removes the container from its view.
+- **A reboot or a Docker restart undoes that `down`.** The staged startup runs
+  `docker compose up -d` on every service. After one, take the service down again and
+  restart its section from the first step.
+- **A dump cut mid-write still lands in that night's snapshot.** If the `Backup` monitor
+  reported `dump checks failed` the night of `latest`, restore from the snapshot before it.
 - **`<service>` is the compose service name.** It matches the container name
   everywhere except `immich-machine-learning` (container `immich-ml`).
 - **An `--include` that matches nothing restores zero files and exits 0.** restic

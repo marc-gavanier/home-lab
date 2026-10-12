@@ -41,9 +41,16 @@
         logger -t homelab-unlock -p daemon.warning "$SKIP"
       else
         echo "Checking data volume integrity..."
+        last_checked() { tune2fs -l "/dev/mapper/$MAPPER" | sed -n 's/^Last checked: *//p'; }
+        before=$(last_checked)
         rc=0; e2fsck -p -C 0 "/dev/mapper/$MAPPER" || rc=$?
+        after=$(last_checked)
         case "$rc" in
-          0) logger -t homelab-unlock "integrity check passed (e2fsck rc=0, no errors)" ;;
+          0) if [ "$before" = "$after" ]; then
+               logger -t homelab-unlock "integrity check not due: e2fsck -p skipped a filesystem marked clean (last full check $after)"
+             else
+               logger -t homelab-unlock "integrity check passed (e2fsck rc=0, no errors)"
+             fi ;;
           1) logger -t homelab-unlock -p daemon.warning "integrity check REPAIRED errors (e2fsck rc=1)" ;;
           2) logger -t homelab-unlock -p daemon.warning "integrity check REPAIRED errors, reboot advised (e2fsck rc=2)" ;;
           *) logger -t homelab-unlock -p daemon.err "integrity check could not auto-repair (e2fsck rc=$rc)" ;;

@@ -15,6 +15,8 @@ earlier — which would have sent eight agents to re-derive settled work. Rebuil
 it from `classes.md`'s OPEN table at the start of every run; if the two
 disagree, `classes.md` wins.
 
+**SIXTY-FIVE keys are now spent.** `resumability` (forty-seventh run, 0 mints — the criterion still holds). `contention`, `saturation` and `cardinality` were offered and not chosen.
+
 **SIXTY-FOUR keys are now spent.** `precision` (forty-sixth run, 0 mints — the termination criterion is met again). `liveness` and `portability` were offered and not chosen.
 
 **SIXTY-THREE keys are now spent.** `conservation` (forty-fifth run, 0 mints — does every flow balance, in against out plus declared rejects). `liveness`, `portability` and `precision` were offered and not chosen.

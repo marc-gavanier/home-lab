@@ -83,7 +83,9 @@ Major upgrade (a Renovate PR `nextcloud:N` → `N+1`). The deploy keeps the app 
 2. Take a fresh restore point: `sudo systemctl start homelab-backup.service`.
 3. Deploy `nextcloud nextcloud-cron nextcloud-notify-push` together. It waits up to
    10 min for the container to be `healthy` while the upgrade runs, then configures it.
-4. List what the upgrade disabled (`docker logs nextcloud | grep 'Disabled incompatible'`),
+4. List what the upgrade disabled
+   (`docker exec nextcloud grep incompatibleAppDisabled /var/www/html/data/nextcloud.log`;
+   `docker logs` keeps about six days),
    then open the store, update and re-enable each, close it, and add the indices the
    upgrade left out (it reports success without them):
 

@@ -369,12 +369,19 @@ Same reserve as every zero: the one live defect went to C120 (two backup push wi
 storage reorganisation's long nights had consumed), the documentary ones to C01. Every step coarser than its
 margin was latent: lynis's integer index, a one-decimal journal size, a 240 s gate on its own timer's grid.
 
+**The forty-seventh run, on 2026-10-12, used `resumability` and minted zero.** **Consecutive zero-mint runs: 3
+(`conservation`, `precision`, `resumability`). The criterion still holds.** The key asked, for every mechanism
+that works in more than one step or keeps state between steps, whether the state an interruption leaves is
+distinguishable, by its next run or by supervision, from the state a success leaves; 299 mechanisms swept over
+eight domains, no agent proposed a mint. Two live defects went to C46 (the unlock's "passed" on a skipped check)
+and C84 (Immich's failed ML jobs); the latent ones to C46, C84, C144, C18 and C01.
+
 ---
 
 # The register
 
 Runs of 2026-08-15 through 2026-09-21 (TWELFTH run, key `durability`).
-**Current state: see the OPEN table after the FORTY-SIXTH run of 2026-10-12 (key `precision`) — 151 classes, 0 OPEN. The counts below this line are the twelfth run's.**
+**Current state: see the OPEN table after the FORTY-SEVENTH run of 2026-10-12 (key `resumability`) — 151 classes, 0 OPEN. The counts below this line are the twelfth run's.**
 **121 recorded classes: 3 OPEN — and the membership is C121, C34 and C01,
 written as a list because every time this line carried a rule for reconstructing
 the count instead, the count was wrong. 9 GATED, 7 closed by decision, plus the
@@ -730,6 +737,20 @@ of those needed action, and saying so with numbers is the point.
 the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
+
+## OPEN — 0 (after the FORTY-SEVENTH run of 2026-10-12, key `resumability`)
+
+**Empty.** No mint; members of C46, C84, C144, C18 and C01 — see "The run of 2026-10-12 (FORTY-SEVENTH)" below.
+
+| ID | Property | State |
+|---|---|---|
+| C46 | A supervisor's log that declares an act it did not perform | **Missed member, live, 2026-10-12**: `homelab-unlock` logged "integrity check passed" whenever `e2fsck -p` skipped a volume marked clean and not yet due (09-11, 09-20, 09-24, 10-04; `Last checked` 09-26). Latent with it: a `homelab-fsck -fy` cut short leaves the volume marked clean, so the next unlock skips it (reproduced by `project-manager` on a scratch image). FIXED: the unlock compares `Last checked` before and after and logs "not due" on a skip; the runbook puts `-fy` in `tmux` and says to rerun it to completion |
+| C84 | A work queue whose only record of what REMAINS to do is destroyed by the same interruption that leaves the work unfinished | **Missed member, live, 2026-10-12**: Immich drops smart-search, face and duplicate jobs that FAIL while `immich-ml` is unreachable; nothing retries them. Re-measured: 4 assets without `smart_search`, 5 without `facesRecognizedAt` (2 undecodable files from May in each), 39 without `duplicatesDetectedAt`, of 11 513. Remedy handed to the operator: Immich's "Missing" once per job. Latent members, first provision only: swap file (`dd` cut, `mkswap` skipped), LUKS then `mkfs`, SearXNG branding (`.css` written before `.br`/`.gz`) |
+| C144 | A restriction the operator placed on an automatic actor that its active configuration does not carry | **Latent member, 2026-10-12**: a reboot or Docker restart mid-restore brings back every service the restore took down (the staged startup runs `compose up -d` on all). FIXED in `restore-from-backup.md` |
+| C18 | A database dump absent, stale, or empty | **Latent member, 2026-10-12**: a dump cut mid-write is reported down but still lands in that night's snapshot (every dump step ends in `\|\| true`) and 8 of 10 restore sections import `latest` unchecked; `settled.md` said it could not survive. FIXED in the runbook and in both files |
+| C01 | A documentary statement whose content contradicts the deployed artefact | **1 member, 2026-10-12**: `nextcloud.md` step 4 reads disabled apps from `docker logs` (~6 days, 0 matches) while `nextcloud.log` holds the 4 lines of 09-27. FIXED |
+
+### The forty-sixth run's table read:
 
 ## OPEN — 0 (after the FORTY-SIXTH run of 2026-10-12, key `precision`)
 
@@ -1618,6 +1639,50 @@ separate correction — **the marker is not a provenance instrument.**
 C92 and C03-R were closed as review rules once their spaces proved non-derivable.
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
+
+## The run of 2026-10-12 (FORTY-SEVENTH) — the key was `resumability`, and it minted zero
+
+The key, chosen by the operator over `contention`, `saturation` and `cardinality`: **for every mechanism that
+works in more than one step or keeps state between steps, if it is interrupted between two steps (reboot, power
+cut, OOM, systemd's SIGTERM, timeout, locked volume, tunnel down, SSH cut, Ctrl-C, disk full), does its next run
+(a) detect and finish or undo it, (b) take it for a finished state, or (c) fail, loudly or silently?** Evidence
+from traces already on the hosts; nothing was interrupted to test. Borders declared: C84, C46, C89, C127, C144,
+C145, and the `durability` and `initiality` slices.
+
+### The counter: 0 OPEN in, 0 OPEN out, 0 minted, 0 gates broken, class total 151
+
+Consecutive zero-mint runs: 3. **The termination criterion still holds.**
+
+### The sweep
+
+| Domain | Mechanisms | Result |
+|---|---|---|
+| `system` | 37/37, both hosts | clean; swap file, LUKS→mkfs, heal stamp written before the restart (latent) |
+| `security` | 34/34, both hosts | clean; 10 of 11 (b) states searched live, none present |
+| `network` | 16/16 | clean; `acme.json` the only non-atomic writer, loud |
+| `services` | 36/36 | C84 (Immich failed ML jobs, live) |
+| `backup` | 21/21 | clean; C18 (dump in snapshot, latent) |
+| `observability` | 17/17 | clean; no push precedes the work it attests |
+| `ansible-deploy` | 37/37 | clean; SearXNG branding and swap (C84, latent) |
+| `project-manager` | 101/101 | C46 (unlock "passed", live; `-fy` cut, latent), C144, C01 |
+
+GATED not read this run: the brief did not ask for it.
+
+### Rejected or requalified
+
+- `system`'s "nothing reads the offsite SMART self-test result" (C02): `offsite-smart-selftest-result` is in the
+  deployed `/etc/goss/offsite-health.yaml`, last test "Completed without error".
+- `system`'s Kuma push URL in the deployed `offsite-health.sh`: not in the repository, root 0750; push tokens are
+  settled.
+- `backup`'s offsite 04:00 automatic reboot against the copy: the copy crossed or followed 04:00 on 10-08, 10-11
+  and 10-12 (the storage reorganisation's ingests); a collision fails loudly and the next night catches up.
+  Observation; moving `Automatic-Reboot-Time` not proposed.
+- `services`' Immich counts (2 and 3) excluded the two undecodable May files; the main session's 4 and 5 agree.
+- Observations: `homelab-disk.sh` saves the pending-sector count before pushing the rise; netdata loses its
+  hysteresis on restart; three ratchet files rewritten without fsync; ddns, heal and health have no
+  `TimeoutStartSec`.
+- Rule breaches: `services` printed the first 60 characters of Navidrome's JWT secret into the transcript and
+  ran an over-broad `find` under Immich's data for ~2 min.
 
 ## The run of 2026-10-12 (FORTY-SIXTH) — the key was `precision`, and it minted zero
 
@@ -8351,7 +8416,8 @@ nowhere in the repo, and the 61 write/handler pairs were compared against
 gravity build cannot refresh the timestamp its guard reads, and the swap `mv` is
 atomic; all five dumps write in place, but the C18 floor is a COMPLETION MARKER
 rather than a size and it runs after every dump and before the snapshot, so a
-truncated dump can neither survive nor be certified; an interrupted offsite copy
+truncated dump cannot be certified, though it survives in the snapshot (corrected
+2026-10-12, forty-seventh run); an interrupted offsite copy
 has been caught and retried twice in the historical record (07-20 empty -> 2
 snapshots on 07-21; 23 on 08-23); `dpkg --audit` is empty and
 `/var/lib/dpkg/updates/` is empty on both hosts; and no `.tmp`, `.new` or
