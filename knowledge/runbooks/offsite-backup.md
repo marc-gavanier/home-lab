@@ -130,9 +130,10 @@ restic init --copy-chunker-params
 
 Two concurrent `restic copy` runs to the append-only repo leave **permanent
 duplicate packs** (append-only blocks the cleanup; an interrupted copy also leaves
-packs the next run re-uploads). The profile lock
-`/run/lock/resticprofile-homelab.lock` covers the whole run, backup and copy; a
-second run is refused with "another process is already running this profile".
+packs the next run re-uploads). Backup and copy each take the profile lock
+`/run/lock/resticprofile-homelab.lock`, so no two copies overlap; a second manual
+run is refused with "another process is already running this profile", while the
+timer's own run waits up to 30 minutes (`--lock-wait 30m`) before giving up.
 
 That lock only works if you go through resticprofile, never `restic` directly. For
 a manual copy, as root, load `backup.env` first — without it the Kuma push URLs are
@@ -152,9 +153,17 @@ Append-only means no automatic pruning. Run on the offsite Pi, with the offsite 
 password fetched from outside this host at that moment. Type it at restic's prompt;
 never put it in a variable or file on this host.
 
-1. Check restic is installed (the `offsite-backup` role installs it with `sqlite3`):
+1. On the homelab, disable the nightly copy for the duration: a stopped rest-server
+   makes it fail with "connection refused", which reads like a tunnel fault. Finish
+   before 04:00, when the offsite Pi may reboot for a kernel update.
+
+   ```bash
+   sudo systemctl disable --now homelab-backup.timer
+   ```
+
+2. Check restic is installed (the `offsite-backup` role installs it with `sqlite3`):
    `command -v restic`.
-2. Prune:
+3. Prune:
 
    ```bash
    sudo systemctl stop rest-server
@@ -162,6 +171,13 @@ never put it in a variable or file on this host.
        --keep-daily 7 --keep-weekly 4 --keep-monthly 6 --prune
    sudo chown -R rest-server:rest-server /mnt/backup/restic
    sudo systemctl start rest-server
+   ```
+
+4. On the homelab, re-enable the timer and check it is armed:
+
+   ```bash
+   sudo systemctl enable --now homelab-backup.timer
+   systemctl list-timers homelab-backup.timer
    ```
 
 ## Deep integrity check (on demand — never yet performed)
@@ -249,8 +265,8 @@ automatically hides the failure.
 restic's own advice (`repair index`, `repair snapshots`, `repair packs`) rewrites or deletes files.
 Through rest-server's `--append-only`, as from the homelab, every delete but a lock's is refused.
 Run it on the offsite Pi as in [Manual retention](#manual-retention-rare--when-disk-usage-approaches-85):
-stop rest-server, run the repair against `/mnt/backup/restic`, `chown` back to `rest-server`, start
-rest-server, then run the check again.
+disable the homelab's backup timer, stop rest-server, run the repair against `/mnt/backup/restic`,
+`chown` back to `rest-server`, start rest-server, re-enable the timer, then run the check again.
 
 ## Disaster recovery (homelab lost)
 

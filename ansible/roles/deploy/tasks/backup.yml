@@ -58,7 +58,7 @@
 
 - name: backup | Assert the deployed password actually opens the repository
   ansible.builtin.command:
-    cmd: restic --repo {{ backup_dir }}/restic-repo cat config
+    cmd: restic --repo {{ backup_dir }}/restic-repo --no-lock cat config
   environment:
     RESTIC_PASSWORD_FILE: /mnt/data/secrets/restic_password
   register: restic_open

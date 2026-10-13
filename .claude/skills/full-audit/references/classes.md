@@ -381,7 +381,7 @@ and C84 (Immich's failed ML jobs); the latent ones to C46, C84, C144, C18 and C0
 # The register
 
 Runs of 2026-08-15 through 2026-09-21 (TWELFTH run, key `durability`).
-**Current state: see the OPEN table after the FORTY-SEVENTH run of 2026-10-12 (key `resumability`) — 151 classes, 0 OPEN. The counts below this line are the twelfth run's.**
+**Current state: see the OPEN table after the FORTY-EIGHTH run of 2026-10-13 (key `contention`) — 151 classes, 0 OPEN. The counts below this line are the twelfth run's.**
 **121 recorded classes: 3 OPEN — and the membership is C121, C34 and C01,
 written as a list because every time this line carried a rule for reconstructing
 the count instead, the count was wrong. 9 GATED, 7 closed by decision, plus the
@@ -737,6 +737,17 @@ of those needed action, and saying so with numbers is the point.
 the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
+
+## OPEN — 0 (after the FORTY-EIGHTH run of 2026-10-13, key `contention`)
+
+**Empty.** No mint; members of C03 and C01 — see "The run of 2026-10-13 (FORTY-EIGHTH)" below.
+
+| ID | Property | State |
+|---|---|---|
+| C03 | A validation whose instrument answers a different question from the one its comment claims | **2 members, 2026-10-13**: the health DNS probe reported `dns upstream unreachable, sustained` at 03:07:49 on 10-11 while Pi-hole's database shows that run's probe (01:03:39Z) forwarded and answered in 89 ms; the Pi, loaded, had not returned it to `dig` within 3 s (re-measured by the main session; the alert itself was lost to the C127 404s). And, latent, the deploy's `restic cat config` took a shared lock (restic 0.16.4 source: `lockRepo` unless `--no-lock`; `check` and `forget` lock exclusively), so a deploy meeting them would have said the password does NOT open the repository; 197 runs, closest 19 s away. FIXED: a local name probed before and after the upstream one; `--no-lock` |
+| C01 | A documentary statement whose content contradicts the deployed artefact | **Members, 2026-10-13**: `offsite-backup.md` said the profile lock covers the whole run (two `ExecStart`, two locks, 1 s apart); its manual retention and `restic repair` stopped rest-server without disabling the homelab's backup timer; `notify-push-troubleshooting.md` had no row for a load timeout; `settled.md` said lynis refreshes the apt lists (`PKGS-7392` skipped). FIXED |
+
+### The forty-seventh run's table read:
 
 ## OPEN — 0 (after the FORTY-SEVENTH run of 2026-10-12, key `resumability`)
 
@@ -1639,6 +1650,50 @@ separate correction — **the marker is not a provenance instrument.**
 C92 and C03-R were closed as review rules once their spaces proved non-derivable.
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
+
+## The run of 2026-10-13 (FORTY-EIGHTH) — the key was `contention`, and it minted zero
+
+The key, chosen by the operator over `seasonality`, `liveness` and a confirmation-only pass: **when two distinct
+actors draw on one shared resource that is not exhausted but held or slowed by the other (a lock, the HDD's
+queue, CPU and swap, the uplink or tunnel, a single worker, a time window), who loses, and does the loser wait
+and finish, give up loudly, give up silently, or fail under the wrong cause?** Forms: T1 deadline loss, T2 silent
+or mis-attributed loser, T3 priority inversion, T4 skip-on-lock. Discriminant: both actors and the resource
+named, the loser's deadline read from the deployed artefact, the overlap or worst wait read from traces already
+on the hosts. Borders declared: C90, C91, C127, C142, C68, C84, C120, C128, C103 and the `exhaustion` classes.
+
+### The counter: 0 OPEN in, 0 OPEN out, 0 minted, 0 gates broken, class total 151
+
+Consecutive zero-mint runs: 4. **The termination criterion still holds.**
+
+### The sweep
+
+| Domain | Pairs | Result |
+|---|---|---|
+| `system` | 22/22, both hosts | C03 (DNS probe, live); netdata-kuma 240 s limit against 114 s worst (latent) |
+| `security` | 21/21, both hosts | clean; nftables, so no xtables lock; slowest SSH login 18.7 s of 60 |
+| `network` | 18/18 | clean; FTL's worst local reply 2.77 s in 91 days, below every client timeout |
+| `services` | 30/30 | clean; four latent or suspected (observations) |
+| `backup` | 36/36 | C03 (`restic cat config` lock, latent) |
+| `observability` | 20/20 | C91 member under settled load; DNS probe suspected, converged with `system` |
+| `ansible-deploy` | 15/15 | C03 (`restic cat config`, converged with `backup`); timers redrawn by `daemon_reload` |
+| `project-manager` | 25/25 | C01 ×3; five claimed exclusions hold on the hosts |
+
+GATED not read this run: the brief did not ask for it.
+
+### Rejected or requalified
+
+- `observability`'s false `Pi health` DOWN of 10-11 (C91): the health run overran only under the
+  reorganisation's load, settled; nights of 10-12 and 10-13 clean. Observation.
+- `services`' Immich 00:00 UTC alignment as the cause of C84's lost ML jobs: suspected, the same alignment
+  failed nothing on 10-13, and the server's give-up timeout is in no deployed file.
+- Sonarr/Radarr `busytimeout`, Immich queue lock renewals, Nextcloud metadata skip, apt's 60 s lock wait,
+  `daemon_reload` redrawing timer delays: latent or self-healing, observations.
+- `network`'s Traefik heal margin (~3 min on the worst recorded unhealthy episode): inside the settled
+  healthcheck-under-load position. Kuma probes of Prowlarr and Jellyfin at 45 s of 48: backend latency, real.
+- `security`'s possible false needrestart line during an unattended upgrade: unmeasurable, Kuma keeps ~1 day.
+- Rule breaches: `security` listed `iptables-legacy` tables and probably loaded `iptable_raw` and
+  `iptable_mangle` on the homelab (refcount 0, empty, ACCEPT); `backup` and `observability` each ran a journal
+  scan past two minutes and killed it.
 
 ## The run of 2026-10-12 (FORTY-SEVENTH) — the key was `resumability`, and it minted zero
 
