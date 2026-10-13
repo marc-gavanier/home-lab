@@ -19,9 +19,9 @@ Rules that apply to every procedure on this page:
   into the same tree mixes two snapshots — and the `rsync -a --delete` steps below
   then copy that mix into production. An interrupted, restarted restore is the usual
   way this happens.
-- **`docker compose down <service>`, never `docker stop`.** The heal timer restarts,
-  every two minutes, any container that exited non-zero, is `created` or `dead`, or
-  has been unhealthy for 15 minutes (ADR-007). `down` removes the container from its view.
+- **`docker compose down <service>`, never `docker stop`.** The heal timer restarts any
+  container that exited non-zero, is `created` or `dead` (at most every 10 minutes), or has been
+  unhealthy for 15 minutes (at most once an hour) (ADR-007). `down` removes the container from its view.
 - **A reboot or a Docker restart undoes that `down`.** The staged startup runs
   `docker compose up -d` on every service. After one, take the service down again and
   restart its section from the first step.

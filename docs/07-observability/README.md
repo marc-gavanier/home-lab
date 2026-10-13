@@ -470,7 +470,7 @@ and calls `wg set` when the peer's handshake goes stale, within four minutes.
 
 ### Backups (push dead-man's switches)
 
-Every leg pushes on success and Kuma alarms on silence: local backup (26 h window), local prune +
+Every leg pushes on success and Kuma alarms on silence: local backup (28 h window), local prune +
 check, offsite copy, offsite check, offsite Pi disk/SMART health. See
 [backup-monitoring.md](../../knowledge/runbooks/backup-monitoring.md).
 
