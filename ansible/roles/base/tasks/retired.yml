@@ -36,6 +36,8 @@
       retired_by: "2026-08-25"
     - path: /root/wg-easy-backup-236-0115
       retired_by: "2026-08-26"
+    - path: /mnt/data/services/wireguard/wg0.json
+      retired_by: "2026-10-13"
 
     - path: /var/tmp/util_new.txt
       retired_by: "never committed"

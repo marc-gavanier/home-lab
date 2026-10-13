@@ -24,6 +24,37 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-10-13 (FORTY-NINTH run) — key `convergence`, one PR
+
+- **The Kuma backup runbook carries the live push windows** (C01): `Backup` 100 800 s, `Offsite backup`
+  108 000 s, `Offsite health` 93 600 s; the observability README says 28 h.
+- **The heal cadence is stated per latch**: the timer ticks every 2 min, a container is restarted at most every
+  10 min when exited and once an hour when unhealthy.
+- **`wg0.json` retired** by the operator's decision, through `retired.yml`: the pre-v15 wg-easy store, which nothing
+  reads. The 2026-09-12 entry below stays true of its history.
+
+## Declined on 2026-10-13 (forty-ninth run)
+
+- **Rotating the Nextcloud Redis password** after an audit agent printed it in its own transcript: the operator
+  accepts the exposure (internal network only).
+
+## Measured and left as observations on 2026-10-13 (forty-ninth run)
+
+- **`Enable UFW` rewrites `user.rules`/`user6.rules` and resets the logging chains' counters on every
+  `--tags security` run while reporting `changed=0`**: same content, nothing reads the counters.
+- **debconf holds `ufw/enable: false` on both hosts**; `ufw.config` re-reads `ufw.conf` first, so an upgrade
+  keeps UFW on. Never exercised.
+- **`unattended-upgrade-shutdown` keeps writing to a log logrotate deleted** (vendor rule, no reopen): its lines
+  at the next shutdown are lost.
+- **Immich checks its version against GitHub** (`newVersionCheck` never set): C66 territory, declined.
+
+## Instrument traps paid on 2026-10-13 (forty-ninth run)
+
+- **The mtime of `/etc/ufw/user.rules` dates the last security deploy**, not the last rule change.
+- **A secret filter on `config.php` must walk nested keys**: Nextcloud's Redis password sits under `redis`.
+  The same for `grep CHANGED pihole.toml`, which prints the `pwhash` line.
+- **There is no deploy log** (`log_path` unset): file mtimes and session transcripts are the only `changed=` trace.
+
 ## Shipped on 2026-10-13 (FORTY-EIGHTH run) — key `contention`, one PR
 
 - **The health DNS probe tells a loaded Pi from a dead upstream** (C03): it asks `dns.<domain>`, answered from

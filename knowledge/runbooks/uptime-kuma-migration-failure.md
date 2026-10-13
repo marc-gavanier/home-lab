@@ -26,7 +26,7 @@ migration failed with error: ROLLBACK TO SAVEPOINT trx6 - SQLITE_ERROR: no such 
 ### 1. Stop the retry loop
 
 `restart: "no"` does not help: the crash-heal timer restarts the container and re-runs the
-migration every two minutes. Take it out of heal scope first:
+migration every ten minutes. Take it out of heal scope first:
 
 ```bash
 cd /opt/homelab && sudo docker compose down uptime-kuma

@@ -376,12 +376,22 @@ distinguishable, by its next run or by supervision, from the state a success lea
 eight domains, no agent proposed a mint. Two live defects went to C46 (the unlock's "passed" on a skipped check)
 and C84 (Immich's failed ML jobs); the latent ones to C46, C84, C144, C18 and C01.
 
+**The forty-eighth run, on 2026-10-13, used `contention` and minted zero.** **Consecutive zero-mint runs: 4.**
+
+**The forty-ninth run, on 2026-10-13, used `convergence` and minted zero.** **Consecutive zero-mint runs: 5
+(`conservation`, `precision`, `resumability`, `contention`, `convergence`). The criterion still holds.** The key
+asked, for every mechanism that brings an object back to a wanted state, whether that state is a fixed point: a
+second application changes nothing, and no other reconciler pulls the same object elsewhere. 307 (object,
+reconciler) pairs swept over eight domains, no agent proposed a mint, no instance of the four forms (oscillation,
+perpetual rewrite, false fixed point, wrong attractor). The one confirmed defect went to C01: the Kuma backup
+runbook still carried the push windows the forty-sixth run had raised by hand.
+
 ---
 
 # The register
 
 Runs of 2026-08-15 through 2026-09-21 (TWELFTH run, key `durability`).
-**Current state: see the OPEN table after the FORTY-EIGHTH run of 2026-10-13 (key `contention`) — 151 classes, 0 OPEN. The counts below this line are the twelfth run's.**
+**Current state: see the OPEN table after the FORTY-NINTH run of 2026-10-13 (key `convergence`) — 151 classes, 0 OPEN. The counts below this line are the twelfth run's.**
 **121 recorded classes: 3 OPEN — and the membership is C121, C34 and C01,
 written as a list because every time this line carried a rule for reconstructing
 the count instead, the count was wrong. 9 GATED, 7 closed by decision, plus the
@@ -737,6 +747,16 @@ of those needed action, and saying so with numbers is the point.
 the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
+
+## OPEN — 0 (after the FORTY-NINTH run of 2026-10-13, key `convergence`)
+
+**Empty.** No mint; members of C01 — see "The run of 2026-10-13 (FORTY-NINTH)" below.
+
+| ID | Property | State |
+|---|---|---|
+| C01 | A documentary statement whose content contradicts the deployed artefact | **Members, 2026-10-13**: `backup-monitoring.md` gave 93 600 s and 100 800 s for `Backup` and `Offsite backup` while Kuma holds 100 800 s and 108 000 s since the forty-sixth run's hand edit (re-measured by the main session in `kuma.db`, read-only); recreating the monitors from it would have brought back the C120 margin. `docs/07-observability/README.md` said 26 h. Two runbooks said heal restarts a container every two minutes: the timer ticks every 2 min, the latches are 600 s (exited) and 3 600 s (unhealthy). FIXED |
+
+### The forty-eighth run's table read:
 
 ## OPEN — 0 (after the FORTY-EIGHTH run of 2026-10-13, key `contention`)
 
@@ -1650,6 +1670,53 @@ separate correction — **the marker is not a provenance instrument.**
 C92 and C03-R were closed as review rules once their spaces proved non-derivable.
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
+
+## The run of 2026-10-13 (FORTY-NINTH) — the key was `convergence`, and it minted zero
+
+The key, invented for this run and chosen by the operator over `reproducibility`, `liveness` and `seasonality`:
+**for every mechanism that brings an object back to a wanted state (deploy tasks and handlers, heal, restart
+policies, cloud-init, DDNS, Renovate, unattended-upgrades, application-internal jobs, syncs), is the state it
+reaches a fixed point: a second application changes nothing, and no other reconciler pulls the same object
+toward a different state?** Forms: V1 oscillation, V2 perpetual rewrite, V3 false fixed point (converged against
+a copy, not the object), V4 wrong attractor (the stable state is not the declared one). Discriminant: the object,
+every reconciler writing it with its wanted state read from the deployed artefact, and a trace of at least two
+successive applications. Borders declared: C90, C49, C99, C122, C111, C108, C144, C145, C74, C86, C124, C13, C41,
+C93.
+
+### The counter: 0 OPEN in, 0 OPEN out, 0 minted, 0 gates broken, class total 151
+
+Consecutive zero-mint runs: 5. **The termination criterion still holds.**
+
+### The sweep
+
+| Domain | Pairs | Result |
+|---|---|---|
+| `system` | 33/33, both hosts | clean; 54/54 and 53/53 sysctl keys equal at runtime; 0 restarts out of 32 `Restart=` units since 10-04 |
+| `security` | 24/24, both hosts | clean; UFW rewrites its rules at `changed=0` (observation) |
+| `network` | 18/18 | clean; DDNS 8 223 runs since 07-20, 0 writes |
+| `services` | 123/123 | clean; `RestartCount` 0 on 32 containers, heal acted once in 30 days |
+| `backup` | 21/21 | clean; retention groups stable, `resticprofile.yaml` equal to its render |
+| `observability` | 32/32 | clean; C01 (Kuma push windows), converged with the main session |
+| `ansible-deploy` | 200 + 118 + 27 + 24 + 31 sites | clean; every deploy session of 80 transcripts ends on `changed=0` |
+| `project-manager` | 32/32 statements | clean; C01 (heal cadence, safe side) |
+
+GATED intact, read: C03-T, C07, C11, C14, C15, C18, C19, C41, C81 (C15 and C81 forced to fail in a scratch copy).
+C19's floor moved to `:402`, converged from `system` and `observability`.
+
+### Rejected or requalified
+
+- `network`'s `wg0.json` (pre-v15 wg-easy store): settled on 2026-09-12 as not a finding. The operator decided on
+  this run to retire it anyway; nothing reads it.
+- `services`' four Nextcloud apps disabled by the 35 upgrade: C66, declined 2026-10-05. Immich's version check
+  against GitHub (`newVersionCheck` never set): a missed member of C66's vendor-call rule, whose follow-up is declined.
+- `project-manager`'s offsite endpoint re-resolve of 10-05 (49 s, self-healed): C102, declined.
+- `security`'s debconf `ufw/enable: false` on both hosts: `ufw.config` re-reads `ufw.conf` before the postinst
+  writes it, so an upgrade keeps UFW on; never exercised. Observation.
+- `system`'s `unattended-upgrade-shutdown` writing into a log logrotate deleted on 10-01 (offsite; homelab at the
+  11-01 rotation): vendor rotation rule, lines lost at the next shutdown. Observation.
+- Rule breaches: `observability` and `project-manager` each ran a journal query past two minutes (the first killed
+  its own PID); `services` printed the Nextcloud Redis password once in its transcript (nested key past its
+  filter), the operator accepted the exposure and declined a rotation.
 
 ## The run of 2026-10-13 (FORTY-EIGHTH) — the key was `contention`, and it minted zero
 
@@ -10009,7 +10076,7 @@ check, and it is stated as one.
 | C16 | A read-write bind mount its container cannot create files in | **Left this table on 2026-09-11 — downgraded to ENUMERATED.** The enumeration is derived; the PREDICATE is a proxy (`owner == OPERATOR_UID`). 15 of 27 mounts reach the test and 0 of the 15 can ever fail it |
 | C17 | A filesystem never checked, and boot triggers reset every boot | **Left this table on 2026-09-05 evening — downgraded to ENUMERATED.** The three assertions are hardwired to `/`: one filesystem of four, and `Last checked` is asserted nowhere, six days after this file first recorded that omission. Nothing is proposed — the only live instance is the offsite root, and the operator DECLINED it on 2026-09-02 |
 | C18 | A database dump absent, stale, or empty | **BROKEN on 2026-09-13 and repaired the same evening — see the run section.** Its derivation keys on the dump VARIABLES rather than on the databases present, so three services deployed that night were backed up live, in WAL mode, with no dump and no assertion. PR #352 adds them (15 assertions, 31 → 46). **The wrong-axis defect itself is untouched, and 2026-09-13 night DEMONSTRATED it rather than arguing it**: `sonarr/logs.db`, `radarr/logs.db` and `prowlarr/logs.db` sit under a backed-up path with no dump and no assertion, and the deployed spec mentions `logs` zero times (46 assertions live, verified). They hold app logs, so the impact is low — their value is as proof that a database outside `backup_sqlite_dumps` is invisible to this gate by construction, which is the same shape that reopened C10. goss `backup-dumps`, now **26** checks (2x3 + 3x5 + 5, counted on the deployed spec 2026-09-05 evening), generated from the dump variables so a database cannot get a dump without a check (#177, ADR-032). **The `empty` word is no longer an overstatement** — the derived `-content` floor shipped 2026-09-05 10:39 and 2x3+3x4+4 = 22 matches the host. The derivation half recorded as defective that morning is **FIXED**: `-container-present` is now generated in the same loop, and the residue is a list of one (Immich) |
-| C19 | A failed systemd unit, or a timer whose service did not succeed | **CORRECTED 2026-09-13 (night-second): the AUTO-RESTART half of the script IS DERIVED, not a list** — `homelab-health.sh.j2:615-616` filters on the systemd sub-state and names no unit; the `:552` comment about units being "enumerated and NAMED" explains why that half cannot move into goss. Swept the same night for CONSEQUENCE: **33/33 units with `Restart!=no` across both hosts at `NRestarts=0`, zero auto-restart loops**, with a positive control (`vault-mount` genuinely reached restart counter 4 at 12:41:39 that day and reads 0 now). **QUANTIFIED 2026-09-13 (late evening): the goss half is A LIST — 6 named `service:` entries + 8 named `command:` assertions, 1 of 15 DERIVED (`systemd-no-failed-units`, from `systemctl --failed`), and that one still exits 0 with the binary absent, byte-identical to 2026-09-05.** The script half is genuinely derived and its floor fires (`timers_seen` 13 healthy, 0 under `PATH=/nonexistent`) — **at `homelab-health.sh:393` (re-read in the deployed script 2026-10-12; it was `:396` before, `:351` before that, `:665` and `:592` before that).** Also structural: `systemctl --failed` cannot see an auto-restart loop, and `fail2ban` and `claude-remote-control` both carry `StartLimitIntervalSec=0`, so that half of the property lives only in the script. goss `units.yaml` plus the health script's last-run check — **homelab only; the offsite half is C02**. **Only the GOSS half is vacuous at zero** — corrected 2026-09-05 evening by two agents independently: the script half now carries a derived floor (`timers_seen -eq 0`, `homelab-health.sh:592`, shipped 2026-09-05). The goss half still exits 0 with the binary absent (positive control: `PATH=/nonexistent`), rescued by composition rather than by assertion |
+| C19 | A failed systemd unit, or a timer whose service did not succeed | **CORRECTED 2026-09-13 (night-second): the AUTO-RESTART half of the script IS DERIVED, not a list** — `homelab-health.sh.j2:615-616` filters on the systemd sub-state and names no unit; the `:552` comment about units being "enumerated and NAMED" explains why that half cannot move into goss. Swept the same night for CONSEQUENCE: **33/33 units with `Restart!=no` across both hosts at `NRestarts=0`, zero auto-restart loops**, with a positive control (`vault-mount` genuinely reached restart counter 4 at 12:41:39 that day and reads 0 now). **QUANTIFIED 2026-09-13 (late evening): the goss half is A LIST — 6 named `service:` entries + 8 named `command:` assertions, 1 of 15 DERIVED (`systemd-no-failed-units`, from `systemctl --failed`), and that one still exits 0 with the binary absent, byte-identical to 2026-09-05.** The script half is genuinely derived and its floor fires (`timers_seen` 13 healthy, 0 under `PATH=/nonexistent`) — **at `homelab-health.sh:402` (re-read in the deployed script 2026-10-13; it was `:393` after 2026-10-12, `:396` before, `:351` before that, `:665` and `:592` before that).** Also structural: `systemctl --failed` cannot see an auto-restart loop, and `fail2ban` and `claude-remote-control` both carry `StartLimitIntervalSec=0`, so that half of the property lives only in the script. goss `units.yaml` plus the health script's last-run check — **homelab only; the offsite half is C02**. **Only the GOSS half is vacuous at zero** — corrected 2026-09-05 evening by two agents independently: the script half now carries a derived floor (`timers_seen -eq 0`, `homelab-health.sh:592`, shipped 2026-09-05). The goss half still exits 0 with the binary absent (positive control: `PATH=/nonexistent`), rescued by composition rather than by assertion |
 | C20 | A secret that a deploy reports as rotated without rotating it | **Left this table on 2026-09-03 — downgraded to ENUMERATED.** 4 hand-written probes over a space of 16 secret files; a list of four is not a gate (#159 fixed the case-mismatch bug, which is a different question) |
 | C21 | A snapshot that missed its offsite copy and is never retried | **LEAVES THE GATED TABLE 2026-09-19 (fifth run) — DOWNGRADED TO ENUMERATED.** It is an ARGUMENT, not a gate, and that is now measured rather than suspected: over the 3 463 lines of deployed posture, **exactly one assertion opens `resticprofile.yaml` and it reads only the `library/` categories**; `grep snapshot` returns a single comment. Nothing reads `copy:`, and nothing compares the two snapshot sets — so a bound added to the deployed `copy:` would pass unnoticed and the copy would stay green. A structural guarantee plus a push monitor is not an assertion on the property. Historic text follows. **ROW STALE FOR THE THIRD TIME, and the stale word is "monitor" — there IS no retention monitor.** The guarantee is STRUCTURAL (`copy:` carries no bound, verified in the deployed file AND in `resticprofile show`) plus the copy push monitor. 91 offsite / 34 local snapshots, 0 locks on either, 2026-09-13. The class holds; the description has now been wrong three times. Formerly cited as the retention monitor (#158, #168). **The "time-window filter" this row used to name no longer exists** — re-verified 2026-09-03: `copy:` carries no bound, every snapshot is re-offered nightly, 31 local / 81 offsite with no gaps. The class holds; the description was stale for the second time |
 | C81 | A byte written into a file whose consumer reads it back through a narrower encoding than the producer's | `ops/check-ascii-system-files.py` in pre-commit, proven to fail in both directions (2026-09-04); re-exercised 2026-09-05 evening in a sandbox, 3 flags with both negative controls passing. **Its `marker:` half is derived; its path filter is a LIST OF ONE** — `ASCII_STRICT_PREFIXES = ("/etc/ufw/",)`. Kept GATED rather than downgraded because, unlike C17, no live instance has ever existed outside that prefix; its two blind spots (`*.yaml`, `.j2` into `/etc/ufw/`) are empty today |

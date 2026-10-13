@@ -16,15 +16,16 @@ it goes red on a failed run and when no run happened at all.
 
 | Monitor               | Pinged by                                            | Interval        | Vault variable                                     |
 |-----------------------|------------------------------------------------------|-----------------|----------------------------------------------------|
-| Backup                | resticprofile `backup` (homelab, nightly)            | 93600 s (26 h)  | `backup_kuma_push_url` (homelab local.yml)         |
+| Backup                | resticprofile `backup` (homelab, nightly)            | 100800 s (28 h) | `backup_kuma_push_url` (homelab local.yml)         |
 | Pi restic prune+check | `resticprofile -n homelab prune`+`check` (Tue 01:00) | 691200 s (8 d)  | `local_maintenance_kuma_push_url` (homelab local)  |
-| Offsite backup        | resticprofile `copy` (homelab, nightly)              | 100800 s (28 h) | `offsite_copy_kuma_push_url` (homelab local.yml)   |
+| Offsite backup        | resticprofile `copy` (homelab, nightly)              | 108000 s (30 h) | `offsite_copy_kuma_push_url` (homelab local.yml)   |
 | Offsite check         | `resticprofile -n offsite check` (Tue 02:00)         | 700000 s (8 d)  | `offsite_check_kuma_push_url` (homelab local.yml)  |
 | Offsite health        | `offsite-health.sh` (offsite Pi, 08:00 + ≤15 min)    | 93600 s (26 h)  | `offsite_health_kuma_push_url` (offsite local.yml) |
 
-- 26 h on the nightly monitors, counted from the last push: a missed run turns red ~2 h after the
-  expected time, later if a manual run pushed since. The offsite copy gets 28 h: a night that ingests
-  ~30 GiB ends past 05:00.
+- 28 h on the nightly backup and 30 h on the offsite copy, counted from the last push: a missed run
+  turns red ~4 h (backup) or ~6 h (copy) after the expected time, later if a manual run pushed since. The margin holds a long
+  night (the copy of a ~30 GiB ingest ends past 05:00) on the 25-hour day of the autumn time change.
+  Offsite health keeps 26 h.
 - Prune+check (`homelab-local-maintenance.timer`) runs a metadata check weekly and a deep
   read-data check on the run in the first 7 days of the month. Its variable is optional.
 - Offsite health alarms on SMART early-warning counters (not the overall `smartctl -H` verdict),
@@ -36,7 +37,7 @@ it goes red on a failed run and when no run happened at all.
 
 1. **Add New Monitor** → Monitor Type: **Push**.
 2. Friendly Name: e.g. `Homelab backup`.
-3. **Heartbeat Interval**: from the table above (`93600` s for the nightly backup). Retries: `0`.
+3. **Heartbeat Interval**: from the table above (`100800` s for the nightly backup). Retries: `0`.
 4. Under **Notifications**, tick the existing notification channel.
 5. **Save**, then copy the **Push URL** in its base form `https://<uptime-kuma>/api/push/<token>` —
    drop any trailing `?status=up&msg=OK&ping=` (the script appends its own).
