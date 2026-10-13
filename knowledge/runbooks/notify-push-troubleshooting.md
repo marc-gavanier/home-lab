@@ -60,6 +60,11 @@ extra_hosts:
 address outside the `vpn-only` allow-list. Find the client address of the refused
 request in Traefik's access log; the pin does not fix this.
 
+**"can't connect to push server: cURL error 28: Operation timed out"**: the host was
+too loaded to answer within 30 s, usually in the 03:00 backup window. Change nothing;
+it clears at the next hourly run. Only a timeout that persists outside that window is
+a fault.
+
 **"nextcloud is not configured as a trusted domain"**: redeploy; the role writes
 `localhost`, `drive.<domain>`, `nextcloud` to `trusted_domains`. Editing
 `NEXTCLOUD_TRUSTED_DOMAINS` does nothing after first install. Check:

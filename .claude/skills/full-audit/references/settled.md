@@ -24,6 +24,41 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-10-13 (FORTY-EIGHTH run) — key `contention`, one PR
+
+- **The health DNS probe tells a loaded Pi from a dead upstream** (C03): it asks `dns.<domain>`, answered from
+  Pi-hole's own `address=` line, before and after the random upstream name, and blames the upstream only when
+  the local name answers both times; otherwise `dns local resolver not answering`.
+- **The deploy's password check reads the repository with `--no-lock`** (C03): `restic cat config` took a
+  shared lock, so a deploy meeting `forget` or the Tuesday `prune`/`check` would have reported the password as
+  wrong and pointed at a rotation.
+- **Runbooks**: a notify_push `cURL error 28` timeout in the 03:00 window is load, not a fault; offsite manual
+  retention and `restic repair` disable the homelab's backup timer first; backup and copy each take the
+  profile lock, the timer's run waits 30 minutes.
+
+## Measured and left as observations on 2026-10-13 (forty-eighth run)
+
+- **Sonarr, Radarr and Prowlarr wait 1 s on a SQLite lock** (`busytimeout=1000`, not configurable): tasks fail
+  under the 03:00 load and succeed on the next cycle.
+- **Immich's three internal schedules start together at 00:00 UTC** (library scan, nightly tasks, DB backup set
+  in Immich's database): suspected cause of the ML jobs C84 records, not reproduced on 10-13.
+- **Immich's job queue loses its locks under load** (`could not renew lock`), the job reruns the next day;
+  **Nextcloud's photo metadata job skips a file held by an upload**, logged as a warning, never retried.
+- **Ansible's apt tasks wait 60 s for the dpkg lock**, apt-daily has held it 88 s during a deploy: a collision
+  fails loudly, never seen.
+- **Every `daemon_reload` redraws the random delay of timers**, so apt-daily, man-db, lynis and fstrim start
+  during deploys (22 of 69 apt-daily runs, agent figure): no deadline lost.
+- **A false `Pi health` DOWN on 10-11** came from the health run overrunning under the reorganisation load and
+  meeting Kuma's stall (C91); Kuma also recorded its own database timeout as three targets' failure. Upstream
+  code, load settled.
+
+## Instrument traps paid on 2026-10-13 (forty-eighth run)
+
+- **Pi-hole's FTL database lives under `/mnt/data/services/pihole/etc/`**, not `etc-pihole/`.
+- **Listing `iptables-legacy` tables loads their kernel modules** (`iptable_raw`, `iptable_mangle` on the
+  homelab): read `lsmod` and the nft ruleset instead.
+- **A month-wide `journalctl -g` without `-u` runs for minutes on the Pi**: grep per unit.
+
 ## Shipped on 2026-10-12 (FORTY-SEVENTH run) — key `resumability`, one PR
 
 - **`homelab-unlock` says when it did not check** (C46): it compares `Last checked` before and after `e2fsck -p`
@@ -697,8 +732,9 @@ Two kinds of entry, and the distinction matters:
 - **Every systemd service ignores SIGPIPE by default**: `cmd | head -1` inside a unit does not
   stop `cmd`. Test a pipe's cost with `trap '' PIPE` in a shell, not at a bare prompt (206 ms
   against more than 60 s for the same `journalctl` line).
-- **lynis refreshes the apt lists itself** (`refresh-repositories=yes` in `default.prf`): its
-  package verdict is not the one unattended-upgrades saw.
+- **lynis no longer refreshes the apt lists**: `refresh-repositories=yes` in `default.prf` only
+  acts through `PKGS-7392`, which `custom.prf` skips; no `apt-get update` in its log (corrected
+  2026-10-13, forty-eighth run).
 - **Kuma keeps no text of a failed posture term**: read `journalctl -u homelab-posture` for which
   assertion failed.
 

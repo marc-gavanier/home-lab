@@ -398,7 +398,10 @@ The table is maintained by hand. To check it, compare against `problems+=(` in
 - **DNS, random name**: Kuma's `Pi-hole DNS` and Pi-hole's healthcheck are answered from cache or
   locally, so a dead `dnsproxy` leaves them green. A random label under the domain must go upstream
   (`forward=127.0.0.1#5053`). `NXDOMAIN` counts as success; `SERVFAIL`, `REFUSED` and silence fail.
-  The gate is `gate dns-upstream 240` because the probe has no cache cushion.
+  The gate is `gate dns-upstream 240` because the probe has no cache cushion. A failure is blamed on
+  the upstream only when `dns.<domain>`, answered from Pi-hole's own `address=` line, answers before
+  and after it; otherwise the alert reads `dns local resolver not answering`, the shape of a Pi too
+  loaded to serve its own resolver.
 - **Restart loop, sub-state**: a unit with `Restart=on-failure` and `StartLimitIntervalSec=0` never
   reaches `failed`; it sits in `activating/auto-restart`, so `systemctl --failed` misses it. 240 s
   lets a single legitimate restart pass.

@@ -211,18 +211,27 @@ done
 
 DNS_PROBE_DOMAIN='{{ domain }}'
 if command -v dig >/dev/null 2>&1 && [ -n "$DNS_PROBE_DOMAIN" ]; then
+    dns_status() {
+        dig +time=3 +tries=1 "$1" @127.0.0.1 2>/dev/null | sed -n 's/.*status: \([A-Z]*\),.*/\1/p'
+    }
     rand=$(head -c8 /dev/urandom | od -An -tx1 | tr -d ' \n')
-    dns_rc=$(dig +time=3 +tries=1 "${rand}.${DNS_PROBE_DOMAIN}" @127.0.0.1 2>/dev/null \
-             | sed -n 's/.*status: \([A-Z]*\),.*/\1/p')
+    local_rc=$(dns_status "dns.${DNS_PROBE_DOMAIN}")
+    dns_rc=$(dns_status "${rand}.${DNS_PROBE_DOMAIN}")
     case "${dns_rc:-}" in
         NOERROR|NXDOMAIN)
             report+=("dns ok")
             gate dns-upstream 240
             ;;
         *)
-            report+=("dns ${dns_rc:-no-response}")
-            [ -n "$(gate dns-upstream 240 unreachable)" ] &&
-                problems+=("dns upstream unreachable, sustained (${dns_rc:-no response})")
+            [ "${local_rc:-}" = NOERROR ] && local_rc=$(dns_status "dns.${DNS_PROBE_DOMAIN}")
+            report+=("dns ${dns_rc:-no-response}, local ${local_rc:-no-response}")
+            if [ -n "$(gate dns-upstream 240 unreachable)" ]; then
+                if [ "${local_rc:-}" = NOERROR ]; then
+                    problems+=("dns upstream unreachable, sustained (${dns_rc:-no response}; local answers)")
+                else
+                    problems+=("dns local resolver not answering, sustained (local ${local_rc:-no response}, upstream ${dns_rc:-no response})")
+                fi
+            fi
             ;;
     esac
 fi
