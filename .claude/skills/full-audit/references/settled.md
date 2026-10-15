@@ -24,6 +24,12 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Declined on 2026-10-15, from the operator's decision
+
+- **Cutting Claude Code's telemetry on the Pi** (`DISABLE_TELEMETRY`, added 2026-10-07 under C66): Remote Control
+  refuses to start without feature-flag evaluation, which that variable disables, and the operator needs the Pi
+  reachable from the Claude mobile app. Error reporting stays off. Do not raise it again.
+
 ## Shipped on 2026-10-13 (FORTY-NINTH run) — key `convergence`, one PR
 
 - **The Kuma backup runbook carries the live push windows** (C01): `Backup` 100 800 s, `Offsite backup`
