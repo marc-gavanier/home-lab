@@ -1137,7 +1137,7 @@ services:
       start_period: 90s
 
   forgejo:
-    image: codeberg.org/forgejo/forgejo:16.0.5-rootless
+    image: codeberg.org/forgejo/forgejo:17.0.0-rootless
     container_name: forgejo
     restart: "no"
     security_opt: *no-new-privs
