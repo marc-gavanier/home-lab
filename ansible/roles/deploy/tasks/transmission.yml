@@ -65,6 +65,7 @@
     line: '\1"port-forwarding-enabled": false,'
     backrefs: true
     state: present
+    mode: "0600"
   when: transmission_settings.stat.exists
 
 - name: transmission | Persist the deletion in settings.json so a hard restart cannot revert it
@@ -74,4 +75,5 @@
     line: '\1"trash-original-torrent-files": true,'
     backrefs: true
     state: present
+    mode: "0600"
   when: transmission_settings.stat.exists
