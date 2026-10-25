@@ -12,3 +12,6 @@
   register: wg_easy_config
   changed_when: wg_easy_config.rc == 2
   failed_when: wg_easy_config.rc not in [0, 2]
+  until: wg_easy_config.rc in [0, 2]
+  retries: 12
+  delay: 10
