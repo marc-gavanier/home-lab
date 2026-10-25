@@ -75,7 +75,7 @@ networks:
 services:
 
   socket-proxy:
-    image: wollomatic/socket-proxy:1.13.1
+    image: wollomatic/socket-proxy:1.13.2
     container_name: socket-proxy
     restart: unless-stopped
     security_opt: *no-new-privs
@@ -253,7 +253,7 @@ services:
       - pihole
 
   wg-easy:
-    image: ghcr.io/wg-easy/wg-easy:15.4.0
+    image: ghcr.io/wg-easy/wg-easy:15.5.0
     container_name: wg-easy
     restart: unless-stopped
     security_opt: *no-new-privs
@@ -465,7 +465,7 @@ services:
       - "traefik.http.services.notify-push.loadbalancer.server.port=7867"
 
   collabora:
-    image: collabora/code:26.04.5.1.1
+    image: collabora/code:26.04.5.2.1
     healthcheck:
       start_period: 1320s
       start_interval: 15s
@@ -531,7 +531,7 @@ services:
       retries: 3
 
   jellyfin:
-    image: jellyfin/jellyfin:12.2
+    image: jellyfin/jellyfin:12.3
     container_name: jellyfin
     restart: "no"
     security_opt: *no-new-privs
@@ -889,7 +889,7 @@ services:
       - "traefik.http.services.uptime.loadbalancer.server.port=3001"
 
   searxng:
-    image: searxng/searxng:2026.10.19-d47cb96bf
+    image: searxng/searxng:2026.10.24-ef0ec03da
     container_name: searxng
     restart: "no"
     security_opt: *no-new-privs
@@ -914,7 +914,7 @@ services:
       - "traefik.http.services.searxng.loadbalancer.server.port=8080"
 
   netdata:
-    image: netdata/netdata:v2.12.1
+    image: netdata/netdata:v2.12.2
     container_name: netdata
     restart: "no"
     stop_grace_period: 90s
@@ -971,7 +971,7 @@ services:
       - "traefik.http.services.netdata.loadbalancer.server.port=19999"
 
   dozzle:
-    image: amir20/dozzle:v11.3.4
+    image: amir20/dozzle:v11.3.5
     container_name: dozzle
     restart: "no"
     security_opt: *no-new-privs
