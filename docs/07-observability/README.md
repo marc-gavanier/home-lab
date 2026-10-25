@@ -128,6 +128,7 @@ ADR-032 moved assertions from shell into declared specs:
 | Spec                          | Host    | Run by                                                  | When                              |
 |-------------------------------|---------|---------------------------------------------------------|-----------------------------------|
 | `/etc/goss/posture.yaml`      | homelab | `homelab-posture.sh`                                    | daily, 11:00 + up to 10 min jitter |
+| `/etc/goss/service.yaml`      | homelab | `homelab-posture.sh`                                    | daily, 11:00 + up to 10 min jitter |
 | `/etc/goss/units.yaml`        | homelab | `homelab-health.sh`                                     | every 5 min                       |
 | `/etc/goss/backup-dumps.yaml` | homelab | a resticprofile hook, result read by `backup-notify.sh` | nightly, inside the 03:00 backup  |
 | `/etc/goss/offsite-health.yaml` | offsite | `offsite-health.sh`                                   | daily, 08:00 + jitter             |
@@ -181,13 +182,23 @@ N > 0, and only then counts failures. Any new consumer must do the same.
 | Spec                  | Template                                                     | Deployed by                                   |
 |-----------------------|--------------------------------------------------------------|-----------------------------------------------|
 | `posture.yaml`        | `roles/observability/templates/goss-posture.yaml.j2`         | any tagged run (`tags: always`)               |
+| `service.yaml`        | `roles/observability/templates/goss-service.yaml.j2`         | any tagged run (`tags: always`)               |
 | `units.yaml`          | `roles/observability/templates/goss-units.yaml.j2`           | `--tags observability`                        |
 | `backup-dumps.yaml`   | `roles/deploy/templates/goss-backup-dumps.yaml.j2`           | `--tags deploy`                               |
 | `offsite-health.yaml` | `roles/offsite-backup/templates/goss-offsite-health.yaml.j2` | `playbooks/offsite.yml --tags offsite-backup` |
 
-## The daily posture check
+## The daily posture and service checks
 
-`homelab-posture.sh` runs `posture.yaml` daily and pushes `Pi security posture`. It asserts:
+`homelab-posture.sh` runs two specs daily and pushes each to its own monitor, so a broken feed or a
+stale collector never holds the security monitor red
+([ADR-040](../../knowledge/decisions/ADR-040-split-security-posture-from-service-checks.md)):
+
+| Spec           | Monitor               | Asserts                                                                                   |
+|----------------|-----------------------|-------------------------------------------------------------------------------------------|
+| `posture.yaml` | `Pi security posture` | what keeps an intruder out or a secret closed                                             |
+| `service.yaml` | `Pi service checks`   | what keeps a service working: collectors, backups, feeds, cron, DNS answers, Kuma beats   |
+
+`posture.yaml` asserts:
 
 - container hardening: `cap_drop: ALL`, the exact capability set per service, `read_only`,
   `no-new-privileges`, the AppArmor profile the kernel applied, and netdata's three axes (below);
@@ -195,8 +206,15 @@ N > 0, and only then counts failures. Any new consumer must do the same.
   ADR-018, ADR-021), so an accidental addition is caught too;
 - every fail2ban jail in `jail.local` is loaded (`fail2ban-client status`) — a broken jail vanishes
   silently while fail2ban reports healthy;
-- `every-declared-service-has-a-container` — an expected container gone from the engine;
-- every `homelab-*` control timer is `enabled` and `active`.
+- file modes of secrets, credential stores and backups; ufw, sshd and sysctl apply what the
+  managed files declare; no undeclared published port; Traefik logs carry no credential;
+- a rotated secret reached its consumer, and a running container uses the image its tag designates;
+- Vaultwarden's `config.json` overrides nothing compose sets.
+
+`service.yaml` asserts, among others, `every-declared-service-has-a-container`, every `homelab-*`
+control timer is covered, netdata collectors and retention, restic deep-check age, Nextcloud
+background jobs, Pi-hole gravity, Miniflux feeds still scheduled, and silent Kuma push monitors. The
+script adds the bind-mount writability and database credential probes to the same monitor.
 
 How it behaves:
 
@@ -359,7 +377,7 @@ third column says what actually evaluates each condition:
 | DNS upstream         | a cache-busting query gets no answer, or a non-answer rcode, for **240 s** (shared gate)                                                                           | `homelab-health.sh`                   |
 | Unhealthy container  | a container fails its healthcheck for > **10 min**                                                                                                                 | netdata `homelab-container-unhealthy` |
 | Container stopped    | a container present in the engine is not running for > **10 min**                                                                                                  | netdata `homelab-container-down`      |
-| Container absent     | an expected container is **gone from the engine entirely** — up to **24 h**, this is a daily check                                                                 | goss `posture.yaml` ³                 |
+| Container absent     | an expected container is **gone from the engine entirely** — up to **24 h**, this is a daily check                                                                 | goss `service.yaml` ³                 |
 | systemd unit failed  | anything in `systemctl --failed`                                                                                                                                   | goss `units.yaml` ²                   |
 | systemd restart loop | a unit stuck in `auto-restart` for **240 s** (shared gate)                                                                                                         | `homelab-health.sh`                   |
 | Expected unit down   | docker, containerd, fail2ban, ssh, claude-remote-control or wg-quick@wg0 not `active`                                                                              | goss `units.yaml` ²                   |
@@ -369,12 +387,12 @@ third column says what actually evaluates each condition:
 | Certificate expiry   | the soonest certificate in `acme.json` is under **21 days**, unreadable, or the file is absent                                                                     | `homelab-health.sh`                   |
 | Certificates gone    | `acme.json` holds fewer certificates than the highest count it has held — a resolver stopped issuing                                                               | `homelab-health.sh`                   |
 | Crash-heal silent    | the heal timer is active but logged no `checked` line in **15 min**, or saw fewer or more services than are declared                                               | `homelab-health.sh`                   |
-| Timer disarmed       | a `homelab-*` control timer is present but not `enabled` and `active`                                                                                              | goss `posture.yaml` ³                 |
+| Timer disarmed       | a `homelab-*` control timer is present but not `enabled` and `active`                                                                                              | goss `service.yaml` ³                 |
 
 ¹ Both until the netdata alarm has been observed firing (ADR-030); undervoltage cannot be triggered
 on demand.
 ² Evaluated by the goss spec; `homelab-health.sh` reads its TAP, so it arrives on `Pi health`.
-³ Evaluated daily by `posture.yaml`, reported on `Pi security posture`.
+³ Evaluated daily by `service.yaml`, reported on `Pi service checks`.
 
 The table is maintained by hand. To check it, compare against `problems+=(` in
 `homelab-health.sh.j2`, `ansible/roles/observability/templates/netdata-health-*.conf.j2` and

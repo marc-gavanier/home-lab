@@ -29,7 +29,12 @@ argument_specs:
         type: str
         required: false
         no_log: true
-        description: Uptime Kuma push URL for the daily container posture check (token = secret). Empty/absent = disabled.
+        description: Uptime Kuma push URL for the daily security posture check, /etc/goss/posture.yaml (token = secret). Empty/absent = disabled.
+      homelab_service_checks_kuma_push_url:
+        type: str
+        required: false
+        no_log: true
+        description: Uptime Kuma push URL for the daily service checks, /etc/goss/service.yaml, run by the same timer (token = secret). Empty/absent = disabled.
       disk_health_kuma_push_url:
         type: str
         required: false

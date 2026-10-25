@@ -49,6 +49,7 @@ killswitch_keyword: ""
 
 homelab_health_kuma_push_url: ""
 homelab_posture_kuma_push_url: ""
+homelab_service_checks_kuma_push_url: ""
 lynis_kuma_push_url: ""
 notify_push_kuma_push_url: ""
 disk_health_kuma_push_url: ""

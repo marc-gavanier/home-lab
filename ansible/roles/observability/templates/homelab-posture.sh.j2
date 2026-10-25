@@ -10,18 +10,22 @@ else
     echo "kuma-push-env-missing: $KUMA_PUSH_ENV is unreadable, /mnt/data is probably not unlocked — this report reaches nobody" >&2
 fi
 
-KUMA_PUSH_URL="${HOMELAB_POSTURE_PUSH_URL:-}"
-KUMA_PUSH_URL="${KUMA_PUSH_URL%%\?*}"
+POSTURE_PUSH_URL="${HOMELAB_POSTURE_PUSH_URL:-}"
+POSTURE_PUSH_URL="${POSTURE_PUSH_URL%%\?*}"
+SERVICE_PUSH_URL="${HOMELAB_SERVICE_CHECKS_PUSH_URL:-}"
+SERVICE_PUSH_URL="${SERVICE_PUSH_URL%%\?*}"
 
 notify() {
-    [ -n "$KUMA_PUSH_URL" ] || return 0
+    local url="$1"
+    shift
+    [ -n "$url" ] || return 0
     local rc=0
     local msg="$2"
     if [ "{% raw %}${#msg}{% endraw %}" -gt 1000 ]; then
         echo "alert cut to fit Discord's 1024-character field — full text: $msg" >&2
         msg="${msg:0:940}… +$(( {% raw %}${#msg}{% endraw %} - 940 )) characters, full text in the journal"
     fi
-    printf 'url = "%s"\n' "$KUMA_PUSH_URL" |
+    printf 'url = "%s"\n' "$url" |
         curl -fsS -m 30 --connect-timeout 5 -K - -G \
             --data-urlencode "status=$1" --data-urlencode "msg=$msg" >/dev/null || rc=$?
     case "$rc" in
@@ -44,8 +48,11 @@ origin() {
 }
 
 problems=()
+service_problems=()
 checked=0
+service_checked=0
 goss_total=0
+service_goss_total=0
 containers_seen=0
 mounts_seen=0
 creds_probed=0
@@ -53,35 +60,41 @@ creds_probed=0
 OPERATOR_UID=$(id -u '{{ ansible_user }}' 2>/dev/null)
 
 if ! mountpoint -q /mnt/data; then
-    notify up "/mnt/data locked — posture not checked ($(origin))"
+    notify "$POSTURE_PUSH_URL" up "/mnt/data locked — posture not checked ($(origin))"
+    notify "$SERVICE_PUSH_URL" up "/mnt/data locked — service checks not run ($(origin))"
     exit 0
 fi
 
 inspect() { docker inspect -f "$2" "$1" 2>/dev/null; }
 
-
-GOSS_SPEC=/etc/goss/posture.yaml
-
-if [ ! -r "$GOSS_SPEC" ]; then
-    problems+=("goss spec $GOSS_SPEC missing — the declarative assertions did not run")
-elif ! command -v goss >/dev/null 2>&1; then
-    problems+=("goss binary missing — the declarative assertions did not run")
-else
-    goss_out=$(goss -g "$GOSS_SPEC" validate --max-concurrent 8 --format tap 2>&1) || true
-    goss_total=$(printf '%s\n' "$goss_out" | sed -n 's/^1\.\.\([0-9]*\)$/\1/p')
-    goss_total=${goss_total:-0}
-    if [ -z "$goss_total" ] || [ "$goss_total" -eq 0 ]; then
-        problems+=("goss produced no assertions — spec unreadable or empty")
+run_goss() {
+    local spec="$1" out total line
+    local -n found="$2" count="$3" spec_total="$4"
+    if [ ! -r "$spec" ]; then
+        found+=("goss spec $spec missing — the declarative assertions did not run")
+    elif ! command -v goss >/dev/null 2>&1; then
+        found+=("goss binary missing — the declarative assertions did not run")
     else
-        checked=$((checked + goss_total))
-        while IFS= read -r line; do
-            [ -n "$line" ] && problems+=("${line#not ok [0-9]* - }")
-        done < <(printf '%s\n' "$goss_out" | grep '^not ok' || true)
+        out=$(goss -g "$spec" validate --max-concurrent 8 --format tap 2>&1) || true
+        total=$(printf '%s\n' "$out" | sed -n 's/^1\.\.\([0-9]*\)$/\1/p')
+        total=${total:-0}
+        if [ "$total" -eq 0 ]; then
+            found+=("goss produced no assertions from $spec — spec unreadable or empty")
+        else
+            spec_total=$total
+            count=$((count + total))
+            while IFS= read -r line; do
+                [ -n "$line" ] && found+=("${line#not ok [0-9]* - }")
+            done < <(printf '%s\n' "$out" | grep '^not ok' || true)
+        fi
     fi
-fi
+}
+
+run_goss /etc/goss/posture.yaml problems checked goss_total
+run_goss /etc/goss/service.yaml service_problems service_checked service_goss_total
 
 if [ -z "$OPERATOR_UID" ]; then
-    problems+=("operator uid unresolved — the writability check cannot run")
+    service_problems+=("operator uid unresolved — the writability check cannot run")
 else
     while read -r name; do
         [ -n "$name" ] || continue
@@ -96,15 +109,15 @@ else
             mounts_seen=$((mounts_seen + 1))
             owner=$(stat -c %u "$sdir" 2>/dev/null) || continue
             [ "$owner" = "$OPERATOR_UID" ] || continue
-            problems+=("$name: $sdir owned by uid $owner, container runs as $ctr_uid and cannot create files there")
+            service_problems+=("$name: $sdir owned by uid $owner, container runs as $ctr_uid and cannot create files there")
         done < <(inspect "$name" '{% raw %}{{range .Mounts}}{{if and (eq .Type "bind") .RW}}{{.Source}}{{"\n"}}{{end}}{{end}}{% endraw %}')
         containers_seen=$((containers_seen + 1))
-        checked=$((checked + 1))
+        service_checked=$((service_checked + 1))
     done < <(docker ps --format '{% raw %}{{.Names}}{% endraw %}' 2>/dev/null)
     if [ "$containers_seen" -eq 0 ]; then
-        problems+=("writability: no container was enumerated — the derivation asserted nothing")
+        service_problems+=("writability: no container was enumerated — the derivation asserted nothing")
     elif [ "$mounts_seen" -eq 0 ]; then
-        problems+=("writability: 0 read-write bind mounts over $containers_seen containers — the derivation asserted nothing")
+        service_problems+=("writability: 0 read-write bind mounts over $containers_seen containers — the derivation asserted nothing")
     fi
 fi
 
@@ -168,7 +181,7 @@ cred_probe() {
               "MYSQL_PWD=\$(cat /run/secrets/$secret) mariadb -h 127.0.0.1 -u \$MYSQL_USER -N -e 'select 1'" 2>/dev/null) ;;
     esac
     [ "$(printf '%s' "$out" | tr -d '[:space:]')" = "1" ] \
-        || problems+=("$c: /run/secrets/$secret no longer opens the database — see knowledge/runbooks/rotate-a-secret.md")
+        || service_problems+=("$c: /run/secrets/$secret no longer opens the database — see knowledge/runbooks/rotate-a-secret.md")
 }
 
 cred_probe immich-db    pg immich_db_password
@@ -178,20 +191,32 @@ cred_probe nextcloud-db my nextcloud_db_password
 MINIFLUX_DSN=/mnt/data/secrets/docker/miniflux_database_url
 MINIFLUX_PW=/mnt/data/secrets/docker/miniflux_db_password
 if [ ! -r "$MINIFLUX_DSN" ] || [ ! -r "$MINIFLUX_PW" ]; then
-    problems+=("miniflux: the connection string or the database password is unreadable — the comparison did not run")
+    service_problems+=("miniflux: the connection string or the database password is unreadable — the comparison did not run")
 elif [ -r "$MINIFLUX_DSN" ] && [ -r "$MINIFLUX_PW" ]; then
     dsn_pw=$(sed -n 's/.*password=\([^ ]*\).*/\1/p' "$MINIFLUX_DSN")
     if [ -z "$dsn_pw" ]; then
-        problems+=("miniflux: no password= field in the connection string")
+        service_problems+=("miniflux: no password= field in the connection string")
     elif [ "$dsn_pw" != "$(cat "$MINIFLUX_PW")" ]; then
-        problems+=("miniflux: the application connection string and the database password disagree")
+        service_problems+=("miniflux: the application connection string and the database password disagree")
     fi
 fi
 
+rc=0
+
 if [ {% raw %}${#problems[@]}{% endraw %} -gt 0 ]; then
     printf '%s\n' "${problems[@]}" >&2
-    notify down "$(printf '%s; ' "${problems[@]}")($(origin))"
-    exit 1
+    notify "$POSTURE_PUSH_URL" down "$(printf '%s; ' "${problems[@]}")($(origin))"
+    rc=1
+else
+    notify "$POSTURE_PUSH_URL" up "posture OK — $checked checks (goss $goss_total) — $(origin)"
 fi
 
-notify up "posture OK — $checked checks (goss $goss_total, ${containers_seen} containers/${mounts_seen} mounts, ${creds_probed} credential probes) — $(origin)"
+if [ {% raw %}${#service_problems[@]}{% endraw %} -gt 0 ]; then
+    printf '%s\n' "${service_problems[@]}" >&2
+    notify "$SERVICE_PUSH_URL" down "$(printf '%s; ' "${service_problems[@]}")($(origin))"
+    rc=1
+else
+    notify "$SERVICE_PUSH_URL" up "service checks OK — $service_checked checks (goss $service_goss_total, ${containers_seen} containers/${mounts_seen} mounts, ${creds_probed} credential probes) — $(origin)"
+fi
+
+exit "$rc"

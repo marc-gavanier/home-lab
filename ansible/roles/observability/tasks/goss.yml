@@ -11,6 +11,15 @@
     mode: "0400"
   tags: always
 
+- name: goss | Install the generated service spec
+  ansible.builtin.template:
+    src: goss-service.yaml.j2
+    dest: /etc/goss/service.yaml
+    owner: root
+    group: root
+    mode: "0400"
+  tags: always
+
 - name: goss | Install the systemd unit spec
   ansible.builtin.template:
     src: goss-units.yaml.j2
