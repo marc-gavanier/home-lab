@@ -18,11 +18,14 @@ object recognition, timeline, albums, map view and duplicate detection.
 | `/mnt/data/services/immich/upload/`   | Uploaded photos and videos         |
 | `/mnt/data/services/immich/db/`       | PostgreSQL database                |
 | `/mnt/data/services/immich/ml-cache/` | Machine learning model cache       |
+| `/mnt/data/media/photos/`             | External photo library (read-only) |
+
+The external library is mounted on the workstation at `~/Storage/Pictures/Photos` (ADR-041):
+a photo filed there, in a `YYYY-MM-DD - Event` folder, appears at the nightly library scan.
 
 The models come from Hugging Face's `main` branch with no pinned revision or hash, and are
 downloaded only when the cache is missing or fails to load. The cache is in the backup, so a
 restore does not re-download them. Accepted.
-| `/mnt/data/media/photos/`             | External photo library (read-only) |
 
 ## First steps
 
