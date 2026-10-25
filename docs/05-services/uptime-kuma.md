@@ -61,6 +61,7 @@ hand in the UI: Kuma is v2, and the Ansible tooling targets v1 only.
 | Pi resources              | Push     | `homelab-netdata-kuma.sh` resources group, /5 min                                             |
 | Pi restic prune+check     | Push     | resticprofile `prune`+`check`, Tue 01:00                                                      |
 | Pi security posture       | Push     | `homelab-posture.sh`, daily 11:00 + jitter                                                    |
+| Pi service checks         | Push     | `homelab-posture.sh`, daily 11:00 + jitter                                                    |
 | Veille quotidienne        | Push     | `feed-digest/digest.sh`, daily 06:30 + jitter                                                 |
 
 Push monitors are dead-man's switches: the job pushes, and Kuma alarms when the push does not
@@ -153,7 +154,7 @@ received, never rescheduled):
 | `netdata-health-engine-has-verdicts`              | netdata has actually evaluated an alarm, closing the one way to hide behind the adapter's startup grace        |
 
 The first one ignores monitors whose last beat is DOWN: Kuma already reports those, and repeating
-them would hold `Pi security posture` red for the length of the outage.
+them would hold `Pi service checks` red for the length of the outage.
 
 ## Common tasks
 

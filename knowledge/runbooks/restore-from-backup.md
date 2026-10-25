@@ -689,7 +689,7 @@ Check it worked:
    ```
 
    Expected: both show a next run. Until they do, the host has no backups, and the
-   "Pi security posture" monitor goes red at its next run.
+   "Pi service checks" monitor goes red at its next run.
 
 ## Verify a backup without restoring
 

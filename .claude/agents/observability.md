@@ -18,7 +18,7 @@ Home lab on Raspberry Pi 4 (8GB RAM). Monitoring must stay lightweight — no Pr
 | **Netdata**          | Real-time metrics; 6 curated alarms (`health.d/`, `to: silent`) pushed by `homelab-netdata-kuma.sh` into 2 Kuma monitors; queryable via the `netdata-local` MCP server                   |
 | **Uptime Kuma (v2)** | The one alerting channel (Discord): 22 active checks + 15 push monitors (backups, offsite, host jobs) + TLS-expiry alerts                                                                |
 | **homelab-health**   | systemd timer every 5 min: disk ≥85%, DNS upstream, git mirror, certificates, unit/timer failures and restart loops (240 s gate), crash-heal; pushes `Pi health` and `Pi pending action` |
-| **goss**             | Declared assertions: `units.yaml` (read by homelab-health), `posture.yaml` (daily `homelab-posture.sh`)                                                                                  |
+| **goss**             | Declared assertions: `units.yaml` (read by homelab-health), `posture.yaml` + `service.yaml` (daily `homelab-posture.sh`)                                                                 |
 | **lynis**            | Weekly security audit report                                                                                                                                                             |
 
 ## Hard-won Lessons — respect these

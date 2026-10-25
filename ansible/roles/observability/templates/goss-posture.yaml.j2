@@ -28,7 +28,6 @@ file:
     mode: "0700"
 
 command:
-
   credential-stores-all-closed:
     exec: |
       base={{ services_data_dir }}
@@ -140,19 +139,6 @@ command:
     exit-status: 0
     timeout: 90000
 
-  dnsproxy-shares-the-current-pihole-namespace:
-    exec: |
-      pp=$(docker inspect pihole 2>/dev/null | jq -r '.[0].State.Pid // 0')
-      dp=$(docker inspect dnsproxy 2>/dev/null | jq -r '.[0].State.Pid // 0')
-      case "$pp" in ''|0|null) echo "pihole is not running — external DNS is down for a reason this check cannot name"; exit 1 ;; esac
-      case "$dp" in ''|0|null) echo "dnsproxy is not running — Pi-hole has no upstream and every uncached query times out"; exit 1 ;; esac
-      ns_pihole=$(readlink "/proc/$pp/ns/net")
-      ns_dnsproxy=$(readlink "/proc/$dp/ns/net")
-      [ -n "$ns_pihole" ] && [ -n "$ns_dnsproxy" ] || { echo "cannot read the network namespaces (needs root) — two empty strings would have compared EQUAL and passed"; exit 1; }
-      [ "$ns_pihole" = "$ns_dnsproxy" ] || { echo "dnsproxy is in $ns_dnsproxy, pihole is in $ns_pihole — dnsproxy was orphaned by a pihole recreate, so nothing listens on 127.0.0.1#5053 and external resolution is dead while both containers report healthy"; exit 1; }
-    timeout: 60000
-    exit-status: 0
-
   backup-dumps-mode:
     exec: stat -c %a {{ backup_dir }}/dumps 2>/dev/null || echo absent
     timeout: 60000
@@ -170,27 +156,6 @@ command:
     timeout: 60000
     exit-status: 0
     stdout: ["/^700$/"]
-
-{%- set expected_containers = [] %}
-{%- for _n, _s in compose.services.items() %}
-{%-   set _ = expected_containers.append(_s.container_name | default(_n)) %}
-{%- endfor %}
-
-  every-declared-service-has-a-container:
-    exec: |
-      declared="{{ expected_containers | join(' ') }}"
-      live=$(docker ps -a --no-trunc 2>/dev/null | awk 'NR > 1 { print $NF }' | tr '\n' ' ')
-      [ -n "$live" ] || { echo "the daemon reports no container at all — the derivation asserted nothing"; exit 1; }
-      missing=""
-      for c in $declared; do
-        case " $live " in
-          *" $c "*) ;;
-          *) missing="$missing $c" ;;
-        esac
-      done
-      [ -z "$missing" ] || { echo "declared in compose.yaml with no container:$missing"; exit 1; }
-    timeout: 60000
-    exit-status: 0
 
 {% for name, svc in compose.services.items() %}
 {%- set cname = svc.container_name | default(name) %}
@@ -305,69 +270,6 @@ command:
     timeout: 60000
     exit-status: 0
     stdout: ["/^201$/"]
-  netdata-plugins-present:
-    exec: docker exec netdata ps -eo comm
-    timeout: 60000
-    exit-status: 0
-    stdout:
-{% for plugin in netdata_expected_plugins %}
-      - "/^{{ plugin }}$/"
-{% endfor %}
-  netdata-context-count:
-    exec: |
-      n=$(docker exec netdata curl -s --max-time 10 http://127.0.0.1:19999/api/v3/contexts | jq -r '.contexts | length')
-      test "${n:-0}" -ge {{ netdata_min_contexts }}
-    timeout: 60000
-    exit-status: 0
-  netdata-runs-no-hotter-for-what-nothing-reads:
-    exec: |
-      charts=$(docker exec netdata curl -s --max-time 30 http://127.0.0.1:19999/api/v1/charts)
-      [ -n "$charts" ] || {
-        echo "the charts API returned nothing - a dead collector and a dead API would both pass a floor here"; exit 1; }
-      wanted=$(grep -hE '^[[:space:]]+on:[[:space:]]+' {{ services_data_dir }}/netdata/health.d/homelab-*.conf 2>/dev/null | awk '{print $2}' | sort -u)
-      [ -n "$wanted" ] || {
-        echo "no curated alarm declares a context - this check would be vacuously true"; exit 1; }
-      wjson=$(printf '%s\n' "$wanted" | jq -R . | jq -s .)
-      verdict=$(printf '%s' "$charts" | jq -r --argjson w "$wjson" '
-        .charts | to_entries
-        | map({p: .value.plugin, c: .value.context, u: .value.update_every})
-        | group_by(.p)
-        | map({plugin: .[0].p,
-               rate: (map(1/.u) | add),
-               serves: (any(.[]; .c as $x | $w | index($x) != null))})
-        | (map(select(.serves)) | map(.rate) | max) as $ceiling
-        | if $ceiling == null then "NOFLOOR"
-          else (map(select(.serves | not) | select(.rate > $ceiling))
-                | if length == 0 then "OK"
-                  else "HOT " + ($ceiling | floor | tostring) + " " +
-                       (map(.plugin + "@" + (.rate | floor | tostring)) | join(" "))
-                  end)
-          end')
-      case "$verdict" in
-        OK) : ;;
-        NOFLOOR) echo "no plugin serves any curated alarm - the ceiling is undefined and this check would be vacuous"; exit 1 ;;
-        HOT*) echo "collecting faster than the busiest consumed plugin (${verdict#HOT }) - pure cost, and nothing reads it"; exit 1 ;;
-        *) echo "the derivation produced no verdict: '$verdict'"; exit 1 ;;
-      esac
-    timeout: 90000
-    exit-status: 0
-
-  netdata-serves-every-context-a-curated-alarm-reads:
-    exec: |
-      contexts=$(docker exec netdata curl -s --max-time 10 http://127.0.0.1:19999/api/v3/contexts | jq -r '.contexts | to_entries[] | select(.value.live) | .key')
-      [ -n "$contexts" ] && [ "$(printf '%s\n' "$contexts" | wc -l)" -ge 1 ] || {
-        echo "the contexts API returned nothing — a dead collector and a dead API would both pass a floor here"; exit 1; }
-      wanted=$(grep -hE '^[[:space:]]+on:[[:space:]]+' {{ services_data_dir }}/netdata/health.d/homelab-*.conf 2>/dev/null | awk '{print $2}' | sort -u)
-      [ -n "$wanted" ] || {
-        echo "no curated alarm declares a context — this check would be vacuously true"; exit 1; }
-      missing=''
-      for c in $wanted; do
-        printf '%s\n' "$contexts" | grep -qxF "$c" || missing="$missing $c"
-      done
-      [ -z "$missing" ] || {
-        echo "curated alarms read contexts netdata no longer serves:$missing — the alarm still loads and can never fire"; exit 1; }
-    timeout: 60000
-    exit-status: 0
   netdata-apparmor-matches-dockerd:
     exec: |
       strings /usr/bin/dockerd | awk '
@@ -387,172 +289,6 @@ command:
           }
         }' /etc/apparmor.d/homelab-netdata -
     timeout: 180000
-    exit-status: 0
-
-  netdata-health-engine-has-verdicts:
-    exec: |
-      count() {
-        docker exec netdata curl -s --max-time 10 \
-          http://127.0.0.1:19999/api/v1/alarms?all=true 2>/dev/null |
-          jq -r '.alarms | length' 2>/dev/null
-      }
-      n=$(count)
-      case "${n:-0}" in ''|*[!0-9]*|0) sleep 30; n=$(count) ;; esac
-      case "${n:-0}" in ''|*[!0-9]*|0)
-        echo "netdata evaluates no alarm — the two adapter monitors report on nothing"
-        exit 1 ;;
-      esac
-    timeout: 180000
-    exit-status: 0
-
-  library-backup-source-matches-the-declared-split:
-    exec: |
-      lib="{{ library_dir }}"
-      profile=/opt/homelab/resticprofile.yaml
-      unbacked="{{ library_unbacked_categories | join(' ') }}"
-      [ -d "$lib" ] || { echo "$lib does not exist — the library tree is gone"; exit 1; }
-      [ -r "$profile" ] || { echo "$profile is unreadable — cannot verify coverage"; exit 1; }
-      [ -n "$unbacked" ] || { echo "library_unbacked_categories is empty — refusing to judge"; exit 1; }
-      seen=0
-      wrong=0
-      for d in "$lib"/*/; do
-        [ -d "$d" ] || continue
-        name=$(basename "$d")
-        seen=$((seen + 1))
-        declared_out=0
-        for u in $unbacked; do
-          [ "$name" = "$u" ] && declared_out=1
-        done
-        if grep -qE "^[[:space:]]*-[[:space:]]+$lib/$name[[:space:]]*$" "$profile"; then
-          present=1
-        else
-          present=0
-        fi
-        if [ "$declared_out" -eq 1 ] && [ "$present" -eq 1 ]; then
-          echo "$lib/$name is declared UNBACKED and IS in the restic source — it is being backed up against intent"
-          wrong=$((wrong + 1))
-        fi
-        if [ "$declared_out" -eq 0 ] && [ "$present" -eq 0 ]; then
-          echo "$lib/$name exists and is NOT in the restic source — it is not being backed up"
-          wrong=$((wrong + 1))
-        fi
-      done
-      if [ "$seen" -lt 1 ]; then
-        echo "no category directory under $lib — this assertion is reading an empty set"
-        exit 1
-      fi
-      [ "$wrong" -eq 0 ]
-    timeout: 60000
-    exit-status: 0
-
-  containers-with-no-healthcheck-are-the-declared-set:
-    exec: |
-      ids=$(docker ps -q)
-      [ -n "$ids" ] || { echo "no running container answered docker ps — refusing to judge"; exit 1; }
-      n=$(printf '%s\n' $ids | wc -l)
-      seen=$(docker inspect $ids | jq -r '.[] | (.Name | ltrimstr("/"))' | wc -l)
-      [ "$seen" -eq "$n" ] || { echo "inspected $seen of $n running containers — refusing to judge"; exit 1; }
-      declared="{{ containers_without_healthcheck | join(' ') }}"
-      [ -n "$declared" ] || { echo "containers_without_healthcheck is empty — refusing to judge"; exit 1; }
-      live=$(docker inspect $ids \
-             | jq -r '.[] | select(((.Config.Healthcheck.Test // []) | length) == 0 or (.Config.Healthcheck.Test // []) == ["NONE"]) | (.Name | ltrimstr("/"))')
-      extra=""
-      for c in $live; do
-        case " $declared " in
-          *" $c "*) ;;
-          *) extra="$extra $c" ;;
-        esac
-      done
-      [ -z "$extra" ] || { echo "running with NO healthcheck and not declared as such:$extra — an image bump has dropped a healthcheck this repository never declared, and the heal timer matches on --filter health=unhealthy, which cannot see a container that has none"; exit 1; }
-    timeout: 30000
-    exit-status: 0
-  restic-source-paths-exist-on-disk:
-    exec: |
-      profile=/opt/homelab/resticprofile.yaml
-      [ -r "$profile" ] || { echo "$profile is unreadable — refusing to judge"; exit 1; }
-      sources=$(awk '
-        /^[[:space:]]*source:[[:space:]]*$/ { inblock = 1; next }
-        inblock && /^[[:space:]]*-[[:space:]]+\// { sub(/^[[:space:]]*-[[:space:]]+/, ""); sub(/[[:space:]]*$/, ""); print; next }
-        inblock && /^[[:space:]]*[^-[:space:]#]/ { inblock = 0 }
-      ' "$profile")
-      [ -n "$sources" ] || { echo "no source: entry parsed from $profile — refusing to judge"; exit 1; }
-      transient=$(sed -nE 's#^[[:space:]]*-[[:space:]]+rm -rf[[:space:]]+(/[^[:space:]]+)[[:space:]]*$#\1#p' "$profile" | sort -u)
-      checked=0
-      missing=0
-      for p in $sources; do
-        skip=0
-        for t in $transient; do
-          [ "$p" = "$t" ] && skip=1
-        done
-        [ "$skip" -eq 1 ] && continue
-        checked=$((checked + 1))
-        if [ ! -e "$p" ]; then
-          echo "$p is a declared restic source and is not on disk — restic skips a missing source in silence and the snapshot is smaller with no error"
-          missing=$((missing + 1))
-        fi
-      done
-      if [ "$checked" -lt 1 ]; then
-        echo "every declared source is hook-managed — this assertion is reading an empty set"
-        exit 1
-      fi
-      [ "$missing" -eq 0 ]
-    timeout: 60000
-    exit-status: 0
-
-  # [warning]: do not lower the declared retention to fit a post-deploy dip: the dip is eviction, not a wrong declaration
-  netdata-delivers-the-retention-it-declares:
-    exec: |
-      rows=$(docker exec netdata curl -s --max-time 20 \
-               http://127.0.0.1:19999/api/v2/info 2>/dev/null |
-             jq -r '[.. | objects
-                     | select(has("tier") and has("expected_retention")
-                              and has("requested_retention"))]
-                    | .[] | "\(.tier) \(.expected_retention) \(.requested_retention)"' \
-               2>/dev/null)
-      n=$(printf '%s' "$rows" | grep -c .)
-      [ "$n" -ge 3 ] || {
-        echo "read $n tier(s) from netdata's info API, expected at least 3 — the query stopped matching, so this check proves nothing"
-        exit 1
-      }
-      bad=$(printf '%s\n' "$rows" |
-            awk '$2 * 10 < $3 * 6 { printf " tier%s(%ss of %ss declared)", $1, $2, $3 }')
-      [ -z "$bad" ] || {
-        echo "netdata declares more retention than it will deliver:$bad"
-        exit 1
-      }
-    timeout: 180000
-    exit-status: 0
-
-  docker-collector-resolution:
-    exec: |
-      n=$(docker exec netdata curl -s --max-time 10 \
-            "http://127.0.0.1:19999/api/v1/chart?chart=docker_local.container_traefik_health_status" \
-            | jq -r '.update_every')
-      [ "$n" = "{{ netdata_docker_update_every }}" ] || {
-        echo "docker collector update_every=$n, expected {{ netdata_docker_update_every }} — the sample floor in homelab_container_unhealthy is derived from it"
-        exit 1
-      }
-    timeout: 60000
-    exit-status: 0
-
-  container-health-sample-floor-reachable:
-    exec: |
-      max=$(docker exec netdata curl -s --max-time 10 \
-              "http://127.0.0.1:19999/api/v1/alarms?all=true" \
-              | jq '[.alarms[] | select(.name=="homelab_container_health_samples") | .value] | max // 0')
-      max=${max%%.*}
-      case "${max:-x}" in ''|*[!0-9]*) echo "container_health_samples unreadable: [$max]"; exit 2 ;; esac
-      su=$(docker inspect netdata | sed -n 's/.*"StartedAt": "\([^"]*\)".*/\1/p' | head -1)
-      st=$(date -d "$su" +%s 2>/dev/null)
-      case "${st:-x}" in ''|*[!0-9]*) echo "cannot read netdata's start time: [$su]"; exit 2 ;; esac
-      up=$(( $(date +%s) - st ))
-      [ "$up" -lt 660 ] && exit 0
-      floor={{ ((600 / netdata_docker_update_every) * 0.833) | round | int }}
-      [ "$max" -gt "$floor" ] || {
-        echo "highest container_health_samples=$max, floor=$floor after ${up}s of netdata uptime — homelab_container_unhealthy cannot fire"
-        exit 1
-      }
-    timeout: 60000
     exit-status: 0
 
   pihole-credential-files-not-world-readable:
@@ -578,178 +314,6 @@ command:
     timeout: 60000
     exit-status: 0
     stdout: ["/^750$/"]
-
-  pihole-gravity-not-stale:
-    exec: |
-      v=$(sqlite3 -readonly "file:{{ services_data_dir }}/pihole/etc/gravity.db?mode=ro" \
-            'select value from info where property="updated";' 2>/dev/null)
-      case "$v" in ''|*[!0-9]*) echo "gravity.info.updated unreadable: [$v]"; exit 1 ;; esac
-      age=$(( ( $(date +%s) - v ) / 86400 ))
-      [ "$age" -le 14 ] || { echo "gravity last rebuilt $age days ago"; exit 1; }
-    timeout: 60000
-    exit-status: 0
-
-  pihole-gravity-lists-all-downloaded:
-    exec: |
-      db="{{ services_data_dir }}/pihole/etc/gravity.db"
-      n=$(sqlite3 -readonly "file:${db}?mode=ro" \
-            'select count(*) from adlist where enabled=1;' 2>/dev/null)
-      case "$n" in ''|*[!0-9]*) echo "adlist table unreadable: [$n]"; exit 1 ;; esac
-      [ "$n" -ge 1 ] || { echo "no adlist is enabled: the blocklist has no source"; exit 1; }
-      bad=$(sqlite3 -readonly "file:${db}?mode=ro" \
-            'select group_concat(id) from adlist where enabled=1 and status in (3,4);' 2>/dev/null)
-      [ -z "$bad" ] || { echo "adlist(s) $bad: download failed at the last rebuild, cached copy or nothing"; exit 1; }
-      d=$(sqlite3 -readonly "file:${db}?mode=ro" \
-            'select count(*) from gravity;' 2>/dev/null)
-      case "$d" in ''|*[!0-9]*) echo "gravity table unreadable: [$d]"; exit 1 ;; esac
-      [ "$d" -ge 1 ] || { echo "gravity holds no domains"; exit 1; }
-    timeout: 60000
-    exit-status: 0
-
-  pihole-ftl-writes-the-current-log:
-    exec: |
-      open=$(for p in $(pgrep -x pihole-FTL); do readlink /proc/$p/fd/* 2>/dev/null; done \
-             | grep '^/var/log/pihole/pihole\.log' | sort -u)
-      [ "$open" = "/var/log/pihole/pihole.log" ] || { echo "FTL holds: ${open:-nothing}"; exit 1; }
-    timeout: 60000
-    exit-status: 0
-
-  kuma-every-active-monitor-resends:
-    exec: |
-      n=$(docker exec uptime-kuma sqlite3 "file:/app/data/kuma.db?mode=ro" \
-            "select count(*) from monitor where active = 1 and resend_interval = 0")
-      [ "${n:-1}" -eq 0 ] || { echo "$n active monitors never resend"; exit 1; }
-    timeout: 60000
-    exit-status: 0
-
-  kuma-no-push-monitor-silent-past-its-own-window:
-    exec: |
-      db="file:/app/data/kuma.db?mode=ro"
-      n=$(docker exec uptime-kuma sqlite3 "$db" \
-            "select count(*) from monitor m
-             where m.active = 1 and m.type = 'push'
-               and exists (select 1 from heartbeat h where h.monitor_id = m.id)")
-      case "$n" in ''|*[!0-9]*) echo "kuma monitor/heartbeat tables unreadable: [$n]"; exit 1 ;; esac
-      [ "$n" -ge 10 ] || { echo "only $n active push monitor(s) with a beat — the query stopped matching"; exit 1; }
-      bad=$(docker exec uptime-kuma sqlite3 "$db" \
-            "select m.name || ' — silent ' || (strftime('%s','now') - strftime('%s', h.time))
-                    || 's against its ' || m.interval || 's window, last beat still says UP'
-             from monitor m
-             join heartbeat h on h.id = (select id from heartbeat
-                                         where monitor_id = m.id order by time desc limit 1)
-             where m.active = 1 and m.type = 'push' and h.status = 1
-               and strftime('%s','now') - strftime('%s', h.time) > m.interval")
-      [ -z "$bad" ] || { echo "$bad" | sed 's/^/  /'; exit 1; }
-    timeout: 60000
-    exit-status: 0
-
-  restic-deep-check-not-stale:
-    exec: |
-      sources=$(docker exec uptime-kuma sqlite3 "file:/app/data/kuma.db?mode=ro" \
-            "select count(distinct monitor_id)
-             from heartbeat where status = 1 and msg like '%deep check%'")
-      case "$sources" in
-        ''|*[!0-9]*) echo "Kuma cannot be read — refusing to judge the deep-verification clock"; exit 1 ;;
-        0) echo "no deep verification has ever reached the monitor"; exit 1 ;;
-      esac
-      [ "$sources" -eq 1 ] || {
-        echo "'deep check' appears in the messages of $sources monitors — the 45-day clock no longer identifies one reporter"
-        exit 1
-      }
-      last=$(docker exec uptime-kuma sqlite3 "file:/app/data/kuma.db?mode=ro" \
-            "select cast((strftime('%s','now') - strftime('%s', max(time))) / 86400 as int)
-             from heartbeat where status = 1 and msg like '%deep check%'")
-      case "$last" in
-        ''|*[!0-9]*) echo "no deep verification has ever reached the monitor"; exit 1 ;;
-      esac
-      [ "$last" -le 45 ] || {
-        echo "last deep verification $last days ago — a twelfth of the repository is going unverified"
-        exit 1
-      }
-    timeout: 60000
-    exit-status: 0
-
-  restic-deep-check-was-observed-not-claimed:
-    exec: |
-      sf=/var/lib/homelab-backup/status.json
-      if [ ! -f "$sf" ]; then
-        dir=/var/lib/homelab-backup
-        age=$(( $(date +%s) - $(stat -c %Y "$dir" 2>/dev/null || echo 0) ))
-        [ "$age" -lt 93600 ] && exit 0
-        echo "$sf absent more than 26 h after its directory was created — resticprofile is not writing it"
-        exit 1
-      fi
-      t=$(jq -r '.profiles.homelab.check.time // empty' "$sf")
-      d=$(jq -r '.profiles.homelab.check.duration // empty' "$sf")
-      if [ -z "$t" ] || [ -z "$d" ]; then
-        cfg=$(stat -c %Y /opt/homelab/resticprofile.yaml 2>/dev/null || echo 0)
-        [ $(( $(date +%s) - cfg )) -lt 691200 ] && exit 0
-        echo "no check section in $sf more than 8 days after the config declaring"
-        echo "status-file was last written — the weekly homelab check is not"
-        echo "recording its run, or the status file shape moved"
-        exit 1
-      fi
-      if [ "$(jq -r '.profiles.homelab.check.success' "$sf")" = false ]; then
-        echo "the check of $t FAILED: $(jq -r '.profiles.homelab.check.error // "no error recorded"' "$sf")"
-        exit 1
-      fi
-      day=$(date -d "$t" +%-d 2>/dev/null) || { echo "cannot parse check time '$t'"; exit 2; }
-      secs=${d%%.*}
-      case "$secs" in ''|*[!0-9]*) echo "duration '$d' is not a number"; exit 2 ;; esac
-      if [ "$day" -le 7 ]; then
-        [ "$secs" -ge 300 ] || {
-          echo "the check of $t fell in the deep window (day $day) but took ${secs}s"
-          echo "a deep read-data-subset takes ~1700s here; metadata takes ~30s"
-          echo "the subset flag was almost certainly dropped — restic-arguments-filter is on"
-          exit 1
-        }
-      fi
-    timeout: 60000
-    exit-status: 0
-
-  offsite-parity-register-covers-every-control-timer:
-    exec: |
-      declared="{{ homelab_control_timers | map(attribute='timer') | sort | join(' ') }}"
-      deployed=$(systemctl list-unit-files --type=timer --no-legend 'homelab-*.timer' 2>/dev/null |
-                 awk '{print $1}' | sed 's/\.timer$//' | sort | tr '\n' ' ')
-      n=$(printf '%s' "$deployed" | wc -w)
-      [ "$n" -ge 10 ] || { echo "only $n homelab control timer(s) enumerated — the sweep stopped matching"; exit 1; }
-      unclassified=""; stale=""
-      for t in $deployed; do
-        case " $declared " in *" $t "*) ;; *) unclassified="$unclassified $t" ;; esac
-      done
-      for t in $declared; do
-        case " $deployed " in *" $t "*) ;; *) stale="$stale $t" ;; esac
-      done
-      disarmed=""
-      for t in $deployed; do
-        [ "$(systemctl is-enabled "$t.timer" 2>/dev/null)" = "enabled" ] &&
-        [ "$(systemctl is-active "$t.timer" 2>/dev/null)" = "active" ] ||
-          disarmed="$disarmed $t"
-      done
-      rc=0
-      [ -z "$unclassified" ] || { echo "control timer(s) with no offsite decision:$unclassified"; rc=1; }
-      [ -z "$stale" ] || { echo "register names timer(s) that are not deployed:$stale"; rc=1; }
-      [ -z "$disarmed" ] || { echo "control timer(s) present but not armed:$disarmed"; rc=1; }
-      exit $rc
-    timeout: 60000
-    exit-status: 0
-
-  fake-hwclock-data-is-fresh:
-    exec: |
-      for u in fake-hwclock-load.service fake-hwclock-save.timer; do
-        [ "$(systemctl is-enabled "$u" 2>/dev/null)" = "enabled" ] ||
-          { echo "$u is not enabled — the clock is not restored at boot"; exit 1; }
-      done
-      f=/etc/fake-hwclock.data
-      [ -f "$f" ] || { echo "$f absent — nothing sets this board's clock before NTP"; exit 1; }
-      age=$(( $(date +%s) - $(stat -c %Y "$f") ))
-      [ "$age" -le 900 ] || {
-        echo "fake-hwclock last saved ${age}s ago — the restored clock is drifting back toward the systemd build date"
-        exit 1
-      }
-    timeout: 60000
-    exit-status: 0
 
 {% set _fw_ports = [] %}
 {%- for _r in ufw_service_rules | default([]) %}
@@ -778,25 +342,6 @@ command:
         exit 1
       }
       [ -z "$bad" ] || { echo "declared in $decl, not what the kernel holds:$bad"; exit 1; }
-    timeout: 60000
-    exit-status: 0
-
-  postfix-applies-the-directives-the-managed-file-sets:
-    exec: |
-      command -v postconf >/dev/null 2>&1 || { echo "postconf absent — the comparison cannot run"; exit 1; }
-      n=0
-      bad=""
-      while IFS= read -r line; do
-        case "$line" in ''|\#*|' '*|'	'*) continue ;; esac
-        case "$line" in *=*) : ;; *) continue ;; esac
-        k=$(printf '%s' "${line%%=*}" | tr -d ' \t')
-        v=$(printf '%s' "${line#*=}" | sed 's/^[ \t]*//;s/[ \t]*$//')
-        eff=$(postconf -h "$k" 2>/dev/null)
-        n=$((n+1))
-        [ "$eff" = "$v" ] || bad="$bad ${k}(file=${v},effective=${eff:-unset})"
-      done < /etc/postfix/main.cf
-      [ "$n" -ge 1 ] || { echo "no directive parsed out of main.cf"; exit 1; }
-      [ -z "$bad" ] || { echo "main.cf sets one value and postfix applies another:$bad"; exit 1; }
     timeout: 60000
     exit-status: 0
 
@@ -842,64 +387,6 @@ command:
     timeout: 60000
     exit-status: 0
 
-  lan-address-is-the-one-the-configuration-hardcodes:
-    exec: |
-      live=$(ip -4 -o addr show dev eth0 scope global 2>/dev/null |
-             awk '{print $4}' | cut -d/ -f1 | head -1)
-      [ -n "$live" ] || { echo "eth0 holds no global IPv4 — the check cannot run"; exit 1; }
-      [ "$live" = "{{ homelab_ip }}" ] || {
-        echo "the host holds $live while the configuration hardcodes {{ homelab_ip }} (restore the router's address reservation first; to move the Pi on purpose, see docs/04-network)"
-        exit 1
-      }
-    timeout: 60000
-    exit-status: 0
-
-{% set _compose_raw = lookup('file', playbook_dir + '/../../docker/compose.yaml') %}
-{%- set _proxied_hosts = [] %}
-{%- for _frag in _compose_raw.split('Host(`')[1:] %}
-{%- set _h = _frag.split('`')[0] | replace('${DOMAIN}', domain) %}
-{%- if _h not in _proxied_hosts %}{% set _ = _proxied_hosts.append(_h) %}{% endif %}
-{%- endfor %}
-  pihole-answers-for-every-proxied-host:
-    exec: |
-      n={{ _proxied_hosts | length }}
-      [ "$n" -ge 1 ] || { echo "the Host() derivation over compose.yaml returned nothing"; exit 1; }
-      bad=""
-      for h in {{ _proxied_hosts | join(' ') }}; do
-        a=$(dig +short +time=2 +tries=1 @127.0.0.1 "$h" A 2>/dev/null | head -1)
-        [ "$a" = "{{ homelab_ip }}" ] || bad="$bad $h=${a:-nothing}"
-      done
-      [ -z "$bad" ] || {
-        echo "routed by Traefik, not resolved to {{ homelab_ip }} by Pi-hole:$bad"
-        exit 1
-      }
-    timeout: 60000
-    exit-status: 0
-
-  docker-networks-are-where-the-configuration-expects-them:
-    exec: |
-      bad=""
-{% for name, cidr in docker_expected_subnets.items() %}
-      live=$(docker network inspect {{ name }} 2>/dev/null | jq -r '.[0].IPAM.Config[0].Subnet // empty')
-      [ "$live" = "{{ cidr }}" ] || bad="$bad {{ name }}=${live:-absent}(expected {{ cidr }})"
-{% endfor %}
-      [ -z "$bad" ] || { echo "docker moved a network under the configuration:$bad"; exit 1; }
-    timeout: 60000
-    exit-status: 0
-
-  traefik-allowlist-covers-the-live-proxy-subnet:
-    exec: |
-      live=$(docker network inspect proxy 2>/dev/null | jq -r '.[0].IPAM.Config[0].Subnet // empty')
-      [ -n "$live" ] || { echo "the proxy network declares no subnet"; exit 1; }
-      f=/opt/homelab/configs/traefik/dynamic/middlewares.yml
-      [ -r "$f" ] || { echo "$f unreadable — the allowlist cannot be compared"; exit 1; }
-      grep -qF "\"$live\"" "$f" || {
-        echo "vpn-only does not admit the live proxy subnet $live — every VPN client loses access"
-        exit 1
-      }
-    timeout: 60000
-    exit-status: 0
-
   fail2ban-jails-all-loaded:
     exec: |
       want=$(grep -oE '^\[[a-z0-9_-]+\]' /etc/fail2ban/jail.local | tr -d '[]' | grep -v '^DEFAULT$' | sort | tr '\n' ' ')
@@ -907,41 +394,6 @@ command:
       [ -n "$want" ] || { echo "no jail parsed from /etc/fail2ban/jail.local — absent or unreadable"; exit 1; }
       [ -n "$have" ] || { echo "fail2ban-client returned no jail list — the server is not answering"; exit 1; }
       test "$want" = "$have"
-    timeout: 60000
-    exit-status: 0
-
-  wg-generated-config-carries-no-ipv6:
-    exec: |
-      f={{ services_data_dir }}/wireguard/wg0.conf
-      grep -q '^\[Interface\]' "$f" 2>/dev/null || { echo "wg0.conf carries no [Interface] section"; exit 2; }
-      grep -cE '([0-9a-f]{0,4}:){2,}' "$f"
-    timeout: 60000
-    exit-status: 1
-    stdout: ["/^0$/"]
-
-  traefik-allowlist-admits-the-proxy-network:
-    exec: |
-      ip=$(docker inspect traefik | jq -r '.[0].NetworkSettings.Networks.proxy.IPAddress')
-      case "$ip" in ""|null) echo "traefik has no address on the proxy network"; exit 1 ;; esac
-      code=$(docker exec uptime-kuma curl -sk -o /dev/null -w '%{http_code}' --max-time 10 \
-               --resolve "vault.{{ domain }}:443:$ip" "https://vault.{{ domain }}/")
-      case "$code" in
-        403) echo "vpn-only refuses the proxy network — every VPN client is locked out"; exit 1 ;;
-        ""|000) echo "no answer from traefik at $ip"; exit 1 ;;
-      esac
-    timeout: 60000
-    exit-status: 0
-
-  traefik-allowlist-admits-the-vpn-subnet:
-    exec: |
-      code=$(curl -sk -o /dev/null -w '%{http_code}' --max-time 10 \
-               --interface {{ homelab_wg_ip }} \
-               --resolve "vault.{{ domain }}:443:{{ homelab_wg_ip }}" \
-               "https://vault.{{ domain }}/")
-      case "$code" in
-        403) echo "vpn-only refuses 10.8.0.0/24 — the offsite host cannot report"; exit 1 ;;
-        ""|000) echo "no answer from traefik at {{ homelab_wg_ip }}"; exit 1 ;;
-      esac
     timeout: 60000
     exit-status: 0
 
@@ -1026,30 +478,6 @@ command:
     timeout: 90000
     exit-status: 0
 
-  nextcloud-background-jobs-have-run-recently:
-    exec: |
-      last=$(docker exec -u www-data nextcloud php occ config:app:get core lastcron 2>/dev/null | tr -dc '0-9')
-      [ -n "$last" ] || {
-        echo "Nextcloud returned no lastcron value — a stopped cron and an unanswerable query read the same here"; exit 1; }
-      age=$(( $(date +%s) - last ))
-      [ "$age" -lt 3600 ] || {
-        echo "Nextcloud background jobs last ran ${age}s ago — nextcloud-cron declares no healthcheck; the notify_push monitor reports the same age, see knowledge/runbooks/notify-push-troubleshooting.md"; exit 1; }
-    timeout: 60000
-    exit-status: 0
-  nextcloud-php-jit-is-disabled:
-    exec: |
-      for c in nextcloud nextcloud-cron; do
-        v=$(docker exec "$c" php -i 2>/dev/null |
-              sed -n 's/^opcache\.jit_buffer_size => \([^ ]*\) .*/\1/p')
-        case "$v" in
-          0)  ;;
-          "") echo "$c: opcache.jit_buffer_size unreadable — php -i gave nothing"; exit 1 ;;
-          *)  echo "$c: JIT buffer is $v — the tracing JIT is back, PHP will segfault"; exit 1 ;;
-        esac
-      done
-    timeout: 180000
-    exit-status: 0
-
   wireguard-peers-are-the-enrolled-clients:
     exec: |
       live=$(docker exec wg-easy wg show wg0 peers 2>/dev/null | sort)
@@ -1065,45 +493,6 @@ command:
         exit 1
       }
     timeout: 90000
-    exit-status: 0
-
-  miniflux-no-feed-silently-unscheduled:
-    exec: |
-      u=$(docker exec miniflux-db env 2>/dev/null | sed -n 's/^POSTGRES_USER=//p')
-      d=$(docker exec miniflux-db env 2>/dev/null | sed -n 's/^POSTGRES_DB=//p')
-      [ -n "$u" ] && [ -n "$d" ] || { echo "miniflux-db exposes no POSTGRES_USER/DB"; exit 2; }
-      lim=$(docker exec miniflux env 2>/dev/null | sed -n 's/^POLLING_PARSING_ERROR_LIMIT=//p')
-      case "$lim" in ''|*[!0-9]*) lim=3 ;; esac
-      if [ "$lim" -eq 0 ]; then
-        echo "POLLING_PARSING_ERROR_LIMIT is 0 — Miniflux never drops a feed, so there is nothing to assert"
-        exit 0
-      fi
-      q="from feeds where parsing_error_count >= $lim and disabled = false"
-      n=$(docker exec miniflux-db psql -U "$u" -d "$d" -t -A -c "select count(*) $q;" 2>/dev/null)
-      case "$n" in ''|*[!0-9]*) echo "feed error counts unreadable: [$n]"; exit 2 ;; esac
-      [ "$n" -eq 0 ] || {
-        echo "$n feed(s) dropped from scheduling while still shown as active:"
-        docker exec miniflux-db psql -U "$u" -d "$d" -t -A -F' | ' \
-          -c "select id, checked_at, left(title,48) $q;" 2>/dev/null | sed 's/^/  /'
-        exit 1
-      }
-    timeout: 90000
-    exit-status: 0
-
-  docker-shutdown-budget-fits-inside-systemd:
-    exec: |
-      d=$(sed -n 's/.*"shutdown-timeout": *\([0-9]*\).*/\1/p' /etc/docker/daemon.json)
-      case "$d" in ''|*[!0-9]*) echo "no shutdown-timeout in daemon.json — the 15 s default is back"; exit 1 ;; esac
-      su=$(systemctl show docker.service -p TimeoutStopUSec --value | awk '
-        /min/ { split($0, a, "min"); rest = a[2]; sub(/s$/, "", rest); print (a[1] + 0) * 60 + (rest + 0); next }
-        { v = $0; sub(/s$/, "", v); print v + 0 }')
-      case "$su" in ''|0) echo "cannot read docker.service TimeoutStopSec"; exit 1 ;; esac
-      [ "$d" -lt "$su" ] || {
-        echo "daemon shutdown-timeout ${d}s is not inside docker.service TimeoutStopSec ${su}s"
-        echo "systemd would kill the daemon while containers are still draining"
-        exit 1
-      }
-    timeout: 60000
     exit-status: 0
 
   sysctl-declared-knobs-reach-every-interface:
@@ -1141,50 +530,6 @@ command:
     timeout: 60000
     exit-status: 0
 
-  no-container-came-back-recovering:
-    exec: |
-      bad=""
-      crashed=""
-      for c in immich-db miniflux-db nextcloud-db pihole; do
-        [ -n "$(docker ps --filter "name=^${c}$" --filter status=running -q)" ] || continue
-        started=$(docker inspect "$c" 2>/dev/null |
-                  sed -n 's/.*"StartedAt": *"\([^"]*\)".*/\1/p' | head -1)
-        [ -n "$started" ] || continue
-        log=$(docker logs --since "$started" "$c" 2>&1)
-        printf '%s\n' "$log" |
-          grep -qE 'was not properly shut down|Starting crash recovery|recovered [0-9]+ frames from WAL' || continue
-        if printf '%s\n' "$log" | grep -q 'all server processes terminated; reinitializing'; then
-          crashed="$crashed $c"
-        else
-          bad="$bad $c"
-        fi
-      done
-      [ -z "$bad" ] || echo "came back recovering rather than starting:$bad — the shutdown budget did not cover them, see #288"
-      [ -z "$crashed" ] || echo "a process died after start and forced a recovery:$crashed — the shutdown was clean, see #391"
-      [ -z "$bad" ] || exit 1
-      [ -z "$crashed" ] || exit 3
-    timeout: 90000
-    exit-status: 0
-
-  vault-mount-is-writable-not-just-mounted:
-    exec: |
-      t=/home/claude/vault/Inbox/.goss-vault-probe
-      runuser -u claude -- sh -c '
-        t=/home/claude/vault/Inbox/.goss-vault-probe
-        v="probe-$(date +%s)"
-        printf "%s" "$v" > "$t" 2>/dev/null || { echo "vault mount: write failed"; exit 1; }
-        [ "$(cat "$t" 2>/dev/null)" = "$v" ] || { echo "vault mount: read-back mismatch"; rm -f "$t"; exit 1; }
-        i=0
-        until [ "$(RCLONE_CONFIG=/mnt/data/secrets/claude/rclone.conf rclone cat nextcloud:Notes/Inbox/.goss-vault-probe 2>/dev/null)" = "$v" ]; do
-          i=$((i + 1))
-          [ "$i" -lt 15 ] || { echo "vault mount: write never reached Nextcloud"; rm -f "$t"; exit 1; }
-          sleep 2
-        done
-        rm -f "$t" 2>/dev/null || { echo "vault mount: remove failed"; exit 1; }
-      '
-    exit-status: 0
-    timeout: 90000
-
   claude-state-is-on-the-encrypted-volume:
     exec: |
       data=$(stat -c %d /mnt/data)
@@ -1196,61 +541,3 @@ command:
       [ -z "$bad" ] || { echo "on the SD card, not the encrypted volume:$bad"; exit 1; }
     exit-status: 0
     timeout: 10000
-
-  no-kuma-report-was-lost-in-silence:
-    exec: |
-      started=$(docker inspect uptime-kuma 2>/dev/null |
-                sed -n 's/.*"StartedAt": *"\([^"]*\)".*/\1/p' | head -1)
-      [ -n "$started" ] || { echo "cannot read uptime-kuma StartedAt — no floor, refusing to judge"; exit 1; }
-      utc=$(printf '%s' "$started" | sed 's/T/ /; s/\..*//')
-      first=$(docker exec uptime-kuma sqlite3 "file:/app/data/kuma.db?mode=ro" \
-              "select strftime('%s', min(time)) from heartbeat where time >= '$utc'" 2>/dev/null)
-      case "$first" in
-        ''|*[!0-9]*) echo "uptime-kuma has recorded no beat since it started at $started — nothing can be judged, and that is itself wrong"; exit 1 ;;
-      esac
-      cap=$(( $(date +%s) - 26 * 3600 ))
-      [ "$first" -lt "$cap" ] && first="$cap"
-      hits=$(journalctl --since "@$first" --no-pager -o short-iso \
-             --grep '^kuma-push-failed:' 2>/dev/null | grep '^[0-9]' || true)
-      lost=$(printf '%s' "$hits" | grep -c . )
-      [ "$lost" -eq 0 ] && exit 0
-
-      newest=$(printf '%s\n' "$hits" | tail -1 | cut -d' ' -f1)
-      loss_epoch=$(date -d "$newest" +%s 2>/dev/null)
-      case "$loss_epoch" in
-        ''|*[!0-9]*) echo "$lost report(s) lost and the newest timestamp is unreadable — refusing to judge"; exit 1 ;;
-      esac
-      loss_utc=$(date -u -d "@$loss_epoch" +'%Y-%m-%d %H:%M:%S')
-      since=$(( $(date +%s) - loss_epoch ))
-
-      kq() { docker exec uptime-kuma sqlite3 "file:/app/data/kuma.db?mode=ro" "$1" 2>/dev/null; }
-
-      beats=$(kq "select count(*) from heartbeat h join monitor m on m.id = h.monitor_id
-                  where m.type = 'push' and m.active = 1 and h.status = 1
-                    and h.time > '$loss_utc';")
-      case "$beats" in
-        ''|*[!0-9]*) echo "$lost report(s) lost and Kuma cannot be read — refusing to judge"; exit 1 ;;
-      esac
-      if [ "$beats" -eq 0 ]; then
-        echo "$lost report(s) never reached the dashboard, and NOTHING has reached it since:"
-        printf '%s\n' "$hits" | tail -5 | sed 's/^/  /'
-        exit 1
-      fi
-
-      silent=$(kq "select m.name || ' (every ' || m.interval || 's, last ' ||
-                          coalesce(datetime(h.t), 'never') || ')'
-                   from monitor m
-                   left join (select monitor_id, max(time) t from heartbeat
-                               where status = 1 group by monitor_id) h
-                     on h.monitor_id = m.id
-                   where m.type = 'push' and m.active = 1
-                     and m.interval <= $since
-                     and (h.t is null or h.t <= '$loss_utc');")
-      if [ -n "$silent" ]; then
-        echo "$lost report(s) lost, and these reporters are still silent past their own cadence:"
-        printf '%s\n' "$silent" | sed 's/^/  /'
-        exit 1
-      fi
-    # [warning]: never filter this scan with `-p err`: the failure marker is logged at priority 6, so the check would go blind
-    timeout: 120000
-    exit-status: 0
