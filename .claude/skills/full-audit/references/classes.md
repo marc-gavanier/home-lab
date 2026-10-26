@@ -748,6 +748,16 @@ the founding defect of this skill — is already failing, and its own comment
 predicted it in writing.** Three agents and the main session converged on it from
 four directions.
 
+## OPEN — 0 (after the FIFTIETH run of 2026-10-26, key `seasonality`)
+
+**Empty.** No mint; a missed member of C120 — see "The run of 2026-10-26 (FIFTIETH)" below.
+
+| ID | Property | State |
+|---|---|---|
+| C120 | A guard whose trip point sits at the wrong distance from the rupture it guards | **Missed member, both hosts, due 2027-03-29**: `apt.systemd.daily` decides a period has passed by subtracting two LOCAL midnights and requires `delta >= 86400` for `APT::Periodic` "1"; the day after the spring change is 82 800 s long, so the package lists and `unattended-upgrade` are skipped for that whole day. Computed on the host with controls (ordinary day 86 400, autumn day 90 000, next day 86 400); converged from `system` and `security`. FIXED: both intervals at "23h" (`apt-check` reads 23 through `find_i`; `"always"` was rejected because `find_i` reads it as 0 and `apt-check --security-updates-unattended` would answer "off"; the `pro` API that `int()`s the value is called by nothing on the hosts) |
+
+### The forty-ninth run's table read:
+
 ## OPEN — 0 (after the FORTY-NINTH run of 2026-10-13, key `convergence`)
 
 **Empty.** No mint; members of C01 — see "The run of 2026-10-13 (FORTY-NINTH)" below.
@@ -1670,6 +1680,59 @@ separate correction — **the marker is not a provenance instrument.**
 C92 and C03-R were closed as review rules once their spaces proved non-derivable.
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
+
+## The run of 2026-10-26 (FIFTIETH) — the key was `seasonality`, and it minted zero
+
+The key, chosen by the operator over `liveness`, `reproducibility` and `saturation`, the day after the autumn
+change: **for every mechanism whose behaviour depends on a position in the calendar (DST transitions, day, week,
+month and year boundaries, ISO weeks, weekly/monthly/yearly schedules, retention buckets, rotations, thresholds
+sized in a calendar unit, expiry dates, dates written into names), does it behave correctly at every edge it
+crosses?** Forms: S1 an edge already crossed (predicted against traced), S2 an edge ahead with a dated consequence
+(computed on the host with an ordinary-day and a ` UTC` control), S3 a rare-period mechanism never yet seen
+running, S4 a threshold sized in one calendar unit and consumed across a varying one. Borders declared: C120, C80,
+C39, C42, C72, C110, C121, C14, C91, C68, C137, C69, C41.
+
+### The counter: 0 OPEN in, 0 OPEN out, 0 minted, 0 gates broken, class total 151
+
+Consecutive zero-mint runs: 6. **The termination criterion still holds.**
+
+### The sweep
+
+| Domain | Mechanisms | Result |
+|---|---|---|
+| `system` | 69/69, both hosts | C120 (apt periodic, 2027-03-29), converged with `security`; every daily job ran once on 10-25 |
+| `security` | 45/45, both hosts + 2 workstation keys | C120 (same); nearest ACME expiry 43 d, no other expiry inside a year |
+| `network` | 15/15 | clean; DDNS 20/20 slots through the repeated hour |
+| `services` | 37/37 | clean; Calibre-Web one hour early on 10-25 (C80, observation) |
+| `backup` | 21/21 | clean; push gaps on the 25 h day 89 942-90 233 s, tightest margin 2.6 ks (`Offsite health`) |
+| `observability` | 57/57 | clean; no monitor DOWN or PENDING from the change |
+| `ansible-deploy` | 31/31 | clean; the 33rd run's four ` UTC` specs come from the templates |
+| `project-manager` | 30/30 statements | clean; no documented local clock time for a UTC timer |
+
+**The thirty-third run's DST fix (C120, 2026-10-05) is verified by trace**: monitors 20, 35, 36, 37, 28, 33 and 18
+stayed out of DOWN for the change; local-time vendor timers (fake-hwclock, sysstat, fwupd) lost the repeated hour,
+which proves the instrument.
+
+GATED intact, read: C11, C14, C18, C19, C41, C81 (C14, C41 and C81 forced to fail off-host or in a scratch copy;
+C18 by the real 10-14 dump failure). Not read: C07, C15, C03-T.
+
+### Rejected or requalified
+
+- `services`' Calibre-Web scheduler (APScheduler fixes the UTC offset at start): the 03:00 and 04:00 jobs ran at
+  01:00Z and 02:00Z on 10-25, re-measured in its log by the main session. C80, upstream code, zero impact, reset by
+  any restart. Observation.
+- `security`'s fail2ban sshd jail dating journal lines one hour ahead on 10-25: its own guard clamps to now, bans
+  unaffected. Observation.
+- `observability`'s `homelab-health.sh` parsing `uptime -s` without its zone (a boot inside the repeated hour is
+  misdated 3 600 s, one informational line) and the offsite undervoltage check's `--since=-25h` (up to 15 min
+  uncovered on the autumn day; 55 s to spare on 10-25): C80 and C120 borders, one hour a year, observations.
+- `services`' Jellyfin 02:00Z chapter job landing on the 03:00 CET backup start in winter (C91, 66 s) and
+  Calibre-Web skipping nightly jobs under load (1 s grace): observations.
+- `network`'s DDNS log stamped in local time without offset: nothing parses it, the journal holds the same lines.
+- Outside the key, known: the offsite cable link down 10-17 → 10-24 (monitor 18 DOWN until 10-25 07:12Z); backups
+  failing 10-21 and 10-22 on database side files, awaiting the operator's exclusion decision.
+- Outside the key, measured by the main session, unexplained: `offsite-health.service` CPU time grew ~5 s a day
+  through the outage (28 s → 65 s) and holds at ~60 s; `apt-check` costs 4 s. No impact on an idle host.
 
 ## The run of 2026-10-13 (FORTY-NINTH) — the key was `convergence`, and it minted zero
 

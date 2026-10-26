@@ -24,6 +24,32 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-10-26 (FIFTIETH run) — key `seasonality`, one PR
+
+- **`APT::Periodic::Update-Package-Lists` and `Unattended-Upgrade` at "23h"** on both hosts (C120):
+  `apt.systemd.daily` subtracts two local midnights, so with "1" the day after the spring change (82 800 s) skipped
+  the lists and the upgrade. `"always"` is not equivalent: `apt-check` reads it as 0 through `find_i`.
+
+## Measured and left as observations on 2026-10-26 (fiftieth run)
+
+- **Calibre-Web's scheduler fixes the UTC offset at start**: its nightly jobs run one hour early (autumn) or late
+  (spring) until the container restarts. Upstream code, zero impact.
+- **fake-hwclock, sysstat and fwupd lose the repeated autumn hour** (local-time vendor timers); nothing reads them.
+- **fail2ban dates journal lines one hour ahead after the autumn change** until restarted; its clamp keeps bans
+  correct.
+- **`homelab-health.sh` misdates a boot inside the repeated hour by 3 600 s; the offsite undervoltage check's
+  `--since=-25h` can leave 15 min uncovered on the autumn day.** One hour a year, informational.
+- **`offsite-health.service` CPU time doubled during the offsite outage (28 s → ~60 s) and has not come back**;
+  not `apt-check` (4 s). No impact.
+
+## Instrument traps paid on 2026-10-26 (fiftieth run)
+
+- **Kuma prunes raw heartbeats after ~41 h**: a dated edge must be audited within 24-40 h, or read through
+  `stat_hourly` and `important = 1` rows.
+- **A local-time log line inside 02:00-02:59 on the autumn change day is ambiguous**: reason in UTC (the change
+  is at 01:00Z).
+- **`apt.systemd.daily`'s period is midnight-to-midnight in local time**, not elapsed time since the stamp.
+
 ## Declined on 2026-10-15, from the operator's decision
 
 - **Cutting Claude Code's telemetry on the Pi** (`DISABLE_TELEMETRY`, added 2026-10-07 under C66): Remote Control
