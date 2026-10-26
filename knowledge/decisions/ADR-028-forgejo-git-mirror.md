@@ -25,7 +25,7 @@ over GitLab because GitLab wants 2.5-4 GB of RAM, which this Pi does not have to
 
 ## Decision
 
-Deploy **Forgejo 16, the rootless image** (16.0.5 today, pinned in `compose.yaml` and moved
+Deploy **Forgejo, the rootless image** (16.0.5 at the time, pinned in `compose.yaml` and moved
 by Renovate), behind Traefik at `git.<domain>`,
 gated by `vpn-only` like everything else, on **SQLite**, with **git-over-SSH
 disabled** and the **web installer locked**. Mirrors are created by hand in the UI,

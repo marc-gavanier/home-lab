@@ -52,7 +52,7 @@ GitHub account. GitHub stays the primary; Forgejo pull-mirrors it on a schedule
   so the argument spec marks it `required: true` and `secrets.yml` asserts it is non-empty.
   Forgejo has no key rotation: never let it be empty.
 - For maintenance use `docker compose down forgejo`, never `docker stop` — the heal timer
-  restarts a stopped container within two minutes.
+  restarts a stopped container within three minutes.
 - An undersized `start_period` makes Traefik withhold the router, and the service answers 404.
 
 ## First Deploy

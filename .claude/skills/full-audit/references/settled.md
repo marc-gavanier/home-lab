@@ -24,6 +24,38 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-10-27 (FIFTY-FIRST run) — key `latency`, one PR
+
+- **Forgejo 17.0.1** (C110): 16.x support ends 2026-10-29, and closing #439 had made Renovate ignore every
+  17.x; the operator's "retry once a fixed 17.0.x ships" had no instrument. A closed major PR is the trigger to
+  watch by hand.
+- **Delays the docs promised, rewritten to the measured worst case** (C01): DDNS failure in `Pi health` 13 min
+  (240 s gate holds the first run), Collabora ~18 min, home IP change ~22 min of tunnel downtime (ADR-029), heal
+  restart 3 min (175 s max over 5 082 ticks), and ADR-010's "a missed night is recovered whenever noticed": a
+  weekday snapshot has seven nights, because `forget` runs before `copy`.
+- **`rotate-a-secret.md` read the wrong monitor** (C01): the credential probes feed "Pi service checks" since
+  ADR-040, not "Pi security posture".
+
+## Measured and left as observations on 2026-10-27 (fifty-first run)
+
+- **Swap filled 85 % → full in ~16 min during the 2026-09-01 Docker stall**, against ~8.5 min of detection;
+  the stall and its only remedy are declined. Outside it, the fastest rise leaves a 5× margin.
+- **The offsite's 48 h security-update gate reports at 72 h about half the time** (daily run with 15 min of
+  random delay). No damage clock behind it.
+- **The offsite outage of 10-17 → 10-24 was detected in 15 h and repaired with one night to spare**: the
+  binding clock was the on-site repair, not detection.
+- **Miniflux: the Renovate releases feed keeps 13 h of items (< 52 h worst-case detection); a stopped poller
+  in a healthy container is seen by nothing.** Neither has happened.
+- **No inode alarm on either host**: the 85 % space alarm fires first at today's file sizes.
+
+## Instrument traps paid on 2026-10-27 (fifty-first run)
+
+- **Kuma notifies a monitor born DOWN**: `isImportantForNotification` returns true on the first beat, and
+  `resend_interval = 1` re-sends on every DOWN beat with the failing checks in the text. "Already red, so
+  silent" is false for push monitors 23 and 41.
+- **A 30- to 48-day `journalctl -g` or `-u` on the homelab runs past two minutes**: bound it with `--since`
+  to days, or read netdata.
+
 ## Shipped on 2026-10-26 (FIFTIETH run) — key `seasonality`, one PR
 
 - **`APT::Periodic::Update-Package-Lists` and `Unattended-Upgrade` at "23h"** on both hosts (C120):
@@ -306,7 +338,8 @@ Two kinds of entry, and the distinction matters:
 
 - About 700 chosen values swept over eight domains; none sits above 90 % of its limit except the two
   above. A generous timeout, tmpfs or grace period costs nothing on this estate: do not propose shrinking one.
-- Miniflux's 15-error limit means 15 days of silence for a feed polled daily; 0 errors today.
+- Miniflux's 15-error limit means about 28 h of silence: the scheduler polls each feed about every 2 h,
+  not daily (measured 2026-10-27).
 - Containers left at Docker's 10 s stop grace are killed at shutdown; the general extension is declined and
   transmission's 60 s is C97, declined 2026-09-21.
 - `inotify max_user_instances` 128, a kernel default, is 45 % used by uid 0 on the homelab, never failed.
@@ -353,7 +386,8 @@ Two kinds of entry, and the distinction matters:
 
 - Netdata announces the end of APIs v1/v2 at its next major; six consumers in the estate use them and would
   fail loudly, not silently. A rewrite to plan when 3.0 is announced, not before.
-- Forgejo 16 support ends 2026-10-29; Renovate offers 17 on its own.
+- Forgejo 16 support ends 2026-10-29. Renovate stopped offering 17.x when #439 was closed (2026-10-21);
+  moved to 17.0.1 by hand in the fifty-first run.
 - ansible-core 2.21 is the newest line the workstation's Python runs (2.22 needs 3.13), supported to
   November 2027.
 - `ubuntu-latest` moves to 26.04 from 2026-10-19; every CI dependency exists there.

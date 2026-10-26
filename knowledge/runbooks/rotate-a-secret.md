@@ -309,7 +309,7 @@ sudo systemctl start homelab-posture.service
 sudo journalctl -u homelab-posture.service -n 20 --no-pager
 ```
 
-- **Pass**: the journal shows only systemd and PAM lines; the Kuma "Pi security
-  posture" beat reads `posture OK — N checks (…)`.
+- **Pass**: the journal shows only systemd and PAM lines; the Kuma "Pi service
+  checks" beat reads `service checks OK — N checks (…)`.
 - **Fail**: the journal shows `<container>: /run/secrets/<name> no longer opens
   the database`, and the beat turns red.

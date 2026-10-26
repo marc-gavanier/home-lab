@@ -1681,6 +1681,58 @@ C92 and C03-R were closed as review rules once their spaces proved non-derivable
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
 
+## The run of 2026-10-27 (FIFTY-FIRST) — the key was `latency`, and it minted zero
+
+The key, invented for this run and chosen by the operator over `reproducibility`, `liveness` and `saturation`:
+**for every failure the estate can suffer, two clocks start together: DETECTION (detector cadence, retries and
+confirmations, delivery channel, up to a human) and DAMAGE (until the harm is irreversible or changes in kind).
+Does detection win at the worst case, with room for a human to act?** Forms: L1 race lost, L2 stacked latencies
+against a declared objective, L3 a recovery mechanism that delays the first signal past the damage clock.
+Discriminant: both clocks read on the deployed artefact and measured on the running system; a 2× margin is clean.
+Borders declared: C44, C120, C39, C41, C69, C72, C100, C110, C128, C137, C04, C09, C67, C91.
+
+### The counter: 0 OPEN in, 0 OPEN out, 0 minted, 0 gates broken, class total 151
+
+Consecutive zero-mint runs: 7. **The termination criterion still holds.**
+
+### The sweep
+
+| Domain | Space | Result |
+|---|---|---|
+| `system` | 25/25 resources, both hosts | clean; tightest race swap in the declined 09-01 stall |
+| `security` | 21/21 | clean; offsite 48 h gate reports at 72 h half the time (C120, observation) |
+| `network` | 14/14 | clean; home IP change ~22 min, certificates 21 d alarm against 43 d live minimum |
+| `services` | 32/32 | clean; Miniflux polls every ~2 h, 15 errors ≈ 28 h |
+| `backup` | 12/12 jobs | clean; a weekday snapshot has 7 nights to reach the offsite (`forget` before `copy`) |
+| `observability` | 45/45 detectors | clean on L1/L3; two documented delays wrong (C01) |
+| `ansible-deploy` | 12/12 | C110 Forgejo 16 end of support with no instrument on the operator's trigger |
+| `project-manager` | 62/62 statements | C01 ×6 delays (DDNS 5→13 min, IP change 4→22 min, heal 2→3 min ×3) |
+
+GATED intact, read: C07, C11, C14, C15, C18, C19, C41, C81, C03-T.
+
+### Confirmed instances
+
+- **C110**: Forgejo 16 support ends 2026-10-29; closing #439 on 10-21 made Renovate ignore all of 17.x, so the
+  operator's written trigger ("retry once a fixed 17.0.x ships") had no instrument while 17.0.1 shipped on
+  10-26. Moved to 17.0.1.
+- **C01**: `rotate-a-secret.md` checked the rotation on "Pi security posture" while the credential probes feed
+  "Pi service checks" since ADR-040 — a false green. ADR-010 said a missed night is recovered whenever noticed:
+  seven nights for a weekday snapshot. Six promised delays shorter than the measured worst case. Two lines of
+  `settled.md` (Miniflux "15 days", "Renovate offers 17 on its own").
+
+### Rejected or requalified
+
+- `ansible-deploy`'s C04 on monitor 41 ("DOWN since its first beat, so it can warn no one"): Kuma's code notifies
+  a first DOWN beat and `resend_interval = 1` re-sends on every DOWN beat, with the failing checks in the text.
+- `observability`'s suspected C110 on the offsite catch-up: requalified as the ADR-010 C01 plus an observation;
+  detection took 15 h, the binding clock was the on-site repair.
+- `network`'s "the 10-25 copy caught up all eight days": only the snapshots still kept locally; the 10-26 log
+  shows `forget` removing two before `copy` ran.
+- Observations, no work: swap race in the declined 09-01 stall; no inode alarm; Miniflux's 13 h Renovate feed and
+  unseen stopped poller; dnsproxy seen only through `Pi health`'s gate.
+- Conduct: three agents ran journal queries past two minutes and stopped them; `ansible-deploy` ran
+  `goss validate service.yaml` once, read-only, nothing pushed.
+
 ## The run of 2026-10-26 (FIFTIETH) — the key was `seasonality`, and it minted zero
 
 The key, chosen by the operator over `liveness`, `reproducibility` and `saturation`, the day after the autumn

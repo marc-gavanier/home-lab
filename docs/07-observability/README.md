@@ -318,7 +318,7 @@ Limits of the pattern:
 
 - **Collabora**: the endpoint stays green while no document opens. Covered instead by the image
   healthcheck (→ `homelab_container_unhealthy` after 10 min, pushed on the adapter's next 5-min
-  tick: 15 min worst case) and by the conversion every deploy runs. The monitor covers reachability
+  tick: about 18 min worst case) and by the conversion every deploy runs. The monitor covers reachability
   and TLS expiry (ADR-021).
 - **Calibre-Web**: its own healthcheck can report `healthy` with a broken library. The compose
   healthcheck probes `/login`, and the monitor covers reachability only (ADR-025).
@@ -381,7 +381,7 @@ third column says what actually evaluates each condition:
 | systemd unit failed  | anything in `systemctl --failed`                                                                                                                                   | goss `units.yaml` ²                   |
 | systemd restart loop | a unit stuck in `auto-restart` for **240 s** (shared gate)                                                                                                         | `homelab-health.sh`                   |
 | Expected unit down   | docker, containerd, fail2ban, ssh, claude-remote-control or wg-quick@wg0 not `active`                                                                              | goss `units.yaml` ²                   |
-| Timer last run       | a `homelab-*` timer whose triggered service did not end in `success`                                                                                               | `homelab-health.sh`                   |
+| Timer last run       | a `homelab-*` timer whose triggered service did not end in `success`, for **240 s** (shared gate)                                                                  | `homelab-health.sh`                   |
 | Timer never started  | a `homelab-*` timer fired but its service has no start time, for **240 s** (shared gate)                                                                           | `homelab-health.sh`                   |
 | Git mirror stale     | the mirror's `next_update_unix` is more than **1 h** in the past — so > 9 h since the last completed sync — or its state is unreadable on **two consecutive runs** | `homelab-health.sh`                   |
 | Certificate expiry   | the soonest certificate in `acme.json` is under **21 days**, unreadable, or the file is absent                                                                     | `homelab-health.sh`                   |
@@ -466,8 +466,9 @@ current public IP.
 - Monitor: heartbeat 1080 s, retries **0** (reason in [uptime-kuma.md](../05-services/uptime-kuma.md)).
 - Cloudflare calls use `--retry 2`, except the create (a replayed POST can duplicate the A record).
   This is independent of the monitor's retries.
-- A failing run is caught within 5 min by the timer check in `Pi health`; this monitor adds the case
-  of a timer that stopped running (its last result stays `success`).
+- A failing run is caught within 13 min by the timer check in `Pi health` (its 240 s gate holds the
+  first health run); this monitor adds the case of a timer that stopped running (its last result
+  stays `success`).
 - Neither proves the public record is correct; that needs a probe from outside the LAN. The
   WireGuard HTTP monitor does not help: Kuma's `extra_hosts` pins `vpn.<domain>` to the LAN IP.
 - A stale record breaks remote access at once and silently.
