@@ -28,8 +28,8 @@
   ansible.builtin.copy:
     dest: /etc/apt/apt.conf.d/20auto-upgrades
     content: |
-      APT::Periodic::Update-Package-Lists "1";
-      APT::Periodic::Unattended-Upgrade "1";
+      APT::Periodic::Update-Package-Lists "23h";
+      APT::Periodic::Unattended-Upgrade "23h";
       APT::Periodic::AutocleanInterval "7";
     mode: "0644"
 

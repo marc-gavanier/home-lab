@@ -15,6 +15,8 @@ earlier — which would have sent eight agents to re-derive settled work. Rebuil
 it from `classes.md`'s OPEN table at the start of every run; if the two
 disagree, `classes.md` wins.
 
+**SIXTY-EIGHT keys are now spent.** `seasonality` (fiftieth run, 0 mints — the criterion still holds). `liveness`, `reproducibility` and `saturation` were offered and not chosen.
+
 **SIXTY-SEVEN keys are now spent.** `contention` (forty-eighth run, 0 mints) and `convergence` (forty-ninth run, 0 mints — the criterion still holds). `reproducibility`, `liveness` and `seasonality` were offered and not chosen.
 
 **SIXTY-FIVE keys are now spent.** `resumability` (forty-seventh run, 0 mints — the criterion still holds). `contention`, `saturation` and `cardinality` were offered and not chosen.
