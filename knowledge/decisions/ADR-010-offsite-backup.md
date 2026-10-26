@@ -22,9 +22,9 @@ failed).
 > rolling **7-day window**. `restic copy` is idempotent — re-offering a snapshot
 > already present on an append-only repository is a no-op — so the window was an
 > optimisation, not a correctness requirement, and it went with the script that
-> computed it. The guarantee is now *stronger*, not weaker: a missed night is
-> recovered whenever it is next noticed, not only within seven days. This
-> paragraph said otherwise until 2026-08-29.
+> computed it. A missed night is recovered by the next successful copy only while
+> its snapshot is still kept locally: `forget` runs before `copy`, so a weekday
+> snapshot has seven nights, and the last one of each week four weeks.
 >
 > **Correction (2026-09-25).** "An optimisation, not a correctness requirement"
 > is the framing ADR-031 itself retracted: the window defined what the offsite

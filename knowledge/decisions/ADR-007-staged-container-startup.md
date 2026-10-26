@@ -81,8 +81,8 @@ encrypted disk, and stage the containers behind it — all automated by the
 - **Manual stops get healed**: the heal timer cannot tell a crash (exit 137)
   from `docker stop` (often 137/143 too). Maintenance must use
   `docker compose -f /opt/homelab/compose.yaml down <svc>` or stop the timer.
-- **A crashed service can stay down up to 2 min** (timer cadence) instead of
-  being restarted immediately by the daemon.
+- **A crashed service can stay down up to 3 min** (2 min timer cadence plus the
+  run itself, 175 s measured) instead of being restarted immediately by the daemon.
 
 ## Alternatives Considered
 

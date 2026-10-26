@@ -145,7 +145,7 @@ non-zero or are `created`/`dead` (max once per 10 min), and those unhealthy for
 15 min (max once per hour). Exit 0 is left alone. Log:
 `journalctl -t homelab-heal`.
 
-**A `docker stop` comes back within 2 minutes** (exit 137/143). Instead:
+**A `docker stop` comes back within 3 minutes** (exit 137/143). Instead:
 
 ```bash
 docker compose -f /opt/homelab/compose.yaml down <svc>   # removes it — nothing to heal

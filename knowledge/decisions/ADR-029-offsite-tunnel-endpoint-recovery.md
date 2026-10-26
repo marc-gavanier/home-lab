@@ -53,7 +53,8 @@ and otherwise hands the *name* to `wg set`.
 Threshold: 150s sits 28s above the measured ceiling of 122s. A spurious fire costs
 nothing — it rewrites the same address on an existing peer, with no interface change —
 so the margin is chosen for a quiet journal, not for safety. Recovery is bounded at
-one timer period plus the gate: under four minutes.
+one timer period plus the gate: under four minutes once the public record has changed. A
+home IP change adds the DDNS run and the record's TTL first: about 22 minutes in all.
 
 Two properties make this acceptable on a host nobody can reach:
 
@@ -164,7 +165,7 @@ address change or a test rig that suppresses roaming.
 
 ## Consequences
 
-- A home IP change now costs under four minutes of tunnel downtime instead of a trip.
+- A home IP change now costs about 22 minutes of tunnel downtime instead of a trip.
 - One more timer on the offsite host, firing every minute and doing nothing almost
   always.
 - The failure mode moves rather than disappearing: if the name itself cannot be
