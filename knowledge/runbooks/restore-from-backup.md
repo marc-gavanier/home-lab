@@ -301,8 +301,7 @@ The datadir is not: the dump is the **only** copy.
 5. Start the empty database and wait for it:
 
    ```bash
-   docker compose up -d immich-db
-   until [ "$(docker inspect -f '{{.State.Health.Status}}' immich-db)" = healthy ]; do sleep 2; done
+   docker compose up -d --wait --wait-timeout 300 immich-db
    ```
 
 6. Load the dump:
@@ -381,8 +380,7 @@ the snapshot. The dump has no `--clean`, so it loads into a fresh database.
 5. Start the empty database and wait for it:
 
    ```bash
-   docker compose up -d miniflux-db
-   until [ "$(docker inspect -f '{{.State.Health.Status}}' miniflux-db)" = healthy ]; do sleep 2; done
+   docker compose up -d --wait --wait-timeout 300 miniflux-db
    ```
 
 6. Load the dump:

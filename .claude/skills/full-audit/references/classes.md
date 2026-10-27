@@ -1681,6 +1681,63 @@ C92 and C03-R were closed as review rules once their spaces proved non-derivable
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
 
+## The run of 2026-10-27 (FIFTY-THIRD) — the key was `liveness`, and it minted zero
+
+The key, chosen by the operator over `saturation`, `reproducibility` and a confirmation-only pass: **for every
+mechanism expected to act or finish eventually (wait, lock, retry, queue, job, mount, renewal, startup dependency),
+is there a reachable state in which it waits indefinitely without failing — no progress, no error, no signal?**
+Forms: V1 unbounded wait, V2 livelock, V3 starvation, V4 a stall read as healthy. Discriminant: the bound read live
+or its absence proven in the deployed artefact, then the detector that would see a stall and after how long; clean
+is bounded, or unbounded with an independent dead-man. Borders declared: `latency`, `resumability`, `quiescence`,
+`concurrency`, `contention`, C41, C44, C67, C69, C84, C91, C100, C102, C109, C110, C120.
+
+### The counter: 0 OPEN in, 0 OPEN out, 0 minted, 0 gates broken, class total 151
+
+Consecutive zero-mint runs: 9. **The termination criterion still holds.**
+
+### The sweep
+
+| Domain | Space | Result |
+|---|---|---|
+| `system` | 669/669 units, both hosts | clean; every unbounded unit is harmless when stuck or has a detector |
+| `security` | 30/30 | clean; fail2ban alone can never reach `failed`, on purpose, seen in 5 min |
+| `network` | 22/22 | clean; every unbounded wait has an independent dead-man |
+| `services` | 32/32 containers, 26/26 background jobs | clean; nothing queued or reserved |
+| `backup` | 26/26 | clean; 0 restic locks on either repository |
+| `observability` | 58/58 periodic mechanisms | C103, the heal freshness check |
+| `ansible-deploy` | 167/167 waiting tasks, 54/54 rendered artefacts | C103, same member, placed independently |
+| `project-manager` | 35/35 statements, 42/42 operator commands | C01, ADR-033 |
+
+GATED: C41 read intact; no finding landed in a GATED class.
+
+### Confirmed instances
+
+- **C103**: the crash-heal freshness check in `homelab-health` ran only when the heal's `ExecMainExitTimestamp`
+  was set; systemd clears it while a run is in progress, so a hung heal (timer no longer firing, no `checked` line)
+  disarmed the check and `Pi health` stayed UP. A crashed container stays visible through netdata and the HTTP
+  monitors; what is lost is the restart and the message naming why. No hang in 7 494 runs (longest 13.7 s). Guard
+  moved to `ExecMainStartTimestamp`.
+- **C01**: ADR-033 said sshfs exits when the Pi is unreachable; with `-o reconnect` it keeps the mount through an
+  outage and redials on the next access. Exit-and-restart happens only at start.
+
+### Rejected or requalified
+
+- `observability`'s proposed class, a dead-man whose arming condition is false in the stuck state it watches:
+  duplicate of C103 — an empty exit timestamp means both "never ran since boot" and "running now".
+- `services`'s proposed class, an internal scheduler that stops inside a healthy container: no confirmed instance,
+  all nine ran recently.
+- `project-manager`'s proposed class, an operator wait loop with no bound and no output: documentation-only fix;
+  the two restore-runbook loops now use `docker compose up --wait --wait-timeout 300`.
+- Monitor 16 seeing a stalled copy "in 6 h" or "in 30 h": both right — a 30 h window from the last push expires
+  about 6 h after the next night's copy stalls.
+- Observations, no work: restic 0.16.4 has no request timeout (recorded 09-30); Traefik's backend
+  `responseHeaderTimeout` is 0; Pi-hole's gravity download has no `--max-time` (official image, ADR-037);
+  `homelab-image-retention` has no detector and can hang only on a frozen Docker daemon (declined 09-01); 13
+  non-security updates pending on the offsite.
+- Conduct: the main session issued one `systemd-run` on the homelab during verification, outside read-only; no
+  unit nor journal trace remained. `ansible-deploy` ran an over-long `journalctl` and killed its own remote
+  process by PID; `network` and `observability` each printed the real domain once into their transcripts.
+
 ## The run of 2026-10-27 (FIFTY-SECOND) — the key was `randomness`, and it minted zero
 
 The key, invented for this run and chosen by the operator over `liveness`, `saturation` and `reproducibility`:
@@ -10331,7 +10388,7 @@ them; do not re-derive without a new symptom.
 | C93 | **A file whose designed role is to be a TEMPLATE or a BACKUP, and which the consuming tool also loads as LIVE INPUT** | **3/3** — the `*.example.yml` files live INSIDE `inventory/host_vars/homelab/`, and Ansible loads every file in a host_vars directory regardless of its name. Reproduced in isolation by the main session: a key present only in the example surfaces with its placeholder value; a key present in both is won by the real file, which loads later alphabetically. Consequence measured by `ansible-deploy`: **31 of 78 `required: true` options can never fail**, 24 are protected by nothing — including `ssh_port_hardened: 22` and `luks_passphrase: ""`. Zero live placeholders today, verified. **The operator DECLINED moving them on 2026-09-13**: the file is the reference and stays where it is. The class is swept; its one live instance is accepted | 09-13 |
 | C94 | **A mechanism that reads a selector's result as a scalar without bounding its cardinality from ABOVE** | **CLOSED 2026-09-13 night by eight per-domain slices**: 18/18 + extension (`system`), 26/26 (`observability`), 12/12 (`services`), 12/12 (`backup`), 5/5 (`network`), 0/0 (`security` — no selector-as-scalar site in its task files), `ansible/` swept with 0 confirmed and 2 latent (`ansible-deploy`). 0 new confirmed instances; the 4 founding instances were fixed by PR #352 except the one in DECLINED territory. The cardinal is derivation-relative — do not quote one as "the" number. **ENUMERATED, not GATED**: C83's deployed gate guards cardinality FLOORS, and nothing derives ceilings continuously, so the next commit can repopulate it | 09-13 |
 | C100 | **A recovery condition asserted from a mechanism's CURRENT STATE when its failure was a property of its CADENCE — so one out-of-band run clears the alarm while the schedule stays unrepaired** | **20/20**, derived by `observability` over the recovery conditions of the deployed health paths. 1 live instance measured end to end: `homelab-health.sh:643` reads `systemctl show -p Result`, the 12:24 hand-run supplied a success, monitor 20 returned `status=1` at 10:40:55 UTC and is still green, and the next SCHEDULED run of the unit that failed is Tue 2026-09-15 01:00 — ~38 h of green over an unexercised cadence. The machine-side twin of the `settled.md` instrument trap *a unit's current state is not its cadence's history*. **ENUMERATED, not GATED**: nothing asserts that a clearing condition names the same mechanism as the failing one | 09-13 |
-| C103 | **A status field read as the current verdict that does not carry WHICH execution produced it, nor whether one occurred at all** | **MINTED 2026-09-19, systemd slice swept 14/14 control timers + 3 offsite, Kuma slice NOT swept.** Four histories read `Result=success`: never started in this unit's life, started before the last boot (the service timestamps are cleared by it, the timer's `LastTriggerUSec` is not), started and ended non-zero under `SuccessExitStatus=1` — **7 of the 14** carry it deliberately — and started a minute ago and passed. Proven with a negative control (`rescue.service`) and a positive one (`offsite-health`): `offsite-smart-test` ran 2026-09-01, and on the service object it is byte-identical to `homelab-image-retention`, which has never run. The discriminator exists and had **0 occurrences in the repo**. Shipped: the health script now reports a timer that FIRED SINCE THIS BOOT whose service never started (monotonic pair, reboot-safe, verified on the offsite), and the posture beat carries `scheduled run` / `manual run` | **ENUMERATED — CLOSED 37/37 monitors, 111 field-reads, in the second run of 2026-09-19; this row still read OPEN until the sixth run corrected it.** The sixth run completed its remaining residual at **54/54**: exactly **1** published quantity has a programmatic consumer (`msg like '%deep check%'`, goss :1235/:1246). The rest are informational by construction — the decision is taken producer-side before the beat is built — which is a true measurement and a weak defect, consistent with the operator's decline |
+| C103 | **A status field read as the current verdict that does not carry WHICH execution produced it, nor whether one occurred at all** | **MINTED 2026-09-19, systemd slice swept 14/14 control timers + 3 offsite, Kuma slice NOT swept.** Four histories read `Result=success`: never started in this unit's life, started before the last boot (the service timestamps are cleared by it, the timer's `LastTriggerUSec` is not), started and ended non-zero under `SuccessExitStatus=1` — **7 of the 14** carry it deliberately — and started a minute ago and passed. Proven with a negative control (`rescue.service`) and a positive one (`offsite-health`): `offsite-smart-test` ran 2026-09-01, and on the service object it is byte-identical to `homelab-image-retention`, which has never run. The discriminator exists and had **0 occurrences in the repo**. Shipped: the health script now reports a timer that FIRED SINCE THIS BOOT whose service never started (monotonic pair, reboot-safe, verified on the offsite), and the posture beat carries `scheduled run` / `manual run` | **ENUMERATED — CLOSED 37/37 monitors, 111 field-reads, in the second run of 2026-09-19; this row still read OPEN until the sixth run corrected it.** The sixth run completed its remaining residual at **54/54**: exactly **1** published quantity has a programmatic consumer (`msg like '%deep check%'`, goss :1235/:1246). The rest are informational by construction — the decision is taken producer-side before the beat is built — which is a true measurement and a weak defect, consistent with the operator's decline **Missed member, 2026-10-27 (`liveness`)**: `homelab-health`'s crash-heal freshness check was guarded on the heal unit's `ExecMainExitTimestamp`, which systemd also clears while a run is in progress (read live: `activating` with an empty exit timestamp), so a hung heal disarmed its own detector. FIXED: guarded on `ExecMainStartTimestamp`, empty only before the first run since boot |
 | C104 | **A harness that publishes the cause when the cause is its OWN and discards it when the cause belongs to the assertion** | **MINTED 2026-09-19, ENUMERATED 219/219.** goss never prints what a check wrote — verified against the deployed binary, a declared `stdout:` renders the literal `"object: *bytes.Reader"` — while goss's own timeout renders as `Error Command execution timed out (30s)`. **28 of the 219** `exec:` checks carry ≥2 `exit 1` branches with distinct messages and no `stdout:`; the intersection is exact, every multi-branch check is in it. Live proof: `miniflux-no-feed-silently-unscheduled` pushed `Expected 1 to be numerically eq 0` on three consecutive scheduled runs for one of three causes it could not name, two of which are repaired at the probe and one at the estate. Remedy shipped on the 5 branches of the 3 checks that have fired this month: `exit 2` = could not measure, `exit 1` = property violated, the only field that survives into the alert | ENUMERATED |
 | C105 | **A documented procedure that produces — or erases — exactly the state an assertion discriminates on, with neither side saying so** | **MINTED 2026-09-19, space NOT bounded.** 16 documentary sites derived from both ends (12 `docker compose down <svc>`, 4 timer disarms), **0 annotated**, against 2 pre-announcements of red in the whole repo. The instance that bites: `restore-from-backup.md:652` disarms `homelab-backup.timer`, the assertion deployed 2026-09-18 22:58 then prints `control timer(s) present but not armed` every day of a 7-33 h restore, and the boxed warning three lines above says that re-arming that timer `rm -rf`s the dumps being restored — **the red invites the forbidden act**. The inverse direction sits outside those 16 by construction: the certificate ratchet keeps its reference on the SD card and its referent on LUKS, so a reflash — a routine recovery here — re-seeds `cert_high` at the current count and a real loss can never fire. **Annotating the 16 is DECLINED by the operator** (a restore is exceptional; a surveillance outage is acceptable there); the class stays | **ENUMERATED — CLOSED 28/28 in the second run of 2026-09-19; this MINTING row still read OPEN until 2026-09-20 (ninth run), contradicting the header and its own closure row above. The remedy — annotating the 16 sites — is DECLINED.** |
 | C106 | **A parameter whose "not supplied" sentinel and whose "supplied but empty" value normalise to the same object, so two opposite intents produce one argv** | **MINTED 2026-09-19, ENUMERATED 2/2** — the parameters fed by `{{ x … if x is defined else omit }}`, `compose.yml:75` and `:120`. Demonstrated on a local fixture: `-e deploy_services=` gives `defined=True value=[]`, then `docker_compose_v2.py:479` folds `None` and `[]` together and the argv is **byte-identical to a full-stack deploy** — which arms every pending image pin. `rotate-a-secret.md:149` hands the operator that exact line with `<svc>` to fill in. **The fix is DECLINED by the operator**; the class stays | ENUMERATED |
