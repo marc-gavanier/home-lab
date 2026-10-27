@@ -24,6 +24,30 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Shipped on 2026-10-27 (FIFTY-THIRD run) — key `liveness`, one PR
+
+- **Crash-heal freshness check guarded on `ExecMainStartTimestamp`** (C103): `ExecMainExitTimestamp` is also
+  empty while a run is in progress, so a hung heal disarmed the check meant to see it.
+- **ADR-033** describes `-o reconnect`: the mount survives an outage and redials; exit-and-restart is start-only.
+- **Restore runbook**: the two `until … healthy` loops are `docker compose up --wait --wait-timeout 300`.
+
+## Measured and left as observations on 2026-10-27 (fifty-third run, key `liveness`)
+
+- **Immich retries two corrupt JPEGs every night and fails 2/2**, eight nights running; the fix is replacing or
+  removing the two files, not the infrastructure.
+- **C84 recurred**: Immich's midnight ML failures came back on 10-26 and 10-27, five assets missing from smart
+  search; the existing "Missing" run covers them.
+- **Unbounded but harmless or watched**: Traefik backend `responseHeaderTimeout` 0, Pi-hole gravity's curl (official
+  image), `homelab-image-retention` (hangs only on a frozen Docker daemon), the offsite's 13 pending non-security
+  updates.
+
+## Instrument traps paid on 2026-10-27 (fifty-third run)
+
+- **`ExecMainExitTimestamp` empty does not mean "never ran"**: systemd clears it at every start. Read it beside
+  `ActiveState`, or use `ExecMainStartTimestamp` for "ran since boot".
+- **Without a hardware clock, `journalctl --list-boots` and `last` merge several offsite boots into one**; logind's
+  "System is rebooting" lines are the reliable count.
+
 ## Measured and left as observations on 2026-10-27 (fifty-second run, key `randomness`)
 
 - **Navidrome's stored password is encrypted with the image's built-in key** (C117, declined): a configured key

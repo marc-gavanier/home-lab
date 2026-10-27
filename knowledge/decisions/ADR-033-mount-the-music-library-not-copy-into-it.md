@@ -33,10 +33,14 @@ follows without touching it.
 
 Four choices carry the weight, and each answers one of the constraints:
 
-- **No `Requires=` and no `BindsTo=`.** When the Pi is unreachable, sshfs exits
-  and `~/Storage/Music` is an ordinary empty local directory. Nothing hangs.
+- **No `Requires=` and no `BindsTo=`.** When the Pi is unreachable at start,
+  sshfs exits and `~/Storage/Music` is an ordinary empty local directory.
   `Restart=on-failure` with `RestartSec=30s` retries in silence until the Pi
   answers; `StartLimitIntervalSec=0` stops systemd giving up on a long outage.
+  Once mounted, `-o reconnect` keeps the mount through an outage and redials on
+  the next access: `ServerAliveInterval=15` × `ServerAliveCountMax=3` drops a
+  silent Pi within 45 s and `ConnectTimeout=10` bounds each redial, so an
+  access fails instead of hanging.
 - **`Environment=SSH_AUTH_SOCK=%t/keyring/ssh`.** The SSH key has a passphrase.
   The gnome-keyring agent's socket lives at a path that is stable across logins,
   unlike the `/tmp/ssh-XXXX` socket an interactive shell inherits, so the unit
