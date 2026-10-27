@@ -1681,6 +1681,50 @@ C92 and C03-R were closed as review rules once their spaces proved non-derivable
 The question to put is not "have all writers been enumerated" but "is every
 subsystem with a resolve-everything readout covered". Do not close it silently.
 
+## The run of 2026-10-27 (FIFTY-SECOND) — the key was `randomness`, and it minted zero
+
+The key, invented for this run and chosen by the operator over `liveness`, `saturation` and `reproducibility`:
+**for every mechanism that relies on chance, uniqueness or unpredictability, does the draw have the property it is
+relied upon for?** Forms: R1 a value that must be unique or unpredictable is not (weak or derived secret, default
+salt, identifier shared between two hosts or services, state cloned from an image); R2 an assumed random draw
+breaks an assumption elsewhere; R3 a mechanism meant to vary is frozen; R4 a sampling check whose coverage over
+time is not the one claimed. Discriminant: two values compared or the draw's source read in the deployed code.
+Borders declared: `determinism`, `collision`, `identity`, `latency`, C91, C104, C120, C01. Secrets measured by
+length, class counts and in-shell equality only.
+
+### The counter: 0 OPEN in, 0 OPEN out, 0 minted, 0 gates broken, class total 151
+
+Consecutive zero-mint runs: 8. **The termination criterion still holds.**
+
+### The sweep
+
+| Domain | Space | Result |
+|---|---|---|
+| `system` | 47/47 timers, 8/8 host identities | clean; separate flashes, CRNG ready at `[0.000000]`, every delay redrawn |
+| `security` | 59 secrets, 8/8 identity pairs | clean; 7 equal pairs, each one value written at producer and consumer |
+| `network` | 24 mechanisms | clean; DNS probe label 288/288 distinct and sent upstream |
+| `services` | 32/32 | clean; app-generated keys random and distinct |
+| `backup` | 10/10 identities, 12/12 deep-check slices | clean; slices cover the repository, 18.3 % of bytes read to date |
+| `observability` | 45/45 detectors | clean; 16 push tokens distinct, one source each |
+| `ansible-deploy` | 16/16 random sources, 21/21 rendered secrets | clean; Ansible draws no secret, all come from the vault |
+| `project-manager` | 45/45 statements | no action |
+
+GATED: none read for breakage this run; no finding landed in a GATED class.
+
+### Rejected or requalified
+
+- The timer counts (10, 26, 9, 3) were four spaces, not a disagreement: 26/47 timers carry a random delay over
+  both hosts, 10 of them the project's (8 homelab, 2 offsite).
+- The brief's premise that a chunker mismatch makes `restic copy` re-chunk: `copy` moves blobs by ID. The
+  polynomials are equal anyway; 501.3 GiB local against 507.9 GiB offsite.
+- Navidrome encrypts its one stored password with the image's built-in key, raised by `services` and
+  `security`: C117, declined — a configured key would sit in the same store.
+- Observations, no work: `vm.mmap_rnd_bits` 18 on both hosts, the kernel minimum; one false DDNS DOWN in 7 days
+  on `curl: (56)`, which `--retry 2` does not retry, cleared by the next run.
+- Conduct: `services` printed Pi-hole's password hash into its transcript (192-bit random value, no rotation);
+  `ansible-deploy` printed a masked prefix that placed 4 punctuation characters of a 128-character password;
+  `security` created and removed an empty file in `/dev/shm`; `observability` ran a recursive grep for ~2 min.
+
 ## The run of 2026-10-27 (FIFTY-FIRST) — the key was `latency`, and it minted zero
 
 The key, invented for this run and chosen by the operator over `reproducibility`, `liveness` and `saturation`:

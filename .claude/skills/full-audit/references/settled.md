@@ -24,6 +24,21 @@ Two kinds of entry, and the distinction matters:
 
 ---
 
+## Measured and left as observations on 2026-10-27 (fifty-second run, key `randomness`)
+
+- **Navidrome's stored password is encrypted with the image's built-in key** (C117, declined): a configured key
+  would live in the same store as the database. Do not propose `ND_PASSWORDENCRYPTIONKEY`.
+- **`vm.mmap_rnd_bits` is 18 on both hosts**, the kernel minimum; no exposed service restarts on crash often
+  enough to make address guessing practical.
+- **The DDNS `--retry 2` does not cover `curl: (56)`** (connection reset): one false DOWN in 7 days, cleared by
+  the next 15-minute run.
+
+## Instrument traps paid on 2026-10-27 (fifty-second run)
+
+- **A masking `sed` that fails prints its input**: check the mask on a dummy value before piping a secret
+  through it. Measure secrets in one Python process that prints only numbers.
+- **`\s*` under `re.M` crosses the newline**: it read the next line as a 23-character Forgejo `SECRET_KEY`.
+
 ## Shipped on 2026-10-27 (FIFTY-FIRST run) — key `latency`, one PR
 
 - **Forgejo 17.0.1** (C110): 16.x support ends 2026-10-29, and closing #439 had made Renovate ignore every
