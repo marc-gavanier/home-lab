@@ -51,6 +51,9 @@
       - ncdu
       - python3-pip
       - restic
+      - cron
+      - logrotate
+      - rsyslog
     state: present
 
 - name: system | Silence smartd's unreachable mail channel
