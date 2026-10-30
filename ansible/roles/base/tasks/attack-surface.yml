@@ -8,12 +8,14 @@
     - { regexp: '^dtparam=i2c_arm=', line: 'dtparam=i2c_arm=off' }
     - { regexp: '^dtparam=spi=', line: 'dtparam=spi=off' }
   notify: Reboot required
+  when: raspberry_pi | default(true)
 
 - name: attack-surface | Repair the non-ASCII radio-kill marker in place
   ansible.builtin.replace:
     path: /boot/firmware/config.txt
     regexp: '^(# (?:BEGIN|END) ANSIBLE MANAGED) — (radio kill \(base role\))$'
     replace: '\1 - \2'
+  when: raspberry_pi | default(true)
 
 - name: attack-surface | Disable Wi-Fi and Bluetooth radios in firmware
   ansible.builtin.blockinfile:
@@ -24,6 +26,7 @@
       dtoverlay=disable-wifi
       dtoverlay=disable-bt
   notify: Reboot required
+  when: raspberry_pi | default(true)
 
 - name: attack-surface | Disable the UART hardware (takes effect at next boot)
   ansible.builtin.lineinfile:
@@ -31,6 +34,7 @@
     regexp: '^enable_uart='
     line: 'enable_uart=0'
   notify: Reboot required
+  when: raspberry_pi | default(true)
 
 - name: attack-surface | Remove the serial console from the kernel command line
   ansible.builtin.replace:
@@ -38,6 +42,7 @@
     regexp: 'console=serial0,115200 ?'
     replace: ''
   notify: Reboot required
+  when: raspberry_pi | default(true)
 
 - name: attack-surface | Mask the serial login getty
   ansible.builtin.systemd:
@@ -60,20 +65,34 @@
       blacklist {{ mod }}
       {% endfor %}
 
+- name: attack-surface | Look for the motd news settings (absent from a minimized install)
+  ansible.builtin.stat:
+    path: /etc/default/motd-news
+  register: motd_news_settings
+
 - name: attack-surface | Stop the daily motd news fetch from Canonical
   ansible.builtin.lineinfile:
     path: /etc/default/motd-news
     regexp: '^ENABLED='
     line: 'ENABLED=0'
+  when: motd_news_settings.stat.exists
+
+- name: attack-surface | Look for the Ubuntu Pro client (absent from a minimized install)
+  ansible.builtin.stat:
+    path: /usr/bin/pro
+  register: pro_client
 
 - name: attack-surface | Read the Ubuntu Pro apt news setting
   ansible.builtin.command:
     cmd: pro config show apt_news
   register: pro_apt_news
   changed_when: false
+  when: pro_client.stat.exists
 
 - name: attack-surface | Stop the apt news fetch from Canonical
   ansible.builtin.command:
     cmd: pro config set apt_news=false
-  when: pro_apt_news.stdout.split() | last != 'False'
+  when:
+    - pro_client.stat.exists
+    - pro_apt_news.stdout.split() | last != 'False'
   changed_when: true

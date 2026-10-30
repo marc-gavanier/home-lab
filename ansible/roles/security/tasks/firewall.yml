@@ -1,14 +1,14 @@
 ---
+- name: firewall | Install UFW
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+
 - name: firewall | Repair non-ASCII Ansible markers in after.rules
   ansible.builtin.replace:
     path: /etc/ufw/after.rules
     regexp: '^(# (?:BEGIN|END) ANSIBLE MANAGED) — (.*)$'
     replace: '\1 - \2'
-
-- name: firewall | Install UFW
-  ansible.builtin.apt:
-    name: ufw
-    state: present
 
 - name: firewall | Align UFW sysctl overrides with the CIS hardening (log martians)
   ansible.builtin.lineinfile:
