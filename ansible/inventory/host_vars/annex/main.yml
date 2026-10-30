@@ -10,7 +10,7 @@ unattended_automatic_reboot: true
 annex_lan_cidr: 192.168.0.0/24
 annex_subdomain: annex
 
-data_disk_device: /dev/sdb1
+data_disk_device: /dev/disk/by-id/ata-HGST_HTS541010A7E630_S0E001SSH5NZWK-part1
 annex_disk_force_format: false
 
 annex_battery_charge_limit: 80
