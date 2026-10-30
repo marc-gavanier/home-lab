@@ -12,7 +12,8 @@ argument_specs:
         required: true
         description: >-
           Label between the service and the domain (drive.<label>.<domain>).
-          Certificate names are public in the CT logs: never a place or a family name.
+          Set in the vaulted local.yml, never in the repository. Certificate names are
+          public in the CT logs, so whatever it says is published there anyway.
       annex_lan_cidr:
         type: str
         required: true
