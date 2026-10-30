@@ -6,7 +6,7 @@ argument_specs:
       data_disk_device:
         type: str
         required: true
-        description: Partition of the data disk, e.g. /dev/sdb1. Never the system SSD — the role refuses it.
+        description: Partition of the data disk by its /dev/disk/by-id path (sdX names swap between boots). Never the system SSD — the role refuses it.
       data_mount_point:
         type: path
         required: true

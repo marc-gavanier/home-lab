@@ -2,6 +2,7 @@
 - name: disk | The data disk must be a block device before it is read
   ansible.builtin.stat:
     path: "{{ data_disk_device }}"
+    follow: true
   register: data_disk_stat
   check_mode: false
 
@@ -24,14 +25,22 @@
   changed_when: false
   check_mode: false
 
+- name: disk | Read the disk the data partition belongs to
+  ansible.builtin.command: lsblk -ndo PKNAME {{ data_disk_device }}
+  register: data_disk_parent
+  changed_when: false
+  check_mode: false
+
 - name: disk | Refuse the disk the root filesystem lives on
   ansible.builtin.assert:
     that:
-      - (data_disk_device | basename | regex_replace('[0-9]+$', '')) not in
+      - data_disk_parent.stdout | trim | length > 0
+      - (data_disk_parent.stdout | trim) not in
         (root_disk_chain.stdout_lines | select('search', ' disk$') | map('split', ' ') | map('first') | list)
     fail_msg: >-
-      {{ data_disk_device }} is on the same disk as /. data_disk_device must name
-      the 1 TB data disk, not the system SSD — read `lsblk` on the host.
+      {{ data_disk_device }} is on disk '{{ data_disk_parent.stdout | trim }}', the
+      disk / lives on, or on none. data_disk_device must name the 1 TB data disk,
+      not the system SSD — read `ls -l /dev/disk/by-id/` on the host.
     quiet: true
 
 - name: disk | Read current filesystem type on the data disk
