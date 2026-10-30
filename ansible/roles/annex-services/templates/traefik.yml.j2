@@ -8,6 +8,7 @@ entryPoints:
   web:
     address: ":80"
     http:
+      aliasHeadersStrategy: delete
       redirections:
         entryPoint:
           to: websecure
@@ -18,6 +19,7 @@ entryPoints:
       respondingTimeouts:
         readTimeout: 600s
     http:
+      aliasHeadersStrategy: delete
       middlewares:
         - lan-only@file
         - secure-headers@file
@@ -25,6 +27,8 @@ entryPoints:
         certResolver: letsencrypt
   ping:
     address: ":8082"
+    http:
+      aliasHeadersStrategy: delete
 
 ping:
   entryPoint: ping
