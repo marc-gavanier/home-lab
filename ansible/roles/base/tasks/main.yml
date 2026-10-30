@@ -14,7 +14,6 @@
 
 - name: Reduce the physical/radio attack surface
   ansible.builtin.import_tasks: attack-surface.yml
-  when: raspberry_pi | default(true)
 
 - name: Mask the ext4 scrub timer that scrubs nothing on either host
   ansible.builtin.import_tasks: filesystem-checks.yml
