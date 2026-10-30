@@ -96,6 +96,11 @@ backup_sqlite_dumps:
     source: "{{ services_data_dir }}/prowlarr/prowlarr.db"
     file: prowlarr.sqlite3
 
+  - name: paperless
+    container: paperless
+    source: "{{ services_data_dir }}/paperless/data/db.sqlite3"
+    file: paperless.sqlite3
+
 immich_backup_dir: "{{ services_data_dir }}/immich/upload/backups"
 
 libresign_cert_cn: "Home Lab"

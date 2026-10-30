@@ -205,6 +205,8 @@
     - { name: Photos, path: /external/photos }
     - { name: Music, path: /external/music }
     - { name: Videos, path: /external/videos }
+    - { name: Papers, path: /external/papers }
+    - { name: Inbox, path: /inbox/papers }
   when:
     - nextcloud_up
     - item.path not in (nc_ext_list.stdout | default('[]') | from_json | map(attribute='configuration.datadir') | list)
@@ -248,7 +250,7 @@
     - ((item.options | default({})).readonly | default('0') | string) not in ['1', 'true', 'True']
   changed_when: true
 
-- name: nextcloud | Let media external storages notice out-of-band changes
+- name: nextcloud | Let external storages notice out-of-band changes
   ansible.builtin.command:
     cmd: >
       docker exec -u www-data nextcloud php occ files_external:option
@@ -259,6 +261,6 @@
   when:
     - nextcloud_up
     - item.configuration.datadir is defined
-    - item.configuration.datadir.startswith('/external/')
+    - item.configuration.datadir.startswith(('/external/', '/inbox/'))
     - ((item.options | default({})).filesystem_check_changes | default('0') | string) not in ['1', 'true', 'True']
   changed_when: true

@@ -70,6 +70,6 @@ up nextcloud-db nextcloud-redis nextcloud nextcloud-cron nextcloud-notify-push t
 wait_healthy nextcloud 240
 
 # [important]: splitting this wave bought nothing and cost up to 120 s per boot; do not re-propose it
-up immich-redis immich-db immich-machine-learning immich-server jellyfin netdata collabora calibre-web prowlarr sonarr radarr
+up immich-redis immich-db immich-machine-learning immich-server jellyfin netdata collabora calibre-web prowlarr sonarr radarr paperless-redis paperless
 
 log "staged startup complete — all waves dispatched"
