@@ -1212,7 +1212,6 @@ services:
       PAPERLESS_THREADS_PER_WORKER: "1"
       PAPERLESS_WEBSERVER_WORKERS: "1"
       PAPERLESS_CONSUMER_RECURSIVE: "true"
-      PAPERLESS_CONSUMER_SUBDIRS_AS_TAGS: "true"
       PAPERLESS_CONSUMER_IGNORE_PATTERNS: '["\\.part$$", "\\.ocTransferId", "^\\.~lock\\."]'
       PAPERLESS_FILENAME_FORMAT: "Unfiled/{{ created }} - {{ correspondent }} - {{ title }}"
     secrets:
