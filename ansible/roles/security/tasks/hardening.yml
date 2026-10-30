@@ -7,12 +7,18 @@
     opts: defaults,nodev,nosuid,noexec
     state: mounted
 
+- name: hardening | Look for Postfix (absent from a minimized install)
+  ansible.builtin.stat:
+    path: /etc/postfix/main.cf
+  register: postfix_main_cf
+
 - name: hardening | Postfix listens on loopback only (CIS 2.1.21)
   ansible.builtin.lineinfile:
     path: /etc/postfix/main.cf
     regexp: '^inet_interfaces\s*='
     line: 'inet_interfaces = loopback-only'
   notify: Restart postfix
+  when: postfix_main_cf.stat.exists
 
 - name: hardening | Postfix banner names the host and nothing else (lynis MAIL-8818)
   ansible.builtin.lineinfile:
@@ -20,6 +26,7 @@
     regexp: '^smtpd_banner\s*='
     line: 'smtpd_banner = $myhostname ESMTP'
   notify: Restart postfix
+  when: postfix_main_cf.stat.exists
 
 - name: hardening | Enable a dedicated sudo logfile (CIS 5.2.3)
   ansible.builtin.copy:
