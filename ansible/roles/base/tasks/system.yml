@@ -7,6 +7,13 @@
   community.general.timezone:
     name: "{{ timezone }}"
 
+- name: system | Install the locale generator (absent from a minimized install)
+  ansible.builtin.apt:
+    name: locales
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
 - name: system | Generate locale
   community.general.locale_gen:
     name: "{{ locale }}"
