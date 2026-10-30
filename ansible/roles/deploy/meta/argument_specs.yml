@@ -127,7 +127,9 @@ argument_specs:
         type: str
         required: true
         no_log: true
-        description: Password of the Paperless-ngx admin account, created on first start.
+        description: >-
+          Password of the Paperless-ngx admin account. Read only when the account is
+          created, on the first start: changing it later changes nothing in Paperless.
       transmission_user:
         type: str
         required: false
