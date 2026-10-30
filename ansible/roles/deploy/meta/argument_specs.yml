@@ -118,6 +118,16 @@ argument_specs:
         required: true
         no_log: true
         description: Immich Postgres password.
+      paperless_secret_key:
+        type: str
+        required: true
+        no_log: true
+        description: Django secret key of Paperless-ngx (sessions and signed tokens).
+      paperless_admin_password:
+        type: str
+        required: true
+        no_log: true
+        description: Password of the Paperless-ngx admin account, created on first start.
       transmission_user:
         type: str
         required: false

@@ -22,6 +22,21 @@
     group: "999"
     mode: "0700"
 
+- name: data_dirs | Own the Paperless-ngx tree (uid 33, shared with Nextcloud)
+  ansible.builtin.file:
+    path: "{{ services_data_dir }}/paperless/{{ item }}"
+    state: directory
+    owner: "33"
+    group: "33"
+    mode: "0700"
+  loop:
+    - ""
+    - data
+    - media
+    - media/documents
+    - media/documents/originals
+    - consume
+
 - name: data_dirs | Look for wg-easy's database
   ansible.builtin.stat:
     path: "{{ services_data_dir }}/wireguard/wg-easy.db"

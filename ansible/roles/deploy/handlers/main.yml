@@ -65,6 +65,11 @@
     cmd: docker restart miniflux-db
   changed_when: true
 
+- name: Restart paperless
+  ansible.builtin.command:
+    cmd: docker restart paperless
+  changed_when: true
+
 - name: Restart immich
   ansible.builtin.shell:
     cmd: docker restart immich-db && docker restart immich-server

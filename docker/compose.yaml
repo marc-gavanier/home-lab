@@ -18,6 +18,7 @@ x-kuma-hosts: &kuma-hosts
   - "logs.${DOMAIN}:${PI_LAN_IP}"
   - "music.${DOMAIN}:${PI_LAN_IP}"
   - "office.${DOMAIN}:${PI_LAN_IP}"
+  - "papers.${DOMAIN}:${PI_LAN_IP}"
   - "photos.${DOMAIN}:${PI_LAN_IP}"
   - "proxy.${DOMAIN}:${PI_LAN_IP}"
   - "rss.${DOMAIN}:${PI_LAN_IP}"
@@ -59,6 +60,11 @@ secrets:
 
   forgejo_secret_key:
     file: /mnt/data/secrets/docker/forgejo_secret_key
+
+  paperless_secret_key:
+    file: /mnt/data/secrets/docker/paperless_secret_key
+  paperless_admin_password:
+    file: /mnt/data/secrets/docker/paperless_admin_password
 
 networks:
   proxy:
@@ -324,6 +330,8 @@ services:
       - ${LIBRARY_DIR}/shows:/external/videos/shows:ro
       - ${MEDIA_DIR}/videos/home-videos:/external/videos/home-videos:ro
       - ${MEDIA_DIR}/videos/music-videos:/external/videos/music-videos:ro
+      - ${SERVICES_DATA_DIR}/paperless/media/documents/originals:/external/papers:ro
+      - ${SERVICES_DATA_DIR}/paperless/consume:/inbox/papers
     extra_hosts: *nextcloud-hosts
     networks:
       - proxy
@@ -1175,3 +1183,77 @@ services:
       - "traefik.http.routers.forgejo.entrypoints=websecure"
       - "traefik.http.routers.forgejo.tls.certresolver=letsencrypt"
       - "traefik.http.services.forgejo.loadbalancer.server.port=3000"
+
+  paperless:
+    image: ghcr.io/paperless-ngx/paperless-ngx:3.4.0
+    container_name: paperless
+    restart: "no"
+    security_opt: *no-new-privs
+    cap_drop: *cap-drop-all
+    read_only: true
+    user: "33:33"
+    tmpfs:
+      - /run:size=16m,uid=33,gid=33,exec
+      - /tmp:size=1g,uid=33,gid=33
+    depends_on:
+      - paperless-redis
+    environment:
+      S6_READ_ONLY_ROOT: "1"
+      PAPERLESS_REDIS: redis://paperless-redis:6379
+      PAPERLESS_DBENGINE: sqlite
+      PAPERLESS_URL: https://papers.${DOMAIN}
+      PAPERLESS_SECRET_KEY_FILE: /run/secrets/paperless_secret_key
+      PAPERLESS_ADMIN_USER: admin
+      PAPERLESS_ADMIN_PASSWORD_FILE: /run/secrets/paperless_admin_password
+      PAPERLESS_TIME_ZONE: ${TZ}
+      PAPERLESS_OCR_LANGUAGE: fra
+      PAPERLESS_TASK_WORKERS: "1"
+      PAPERLESS_THREADS_PER_WORKER: "1"
+      PAPERLESS_WEBSERVER_WORKERS: "1"
+      PAPERLESS_CONSUMER_RECURSIVE: "true"
+      PAPERLESS_CONSUMER_SUBDIRS_AS_TAGS: "true"
+      PAPERLESS_CONSUMER_IGNORE_PATTERNS: '["\\.part$$", "\\.ocTransferId", "^\\.~lock\\."]'
+      PAPERLESS_FILENAME_FORMAT: "Unfiled/{{ created }} - {{ correspondent }} - {{ title }}"
+    secrets:
+      - paperless_secret_key
+      - paperless_admin_password
+    volumes:
+      - ${SERVICES_DATA_DIR}/paperless/data:/usr/src/paperless/data
+      - ${SERVICES_DATA_DIR}/paperless/media:/usr/src/paperless/media
+      - ${SERVICES_DATA_DIR}/paperless/consume:/usr/src/paperless/consume
+    networks:
+      - proxy
+      - internal
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "--max-time", "5", "http://127.0.0.1:8000"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 900s
+      start_interval: 15s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.paperless.rule=Host(`papers.${DOMAIN}`)"
+      - "traefik.http.routers.paperless.entrypoints=websecure"
+      - "traefik.http.routers.paperless.tls.certresolver=letsencrypt"
+      - "traefik.http.services.paperless.loadbalancer.server.port=8000"
+
+  paperless-redis:
+    image: redis:8.10.2-alpine
+    container_name: paperless-redis
+    restart: "no"
+    security_opt: *no-new-privs
+    cap_drop: *cap-drop-all
+    read_only: true
+    tmpfs:
+      - /tmp:size=8m
+      - /data:size=16m,uid=999,gid=999
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    user: "999:999"
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
