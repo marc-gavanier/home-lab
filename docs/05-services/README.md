@@ -27,6 +27,7 @@ as a Docker container from one Docker Compose file. Persistent data lives on the
 | [Calibre-Web](calibre-web.md)   | Ebook library, OPDS               | Secondary      |
 | [Miniflux](miniflux.md)         | RSS reader, release tracking      | Productivity   |
 | [Forgejo](forgejo.md)           | Self-hosted git, GitHub mirror    | Secondary      |
+| [Paperless](paperless.md)       | Papers: OCR, filing, search       | Productivity   |
 | [Prowlarr](arr-stack.md)        | Indexer manager for the two below | Secondary      |
 | [Sonarr](arr-stack.md)          | Series: search and import         | Secondary      |
 | [Radarr](arr-stack.md)          | Films: search and import          | Secondary      |
@@ -67,10 +68,13 @@ on the host rather than trust the sum.
 | Prowlarr                | 85 MB       |
 | Sonarr                  | 143 MB      |
 | Radarr                  | 87 MB       |
-| **Total**               | **~4.8 GB** |
+| Paperless + Redis       | 690 MB      |
+| **Total**               | **~5.5 GB** |
 
 - Collabora grows with the number of open documents (ADR-021). Dozzle holds no logs, it streams
   them. IT-Tools is static nginx (ADR-024). Miniflux's Go binary is 14 MB of its 77.
+- Paperless is cgroup `anon` plus `memory.swap.current` at idle, before any import; OCR adds to
+  it while a document is processed (ADR-042).
 - The three `arr` figures are cgroup `anon` plus `memory.swap.current`. Their reclaimable page
   cache (82-96 MB each) is not counted, and `docker stats` would understate them (resident
   pages only).

@@ -14,7 +14,7 @@ Home lab on Raspberry Pi 4 with a 5TB LUKS HDD holding all service data. The **3
 ## Current Implementation
 
 - `resticprofile` (ADR-031, `ansible/roles/deploy/templates/resticprofile.yaml.j2`) — nightly Restic runs, encrypted and deduplicated
-- Consistent app backups, taken online — no service is stopped: ten databases, the SQLite ones via `.backup` (Vaultwarden, Forgejo, Uptime Kuma, wg-easy, Sonarr, Radarr, Prowlarr), Nextcloud via `mariadb-dump --single-transaction`, Miniflux via `pg_dump`, Immich via its built-in dump
+- Consistent app backups, taken online — no service is stopped: eleven databases, the SQLite ones via `.backup` (Vaultwarden, Forgejo, Uptime Kuma, wg-easy, Sonarr, Radarr, Prowlarr, Paperless), Nextcloud via `mariadb-dump --single-transaction`, Miniflux via `pg_dump`, Immich via its built-in dump
 - LUKS header backed up (runbook `luks-header-backup.md`)
 - Prune and check are **split** from the backup run (separate schedules)
 - Offsite sync monitored via `backup-notify.sh` + Uptime Kuma push monitors

@@ -141,7 +141,7 @@ of the image.
 ## Consequences
 
 **Positive**
-- Sixteen of the thirty-two services hold no capabilities at all; the rest hold
+- Eighteen of the thirty-four services hold no capabilities at all; the rest hold
   between one and nine instead of fourteen (twelve of twenty-one when this was
   decided). `NET_RAW` (packet spoofing/sniffing), `MKNOD`,
   `SYS_CHROOT`, `SETPCAP` and `AUDIT_WRITE` are gone wherever unused.
@@ -182,8 +182,9 @@ sandbox-first rule applies to every service on the critical path.
   (jellyfin, navidrome). It does not generalise, for the reason given above.
   Running the container **as** the service uid is what generalises, and it is
   now applied to the four services of #28 (`nextcloud-cron` was reverted, see
-  above), and to five services added later (dozzle, it-tools, miniflux,
-  miniflux-db, forgejo) — nine `user:` lines in `compose.yaml` today. The two are
+  above), to the socket proxy, and to seven services added later (dozzle,
+  it-tools, miniflux, miniflux-db, forgejo, paperless, paperless-redis) —
+  twelve `user:` lines in `compose.yaml` today. The two are
   complements, not competitors: both end in the storage role owning the tree
   correctly, which is the part a fresh provision depends on.
 - **A custom seccomp or AppArmor profile per service** — finer-grained than

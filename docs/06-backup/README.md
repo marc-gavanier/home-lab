@@ -31,7 +31,7 @@ Mirrors the profile's `source` list: keep both in sync. All daily.
 | Secrets (ADR-011)      | `/mnt/data/secrets` (`.env`, `backup.env`, `wg0.conf`…; `/opt/homelab` holds symlinks)    | Restic            |
 | Nextcloud DB           | MariaDB dump (`--single-transaction`) → `/mnt/data/backups/dumps`                         | dump → Restic     |
 | Miniflux DB            | `pg_dump` via `docker exec` (plain SQL) → `/mnt/data/backups/dumps`                       | dump → Restic     |
-| SQLite DBs             | Vaultwarden, Forgejo, Uptime Kuma, wg-easy, Sonarr, Radarr, Prowlarr: `sqlite3 .backup` (WAL-safe) → `/mnt/data/backups/dumps` | dump → Restic     |
+| SQLite DBs             | Vaultwarden, Forgejo, Uptime Kuma, wg-easy, Sonarr, Radarr, Prowlarr, Paperless: `sqlite3 .backup` (WAL-safe) → `/mnt/data/backups/dumps` | dump → Restic     |
 | Immich DB              | Immich's own scheduled backup → `services/immich/upload/backups/*.sql.gz`                 | built-in → Restic |
 
 The workstation's PC game saves reach this chain as Nextcloud files: Ludusavi writes

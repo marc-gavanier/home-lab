@@ -82,7 +82,7 @@ future sweeps.
   retry, so an earlier wave would work and simply say so in the journal on every
   boot.
 - Three split-DNS names are added, keeping the count reconciled at 21 records
-  against 21 `Host()` rules.
+  against 21 `Host()` rules (22 against 22 since ADR-042 added `papers`).
 - The crash-heal timer needs no change: it derives its container set from the
   compose project label rather than from a list.
 - Nothing is exposed publicly. All three sit behind the `vpn-only` middleware

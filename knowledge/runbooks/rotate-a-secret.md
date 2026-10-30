@@ -12,6 +12,7 @@ old credential in force.
 | `transmission_password`        | transmission                 | **yes**, then update the copies in Kuma, Sonarr and Radarr; see [below](#transmission_password)            |
 | `dozzle_users.yml`             | dozzle                       | **yes** (read at start)                                                                                    |
 | `forgejo_secret_key`           | forgejo                      | **yes**, but see [below](#forgejo_secret_key)                                                              |
+| `paperless_secret_key`         | paperless                    | **yes** (read at start); every session ends and every in-flight broker message is refused                  |
 | `miniflux_database_url`        | miniflux                     | **yes**, but alone it breaks the app; see [Rotating a database password](#rotating-a-database-password)    |
 | `pihole_password`              | pihole                       | **yes**                                                                                                    |
 | `nextcloud_redis_password`     | nextcloud-redis + nextcloud  | **yes** (password file, `redis.conf`, config all notify)                                                   |
@@ -30,6 +31,7 @@ old credential in force.
 | `miniflux_db_password`         | miniflux-db                  | **no**, `initdb` only                                                                                      |
 | `miniflux_admin_password`      | miniflux                     | **no**, `CREATE_ADMIN` runs once                                                                           |
 | `forgejo_admin_password`       | forgejo CLI                  | **no**, first deploy only                                                                                  |
+| `paperless_admin_password`     | paperless                    | **no**, read only when the account is created; change it in the UI, then in the vault                      |
 
 ### `cf_dns_api_token`
 

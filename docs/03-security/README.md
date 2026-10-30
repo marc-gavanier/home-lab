@@ -75,7 +75,7 @@ hold. This page lists the controls per layer and where each one is decided.
   manual cadence. Docker's own repository is excluded: its updates land with a
   `base` run, and `Pi pending action` reports one as soon as it is available. See
   [ADR-013](../../knowledge/decisions/ADR-013-update-patching-strategy.md).
-- **Non-root where the image allows it**: 11 of 32 containers run as a service
+- **Non-root where the image allows it**: 13 of 34 containers run as a service
   uid. The other 21 start as root; section 3 says why.
 - **Audit**: lynis **on the homelab only** (installed where `lynis_scheduled`
   is set, purged elsewhere; its timer and monitor live in the observability
@@ -101,7 +101,7 @@ hold. This page lists the controls per layer and where each one is decided.
   inspect, logs, stats, events, `info`, image list), only from their network, which
   is internal (ADR-037). Netdata uses it for container names, Dozzle for logs.
 - **No `privileged`; `cap_drop: ALL` on every service**, each re-adding only
-  what it was observed to need. Sixteen of 32 keep no capability. Needs are
+  what it was observed to need. Eighteen of 34 keep no capability. Needs are
   rarely guessable, for example:
   - Pi-hole: `SETFCAP` (its image `setcap`s FTL).
   - wg-easy: `NET_RAW` (`wg-quick` calls `iptables`).
@@ -116,8 +116,8 @@ hold. This page lists the controls per layer and where each one is decided.
   config, Nextcloud's push service). Two ways removed it elsewhere:
   - root-owned trees where the container is root throughout (Jellyfin,
     Navidrome);
-  - starting as the service uid, `user: "999:999"`, on both databases and both
-    redis caches. This drops `CHOWN`, `SETUID`, `SETGID`, `FOWNER` too. Their
+  - starting as the service uid, `user: "999:999"`, on both databases and the
+    three redis caches. This drops `CHOWN`, `SETUID`, `SETGID`, `FOWNER` too. Their
     data directories must arrive owned by 999, so the storage role owns them and
     the restore runbook re-applies it ("Ownership after a restore").
 
@@ -199,7 +199,7 @@ hold. This page lists the controls per layer and where each one is decided.
 
 - Encrypted backups (Restic).
 - Sensitive data encrypted at rest.
-- Secret rotation: a deploy rotates only some secrets. Eleven need a written
+- Secret rotation: a deploy rotates only some secrets. Twelve need a written
   procedure, three of them (both restic passwords, the LUKS passphrase)
   destructive if changed in the vault alone:
   `knowledge/runbooks/rotate-a-secret.md`. The daily posture check asserts each

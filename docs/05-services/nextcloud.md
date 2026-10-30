@@ -36,11 +36,16 @@ The deploy (`roles/deploy`) re-applies on every run:
 
 ### Media browsing (read-only External Storage, ADR-003)
 
-| Mount point | Source on disk           | Container path     |
-|-------------|--------------------------|--------------------|
-| `/Photos`   | `/mnt/data/media/photos` | `/external/photos` |
-| `/Music`    | `/mnt/data/media/music`  | `/external/music`  |
-| `/Videos`   | four sources             | `/external/videos` |
+| Mount point | Source on disk                                              | Container path     |
+|-------------|-------------------------------------------------------------|--------------------|
+| `/Photos`   | `/mnt/data/media/photos`                                    | `/external/photos` |
+| `/Music`    | `/mnt/data/media/music`                                     | `/external/music`  |
+| `/Videos`   | four sources                                                | `/external/videos` |
+| `/Papers`   | `/mnt/data/services/paperless/media/documents/originals`    | `/external/papers` |
+| `/Inbox`    | `/mnt/data/services/paperless/consume` (**writable**)       | `/inbox/papers`    |
+
+- `/Papers` is the tree Paperless writes; `/Inbox` is its consumption folder, the one writable
+  External Storage, outside `/external/` so the read-only enforcement does not reach it (ADR-042).
 
 - `/Videos` = `library/movies`, `library/shows` (importer) + `media/videos/home-videos`,
   `media/videos/music-videos` (operator), ADR-035.
