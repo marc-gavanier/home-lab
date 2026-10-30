@@ -113,6 +113,10 @@ dozzle_admin_name: "Admin"
 
 nextcloud_lock_timeout_minutes: 60
 
+nextcloud_rescanned_mounts:
+  - Papers
+  - Inbox
+
 miniflux_admin_user: "admin"
 
 netdata_alarm_groups:
@@ -294,6 +298,8 @@ homelab_control_timers:
       reclaim (re-verified 2026-09-13: `command -v docker` is empty there and
       no docker.service unit file exists, against a systemctl control that
       answers)
+  - timer: homelab-nextcloud-scan
+    exempt: "it rescans Nextcloud mounts, and Nextcloud does not run on the offsite"
   - timer: homelab-notify-push
     exempt: "it watches a Nextcloud service that does not run on the offsite"
   - timer: homelab-feed-digest

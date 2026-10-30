@@ -76,7 +76,8 @@ period.** A green monitor says the job ran, not what it did.
 |----------------------------------------------------|-------------------------------------------------|-------------------------------------|
 | A Kuma push monitor whose message carries readings | most jobs                                       | per-monitor row budget              |
 | The journal alone                                  | `homelab-stack-heal`, `offsite-wg-reresolve`,   | ~5 weeks; deploy days shorten it    |
-|                                                    | `homelab-image-retention` (monthly)             |                                     |
+|                                                    | `homelab-image-retention` (monthly),            |                                     |
+|                                                    | `homelab-nextcloud-scan` (every 10 min)         |                                     |
 
 Enumerate the timers, not the monitors — a job with no channel never shows up in a list of
 channels:

@@ -1,0 +1,42 @@
+---
+- name: nextcloud_scan | Create the mount rescan service
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/homelab-nextcloud-scan.service
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Rescan the Nextcloud mounts another service writes to
+      Requisite=docker.service
+      After=docker.service
+
+      [Service]
+      Type=oneshot
+      ExecCondition=/bin/sh -c 'docker inspect -f {{ '{{' }}.State.Running{{ '}}' }} nextcloud 2>/dev/null | grep -qx true'
+      {{ nextcloud_scan_exec }}
+  vars:
+    nextcloud_scan_exec: |-
+      {% for mount in nextcloud_rescanned_mounts %}
+      ExecStart=/usr/bin/docker exec -u www-data nextcloud php occ files:scan --quiet --path=admin/files/{{ mount }}
+      {% endfor %}
+
+- name: nextcloud_scan | Create the mount rescan timer
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/homelab-nextcloud-scan.timer
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Rescan the Nextcloud mounts another service writes to, every 10 minutes
+
+      [Timer]
+      OnCalendar=*:0/10
+      RandomizedDelaySec=60
+
+      [Install]
+      WantedBy=timers.target
+
+- name: nextcloud_scan | Enable the mount rescan timer
+  ansible.builtin.systemd:
+    name: homelab-nextcloud-scan.timer
+    enabled: true
+    state: started
+    daemon_reload: true

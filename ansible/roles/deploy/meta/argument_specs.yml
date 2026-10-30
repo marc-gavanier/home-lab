@@ -97,6 +97,15 @@ argument_specs:
         required: true
         no_log: true
         description: Nextcloud Redis password (session and file-lock store).
+      nextcloud_rescanned_mounts:
+        type: list
+        elements: str
+        required: true
+        description: >-
+          Nextcloud External Storage mount points another service writes to, rescanned every
+          10 minutes by homelab-nextcloud-scan. filesystem_check_changes only revalidates a
+          folder someone opens, and a desktop sync client never opens the subfolders, so a file
+          Paperless files or consumes would otherwise never reach the workstation.
       nextcloud_lock_timeout_minutes:
         type: int
         required: false

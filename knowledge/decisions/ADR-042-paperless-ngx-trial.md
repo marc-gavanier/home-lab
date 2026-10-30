@@ -65,6 +65,10 @@ imported, and the consumer picks up whatever it finds at start.
 - Two more containers in wave 3; one more Kuma monitor, on `/accounts/login/` because `/`
   answers 302. It proves the web process only: a stuck worker leaves it green.
 - `paperless/consume` is a declared shared credential store (Paperless and Nextcloud).
+- One more timer, `homelab-nextcloud-scan`, every 10 minutes. Nextcloud revalidates an
+  External Storage folder only when someone opens it, and a desktop sync client never opens
+  the subfolders: measured on the pilot import, `/Papers` stayed empty and `/Inbox` kept its 30
+  files on the workstation until `occ files:scan` ran, then both caught up within seconds.
 - `paperless_admin_password` is read only when the account is created; rotating it means the UI,
   then the vault.
 
