@@ -65,7 +65,9 @@
     fstype: ext4
     dev: "{{ disk.device }}"
     force: "{{ disk.force | bool }}"
-  when: disk.force | bool
+  when:
+    - disk.force | bool
+    - disk_fstype.stdout != 'ext4'
 
 - name: disk | Read the filesystem UUID ({{ disk.name }})
   ansible.builtin.command: blkid -o value -s UUID {{ disk.device }}
