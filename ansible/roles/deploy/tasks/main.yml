@@ -57,6 +57,10 @@
 - name: Post-configure Nextcloud (occ, apps, external storage)
   ansible.builtin.import_tasks: nextcloud.yml
 
+- name: Rescan the Nextcloud mounts Paperless writes to (ADR-042)
+  ansible.builtin.import_tasks: nextcloud_scan.yml
+  tags: [nextcloud-scan]
+
 - name: Wire Nextcloud to the Collabora document server (ADR-021)
   ansible.builtin.import_tasks: collabora.yml
 

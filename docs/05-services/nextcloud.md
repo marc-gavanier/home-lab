@@ -50,7 +50,10 @@ The deploy (`roles/deploy`) re-applies on every run:
 - `/Videos` = `library/movies`, `library/shows` (importer) + `media/videos/home-videos`,
   `media/videos/music-videos` (operator), ADR-035.
 - `filesystem_check_changes: 1`: a folder is revalidated when opened. Unopened
-  folders need a scan.
+  folders need a scan. A desktop sync client never opens subfolders, so `/Papers` and
+  `/Inbox`, which Paperless writes to, are rescanned every 10 minutes by
+  `homelab-nextcloud-scan` (`nextcloud_rescanned_mounts`); a failed run shows as a failed
+  unit in `Pi health`.
 - `/mnt/data/media` is backed up; `/mnt/data/library` (films, series) is not.
 
 ## Common tasks

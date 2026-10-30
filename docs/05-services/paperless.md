@@ -12,7 +12,7 @@ papers tree; Nextcloud and the workstation read it. Under evaluation
 | Containers | `paperless` (uid 33, SQLite), `paperless-redis` (uid 999, task queue) |
 | Login      | `admin`, created on first start from `paperless_admin_password`       |
 | Ingest     | Nextcloud `/Inbox`, the web UI, or the mobile app                     |
-| Read       | Nextcloud `/Papers`, read-only, synced like any folder                |
+| Read       | Nextcloud `/Papers`, read-only, synced within 10 minutes              |
 | Data       | `/mnt/data/services/paperless/{data,media,consume,scratch,redis}`     |
 | Backup     | restic (`/mnt/data/services`) + SQLite dump; `scratch` excluded       |
 | Monitoring | Kuma HTTP monitor on `/accounts/login/`                               |
@@ -43,6 +43,9 @@ papers tree; Nextcloud and the workstation read it. Under evaluation
 - A folder dropped into `/Inbox` is read recursively. Workflows match on the path a file was
   dropped under (`*/Marc/Banque/CIC/*`) and assign its storage path, correspondent and type;
   folder names do not become tags.
+- A file name starting with a date (`2024-08-01 - FMA - …`) gives the document its date
+  (`PAPERLESS_FILENAME_DATE_ORDER=YMD`); otherwise Paperless takes the first date in the text,
+  which can be a birth date.
 - Ignored in the inbox: Nextcloud partial uploads (`.part`, `.ocTransferId`) and LibreOffice
   locks, on top of the upstream defaults. The patterns are regular expressions, not globs.
 - Sized for the Pi: SQLite, one task worker, one thread, one web worker, no Tika/Gotenberg
