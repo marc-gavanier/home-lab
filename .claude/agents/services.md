@@ -17,7 +17,7 @@ Home lab on Raspberry Pi 4 (8GB RAM, arm64). All containers come from a single `
 - **Nextcloud**: nextcloud + nextcloud-db (MariaDB) + nextcloud-redis + nextcloud-cron + nextcloud-notify-push + collabora
 - **Immich**: immich-server + immich-ml + immich-redis + immich-db (VectorChord)
 - **Media**: jellyfin, navidrome, calibre-web, transmission, prowlarr, sonarr, radarr
-- **Apps**: vaultwarden, searxng, miniflux + miniflux-db, forgejo, it-tools
+- **Apps**: vaultwarden, searxng, miniflux + miniflux-db, forgejo, it-tools, paperless + paperless-redis
 - **Monitoring**: uptime-kuma, netdata, dozzle
 
 ## Hard-won Lessons — respect these

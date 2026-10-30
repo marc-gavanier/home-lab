@@ -94,6 +94,7 @@ dump is the consistent copy):
 | `services/nextcloud`   | `data/` (web root + user files), no `db` | [Restore a database](#restore-a-database)                     |
 | `services/immich`      | `upload/`, `ml-cache`, no `db`           | [Restore Immich](#restore-immich-postgresql--vectorchord--pgvectors) |
 | `services/uptime-kuma` | the directory, no `kuma.db`              | [Restore Uptime Kuma](#restore-uptime-kuma-sqlite)            |
+| `services/paperless`   | originals, archive, no `db.sqlite3`      | [Restore Paperless](#restore-paperless-sqlite)                |
 | `services/pihole`      | config, gravity, lists, no query history | nothing: it rebuilds                                          |
 | `services/netdata`     | config, no `cache/`                      | nothing: it regenerates                                       |
 
@@ -109,21 +110,29 @@ had in the snapshot, not what the current configuration expects.
 These containers run as uid 999 with no `CHOWN` capability (ADR-017), so they
 cannot fix their own data directory:
 
-| Service           | Data directory                      |
-|-------------------|-------------------------------------|
-| `nextcloud-db`    | `/mnt/data/services/nextcloud/db`   |
-| `immich-db`       | `/mnt/data/services/immich/db`      |
-| `miniflux-db`     | `/mnt/data/services/miniflux/db`    |
-| `nextcloud-redis` | none (no bind mount)                |
-| `immich-redis`    | `/mnt/data/services/immich/redis`   |
+| Service           | Data directory                       |
+|-------------------|--------------------------------------|
+| `nextcloud-db`    | `/mnt/data/services/nextcloud/db`    |
+| `immich-db`       | `/mnt/data/services/immich/db`       |
+| `miniflux-db`     | `/mnt/data/services/miniflux/db`     |
+| `nextcloud-redis` | none (no bind mount)                 |
+| `immich-redis`    | `/mnt/data/services/immich/redis`    |
+| `paperless-redis` | `/mnt/data/services/paperless/redis` |
+
+`paperless` runs as uid 33 (`www-data`, the uid Nextcloud writes its `Inbox` with), also
+without `CHOWN`: `data`, `media`, `consume` and `scratch` under `/mnt/data/services/paperless`
+must be owned `33:33`, mode 0700.
 
 A directory recreated by hand (`mkdir`, `cp -r`, `rsync` without `-a`) ends up owned
 by root: Postgres then refuses to start ("data directory has wrong ownership") and
 MariaDB fails on its first write. Fix it by hand:
 
 ```bash
-chown -R 999:999 /mnt/data/services/nextcloud/db /mnt/data/services/immich/db /mnt/data/services/miniflux/db /mnt/data/services/immich/redis
-chmod 700        /mnt/data/services/nextcloud/db /mnt/data/services/immich/db /mnt/data/services/miniflux/db /mnt/data/services/immich/redis
+chown -R 999:999 /mnt/data/services/nextcloud/db /mnt/data/services/immich/db /mnt/data/services/miniflux/db /mnt/data/services/immich/redis /mnt/data/services/paperless/redis
+chmod 700        /mnt/data/services/nextcloud/db /mnt/data/services/immich/db /mnt/data/services/miniflux/db /mnt/data/services/immich/redis /mnt/data/services/paperless/redis
+P=/mnt/data/services/paperless
+chown -R 33:33 $P/data $P/media $P/consume $P/scratch
+chmod 700      $P $P/data $P/media $P/consume $P/scratch
 ```
 
 Or let Ansible do it, from `ansible/`:
@@ -132,8 +141,8 @@ Or let Ansible do it, from `ansible/`:
 ansible-playbook playbooks/site.yml --tags storage --ask-vault-pass
 ```
 
-`--tags storage` owns the three database directories; for `immich/redis`, the `chown`
-above is enough.
+`--tags storage` owns the three database directories; for `immich/redis` and the
+Paperless tree, the `chown` above is enough.
 
 `nextcloud-cron` runs as root; it needs nothing.
 
@@ -143,7 +152,7 @@ The dumps live in `/mnt/data/backups/dumps/`. They are deleted from disk after e
 successful run (a failed run leaves them, and then they are the newest copy), so
 normally you restore them from a snapshot first.
 
-Ten databases are dumped. Nextcloud is restored here; every other one needs more than
+Eleven databases are dumped. Nextcloud is restored here; every other one needs more than
 an import and has its own section:
 
 | Database                           | Section                                                                          |
@@ -152,6 +161,7 @@ an import and has its own section:
 | Immich (PostgreSQL)                | [Restore Immich](#restore-immich-postgresql--vectorchord--pgvectors)             |
 | Miniflux (PostgreSQL)              | [Restore Miniflux](#restore-miniflux-postgresql)                                 |
 | Forgejo (SQLite)                   | [Restore Forgejo](#restore-forgejo-sqlite)                                       |
+| Paperless (SQLite)                 | [Restore Paperless](#restore-paperless-sqlite)                                   |
 | Uptime Kuma (SQLite)               | [Restore Uptime Kuma](#restore-uptime-kuma-sqlite)                               |
 | wg-easy (SQLite)                   | [Restore wg-easy](#restore-wg-easy-sqlite)                                       |
 | Sonarr / Radarr / Prowlarr (SQLite) | [Restore Sonarr / Radarr / Prowlarr](#restore-sonarr--radarr--prowlarr-sqlite) |
@@ -457,6 +467,60 @@ lists repositories it cannot serve, or the reverse.
 Check it worked: log in at `https://git.<domain>`, then Repository → Settings →
 Mirror Settings → *Synchronize Now*. Only git objects come back: the mirror is
 tokenless (ADR-028), so issues and pull requests were never mirrored.
+
+## Restore Paperless (SQLite)
+
+Restore both halves: the database (`paperless.sqlite3` dump: documents, correspondents,
+tags, storage paths, workflows, users) and the files under `services/paperless/media`
+(originals, archived PDFs, thumbnails). The database names every file by its path; one
+without the other gives documents that list but do not open, or files no document owns.
+
+1. Get the dumps and the service directory:
+
+   ```bash
+   sudo rm -rf /mnt/data/tmp/restore
+   restic restore latest --target /mnt/data/tmp/restore \
+     --include /mnt/data/backups/dumps \
+     --include /mnt/data/services/paperless
+   ```
+
+2. Stop the service:
+
+   ```bash
+   cd /opt/homelab
+   docker compose down paperless
+   ```
+
+3. Restore the files. `consume` (the `Inbox` waiting to be imported) and `redis` (the
+   queue) are left as they are: they hold work not yet in any snapshot.
+
+   ```bash
+   P=/mnt/data/services/paperless
+   R=/mnt/data/tmp/restore$P
+   rsync -a --delete $R/media/ $P/media/
+   rsync -a --delete --exclude 'db.sqlite3*' $R/data/ $P/data/
+   ```
+
+4. Restore the database:
+
+   ```bash
+   rm -f $P/data/db.sqlite3-wal $P/data/db.sqlite3-shm
+   cp /mnt/data/tmp/restore/mnt/data/backups/dumps/paperless.sqlite3 $P/data/db.sqlite3
+   ```
+
+5. Fix ownership and start:
+
+   ```bash
+   chown -R 33:33 $P/data $P/media
+   docker compose up -d paperless
+   ```
+
+Check it worked: log in at `https://papers.<domain>` and open a recent document.
+
+The Nextcloud `Papers` folder shows the restored tree, so every workstation syncing it
+deletes the files filed after the snapshot and brings back the ones removed since. Those
+documents are not lost if they were dropped through `Inbox` from a workstation: drop them
+again.
 
 ## Restore Uptime Kuma (SQLite)
 

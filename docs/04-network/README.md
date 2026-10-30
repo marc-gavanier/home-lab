@@ -54,6 +54,7 @@ Read `docker/configs/traefik/dynamic/middlewares.yml` before tightening any of t
 | `books.example.com`    | Calibre-Web  |
 | `rss.example.com`      | Miniflux     |
 | `git.example.com`      | Forgejo      |
+| `papers.example.com`   | Paperless    |
 | `dns.example.com`      | Pi-hole      |
 | `services.example.com` | Uptime Kuma  |
 | `system.example.com`   | Netdata      |

@@ -322,6 +322,9 @@ Limits of the pattern:
   and TLS expiry (ADR-021).
 - **Calibre-Web**: its own healthcheck can report `healthy` with a broken library. The compose
   healthcheck probes `/login`, and the monitor covers reachability only (ADR-025).
+- **Paperless**: the login page is served by the web process alone. A stuck consumer or task
+  worker leaves both the healthcheck and the monitor green; a file sitting in `Inbox` for more
+  than a few minutes is the sign (ADR-042).
 - **Nextcloud**: `/status.php` returns 200 with `"maintenance":true` or `"needsDbUpgrade":true`, so
   the monitor is a keyword check.
 
@@ -347,10 +350,10 @@ Kuma matches the string literally; the two fields are adjacent in the live paylo
 
 **Certificates.**
 
-- Kuma TLS-expiry notification is on for 15 of the 18 active HTTPS monitors (off for Prowlarr,
-  Sonarr, Radarr); three hostnames have no HTTPS monitor. So Kuma sees 15 of 21 certificates.
-- `homelab-health.sh` parses `acme.json` directly and watches all **21**. The push carries e.g.
-  `certs 31d/21` (soonest expiry, count).
+- Kuma TLS-expiry notification is on for 16 of the 19 active HTTPS monitors (off for Prowlarr,
+  Sonarr, Radarr); three hostnames have no HTTPS monitor. So Kuma sees 16 of 22 certificates.
+- `homelab-health.sh` parses `acme.json` directly and watches all **22**. The push carries e.g.
+  `certs 31d/22` (soonest expiry, count).
 - It alarms under **21 days**: Traefik renews at 30, so the alarm means renewal has failed for over
   a week. Traefik's WARN log level hides renewal lines, so the log cannot be used.
 - An absent `acme.json` alarms on a mounted volume (while `/mnt/data` is locked the disk report
@@ -500,10 +503,10 @@ Discord webhook on every monitor. Known limitations, accepted (issue #13):
 - **Nothing watches the watcher.** Kuma runs on the Pi; a total outage produces silence.
 - **Single channel.** A broken or muted webhook means no alerts.
 - **Notification storm.** Monitors are not chained (`parent` is null), so a Traefik or network
-  outage trips nearly every monitor (34 of 37 sit behind Traefik), and each re-notifies about every
+  outage trips nearly every monitor (35 of 38 sit behind Traefik), and each re-notifies about every
   6 h (`resend_interval`) for the length of the incident. A Pi reboot is different: Kuma goes down
-  with the Pi and sees none of it. After the unlock, expect Immich, Calibre-Web and Collabora to go
-  red then green once, because Kuma gives up after 3 × 60 s and their own `start_period` is 15 to
+  with the Pi and sees none of it. After the unlock, expect Immich, Calibre-Web, Collabora and
+  Paperless to go red then green once, because Kuma gives up after 3 × 60 s and their own `start_period` is 15 to
   22 min.
 
 ## Log retention

@@ -16,7 +16,7 @@ hand in the UI: Kuma is v2, and the Ansible tooling targets v1 only.
 
 ## DNS
 
-- The 21 service names are pinned to the Pi's LAN IP in `extra_hosts` (`x-kuma-hosts` in compose).
+- The 22 service names are pinned to the Pi's LAN IP in `extra_hosts` (`x-kuma-hosts` in compose).
   Without the pin a lookup that reaches 1.1.1.1 fails: only `vpn` has a public record.
 - The container's resolvers (`dns: [${PI_LAN_IP}, 1.1.1.1]`) only serve names outside that list.
 - `Pi-hole DNS + split-DNS` queries Pi-hole explicitly, so it does not depend on either.
@@ -40,6 +40,7 @@ hand in the UI: Kuma is v2, and the Ansible tooling targets v1 only.
 | Miniflux                  | HTTP(s)  | `https://rss.example.com/healthcheck`                                                         |
 | Collabora                 | HTTP(s)  | `https://office.example.com/hosting/capabilities`                                             |
 | Forgejo                   | HTTP(s)  | `https://git.example.com/api/healthz`                                                         |
+| Paperless                 | HTTP(s)  | `https://papers.example.com/accounts/login/`                                                  |
 | Netdata                   | HTTP(s)  | `https://system.example.com/api/v1/info`                                                      |
 | Transmission              | Keyword  | `https://share.example.com/transmission/web/`                                                 |
 | WireGuard                 | HTTP(s)  | `https://vpn.example.com`                                                                     |
@@ -76,7 +77,7 @@ arrive.
 | Veille quotidienne     | 28h (100 800 s) — one daily run plus slack                                                |
 | Pi health              | 600s, retries **0**                                                                       |
 | DDNS                   | 1080s (900s period + 180s grace), retries **0**                                           |
-| TLS expiry notification | On for 15 of the 18 active HTTPS monitors; off for Prowlarr, Sonarr, Radarr (one click each in the UI). `homelab-health.sh` covers all 21 certificates from `acme.json` anyway |
+| TLS expiry notification | On for 16 of the 19 active HTTPS monitors; off for Prowlarr, Sonarr, Radarr (one click each in the UI). `homelab-health.sh` covers all 22 certificates from `acme.json` anyway |
 
 **Push monitors keep retries at 0.** On a push monitor a retry does not add patience: Kuma raises
 its own `"No heartbeat in the time window"` beat, and that generic text replaces the message the
@@ -128,6 +129,8 @@ resend 360.
 - **Collabora** on `/hosting/capabilities` stays green while no document opens. Editing is proven
   by the conversion every deploy runs and by the image healthcheck flipping the container
   `unhealthy` (ADR-021).
+- **Paperless** on `/accounts/login/` because `/` answers 302. It proves the web process only: a
+  stuck consumer or task worker stays green behind it (ADR-042).
 - **Miniflux** `/healthcheck` pings the database (503 with Postgres down), so one monitor covers
   both (ADR-026).
 - **Transmission** is the only monitor that authenticates: a Keyword check for
@@ -135,7 +138,7 @@ resend 360.
   authenticated the RPC answers 409 to anything, so only that page proves the daemon works. Its
   password lives in `kuma.db` with the push tokens.
 - **Pi-hole DNS + split-DNS** queries an internal name and checks the answer is the LAN IP. It
-  catches both Pi-hole silent and Pi-hole answering wrong — the case where all 21 `Host()` names
+  catches both Pi-hole silent and Pi-hole answering wrong — the case where all 22 `Host()` names
   go NXDOMAIN while every other dashboard stays green.
 
 ## How it works: the push fuse after a restart
