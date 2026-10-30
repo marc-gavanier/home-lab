@@ -1,14 +1,18 @@
 ---
 - name: directories | Create the deploy directory
   ansible.builtin.file:
-    path: "{{ item }}"
+    path: "{{ item.path }}"
     state: directory
     owner: "{{ ansible_user }}"
     group: docker
-    mode: "0750"
+    mode: "{{ item.mode }}"
   loop:
-    - /opt/annex
-    - /opt/annex/configs/traefik/dynamic
+    - { path: /opt/annex, mode: "0750" }
+    - { path: /opt/annex/configs, mode: "0755" }
+    - { path: /opt/annex/configs/traefik, mode: "0755" }
+    - { path: /opt/annex/configs/traefik/dynamic, mode: "0755" }
+  loop_control:
+    label: "{{ item.path }}"
 
 - name: directories | Create the root-only directories
   ansible.builtin.file:

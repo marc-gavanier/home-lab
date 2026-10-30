@@ -5,7 +5,7 @@
     dest: /opt/annex/configs/traefik/traefik.yml
     owner: "{{ ansible_user }}"
     group: docker
-    mode: "0640"
+    mode: "0644"
   notify: Restart traefik
 
 - name: configs | Render the Traefik middlewares
@@ -14,7 +14,7 @@
     dest: /opt/annex/configs/traefik/dynamic/middlewares.yml
     owner: "{{ ansible_user }}"
     group: docker
-    mode: "0640"
+    mode: "0644"
 
 - name: configs | Copy the Traefik TLS options shared with the homelab
   ansible.builtin.copy:
@@ -22,4 +22,4 @@
     dest: /opt/annex/configs/traefik/dynamic/tls.yml
     owner: "{{ ansible_user }}"
     group: docker
-    mode: "0640"
+    mode: "0644"
