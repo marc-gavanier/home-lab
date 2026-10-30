@@ -1,0 +1,80 @@
+---
+- name: power | Create the logind drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/logind.conf.d
+    state: directory
+    mode: "0755"
+
+- name: power | Keep running with the lid closed
+  ansible.builtin.copy:
+    dest: /etc/systemd/logind.conf.d/annex-lid.conf
+    mode: "0644"
+    content: |
+      [Login]
+      HandleLidSwitch=ignore
+      HandleLidSwitchExternalPower=ignore
+      HandleLidSwitchDocked=ignore
+  notify: Reload logind
+
+- name: power | Install UPower
+  ansible.builtin.apt:
+    name: upower
+    state: present
+
+- name: power | Power off cleanly when the battery runs out
+  ansible.builtin.lineinfile:
+    path: /etc/UPower/UPower.conf
+    regexp: "^#?{{ item.key }}="
+    line: "{{ item.key }}={{ item.value }}"
+  loop:
+    - { key: UsePercentageForPolicy, value: "true" }
+    - { key: PercentageAction, value: "5" }
+    - { key: CriticalPowerAction, value: PowerOff }
+  notify: Restart upower
+
+- name: power | Find the battery
+  ansible.builtin.find:
+    paths: /sys/class/power_supply
+    patterns: "BAT*"
+    file_type: link
+  register: annex_batteries
+
+- name: power | Look for a charge limit control on the battery
+  ansible.builtin.stat:
+    path: "{{ annex_batteries.files[0].path }}/charge_control_end_threshold"
+  register: annex_charge_control
+  when: annex_batteries.matched > 0
+
+- name: power | Persist the battery charge limit across boots
+  ansible.builtin.copy:
+    dest: /etc/tmpfiles.d/annex-battery.conf
+    mode: "0644"
+    content: |
+      w {{ annex_charge_control.stat.path }} - - - - {{ annex_battery_charge_limit }}
+  when: annex_charge_control.stat.exists | default(false)
+
+- name: power | Read the current battery charge limit
+  ansible.builtin.slurp:
+    src: "{{ annex_charge_control.stat.path }}"
+  register: annex_charge_current
+  when: annex_charge_control.stat.exists | default(false)
+
+- name: power | Apply the battery charge limit now
+  ansible.builtin.shell:
+    cmd: "echo {{ annex_battery_charge_limit }} > {{ annex_charge_control.stat.path }}"
+  changed_when: true
+  when:
+    - annex_charge_control.stat.exists | default(false)
+    - (annex_charge_current.content | b64decode | trim) != (annex_battery_charge_limit | string)
+
+- name: power | Enable Wake-on-LAN on the wired interface
+  ansible.builtin.copy:
+    dest: /etc/netplan/60-annex-wol.yaml
+    mode: "0600"
+    content: |
+      network:
+        version: 2
+        ethernets:
+          {{ ansible_facts.default_ipv4.interface }}:
+            wakeonlan: true
+  notify: Apply netplan

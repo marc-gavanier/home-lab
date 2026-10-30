@@ -1,0 +1,48 @@
+---
+- name: directories | Create the deploy directory
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: docker
+    mode: "0750"
+  loop:
+    - /opt/annex
+    - /opt/annex/configs/traefik/dynamic
+
+- name: directories | Create the root-only directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  loop:
+    - "{{ data_mount_point }}/secrets"
+    - "{{ backup_dir }}"
+    - "{{ services_data_dir }}/traefik/acme"
+
+- name: directories | Create the secrets directory read by the containers
+  ansible.builtin.file:
+    path: "{{ data_mount_point }}/secrets/docker"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: directories | Create the service data directories
+  ansible.builtin.file:
+    path: "{{ services_data_dir }}/{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner | default('root') }}"
+    group: "{{ item.owner | default('root') }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: nextcloud/data, owner: "33", mode: "0750" }
+    - { path: nextcloud/db, owner: "999", mode: "0700" }
+    - { path: immich/upload, mode: "0755" }
+    - { path: immich/ml-cache, mode: "0755" }
+    - { path: immich/redis, owner: "999", mode: "0700" }
+    - { path: immich/db, owner: "999", mode: "0700" }
+  loop_control:
+    label: "{{ item.path }}"

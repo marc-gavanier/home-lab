@@ -1,0 +1,23 @@
+---
+argument_specs:
+  main:
+    short_description: Annex laptop host — plain data disk, Docker gated on it, unattended power
+    options:
+      data_disk_device:
+        type: str
+        required: true
+        description: Partition of the data disk, e.g. /dev/sdb1. Never the system SSD — the role refuses it.
+      data_mount_point:
+        type: path
+        required: true
+        description: Mount point of the data disk (/mnt/data).
+      annex_disk_force_format:
+        type: bool
+        required: true
+        description: Safety latch — set true (one run) to allow formatting a data disk that does not read as ext4.
+      annex_battery_charge_limit:
+        type: int
+        required: true
+        description: >-
+          Charge ceiling in percent, applied only when the kernel exposes
+          charge_control_end_threshold for the battery; otherwise skipped.

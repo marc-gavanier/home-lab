@@ -1,0 +1,17 @@
+ansible_user: pi
+domain: example.com
+hostname: annex
+ssh_port_hardened: 22
+annex_ip: 192.168.0.x
+
+traefik_acme_email: "admin@example.com"
+cloudflare_dns_api_token: "cf-scoped-dns-edit-token"
+
+nextcloud_admin_password: ""
+nextcloud_db_password: ""
+nextcloud_db_root_password: ""
+nextcloud_redis_password: ""
+
+immich_db_password: ""
+
+restic_password: ""

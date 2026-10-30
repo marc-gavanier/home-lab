@@ -1,0 +1,38 @@
+---
+- name: compose | Read the ids the environment file needs
+  ansible.builtin.getent:
+    database: group
+    key: docker
+
+- name: compose | Render the environment file
+  ansible.builtin.template:
+    src: env.j2
+    dest: /opt/annex/.env
+    owner: "{{ ansible_user }}"
+    group: docker
+    mode: "0640"
+
+- name: compose | Copy the Docker Compose file
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../../docker/annex/compose.yaml"
+    dest: /opt/annex/compose.yaml
+    owner: "{{ ansible_user }}"
+    group: docker
+    mode: "0640"
+
+- name: compose | Pull images
+  community.docker.docker_compose_v2_pull:
+    project_src: /opt/annex
+    services: "{{ deploy_services.split() if deploy_services is defined else omit }}"
+
+- name: compose | Deploy services
+  community.docker.docker_compose_v2:
+    project_src: /opt/annex
+    state: present
+    services: "{{ deploy_services.split() if deploy_services is defined else omit }}"
+  register: compose_result
+
+- name: compose | Show deployment actions
+  ansible.builtin.debug:
+    var: compose_result.actions
+  when: compose_result.actions | default([]) | length > 0

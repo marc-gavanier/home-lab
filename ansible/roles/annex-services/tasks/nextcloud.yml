@@ -1,0 +1,74 @@
+---
+- name: nextcloud | Wait for the Nextcloud container to report healthy
+  ansible.builtin.command:
+    cmd: "docker inspect -f '{{ '{{' }}.State.Health.Status{{ '}}' }}' nextcloud"
+  register: nc_health
+  until: nc_health.stdout == 'healthy'
+  retries: 120
+  delay: 5
+  changed_when: false
+  check_mode: false
+
+- name: nextcloud | Wait for Nextcloud to be installed and out of maintenance
+  ansible.builtin.command:
+    cmd: docker exec -u www-data nextcloud php occ status --output=json
+  register: nc_status
+  until: >-
+    nc_status.rc == 0
+    and (nc_status.stdout | from_json).installed | default(false)
+    and not (nc_status.stdout | from_json).maintenance | default(true)
+    and not (nc_status.stdout | from_json).needsDbUpgrade | default(true)
+  retries: 60
+  delay: 10
+  changed_when: false
+  check_mode: false
+
+- name: nextcloud | Read the background jobs mode
+  ansible.builtin.command:
+    cmd: docker exec -u www-data nextcloud php occ config:app:get core backgroundjobs_mode
+  register: nc_cron_mode
+  changed_when: false
+  check_mode: false
+  failed_when: false
+
+- name: nextcloud | Set Nextcloud background jobs to cron mode
+  ansible.builtin.command:
+    cmd: docker exec -u www-data nextcloud php occ background:cron
+  changed_when: true
+  when: nc_cron_mode.stdout | trim != 'cron'
+
+- name: nextcloud | Read Nextcloud system configuration
+  ansible.builtin.command:
+    cmd: docker exec -u www-data nextcloud php occ config:list system --output=json
+  register: nc_sysconf
+  changed_when: false
+  check_mode: false
+
+- name: nextcloud | Configure Nextcloud system settings
+  ansible.builtin.command:
+    cmd: "docker exec -u www-data nextcloud php occ config:system:set {{ item.key }} --type={{ item.type }} --value={{ item.value | quote }}"
+  loop:
+    - { key: default_phone_region, type: string, value: FR }
+    - { key: default_language, type: string, value: fr }
+    - { key: default_locale, type: string, value: fr_FR }
+    - { key: maintenance_window_start, type: integer, value: "4" }
+    - { key: appstoreenabled, type: boolean, value: "false" }
+    - { key: log_rotate_size, type: integer, value: "10485760" }
+    - { key: updatechecker, type: boolean, value: "false" }
+    - { key: skeletondirectory, type: string, value: "" }
+  changed_when: true
+  when: (nc_sysconf.stdout | from_json).system[item.key] | default('__unset__') | string | lower != item.value | string | lower
+
+- name: nextcloud | Get installed Nextcloud apps
+  ansible.builtin.command:
+    cmd: docker exec -u www-data nextcloud php occ app:list --output=json
+  register: nc_app_list
+  changed_when: false
+  check_mode: false
+
+- name: nextcloud | Disable the apps that call home or that nobody here uses
+  ansible.builtin.command:
+    cmd: docker exec -u www-data nextcloud php occ app:disable {{ item }}
+  loop: [nextcloud_announcements, firstrunwizard, dashboard, weather_status]
+  changed_when: true
+  when: item in (nc_app_list.stdout | from_json).enabled

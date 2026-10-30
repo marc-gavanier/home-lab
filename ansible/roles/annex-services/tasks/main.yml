@@ -1,0 +1,19 @@
+---
+- name: Create the data tree and the deploy directory
+  ansible.builtin.import_tasks: directories.yml
+
+- name: Write the service secrets
+  ansible.builtin.import_tasks: secrets.yml
+
+- name: Render the Traefik configuration
+  ansible.builtin.import_tasks: configs.yml
+
+- name: Run Docker Compose
+  ansible.builtin.import_tasks: compose.yml
+
+- name: Post-configure Nextcloud
+  ansible.builtin.import_tasks: nextcloud.yml
+
+- name: Set up the local restic backup
+  ansible.builtin.import_tasks: backup.yml
+  tags: [backup]

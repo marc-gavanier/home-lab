@@ -1,0 +1,116 @@
+---
+- name: backup | Read the installed resticprofile version, if any
+  ansible.builtin.command: resticprofile version
+  register: resticprofile_installed
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: backup | Install the pinned resticprofile release
+  when: resticprofile_version not in (resticprofile_installed.stdout | default(''))
+  block:
+    - name: backup | Download the release archive
+      ansible.builtin.get_url:
+        url: "{{ resticprofile_release_url }}/{{ resticprofile_archive }}"
+        dest: /tmp/resticprofile.tar.gz
+        checksum: "sha256:{{ resticprofile_sha256 }}"
+        mode: "0600"
+      vars:
+        resticprofile_release_url: >-
+          https://github.com/creativeprojects/resticprofile/releases/download/v{{ resticprofile_version }}
+        resticprofile_archive: >-
+          resticprofile_no_self_update_{{ resticprofile_version }}_linux_{{
+          {'aarch64': 'arm64', 'x86_64': 'amd64'}[ansible_facts.architecture] }}.tar.gz
+
+    - name: backup | Unpack the binary
+      ansible.builtin.unarchive:
+        src: /tmp/resticprofile.tar.gz
+        dest: /usr/local/bin
+        remote_src: true
+        include:
+          - resticprofile
+        owner: root
+        group: root
+        mode: "0755"
+
+  always:
+    - name: backup | Remove the downloaded archive
+      ansible.builtin.file:
+        path: /tmp/resticprofile.tar.gz
+        state: absent
+
+- name: backup | Install the profile
+  ansible.builtin.template:
+    src: resticprofile.yaml.j2
+    dest: /opt/annex/resticprofile.yaml
+    owner: root
+    group: root
+    mode: "0640"
+
+- name: backup | Create the backup service
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/annex-backup.service
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Annex restic backup to the local repository
+      RequiresMountsFor={{ data_mount_point }}
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/bin/resticprofile --lock-wait 30m -c /opt/annex/resticprofile.yaml -n annex backup
+      Environment=HOME=/root
+
+- name: backup | Create the backup timer
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/annex-backup.timer
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Daily annex backup at 3 AM
+
+      [Timer]
+      OnCalendar=*-*-* 03:00:00
+      Persistent=true
+
+      [Install]
+      WantedBy=timers.target
+
+- name: backup | Create the repository check service
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/annex-backup-check.service
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Weekly check of the annex restic repository
+      RequiresMountsFor={{ data_mount_point }}
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/bin/resticprofile --lock-wait 2h -c /opt/annex/resticprofile.yaml -n annex check
+      Environment=HOME=/root
+
+- name: backup | Create the repository check timer
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/annex-backup-check.timer
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Weekly annex repository check (Sunday 05:00)
+
+      [Timer]
+      OnCalendar=Sun *-*-* 05:00:00
+      Persistent=true
+
+      [Install]
+      WantedBy=timers.target
+
+- name: backup | Enable the backup timers
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+  loop:
+    - annex-backup.timer
+    - annex-backup-check.timer

@@ -15,6 +15,13 @@ argument_specs:
         type: str
         required: true
         description: Locale to generate, e.g. fr_FR.UTF-8.
+      raspberry_pi:
+        type: bool
+        required: false
+        description: >-
+          Apply the Raspberry Pi board tasks — /boot/firmware/config.txt and
+          cmdline.txt, fake-hwclock, radio and UART kill (inline default true;
+          false on the annex laptop, which has an RTC and no such files).
       gpio_fan_pin:
         type: int
         required: false

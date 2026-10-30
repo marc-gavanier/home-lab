@@ -1,0 +1,24 @@
+# {{ ansible_managed }}
+http:
+  middlewares:
+    lan-only:
+      ipAllowList:
+        sourceRange:
+          - "{{ annex_lan_cidr }}"
+          - "172.16.0.0/12"
+
+    secure-headers:
+      headers:
+        stsSeconds: 31536000
+        forceSTSHeader: true
+        customFrameOptionsValue: "SAMEORIGIN"
+        contentTypeNosniff: true
+        referrerPolicy: "strict-origin-when-cross-origin"
+
+    nextcloud-headers:
+      headers:
+        stsSeconds: 31536000
+        customFrameOptionsValue: "SAMEORIGIN"
+        contentTypeNosniff: true
+        customResponseHeaders:
+          X-Robots-Tag: "noindex, nofollow"

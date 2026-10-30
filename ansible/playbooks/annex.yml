@@ -1,0 +1,62 @@
+---
+- name: Own the remote tmp directory before any task runs as root
+  hosts: annex
+  become: false
+  gather_facts: false
+  tasks:
+    - name: Create the remote tmp directory as the connecting user
+      ansible.builtin.file:
+        path: "{{ lookup('ansible.builtin.config', 'remote_tmp', plugin_type='shell', plugin_name='sh') }}"
+        state: directory
+        mode: "0700"
+      changed_when: false
+      tags: [always]
+
+- name: Provision the annex
+  hosts: annex
+  become: true
+
+  pre_tasks:
+    - name: Refuse extra-vars words Ansible split off and dropped
+      ansible.builtin.assert:
+        that: _raw_params is not defined
+        fail_msg: >-
+          '{{ _raw_params | default('') }}' was split off an -e value at a space and would be
+          silently ignored. Quote the whole value: -e '{"deploy_services": "a b c"}'
+        quiet: true
+      tags: [always]
+
+    - name: Wait for system to be reachable
+      ansible.builtin.wait_for_connection:
+        timeout: 60
+
+    - name: Gather facts
+      ansible.builtin.setup:
+
+  roles:
+    - role: base
+      tags: [base]
+
+    - role: security
+      tags: [security]
+
+    - role: annex-host
+      tags: [annex-host]
+
+    - role: docker
+      tags: [docker]
+
+    - role: annex-services
+      tags: [annex-services]
+
+  post_tasks:
+    - name: Display completion message
+      ansible.builtin.debug:
+        msg: |
+          =============================================
+          Annex provisioned!
+
+          LAN only:
+            - https://drive.{{ annex_subdomain }}.{{ domain }}
+            - https://photos.{{ annex_subdomain }}.{{ domain }}
+          =============================================

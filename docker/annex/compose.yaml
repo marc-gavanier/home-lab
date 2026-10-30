@@ -1,0 +1,336 @@
+x-security-opt: &no-new-privs
+  - no-new-privileges=true
+
+x-cap-drop: &cap-drop-all
+  - ALL
+
+secrets:
+  cf_dns_api_token:
+    file: /mnt/data/secrets/docker/cf_dns_api_token
+  nextcloud_admin_password:
+    file: /mnt/data/secrets/docker/nextcloud_admin_password
+  nextcloud_db_password:
+    file: /mnt/data/secrets/docker/nextcloud_db_password
+  nextcloud_redis_password:
+    file: /mnt/data/secrets/docker/nextcloud_redis_password
+  nextcloud_db_root_password:
+    file: /mnt/data/secrets/docker/nextcloud_db_root_password
+  immich_db_password:
+    file: /mnt/data/secrets/docker/immich_db_password
+
+networks:
+  proxy:
+    external: true
+  internal:
+    driver: bridge
+  socketproxy:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: ${SOCKETPROXY_SUBNET}
+
+services:
+
+  socket-proxy:
+    image: wollomatic/socket-proxy:1.13.2
+    container_name: socket-proxy
+    restart: unless-stopped
+    security_opt: *no-new-privs
+    cap_drop: *cap-drop-all
+    read_only: true
+    user: "65534:${DOCKER_GID}"
+    command:
+      - "-listenip=0.0.0.0"
+      - "-allowfrom=${SOCKETPROXY_SUBNET}"
+      - "-allowGET=(/v1\\.[0-9]+)?/(_ping|version|info|events|containers/json|containers/[a-zA-Z0-9_.-]+/json)"
+      - "-allowHEAD=(/v1\\.[0-9]+)?/_ping"
+      - "-allowhealthcheck"
+      - "-watchdoginterval=60"
+      - "-stoponwatchdog"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - socketproxy
+    healthcheck:
+      test: ["CMD", "/healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  traefik:
+    image: traefik:v3.7.16
+    container_name: traefik
+    restart: unless-stopped
+    security_opt: *no-new-privs
+    cap_drop: *cap-drop-all
+    cap_add:
+      - NET_BIND_SERVICE
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    environment:
+      CF_DNS_API_TOKEN_FILE: /run/secrets/cf_dns_api_token
+    secrets:
+      - cf_dns_api_token
+    ports:
+      - "0.0.0.0:80:80"
+      - "0.0.0.0:443:443"
+    volumes:
+      - ${SERVICES_DATA_DIR}/traefik/acme:/acme
+      - ./configs/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./configs/traefik/dynamic:/etc/traefik/dynamic:ro
+    depends_on:
+      - socket-proxy
+    networks:
+      - proxy
+      - socketproxy
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 240s
+
+  nextcloud:
+    image: nextcloud:35.0.2-apache
+    container_name: nextcloud
+    restart: unless-stopped
+    security_opt: *no-new-privs
+    cap_drop: *cap-drop-all
+    cap_add:
+      - NET_BIND_SERVICE
+      - CHOWN
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
+      - FOWNER
+    depends_on:
+      nextcloud-db:
+        condition: service_healthy
+      nextcloud-redis:
+        condition: service_started
+    environment:
+      NEXTCLOUD_ADMIN_USER: ${NEXTCLOUD_ADMIN_USER}
+      NEXTCLOUD_ADMIN_PASSWORD_FILE: /run/secrets/nextcloud_admin_password
+      MYSQL_HOST: nextcloud-db
+      MYSQL_DATABASE: ${NEXTCLOUD_DB_NAME}
+      MYSQL_USER: ${NEXTCLOUD_DB_USER}
+      MYSQL_PASSWORD_FILE: /run/secrets/nextcloud_db_password
+      NEXTCLOUD_TRUSTED_DOMAINS: ${DRIVE_HOST} nextcloud
+      OVERWRITEPROTOCOL: https
+      TRUSTED_PROXIES: 172.16.0.0/12
+      OVERWRITECLIURL: https://${DRIVE_HOST}
+      REDIS_HOST: nextcloud-redis
+      REDIS_HOST_PASSWORD_FILE: /run/secrets/nextcloud_redis_password
+      LANG: C.UTF-8
+      LC_ALL: C.UTF-8
+    secrets:
+      - nextcloud_admin_password
+      - nextcloud_db_password
+      - nextcloud_redis_password
+    volumes:
+      - ${SERVICES_DATA_DIR}/nextcloud/data:/var/www/html
+    networks:
+      - proxy
+      - internal
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.nextcloud.rule=Host(`${DRIVE_HOST}`)"
+      - "traefik.http.routers.nextcloud.entrypoints=websecure"
+      - "traefik.http.routers.nextcloud.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.nextcloud.middlewares=nextcloud-headers@file"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/status.php"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 300s
+
+  nextcloud-db:
+    image: mariadb:12.3.3
+    container_name: nextcloud-db
+    restart: unless-stopped
+    stop_grace_period: 90s
+    security_opt: *no-new-privs
+    cap_drop: *cap-drop-all
+    read_only: true
+    tmpfs:
+      - /run/mysqld:size=8m
+      - /tmp:size=256m
+    user: "999:999"
+    environment:
+      # [critical]: the MariaDB upgrade is one-way: rolling the image back past a major needs a datadir restore
+      MARIADB_AUTO_UPGRADE: "1"
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/nextcloud_db_root_password
+      MYSQL_DATABASE: ${NEXTCLOUD_DB_NAME}
+      MYSQL_USER: ${NEXTCLOUD_DB_USER}
+      MYSQL_PASSWORD_FILE: /run/secrets/nextcloud_db_password
+    secrets:
+      - nextcloud_db_root_password
+      - nextcloud_db_password
+    volumes:
+      - ${SERVICES_DATA_DIR}/nextcloud/db:/var/lib/mysql
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 180s
+
+  nextcloud-redis:
+    image: redis:8.10.2-alpine
+    container_name: nextcloud-redis
+    restart: unless-stopped
+    security_opt: *no-new-privs
+    cap_drop: *cap-drop-all
+    read_only: true
+    tmpfs:
+      - /tmp:size=8m
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    volumes:
+      - /mnt/data/secrets/docker/nextcloud_redis.conf:/usr/local/etc/redis/redis.conf:ro
+    user: "999:999"
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping 2>&1 | grep -q NOAUTH"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  nextcloud-cron:
+    image: nextcloud:35.0.2-apache
+    container_name: nextcloud-cron
+    restart: unless-stopped
+    security_opt: *no-new-privs
+    cap_drop: *cap-drop-all
+    cap_add:
+      - SETUID
+      - SETGID
+    read_only: true
+    tmpfs:
+      - /run:size=8m
+      - /tmp:size=32m
+    entrypoint: /cron.sh
+    depends_on:
+      nextcloud-db:
+        condition: service_healthy
+      nextcloud-redis:
+        condition: service_started
+    volumes:
+      - ${SERVICES_DATA_DIR}/nextcloud/data:/var/www/html
+    networks:
+      - internal
+
+  immich-server:
+    image: ghcr.io/immich-app/immich-server:v3.2.2
+    healthcheck:
+      start_period: 1020s
+      start_interval: 15s
+    container_name: immich-server
+    restart: unless-stopped
+    security_opt: *no-new-privs
+    cap_drop: *cap-drop-all
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m
+      - /data:size=8m
+    depends_on:
+      immich-db:
+        condition: service_healthy
+      immich-redis:
+        condition: service_started
+    environment:
+      DB_HOSTNAME: immich-db
+      DB_USERNAME: ${IMMICH_DB_USER}
+      DB_PASSWORD_FILE: /run/secrets/immich_db_password
+      DB_DATABASE_NAME: ${IMMICH_DB_NAME}
+      REDIS_HOSTNAME: immich-redis
+    secrets:
+      - immich_db_password
+    volumes:
+      - ${SERVICES_DATA_DIR}/immich/upload:/usr/src/app/upload
+    networks:
+      - proxy
+      - internal
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.immich.rule=Host(`${PHOTOS_HOST}`)"
+      - "traefik.http.routers.immich.entrypoints=websecure"
+      - "traefik.http.routers.immich.tls.certresolver=letsencrypt"
+      - "traefik.http.services.immich.loadbalancer.server.port=2283"
+
+  immich-machine-learning:
+    image: ghcr.io/immich-app/immich-machine-learning:v3.2.2
+    healthcheck:
+      start_period: 420s
+      start_interval: 15s
+    container_name: immich-ml
+    restart: unless-stopped
+    security_opt: *no-new-privs
+    cap_drop: *cap-drop-all
+    read_only: true
+    tmpfs:
+      - /root/.cache:size=32m
+      - /root/.config:size=8m
+      - /tmp:size=64m
+    volumes:
+      - ${SERVICES_DATA_DIR}/immich/ml-cache:/cache
+    networks:
+      - internal
+
+  immich-redis:
+    image: redis:8.10.2-alpine
+    container_name: immich-redis
+    restart: unless-stopped
+    security_opt: *no-new-privs
+    cap_drop: *cap-drop-all
+    read_only: true
+    tmpfs:
+      - /tmp:size=8m
+    command: ["redis-server", "--save", "", "--appendonly", "yes", "--appendfsync", "everysec"]
+    volumes:
+      - ${SERVICES_DATA_DIR}/immich/redis:/data
+    user: "999:999"
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  immich-db:
+    stop_grace_period: 90s
+    # [critical]: the extension migration is one-way: never downgrade this image afterwards
+    image: ghcr.io/immich-app/postgres:16-vectorchord0.4.3-pgvectors0.2.0
+    container_name: immich-db
+    restart: unless-stopped
+    security_opt: *no-new-privs
+    cap_drop: *cap-drop-all
+    read_only: true
+    tmpfs:
+      - /run/postgresql:size=8m
+      - /tmp:size=128m
+      - /etc/postgresql:size=8m
+    user: "999:999"
+    environment:
+      POSTGRES_USER: ${IMMICH_DB_USER}
+      POSTGRES_PASSWORD_FILE: /run/secrets/immich_db_password
+      POSTGRES_DB: ${IMMICH_DB_NAME}
+      DB_STORAGE_TYPE: "HDD"
+    secrets:
+      - immich_db_password
+    volumes:
+      - ${SERVICES_DATA_DIR}/immich/db:/var/lib/postgresql/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "exec psql -U ${IMMICH_DB_USER} -d ${IMMICH_DB_NAME} -tAc 'select 1' >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 180s

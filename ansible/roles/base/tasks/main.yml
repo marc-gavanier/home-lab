@@ -4,6 +4,7 @@
 
 - name: Give the board a clock before NTP answers (#292)
   ansible.builtin.import_tasks: clock.yml
+  when: raspberry_pi | default(true)
 
 - name: Bound SD writes — journald cap and tmpfs volatile storage
   ansible.builtin.import_tasks: logging.yml
@@ -13,6 +14,7 @@
 
 - name: Reduce the physical/radio attack surface
   ansible.builtin.import_tasks: attack-surface.yml
+  when: raspberry_pi | default(true)
 
 - name: Mask the ext4 scrub timer that scrubs nothing on either host
   ansible.builtin.import_tasks: filesystem-checks.yml

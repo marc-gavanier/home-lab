@@ -1,0 +1,25 @@
+---
+- name: configs | Render the Traefik static configuration
+  ansible.builtin.template:
+    src: traefik.yml.j2
+    dest: /opt/annex/configs/traefik/traefik.yml
+    owner: "{{ ansible_user }}"
+    group: docker
+    mode: "0640"
+  notify: Restart traefik
+
+- name: configs | Render the Traefik middlewares
+  ansible.builtin.template:
+    src: middlewares.yml.j2
+    dest: /opt/annex/configs/traefik/dynamic/middlewares.yml
+    owner: "{{ ansible_user }}"
+    group: docker
+    mode: "0640"
+
+- name: configs | Copy the Traefik TLS options shared with the homelab
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../../docker/configs/traefik/dynamic/tls.yml"
+    dest: /opt/annex/configs/traefik/dynamic/tls.yml
+    owner: "{{ ansible_user }}"
+    group: docker
+    mode: "0640"

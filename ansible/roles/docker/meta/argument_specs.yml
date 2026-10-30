@@ -32,3 +32,10 @@ argument_specs:
           Seconds systemd gives docker.service to stop (TimeoutStopSec, pinned in
           a drop-in). Must be greater than docker_shutdown_timeout, which must in
           turn exceed the largest stop_grace_period in compose.yaml.
+      docker_unlock_gate:
+        type: bool
+        required: false
+        description: >-
+          Start Docker only through homelab-unlock (inline default true). False
+          on the annex, whose data disk is not encrypted and mounts at boot: it
+          gates Docker on the mount alone (annex-host role).
