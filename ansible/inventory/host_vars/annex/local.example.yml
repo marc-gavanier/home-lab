@@ -3,6 +3,7 @@ domain: example.com
 hostname: annex
 ssh_port_hardened: 22
 annex_ip: 192.168.0.x
+annex_subdomain: annex
 
 traefik_acme_email: "admin@example.com"
 cloudflare_dns_api_token: "cf-scoped-dns-edit-token"
