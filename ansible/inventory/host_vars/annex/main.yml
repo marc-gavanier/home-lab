@@ -1,0 +1,18 @@
+ssh_allowed_sources:
+  - 192.168.0.0/24
+
+raspberry_pi: false
+docker_unlock_gate: false
+free_port_53: false
+fail2ban_service_jails: false
+unattended_automatic_reboot: true
+
+annex_lan_cidr: 192.168.0.0/24
+annex_subdomain: annex
+
+data_disk_device: /dev/sdb1
+annex_disk_force_format: false
+
+annex_battery_charge_limit: 80
+
+resticprofile_sha256: "1d7027d15e3e2456e585a210f811d0f72ec40f6b3388f00425642ed579165d70"

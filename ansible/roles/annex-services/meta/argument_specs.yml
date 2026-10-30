@@ -1,0 +1,78 @@
+---
+argument_specs:
+  main:
+    short_description: Annex services — Traefik, Nextcloud and Immich on the LAN, local restic backup
+    options:
+      domain:
+        type: str
+        required: true
+        description: Zone the Cloudflare DNS-01 challenge proves; the services answer under annex_subdomain of it.
+      annex_subdomain:
+        type: str
+        required: true
+        description: >-
+          Label between the service and the domain (drive.<label>.<domain>).
+          Certificate names are public in the CT logs: never a place or a family name.
+      annex_lan_cidr:
+        type: str
+        required: true
+        description: LAN the services answer to; every other source is refused by Traefik.
+      data_mount_point:
+        type: path
+        required: true
+        description: Mount point of the data disk.
+      services_data_dir:
+        type: path
+        required: true
+        description: Service data root on the data disk.
+      backup_dir:
+        type: path
+        required: true
+        description: Holds the local restic repository and the transient database dumps.
+      traefik_acme_email:
+        type: str
+        required: true
+        description: Let's Encrypt account email.
+      cloudflare_dns_api_token:
+        type: str
+        required: true
+        no_log: true
+        description: Cloudflare token with DNS edit on the zone, for the DNS-01 challenge.
+      nextcloud_admin_password:
+        type: str
+        required: true
+        no_log: true
+        description: Password of the Nextcloud admin account created on first start.
+      nextcloud_db_password:
+        type: str
+        required: true
+        no_log: true
+        description: MariaDB password of the nextcloud user.
+      nextcloud_db_root_password:
+        type: str
+        required: true
+        no_log: true
+        description: MariaDB root password.
+      nextcloud_redis_password:
+        type: str
+        required: true
+        no_log: true
+        description: Redis password shared by Nextcloud and its Redis.
+      immich_db_password:
+        type: str
+        required: true
+        no_log: true
+        description: Postgres password of the Immich database.
+      restic_password:
+        type: str
+        required: true
+        no_log: true
+        description: Password of the local restic repository. Lose it and the repository is unreadable.
+      resticprofile_version:
+        type: str
+        required: true
+        description: Pinned resticprofile release.
+      resticprofile_sha256:
+        type: str
+        required: true
+        description: Checksum of the release archive for this host's architecture (amd64 on the annex).

@@ -1,0 +1,16 @@
+---
+- name: docker-gate | Create Docker service override directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/docker.service.d
+    state: directory
+    mode: "0755"
+
+# [critical]: Docker must never start without the data disk: it would build a ghost store on the system SSD
+- name: docker-gate | Start Docker only once the data disk is mounted
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/docker.service.d/annex-data.conf
+    mode: "0644"
+    content: |
+      [Unit]
+      RequiresMountsFor={{ data_mount_point }}
+  notify: Reload systemd units

@@ -1,0 +1,75 @@
+---
+- name: disk | The data disk must be a block device before it is read
+  ansible.builtin.stat:
+    path: "{{ data_disk_device }}"
+  register: data_disk_stat
+  check_mode: false
+
+- name: disk | Refuse to reason about a device that is not there
+  ansible.builtin.assert:
+    that:
+      - data_disk_stat.stat.exists
+      - data_disk_stat.stat.isblk | default(false)
+    fail_msg: >-
+      {{ data_disk_device }} is not a block device on this host. Nothing below
+      may run: the filesystem probe cannot tell that apart from an unformatted
+      disk, and the next task formats.
+    quiet: true
+
+- name: disk | Read the disks the root filesystem lives on
+  ansible.builtin.command: lsblk -nls -o NAME,TYPE /dev/disk/by-uuid/{{ root_fs_uuid }}
+  vars:
+    root_fs_uuid: "{{ ansible_facts['mounts'] | selectattr('mount', 'equalto', '/') | map(attribute='uuid') | first }}"
+  register: root_disk_chain
+  changed_when: false
+  check_mode: false
+
+- name: disk | Refuse the disk the root filesystem lives on
+  ansible.builtin.assert:
+    that:
+      - (data_disk_device | basename | regex_replace('[0-9]+$', '')) not in
+        (root_disk_chain.stdout_lines | select('search', ' disk$') | map('split', ' ') | map('first') | list)
+    fail_msg: >-
+      {{ data_disk_device }} is on the same disk as /. data_disk_device must name
+      the 1 TB data disk, not the system SSD — read `lsblk` on the host.
+    quiet: true
+
+- name: disk | Read current filesystem type on the data disk
+  ansible.builtin.command: blkid -p -o value -s TYPE {{ data_disk_device }}
+  register: data_disk_fstype
+  changed_when: false
+  failed_when: data_disk_fstype.rc not in [0, 2]
+  check_mode: false
+
+- name: disk | Refuse to format a disk that does not read as ext4
+  ansible.builtin.fail:
+    msg: >-
+      {{ data_disk_device }} reads as '{{ data_disk_fstype.stdout }}', not ext4.
+      A blank disk and an unreadable one look the same here, and the next task
+      formats. Set annex_disk_force_format=true (one run) to format it.
+  when:
+    - data_disk_fstype.stdout != 'ext4'
+    - not annex_disk_force_format | bool
+
+- name: disk | Create ext4 filesystem on the data disk
+  community.general.filesystem:
+    fstype: ext4
+    dev: "{{ data_disk_device }}"
+    force: "{{ annex_disk_force_format }}"
+  when: annex_disk_force_format | bool
+
+- name: disk | Read data disk UUID
+  ansible.builtin.command: blkid -o value -s UUID {{ data_disk_device }}
+  register: data_disk_uuid
+  changed_when: false
+  check_mode: false
+
+- name: disk | Mount the data disk
+  ansible.posix.mount:
+    path: "{{ data_mount_point }}"
+    src: "UUID={{ data_disk_uuid.stdout }}"
+    fstype: ext4
+    opts: defaults,noatime,nofail
+    passno: "2"
+    dump: "0"
+    state: mounted

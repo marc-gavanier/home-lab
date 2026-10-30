@@ -1,0 +1,44 @@
+# {{ ansible_managed }}
+version: "1"
+
+annex:
+  repository: "local:{{ backup_dir }}/restic-repo"
+  password-file: {{ data_mount_point }}/secrets/restic_password
+  lock: /run/lock/resticprofile-annex.lock
+  initialize: true
+
+  backup:
+    run-before:
+      - rm -rf {{ backup_dir }}/dumps
+      - install -d -m 0700 {{ backup_dir }}/dumps
+      - >-
+        docker exec nextcloud-db sh -c 'MYSQL_PWD=$(cat /run/secrets/nextcloud_db_password)
+        mariadb-dump --single-transaction --routines --triggers
+        -u"${MYSQL_USER:-nextcloud}" "${MYSQL_DATABASE:-nextcloud}"'
+        > {{ backup_dir }}/dumps/nextcloud.sql
+    run-after:
+      - rm -rf {{ backup_dir }}/dumps
+
+    source:
+      - {{ services_data_dir }}
+      - {{ backup_dir }}/dumps
+      - /opt/annex
+    exclude:
+      - {{ services_data_dir }}/nextcloud/db
+      - {{ services_data_dir }}/immich/db
+      - {{ services_data_dir }}/immich/ml-cache
+      - {{ services_data_dir }}/immich/upload/thumbs
+      - {{ services_data_dir }}/immich/upload/encoded-video
+    tag:
+      - auto
+
+  retention:
+    after-backup: true
+    keep-daily: 14
+    keep-weekly: 8
+    keep-monthly: 12
+    prune: true
+    tag: true
+
+  check:
+    read-data-subset: "5%"

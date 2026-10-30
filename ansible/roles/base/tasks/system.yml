@@ -163,6 +163,7 @@
     regexp: '^gpu_mem='
     line: 'gpu_mem=16'
   notify: Reboot required
+  when: raspberry_pi | default(true)
 
 - name: system | Own the root fstab line — noatime, and a boot-time fsck pass
   ansible.posix.mount:
@@ -183,6 +184,7 @@
   ansible.builtin.slurp:
     src: /boot/firmware/cmdline.txt
   register: cmdline_content
+  when: raspberry_pi | default(true)
 
 - name: system | Enable cgroup memory (required for Docker)
   ansible.builtin.lineinfile:
@@ -190,5 +192,7 @@
     backrefs: true
     regexp: '^(.*?)(\s*)$'
     line: '\1 cgroup_memory=1 cgroup_enable=memory\2'
-  when: "'cgroup_memory=1' not in (cmdline_content.content | b64decode)"
+  when:
+    - raspberry_pi | default(true)
+    - "'cgroup_memory=1' not in (cmdline_content.content | b64decode)"
   notify: Reboot required

@@ -1,0 +1,9 @@
+---
+- name: Mount the data disk at boot
+  ansible.builtin.import_tasks: disk.yml
+
+- name: Gate Docker on the data disk mount
+  ansible.builtin.import_tasks: docker-gate.yml
+
+- name: Keep the laptop running unattended
+  ansible.builtin.import_tasks: power.yml
