@@ -36,6 +36,15 @@
     - media/documents
     - media/documents/originals
     - consume
+    - scratch
+
+- name: data_dirs | Own the Paperless Redis append-only directory (uid 999, task queue)
+  ansible.builtin.file:
+    path: "{{ services_data_dir }}/paperless/redis"
+    state: directory
+    owner: "999"
+    group: "999"
+    mode: "0700"
 
 - name: data_dirs | Look for wg-easy's database
   ansible.builtin.stat:

@@ -156,6 +156,7 @@ credential_store_default_mode: "0700"
 
 credential_store_shared:
   - nextcloud/data
+  - paperless/consume
 
 credential_store_exemptions:
   transmission/watch: the .torrent drop folder, written from outside the container

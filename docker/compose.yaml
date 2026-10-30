@@ -1206,6 +1206,7 @@ services:
       PAPERLESS_ADMIN_USER: admin
       PAPERLESS_ADMIN_PASSWORD_FILE: /run/secrets/paperless_admin_password
       PAPERLESS_TIME_ZONE: ${TZ}
+      PAPERLESS_SCRATCH_DIR: /usr/src/paperless/scratch
       PAPERLESS_OCR_LANGUAGE: fra
       PAPERLESS_TASK_WORKERS: "1"
       PAPERLESS_THREADS_PER_WORKER: "1"
@@ -1221,11 +1222,12 @@ services:
       - ${SERVICES_DATA_DIR}/paperless/data:/usr/src/paperless/data
       - ${SERVICES_DATA_DIR}/paperless/media:/usr/src/paperless/media
       - ${SERVICES_DATA_DIR}/paperless/consume:/usr/src/paperless/consume
+      - ${SERVICES_DATA_DIR}/paperless/scratch:/usr/src/paperless/scratch
     networks:
       - proxy
       - internal
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "--max-time", "5", "http://127.0.0.1:8000"]
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "--max-time", "5", "http://127.0.0.1:8000/accounts/login/"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -1247,8 +1249,9 @@ services:
     read_only: true
     tmpfs:
       - /tmp:size=8m
-      - /data:size=16m,uid=999,gid=999
-    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    command: ["redis-server", "--save", "", "--appendonly", "yes", "--appendfsync", "everysec"]
+    volumes:
+      - ${SERVICES_DATA_DIR}/paperless/redis:/data
     user: "999:999"
     networks:
       - internal
