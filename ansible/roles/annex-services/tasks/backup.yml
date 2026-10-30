@@ -54,7 +54,7 @@
     content: |
       [Unit]
       Description=Annex restic backup to the local repository
-      RequiresMountsFor={{ data_mount_point }}
+      RequiresMountsFor={{ data_mount_point }} {{ annex_backup_mount_point }}
 
       [Service]
       Type=oneshot
@@ -83,7 +83,7 @@
     content: |
       [Unit]
       Description=Weekly check of the annex restic repository
-      RequiresMountsFor={{ data_mount_point }}
+      RequiresMountsFor={{ data_mount_point }} {{ annex_backup_mount_point }}
 
       [Service]
       Type=oneshot

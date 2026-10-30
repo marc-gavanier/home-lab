@@ -29,7 +29,11 @@ argument_specs:
       backup_dir:
         type: path
         required: true
-        description: Holds the local restic repository and the transient database dumps.
+        description: Holds the transient database dumps, on the data disk.
+      annex_backup_mount_point:
+        type: path
+        required: true
+        description: Mount point of the USB backup disk; the restic repository lives there.
       traefik_acme_email:
         type: str
         required: true

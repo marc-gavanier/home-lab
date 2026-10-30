@@ -1,6 +1,25 @@
 ---
 - name: Mount the data disk at boot
   ansible.builtin.import_tasks: disk.yml
+  vars:
+    disk:
+      name: data
+      device: "{{ data_disk_device }}"
+      mount: "{{ data_mount_point }}"
+      opts: defaults,noatime,nofail
+      force: "{{ annex_disk_force_format }}"
+      latch: annex_disk_force_format
+
+- name: Mount the backup disk at boot
+  ansible.builtin.import_tasks: disk.yml
+  vars:
+    disk:
+      name: backup
+      device: "{{ annex_backup_disk_device }}"
+      mount: "{{ annex_backup_mount_point }}"
+      opts: defaults,noatime,nofail,x-systemd.device-timeout=10s
+      force: "{{ annex_backup_disk_force_format }}"
+      latch: annex_backup_disk_force_format
 
 - name: Gate Docker on the data disk mount
   ansible.builtin.import_tasks: docker-gate.yml
