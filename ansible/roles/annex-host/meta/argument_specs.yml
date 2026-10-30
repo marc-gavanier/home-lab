@@ -15,6 +15,20 @@ argument_specs:
         type: bool
         required: true
         description: Safety latch — set true (one run) to allow formatting a data disk that does not read as ext4.
+      annex_backup_disk_device:
+        type: str
+        required: true
+        description: >-
+          Partition of the USB backup disk by its /dev/disk/by-id path. It holds
+          the restic repository only, so a dead data disk leaves the backup whole.
+      annex_backup_mount_point:
+        type: path
+        required: true
+        description: Mount point of the backup disk (/mnt/backup).
+      annex_backup_disk_force_format:
+        type: bool
+        required: true
+        description: Safety latch — set true (one run) to allow formatting a backup disk that does not read as ext4.
       annex_battery_charge_limit:
         type: int
         required: true

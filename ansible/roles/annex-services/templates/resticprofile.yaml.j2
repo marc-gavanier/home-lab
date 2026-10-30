@@ -2,7 +2,7 @@
 version: "1"
 
 annex:
-  repository: "local:{{ backup_dir }}/restic-repo"
+  repository: "local:{{ annex_backup_mount_point }}/restic-repo"
   password-file: {{ data_mount_point }}/secrets/restic_password
   lock: /run/lock/resticprofile-annex.lock
   initialize: true
