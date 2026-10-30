@@ -40,8 +40,9 @@ papers tree; Nextcloud and the workstation read it. Under evaluation
   - renames and moves an original whenever its metadata changes;
   - empties its trash 30 days after a deletion (upstream default);
   - retrains its classifier hourly.
-- `PAPERLESS_CONSUMER_SUBDIRS_AS_TAGS`: a folder dropped into `/Inbox` turns its subfolder names
-  into tags.
+- A folder dropped into `/Inbox` is read recursively. Workflows match on the path a file was
+  dropped under (`*/Marc/Banque/CIC/*`) and assign its storage path, correspondent and type;
+  folder names do not become tags.
 - Ignored in the inbox: Nextcloud partial uploads (`.part`, `.ocTransferId`) and LibreOffice
   locks, on top of the upstream defaults. The patterns are regular expressions, not globs.
 - Sized for the Pi: SQLite, one task worker, one thread, one web worker, no Tika/Gotenberg
