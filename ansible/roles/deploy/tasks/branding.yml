@@ -30,7 +30,7 @@
     chdir: /opt/homelab/branding/searxng
   environment:
     SEARXNG_BRANDING: "{{ searxng_branding | default(false) | ternary('true', 'false') }}"
-    SEARXNG_IMAGE: searxng/searxng:2026.10.24-ef0ec03da
+    SEARXNG_IMAGE: searxng/searxng:2026.10.30-ffa88e3ba
     SEARXNG_LOGO: >-
       {{ ('/opt/homelab/branding/searxng/logo.' + (searxng_logo.split('.') | last))
       if ((searxng_branding | default(false)) and (searxng_logo | default('') | length > 0))
