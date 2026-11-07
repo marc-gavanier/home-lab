@@ -59,7 +59,7 @@ services:
       retries: 3
 
   traefik:
-    image: traefik:v3.7.16
+    image: traefik:v3.7.17
     container_name: traefik
     restart: unless-stopped
     security_opt: *no-new-privs
@@ -181,7 +181,7 @@ services:
       start_period: 180s
 
   nextcloud-redis:
-    image: redis:8.10.2-alpine
+    image: redis:8.10.3-alpine
     container_name: nextcloud-redis
     restart: unless-stopped
     security_opt: *no-new-privs
@@ -283,7 +283,7 @@ services:
       - internal
 
   immich-redis:
-    image: redis:8.10.2-alpine
+    image: redis:8.10.3-alpine
     container_name: immich-redis
     restart: unless-stopped
     security_opt: *no-new-privs
