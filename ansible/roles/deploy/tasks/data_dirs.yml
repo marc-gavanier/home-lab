@@ -38,6 +38,17 @@
     - consume
     - scratch
 
+- name: data_dirs | Own the Mumble data directory (uid 10000, server certificate and settings)
+  ansible.builtin.file:
+    path: "{{ services_data_dir }}/mumble/{{ item }}"
+    state: directory
+    owner: "10000"
+    group: "10000"
+    mode: "0700"
+  loop:
+    - ""
+    - data
+
 - name: data_dirs | Own the Paperless Redis append-only directory (uid 999, task queue)
   ansible.builtin.file:
     path: "{{ services_data_dir }}/paperless/redis"

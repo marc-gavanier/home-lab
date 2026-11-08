@@ -139,6 +139,13 @@ argument_specs:
         description: >-
           Password of the Paperless-ngx admin account. Read only when the account is
           created, on the first start: changing it later changes nothing in Paperless.
+      mumble_server_password:
+        type: str
+        required: true
+        no_log: true
+        description: >-
+          Server password of Mumble, the voice bridge's server. Read at every start, so a
+          rotation takes effect on the restart the deploy triggers.
       transmission_user:
         type: str
         required: false
