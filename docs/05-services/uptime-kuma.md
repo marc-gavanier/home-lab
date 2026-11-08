@@ -46,6 +46,7 @@ hand in the UI: Kuma is v2, and the Ansible tooling targets v1 only.
 | WireGuard                 | HTTP(s)  | `https://vpn.example.com`                                                                     |
 | Traefik HTTPS             | TCP Port | `<pi-lan-ip>:443`                                                                             |
 | Transmission BT Peer Port | TCP Port | `transmission:51413`                                                                          |
+| Mumble                    | TCP Port | `voice.example.com:64738`                                                                     |
 | Pi-hole DNS + split-DNS   | DNS      | Resolver `<pi-lan-ip>`, query `drive.example.com`, condition: record = `<pi-lan-ip>`          |
 | Pi (ping)                 | Ping     | `<pi-lan-ip>`                                                                                 |
 | Backup                    | Push     | resticprofile `backup`, daily 03:00                                                           |

@@ -75,7 +75,7 @@ hold. This page lists the controls per layer and where each one is decided.
   manual cadence. Docker's own repository is excluded: its updates land with a
   `base` run, and `Pi pending action` reports one as soon as it is available. See
   [ADR-013](../../knowledge/decisions/ADR-013-update-patching-strategy.md).
-- **Non-root where the image allows it**: 13 of 34 containers run as a service
+- **Non-root where the image allows it**: 14 of 35 containers run as a service
   uid. The other 21 start as root; section 3 says why.
 - **Audit**: lynis **on the homelab only** (installed where `lynis_scheduled`
   is set, purged elsewhere; its timer and monitor live in the observability
@@ -101,7 +101,7 @@ hold. This page lists the controls per layer and where each one is decided.
   inspect, logs, stats, events, `info`, image list), only from their network, which
   is internal (ADR-037). Netdata uses it for container names, Dozzle for logs.
 - **No `privileged`; `cap_drop: ALL` on every service**, each re-adding only
-  what it was observed to need. Eighteen of 34 keep no capability. Needs are
+  what it was observed to need. Nineteen of 35 keep no capability. Needs are
   rarely guessable, for example:
   - Pi-hole: `SETFCAP` (its image `setcap`s FTL).
   - wg-easy: `NET_RAW` (`wg-quick` calls `iptables`).

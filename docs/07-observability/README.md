@@ -504,7 +504,7 @@ Discord webhook on every monitor. Known limitations, accepted (issue #13):
 - **Nothing watches the watcher.** Kuma runs on the Pi; a total outage produces silence.
 - **Single channel.** A broken or muted webhook means no alerts.
 - **Notification storm.** Monitors are not chained (`parent` is null), so a Traefik or network
-  outage trips nearly every monitor (35 of 38 sit behind Traefik), and each re-notifies about every
+  outage trips nearly every monitor (35 of 39 sit behind Traefik), and each re-notifies about every
   6 h (`resend_interval`) for the length of the incident. A Pi reboot is different: Kuma goes down
   with the Pi and sees none of it. After the unlock, expect Immich, Calibre-Web, Collabora and
   Paperless to go red then green once, because Kuma gives up after 3 × 60 s and their own `start_period` is 15 to

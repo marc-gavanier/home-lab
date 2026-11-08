@@ -21,6 +21,7 @@ Internet → ISP Router (IPv4 full stack, port forwarding)
 | 80        | not forwarded                      |
 | 443       | not forwarded                      |
 | 53        | not forwarded                      |
+| 64738     | not forwarded (Mumble)             |
 | 51820/udp | WireGuard                          |
 | 51413     | open (Transmission peer port, tcp) |
 
@@ -55,6 +56,7 @@ Read `docker/configs/traefik/dynamic/middlewares.yml` before tightening any of t
 | `rss.example.com`      | Miniflux     |
 | `git.example.com`      | Forgejo      |
 | `papers.example.com`   | Paperless    |
+| `voice.example.com`    | Mumble       |
 | `dns.example.com`      | Pi-hole      |
 | `services.example.com` | Uptime Kuma  |
 | `system.example.com`   | Netdata      |
@@ -64,6 +66,9 @@ Read `docker/configs/traefik/dynamic/middlewares.yml` before tightening any of t
 | `films.example.com`    | Radarr       |
 | `series.example.com`   | Sonarr       |
 | `indexers.example.com` | Prowlarr     |
+
+`voice` is the one name that is not a Traefik route: Mumble listens on 64738 TCP+UDP, published
+on the host and restricted in `DOCKER-USER` to the same three ranges (ADR-043).
 
 ## Public DNS
 

@@ -11,6 +11,7 @@ old credential in force.
 | `cf_dns_api_token`             | traefik + cloudflare-ddns.sh | **yes**, but the two carriers sit behind different tags; see [below](#cf_dns_api_token)                    |
 | `transmission_password`        | transmission                 | **yes**, then update the copies in Kuma, Sonarr and Radarr; see [below](#transmission_password)            |
 | `dozzle_users.yml`             | dozzle                       | **yes** (read at start)                                                                                    |
+| `mumble_server_password`       | mumble                       | **yes** (read at start), then update `MUMBLE_PASSWORD` in the bridge's `.env` and Mumla                    |
 | `forgejo_secret_key`           | forgejo                      | **yes**, but see [below](#forgejo_secret_key)                                                              |
 | `paperless_secret_key`         | paperless                    | **yes** (read at start); every session ends and every in-flight broker message is refused                  |
 | `miniflux_database_url`        | miniflux                     | **yes**, but alone it breaks the app; see [Rotating a database password](#rotating-a-database-password)    |
