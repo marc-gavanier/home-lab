@@ -38,7 +38,7 @@ The workstation's PC game saves reach this chain as Nextcloud files: Ludusavi wr
 them into a synced folder every day ([ADR-039](../../knowledge/decisions/ADR-039-back-up-pc-game-saves-with-ludusavi.md)).
 
 **Not backed up:** `/mnt/data/library` (torrent video, re-obtainable, kept until
-watched — ADR-035), `/mnt/data/log` (the persistent journal), `/mnt/data/claude`
+watched — ADR-035; heavy game files, re-downloadable), `/mnt/data/log` (the persistent journal), `/mnt/data/claude`
 (the `claude` account's working files and rclone write cache), `/mnt/data/docker` (the
 images, pulled again from their registries on a rebuild), `/mnt/data/tmp` (restore staging, empty
 between restores), and the OS.
