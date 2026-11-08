@@ -113,7 +113,7 @@
       :DOCKER-USER - [0:0]
   notify: Reload UFW
 
-- name: firewall | Restrict Pi-hole's DNS to the LAN, the VPN and the container networks
+- name: firewall | Restrict Pi-hole's DNS and Mumble to the LAN, the VPN and the container networks
   ansible.builtin.blockinfile:
     path: /etc/ufw/after.rules
     marker: "# {mark} ANSIBLE MANAGED - DOCKER-USER rules"
@@ -127,6 +127,14 @@
       -A DOCKER-USER -p tcp --dport 53 -s 172.16.0.0/12 -j RETURN
       -A DOCKER-USER -p udp --dport 53 -j DROP
       -A DOCKER-USER -p tcp --dport 53 -j DROP
+      -A DOCKER-USER -p udp --dport 64738 -s 192.168.1.0/24 -j RETURN
+      -A DOCKER-USER -p tcp --dport 64738 -s 192.168.1.0/24 -j RETURN
+      -A DOCKER-USER -p udp --dport 64738 -s 10.8.0.0/24 -j RETURN
+      -A DOCKER-USER -p tcp --dport 64738 -s 10.8.0.0/24 -j RETURN
+      -A DOCKER-USER -p udp --dport 64738 -s 172.16.0.0/12 -j RETURN
+      -A DOCKER-USER -p tcp --dport 64738 -s 172.16.0.0/12 -j RETURN
+      -A DOCKER-USER -p udp --dport 64738 -j DROP
+      -A DOCKER-USER -p tcp --dport 64738 -j DROP
   notify: Reload UFW
 
 - name: firewall | Enable UFW

@@ -70,6 +70,11 @@
     cmd: docker restart paperless
   changed_when: true
 
+- name: Restart mumble
+  ansible.builtin.command:
+    cmd: docker restart mumble
+  changed_when: true
+
 - name: Restart immich
   ansible.builtin.shell:
     cmd: docker restart immich-db && docker restart immich-server

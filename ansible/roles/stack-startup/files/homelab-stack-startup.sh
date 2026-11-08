@@ -63,7 +63,7 @@ fi
 
 wait_healthy pihole 300
 
-up vaultwarden uptime-kuma searxng navidrome dozzle it-tools miniflux-db miniflux forgejo
+up vaultwarden uptime-kuma searxng navidrome dozzle it-tools miniflux-db miniflux forgejo mumble
 wait_healthy vaultwarden 120
 
 up nextcloud-db nextcloud-redis nextcloud nextcloud-cron nextcloud-notify-push transmission

@@ -27,6 +27,8 @@ immich_db_password: ""
 paperless_secret_key: ""
 paperless_admin_password: ""
 
+mumble_server_password: ""
+
 transmission_password: ""
 
 miniflux_db_password: ""
