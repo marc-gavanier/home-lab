@@ -28,6 +28,7 @@ as a Docker container from one Docker Compose file. Persistent data lives on the
 | [Miniflux](miniflux.md)         | RSS reader, release tracking      | Productivity   |
 | [Forgejo](forgejo.md)           | Self-hosted git, GitHub mirror    | Secondary      |
 | [Paperless](paperless.md)       | Papers: OCR, filing, search       | Productivity   |
+| [Mumble](mumble.md)             | Voice bridge server (Mumla)       | Productivity   |
 | [Prowlarr](arr-stack.md)        | Indexer manager for the two below | Secondary      |
 | [Sonarr](arr-stack.md)          | Series: search and import         | Secondary      |
 | [Radarr](arr-stack.md)          | Films: search and import          | Secondary      |
@@ -69,6 +70,7 @@ on the host rather than trust the sum.
 | Sonarr                  | 143 MB      |
 | Radarr                  | 87 MB       |
 | Paperless + Redis       | 690 MB      |
+| Mumble                  | 9 MB        |
 | **Total**               | **~5.5 GB** |
 
 - Collabora grows with the number of open documents (ADR-021). Dozzle holds no logs, it streams

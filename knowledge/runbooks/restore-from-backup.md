@@ -121,7 +121,8 @@ cannot fix their own data directory:
 
 `paperless` runs as uid 33 (`www-data`, the uid Nextcloud writes its `Inbox` with), also
 without `CHOWN`: `data`, `media`, `consume` and `scratch` under `/mnt/data/services/paperless`
-must be owned `33:33`, mode 0700.
+must be owned `33:33`, mode 0700. `mumble` runs as uid 10000, without `CHOWN`:
+`/mnt/data/services/mumble` and its `data` must be owned `10000:10000`, mode 0700.
 
 A directory recreated by hand (`mkdir`, `cp -r`, `rsync` without `-a`) ends up owned
 by root: Postgres then refuses to start ("data directory has wrong ownership") and
@@ -133,6 +134,8 @@ chmod 700        /mnt/data/services/nextcloud/db /mnt/data/services/immich/db /m
 P=/mnt/data/services/paperless
 chown -R 33:33 $P/data $P/media $P/consume $P/scratch
 chmod 700      $P $P/data $P/media $P/consume $P/scratch
+chown -R 10000:10000 /mnt/data/services/mumble
+chmod 700            /mnt/data/services/mumble /mnt/data/services/mumble/data
 ```
 
 Or let Ansible do it, from `ansible/`:
@@ -141,8 +144,8 @@ Or let Ansible do it, from `ansible/`:
 ansible-playbook playbooks/site.yml --tags storage --ask-vault-pass
 ```
 
-`--tags storage` owns the three database directories; for `immich/redis` and the
-Paperless tree, the `chown` above is enough.
+`--tags storage` owns the three database directories; for `immich/redis`, the
+Paperless tree and Mumble, the `chown` above is enough.
 
 `nextcloud-cron` runs as root; it needs nothing.
 
