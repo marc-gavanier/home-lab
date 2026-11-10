@@ -1,7 +1,7 @@
 # Mumble
 
-The voice server of the workstation's voice bridge: the phone (Mumla) and the bridge (pymumble,
-on the workstation) meet here. Only the server runs on the Pi; the bridge, Whisper and Voxtral
+The voice server of the workstation's voice bridge: the phone (Mumla) and the bridge
+(`voice-bridge`, a pymumble-rev client, on the workstation) meet here. Only the server runs on the Pi; the bridge, Whisper and Voxtral
 need the workstation's GPU ([ADR-043](../../knowledge/decisions/ADR-043-mumble-voice-bridge-server.md)).
 
 ## At a glance
@@ -27,28 +27,41 @@ need the workstation's GPU ([ADR-043](../../knowledge/decisions/ADR-043-mumble-v
   `data/mumble_server_config.ini`, regenerated at each start, on the encrypted volume.
 - The certificate is self-signed and generated on first start. Mumla asks once to trust it; a new
   `data/` means a new certificate and one more question.
+- The bridge pins this certificate: it trusts only the copy given as `server_certificate` in its
+  configuration, refuses anything older than TLS 1.2 and skips the host name check, which the
+  self-signed certificate cannot pass. A new certificate therefore stops the bridge until its
+  copy is replaced (see [Restore](#restore)).
 - No user is registered and no channel is created: the bridge and the phone join the root channel.
+  The bridge does not trust user names, which anyone with the password can take: it only listens to
+  the user whose client certificate hash matches `speaker_certificate_hash`, Mumla's certificate.
 
 ## Common tasks
 
 ### Change the server password
 
 Set `mumble_server_password` in the vaulted `local.yml` and deploy: the secret changes, the
-handler restarts `mumble`. Then update `MUMBLE_PASSWORD` in the bridge's `.env` and the password
-in Mumla.
+handler restarts `mumble`. Then update `password` under `[mumble]` in the bridge's
+`~/.config/voice-bridge/config.toml` and the password in Mumla.
 
 ### Restore
 
 Nothing to restore by hand: restic brings `data/` back with `/mnt/data/services`. Deleting
 `data/` is also a valid restore; the server starts empty and Mumla asks to trust the new
-certificate.
+certificate. The bridge does not ask: export the new certificate into the file its
+`server_certificate` names, from the workstation:
+
+```bash
+openssl s_client -connect voice.example.com:64738 </dev/null 2>/dev/null \
+  | openssl x509 -outform PEM > ~/.config/voice-bridge/server.pem
+```
 
 ## Troubleshooting
 
 | Symptom                                | Cause                                               | Action                                                         |
 |----------------------------------------|-----------------------------------------------------|----------------------------------------------------------------|
 | Mumla: "certificate changed"           | `data/` was recreated                               | Accept the new certificate                                     |
+| Bridge: "certificate verify failed"    | `data/` was recreated, the pinned copy is stale     | Export the new certificate, see [Restore](#restore)            |
 | Mumla times out on `voice.example.com` | Phone not on Pi-hole DNS, or outside LAN and VPN    | Check Wi-Fi DNS, or turn WireGuard on                          |
-| "Wrong server password"                | Vault, `.env` and Mumla disagree                    | Compare the three; the vault is the reference                  |
+| "Wrong server password"                | Vault, bridge config and Mumla disagree             | Compare the three; the vault is the reference                  |
 
 Upstream docs: <https://www.mumble.info/documentation/>

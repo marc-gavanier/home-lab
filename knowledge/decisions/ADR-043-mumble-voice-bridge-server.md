@@ -9,6 +9,12 @@ The voice bridge lets the operator talk to a Claude Code session from the phone.
 Mumla (phone) → WireGuard through the Pi → a Mumble server → the bridge (pymumble) → Whisper →
 a Claude Code channel, and the answer comes back through Voxtral.
 
+> **Amended 2026-11-10.** The bridge no longer uses pymumble: its last release (1.6.1, 2021) pinned
+> Python 3.11 and a protobuf with known vulnerabilities, and it never verified the server
+> certificate. It now uses pymumble-rev, pins this server's certificate and only listens to the
+> speaker's client certificate. The server side is unchanged; checked against `v1.6.1001-0` the
+> same day (pinned connection accepted, another certificate refused before the password is sent).
+
 The Mumble server was a provisional container on the workstation: no restart policy, so it was
 down after every reboot until started by hand, and bound to the address the DHCP lease gave the
 workstation, so a new lease meant recreating it and editing the bridge's configuration.
@@ -40,6 +46,9 @@ workstation: they need its GPU, and Claude Code starts the bridge locally.
 
 - The server survives workstation reboots and DHCP changes; the bridge's `.env` points at
   `voice.<domain>`.
+
+  > **Amended 2026-11-10.** The bridge reads `~/.config/voice-bridge/config.toml` instead of a
+  > `.env`; its `[mumble]` section points at `voice.<domain>` and holds the pinned certificate.
 - The voice path now depends on the Pi, which it already did: WireGuard runs there.
 - One more container (35), one more Kuma monitor, one more vaulted secret.
 
