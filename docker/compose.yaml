@@ -769,7 +769,7 @@ services:
       retries: 3
 
   prowlarr:
-    image: lscr.io/linuxserver/prowlarr:2.6.5
+    image: lscr.io/linuxserver/prowlarr:3.0.2
     container_name: prowlarr
     dns:
       - ${PI_LAN_IP}
