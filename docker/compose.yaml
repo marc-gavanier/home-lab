@@ -1120,7 +1120,7 @@ services:
   miniflux-db:
     # [warning]: do not size this from a solo `docker stop` on an idle database: the real cost is a checkpoint while every container drains to the same disk
     stop_grace_period: 90s
-    image: postgres:18-alpine
+    image: postgres:19-alpine
     container_name: miniflux-db
     restart: "no"
     security_opt: *no-new-privs
