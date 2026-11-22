@@ -259,6 +259,13 @@ argument_specs:
         type: str
         required: false
         description: Control-node path to a logo (.svg/.png); only used when searxng_branding is true.
+      searxng_contact_url:
+        type: str
+        required: false
+        description: >-
+          Contact URL of whoever runs the instance (general.contact_url). SearXNG refuses to load
+          the wikipedia, wikidata and openstreetmap engines without one, since both operators'
+          usage policies require a contact for automated clients. Unset, those engines stay off.
       restic_password:
         type: str
         required: true

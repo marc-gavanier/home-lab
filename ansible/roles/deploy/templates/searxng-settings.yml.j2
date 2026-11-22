@@ -1,9 +1,11 @@
 # {{ ansible_managed }}
 use_default_settings: true
 
+{% if searxng_contact_url | default('') | length > 0 %}
 general:
-  contact_url: "https://marc.{{ domain }}/"
+  contact_url: "{{ searxng_contact_url }}"
 
+{% endif %}
 server:
   secret_key: "{{ searxng_secret_key }}"
   base_url: "https://search.{{ domain }}/"
