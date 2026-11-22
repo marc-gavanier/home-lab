@@ -1,6 +1,9 @@
 # {{ ansible_managed }}
 use_default_settings: true
 
+general:
+  contact_url: "https://marc.{{ domain }}/"
+
 server:
   secret_key: "{{ searxng_secret_key }}"
   base_url: "https://search.{{ domain }}/"
