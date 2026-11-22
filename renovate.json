@@ -47,7 +47,7 @@
       "dependencyDashboardApproval": true
     },
     {
-      "matchPackageNames": ["mariadb"],
+      "matchPackageNames": ["mariadb", "postgres"],
       "matchUpdateTypes": ["major"],
       "dependencyDashboardApproval": true
     },
