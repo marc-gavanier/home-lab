@@ -22,6 +22,9 @@ an account.
   `duckduckgo` (CAPTCHA), Brave (429), Startpage (CAPTCHA), Qwant, Mojeek and Presearch (403).
   SearXNG drops a refused engine silently and `/healthz` stays OK: test one with
   `/search?q=test&engines=<name>` and read `docker logs searxng 2>&1 | grep 'ERROR:searx.engines'`.
+- Wikipedia, Wikidata and OpenStreetMap load only with a contact URL: set `searxng_contact_url`
+  in `host_vars/<host>/private.yml`. Without it SearXNG skips them at start, logging
+  `requires general.contact_url`.
 - Preferences live in a per-device cookie.
 - At every start SearXNG downloads the ClearURLs rules from a third party, unpinned. Accepted:
   they can only strip parameters from result links.
