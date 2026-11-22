@@ -29,6 +29,17 @@ profile homelab-netdata flags=(attach_disconnected,mediate_deleted) {
 
   deny network alg,
   deny network vsock,
+  deny network appletalk,
+  deny network atmsvc,
+  deny network ax25,
+  deny network caif,
+  deny network econet,
+  deny network ipx,
+  deny network irda,
+  deny network isdn,
+  deny network netrom,
+  deny network rose,
+  deny network wanpipe,
 
   deny /sys/[^f]*/** wklx,
   deny /sys/f[^s]*/** wklx,
