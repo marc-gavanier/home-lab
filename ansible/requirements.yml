@@ -5,11 +5,11 @@ collections:
   - name: community.crypto
     version: 3.5.1
   - name: community.general
-    version: 13.5.0
+    version: 13.5.1
   - name: community.docker
     version: 5.4.0
 
 roles:
   - name: UBUNTU24-CIS
     src: https://github.com/ansible-lockdown/UBUNTU24-CIS
-    version: "1.8.0"
+    version: "1.9.0"
