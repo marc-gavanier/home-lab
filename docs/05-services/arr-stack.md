@@ -64,7 +64,8 @@ Jellyfin        reads the library it was already configured with
 
 - The `.db` also stays in the snapshot, so `--include services/sonarr` restores a file and exits
   0 — but not necessarily a consistent one. Use the dump.
-- `logs.db` files are not dumped: they hold only the application log.
+- `logs.db` files (and their `-wal`/`-shm`) are excluded from the snapshot: they hold only the
+  application log, and a `-wal` vanishing mid-read failed the whole run.
 - Restore Prowlarr first (the other two pull indexers from it). Procedure:
   [`restore-from-backup.md` § Restore Sonarr / Radarr / Prowlarr (SQLite)](../../knowledge/runbooks/restore-from-backup.md#restore-sonarr--radarr--prowlarr-sqlite).
 
