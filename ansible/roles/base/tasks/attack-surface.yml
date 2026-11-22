@@ -87,6 +87,7 @@
     cmd: pro config show apt_news
   register: pro_apt_news
   changed_when: false
+  check_mode: false
   when: pro_client.stat.exists
 
 - name: attack-surface | Stop the apt news fetch from Canonical
