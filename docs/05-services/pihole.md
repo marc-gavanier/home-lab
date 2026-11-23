@@ -2,8 +2,8 @@
 
 DNS server for the LAN and the VPN: ad and tracker blocking, and split DNS that resolves home lab
 subdomains to the Pi's LAN address (each name also has a `local=` line, so its AAAA and HTTPS
-queries get an empty answer instead of going to Quad9). Upstream goes through dnsproxy to Quad9 over DoH
-([Network](../04-network/README.md#resolver), ADR-015).
+queries get an empty answer instead of going upstream). Upstream goes through dnsproxy to Cloudflare
+`1.1.1.2` over DoH ([Network](../04-network/README.md#resolver), ADR-015, ADR-044).
 
 ## At a glance
 

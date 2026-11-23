@@ -3,7 +3,8 @@
 **Date**: 2026-07-20
 **Status**: accepted — deployed and validated on the Pi. The **client changed on
 2026-07-27** (cloudflared → dnsproxy); the decision itself is unchanged, see the
-appended section.
+appended section. The **provider changed on 2026-11-23** (Quad9 → Cloudflare
+`1.1.1.2`), see ADR-044.
 
 ## Context
 

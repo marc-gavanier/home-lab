@@ -255,9 +255,9 @@ services:
       - "-p"
       - "5053"
       - "-u"
-      - "https://9.9.9.9/dns-query"
+      - "https://1.1.1.2/dns-query"
       - "-u"
-      - "https://149.112.112.112/dns-query"
+      - "https://1.0.0.2/dns-query"
     depends_on:
       - pihole
 
