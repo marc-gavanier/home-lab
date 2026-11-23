@@ -20,7 +20,7 @@ Internet → ISP Router
                                 (no HTTP(S), no DNS forwarded)
 
 LAN/VPN clients → Pi-hole (split DNS: *.example.com → Pi LAN IP)
-                     └─ upstream: dnsproxy DoH → Quad9 (127.0.0.1:5053, ADR-015)
+                     └─ upstream: dnsproxy DoH → Cloudflare 1.1.1.2 (127.0.0.1:5053, ADR-044)
                 → Traefik (TLS via Let's Encrypt DNS-01 / Cloudflare, ADR-014)
                      └─ per-service subdomains, VPN/LAN only
 Cloudflare DDNS: vpn.example.com updated by cloudflare-ddns.sh (15-min timer)

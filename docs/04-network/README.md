@@ -88,9 +88,10 @@ on the host and restricted in `DOCKER-USER` to the same three ranges (ADR-043).
 - Pi-hole is the LAN resolver (blocking, split DNS). LAN and VPN clients talk only to Pi-hole.
   See [Pi-hole](../05-services/pihole.md).
 - Pi-hole forwards to a `dnsproxy` sidecar on `127.0.0.1#5053` (it shares Pi-hole's network
-  namespace), which sends queries to Quad9 over DoH (ADR-015).
-- The upstreams are IPs (`9.9.9.9`, `149.112.112.112`) so the DNS path needs no DNS to start.
-  Quad9's certificate carries IP SANs, so TLS validation still works.
+  namespace), which sends queries to Cloudflare's malware-blocking resolver over DoH (ADR-015,
+  ADR-044).
+- The upstreams are IPs (`1.1.1.2`, `1.0.0.2`) so the DNS path needs no DNS to start.
+  Cloudflare's certificate carries both IPs as SANs, so TLS validation still works.
 - The upstream is set in `compose.yaml` (`FTLCONF_dns_upstreams`), not in `pihole.toml`.
 - Only queries that go through Pi-hole are encrypted. The host and the containers resolve through
   `/etc/resolv.conf` (`1.1.1.1`, `8.8.8.8`) via Docker's embedded resolver, in cleartext.
