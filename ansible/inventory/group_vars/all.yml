@@ -37,6 +37,7 @@ fail2ban_max_retry: 3
 fail2ban_ban_time: 3600
 
 services_data_dir: "{{ data_mount_point }}/services"
+notes_dir: "{{ services_data_dir }}/notes"
 media_dir: "{{ data_mount_point }}/media"
 library_dir: "{{ data_mount_point }}/library"
 

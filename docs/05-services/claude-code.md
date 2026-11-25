@@ -11,16 +11,17 @@ AI agent on the Pi that manages the Obsidian notes vault, driven from the Claude
 | User         | dedicated unprivileged `claude`                                                                                                                                                                    |
 | Sandbox      | `~claude/.claude/settings.json`: writes confined to the vault, network to one domain, reads denied on the account's credentials file and the secrets directory; there is no `/sandbox` on the host |
 | Ansible role | `claude-code`                                                                                                                                                                                      |
-| Backup       | vault content lives in Nextcloud; `~claude/.claude` is on the encrypted data volume (`/mnt/data/claude`), not backed up                                                                            |
+| Backup       | the vault is `/mnt/data/services/notes`, backed up by restic; `~claude/.claude` is on the encrypted data volume (`/mnt/data/claude`), not backed up                                                |
 
-| Path                                                               | Content                                              |
-|--------------------------------------------------------------------|------------------------------------------------------|
-| `/home/claude/vault`                                               | rclone WebDAV mount of `nextcloud:Notes` (the vault) |
-| `/home/claude/.claude`                                             | Claude Code config + credentials                     |
-| `/home/claude/.claude/{commands,agents}`                           | Custom commands & subagents (role-mirrored)          |
-| `/etc/systemd/system/vault-mount.service`                          | rclone mount of the vault                            |
-| `/etc/systemd/system/claude-remote-control.service`                | always-on Remote Control                             |
-| `/etc/systemd/system/vault-mount.service.d/10-remote-control.conf` | pulls Remote Control up with the mount (login-gated) |
+| Path                                                                   | Content                                                        |
+|------------------------------------------------------------------------|----------------------------------------------------------------|
+| `/mnt/data/services/notes`                                             | the notes, served by Nextcloud as the `Notes` external storage |
+| `/home/claude/vault`                                                   | bind mount of the notes directory (the vault)                  |
+| `/home/claude/.claude`                                                 | Claude Code config + credentials                               |
+| `/home/claude/.claude/{commands,agents}`                               | Custom commands & subagents (role-mirrored)                    |
+| `/etc/systemd/system/home-claude-vault.mount`                          | the vault bind mount, pulled in by `mnt-data.mount`            |
+| `/etc/systemd/system/claude-remote-control.service`                    | always-on Remote Control                                       |
+| `/etc/systemd/system/home-claude-vault.mount.d/10-remote-control.conf` | pulls Remote Control up with the mount (login-gated)           |
 
 ## How it works
 
@@ -28,15 +29,13 @@ AI agent on the Pi that manages the Obsidian notes vault, driven from the Claude
   itself and nothing pins the version; the last update is recorded in
   `~/.claude/.last-update-result.json`. `autoUpdates=false` does not apply to this
   install type. Accepted.
-- It follows the vault's own `CLAUDE.md`. Writes go through WebDAV, so Nextcloud indexes them
-  at once (no `occ` scan).
-- `claude-remote-control` soft-wants `vault-mount` and gates its start on the vault being
-  mounted (`ExecStartPre`), retrying until it is. A slow boot therefore heals itself, unless
-  `vault-mount` fails 5 times within 10 minutes: it then stays `failed` until `reset-failed`.
-- The two units move together: Remote Control is `PartOf=vault-mount.service` and stops
-  before the mount, releasing its working directory; a `Wants=` drop-in on the mount starts
-  it again. `vault-mount` clears a stale endpoint before every start and lazy-unmounts on
-  stop.
+- It follows the vault's own `CLAUDE.md`. It reads and writes local files; Nextcloud
+  notices the changes at the next access to the folder (`filesystem_check_changes`,
+  [ADR-045](../../knowledge/decisions/ADR-045-notes-vault-as-local-external-storage.md)).
+- The notes directory belongs to uid 33 (Nextcloud), mode 0770; ACLs give `claude` access,
+  and default ACLs give both users `rwx` on every new file. `getfacl` shows them.
+- Remote Control is `PartOf=home-claude-vault.mount` and gates its start on the vault being
+  mounted (`ExecStartPre`); a `Wants=` drop-in on the mount starts it again after an unlock.
 
 ### Custom commands and subagents
 
@@ -165,32 +164,6 @@ systemctl show -p ActiveState,NRestarts claude-remote-control   # active, NResta
 
 The banner goes to stdout, which the unit discards: nothing new appears in the journal. Then
 start a session from the app's environment list, and remove any ghost.
-
-### Both units fail to start → stale FUSE endpoint
-
-Symptom: Kuma reports the Pi health check down with `restart loop: vault-mount.service` and
-`claude-remote-control.service (activating)`. After 5 failures within 10 minutes
-`vault-mount` stops in `failed` and systemd refuses any start until `reset-failed`.
-
-```bash
-journalctl -u vault-mount -n 20            # "Fatal error: directory already mounted"
-journalctl -u claude-remote-control -n 20  # status=200/CHDIR, "Transport endpoint is not connected"
-grep vault /proc/mounts                    # entry present, but the mount answers ENOTCONN
-```
-
-Cause: a stop could not unmount (`EBUSY`) and left a dead endpoint; rclone refuses to mount
-over it. The units should now prevent this; if you land here, look at the mount table first.
-
-Fix — `-z` is required, a plain `-u` fails again:
-
-```bash
-sudo systemctl stop claude-remote-control vault-mount
-sudo fusermount -uz /home/claude/vault
-grep vault /proc/mounts || echo CLEAN            # must be CLEAN before restarting
-sudo systemctl reset-failed vault-mount
-sudo systemctl start vault-mount                 # Remote Control is pulled up with it
-sudo -u claude sh -c 'cd ~/vault && ls'          # probe the function, not the unit state
-```
 
 See also: `knowledge/research/obsidian-claude-mobile-workflow.md`,
 `knowledge/runbooks/restore-from-backup.md`,

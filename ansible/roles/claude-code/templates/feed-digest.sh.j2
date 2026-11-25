@@ -68,7 +68,7 @@ trap 'fail "digest aborted (rc=$?) — see $LOG"' ERR
 grep -q " ${VAULT} " /proc/mounts \
     || fail "the vault is not mounted at ${VAULT} — refusing to write the note to the SD card"
 ls -1 "$VAULT" >/dev/null 2>&1 \
-    || fail "the vault at ${VAULT} is mounted but unreadable — check vault-mount.service (a rejected credential leaves it active and failing)"
+    || fail "the vault at ${VAULT} is mounted but unreadable — check home-claude-vault.mount and the ACLs of the notes directory"
 
 mkdir -p "$DIGEST_DIR"
 

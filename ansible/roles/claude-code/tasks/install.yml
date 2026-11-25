@@ -5,12 +5,11 @@
     shell: /bin/bash
     create_home: true
 
-- name: install | Install sandbox deps (bubblewrap + socat) and rclone
+- name: install | Install sandbox deps (bubblewrap + socat)
   ansible.builtin.apt:
     name:
       - bubblewrap
       - socat
-      - rclone
     state: present
 
 - name: install | Allow bubblewrap user namespaces (AppArmor profile)

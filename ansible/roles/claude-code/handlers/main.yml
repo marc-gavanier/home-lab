@@ -3,12 +3,6 @@
   ansible.builtin.command: apparmor_parser -r /etc/apparmor.d/bwrap
   changed_when: true
 
-- name: Restart vault mount
-  ansible.builtin.systemd:
-    name: vault-mount.service
-    state: restarted
-    daemon_reload: true
-
 - name: Restart Claude Remote Control
   ansible.builtin.systemd:
     name: claude-remote-control.service

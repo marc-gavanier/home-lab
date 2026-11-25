@@ -60,7 +60,7 @@ Use this page every time the homelab Pi comes back up: reboot, power cut,
      [ADR-008](../decisions/ADR-008-usb-tamper-poweroff.md)).
    - The mount starts the units that need the volume
      ([ADR-011](../decisions/ADR-011-secrets-off-sd.md)): `wg-quick@wg0`,
-     `vault-mount`, `homelab-ddns`, `homelab-journal-persist`,
+     `home-claude-vault.mount`, `homelab-ddns`, `homelab-journal-persist`,
      `home-claude-.claude.mount`. Authority:
      `ls /etc/systemd/system/mnt-data.mount.wants/`.
    - Every 30 days `Checking data volume integrity...` runs a full scan with a

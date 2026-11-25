@@ -638,24 +638,19 @@ command:
     timeout: 90000
     exit-status: 0
 
-  vault-mount-is-writable-not-just-mounted:
+  vault-is-shared-with-nextcloud-not-just-mounted:
     exec: |
       t=/home/claude/vault/Inbox/.goss-vault-probe
-      runuser -u claude -- sh -c '
-        t=/home/claude/vault/Inbox/.goss-vault-probe
-        v="probe-$(date +%s)"
-        printf "%s" "$v" > "$t" 2>/dev/null || { echo "vault mount: write failed"; exit 1; }
-        [ "$(cat "$t" 2>/dev/null)" = "$v" ] || { echo "vault mount: read-back mismatch"; rm -f "$t"; exit 1; }
-        i=0
-        until [ "$(RCLONE_CONFIG=/mnt/data/secrets/claude/rclone.conf rclone cat nextcloud:Notes/Inbox/.goss-vault-probe 2>/dev/null)" = "$v" ]; do
-          i=$((i + 1))
-          [ "$i" -lt 15 ] || { echo "vault mount: write never reached Nextcloud"; rm -f "$t"; exit 1; }
-          sleep 2
-        done
-        rm -f "$t" 2>/dev/null || { echo "vault mount: remove failed"; exit 1; }
-      '
+      v="probe-$(date +%s)"
+      runuser -u claude -- sh -c 'printf "%s" "$1" > "$2"' _ "$v" "$t" 2>/dev/null \
+        || { echo "vault: claude cannot write"; exit 1; }
+      [ "$(docker exec -u www-data nextcloud cat /notes/Inbox/.goss-vault-probe 2>/dev/null)" = "$v" ] \
+        || { echo "vault: Nextcloud does not see what claude wrote"; rm -f "$t"; exit 1; }
+      docker exec -u www-data nextcloud sh -c 'printf x >> /notes/Inbox/.goss-vault-probe' 2>/dev/null \
+        || { echo "vault: Nextcloud cannot write a file claude created (ACL)"; rm -f "$t"; exit 1; }
+      runuser -u claude -- rm -f "$t" 2>/dev/null || { echo "vault: claude cannot remove"; exit 1; }
     exit-status: 0
-    timeout: 90000
+    timeout: 30000
 
   no-kuma-report-was-lost-in-silence:
     exec: |

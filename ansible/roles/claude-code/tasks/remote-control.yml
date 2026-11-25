@@ -6,9 +6,9 @@
     content: |
       [Unit]
       Description=Claude Code Remote Control (sandboxed, dedicated user)
-      After=network-online.target vault-mount.service
-      Wants=network-online.target vault-mount.service
-      PartOf=vault-mount.service
+      After=network-online.target home-claude-vault.mount
+      Wants=network-online.target
+      PartOf=home-claude-vault.mount
       RequiresMountsFor=/home/claude/.claude
       StartLimitIntervalSec=0
 
@@ -34,15 +34,15 @@
     path: /home/claude/.claude/.credentials.json
   register: claude_creds
 
-- name: remote-control | Create the vault-mount drop-in directory
+- name: remote-control | Create the vault mount drop-in directory
   ansible.builtin.file:
-    path: /etc/systemd/system/vault-mount.service.d
+    path: /etc/systemd/system/home-claude-vault.mount.d
     state: directory
     mode: "0755"
 
 - name: remote-control | Pull Remote Control up with the vault mount
   ansible.builtin.copy:
-    dest: /etc/systemd/system/vault-mount.service.d/10-remote-control.conf
+    dest: /etc/systemd/system/home-claude-vault.mount.d/10-remote-control.conf
     mode: "0644"
     content: |
       [Unit]
@@ -51,7 +51,7 @@
 
 - name: remote-control | Drop the pull-in while the claude.ai login is not done
   ansible.builtin.file:
-    path: /etc/systemd/system/vault-mount.service.d/10-remote-control.conf
+    path: /etc/systemd/system/home-claude-vault.mount.d/10-remote-control.conf
     state: absent
   when: not claude_creds.stat.exists
 

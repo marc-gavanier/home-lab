@@ -1,7 +1,7 @@
 # ADR-004: Run Claude Code on the Pi (hardened, drivable from mobile)
 
 **Date**: 2026-05-24
-**Status**: Accepted
+**Status**: Accepted — the vault mount of point 3 is superseded by [ADR-045](ADR-045-notes-vault-as-local-external-storage.md)
 **Deciders**: the home lab operator
 
 ## Context

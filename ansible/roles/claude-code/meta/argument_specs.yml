@@ -6,16 +6,15 @@ argument_specs:
       domain:
         type: str
         required: true
-        description: Public domain (rclone WebDAV endpoint drive.<domain>).
+        description: Public domain (Miniflux endpoint rss.<domain>; the retired drive.<domain> pin is removed).
       homelab_ip:
         type: str
         required: true
-        description: LAN IP used to pin drive.<domain>.
-      rclone_webdav_pass:
+        description: LAN IP the feed digest reaches Miniflux on.
+      notes_dir:
         type: str
         required: true
-        no_log: true
-        description: Nextcloud app-password for the rclone WebDAV remote (stored obscured on the encrypted volume).
+        description: Notes directory on the encrypted volume, served by Nextcloud as the Notes external storage and bound onto ~claude/vault.
       miniflux_api_key:
         type: str
         required: false
