@@ -29,13 +29,14 @@
     path: "{{ notes_dir }}"
     entity: "{{ item.entity }}"
     etype: "{{ item.etype }}"
-    permissions: rwx
+    permissions: "{{ item.perms }}"
     default: "{{ item.default }}"
     state: present
   loop:
-    - { etype: user, entity: claude, default: false }
-    - { etype: user, entity: claude, default: true }
-    - { etype: user, entity: "33", default: true }
+    - { etype: user, entity: claude, perms: rwx, default: false }
+    - { etype: user, entity: claude, perms: rwx, default: true }
+    - { etype: user, entity: "33", perms: rwx, default: true }
+    - { etype: other, entity: "", perms: "---", default: true }
   loop_control:
     label: "{{ 'default ' if item.default else '' }}{{ item.etype }}:{{ item.entity }}"
 
