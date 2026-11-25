@@ -38,8 +38,6 @@ miniflux_admin_password: ""
 forgejo_admin_password: ""
 forgejo_secret_key: ""
 
-rclone_webdav_pass: ""
-
 miniflux_api_key: ""
 feed_digest_kuma_push_url: ""
 

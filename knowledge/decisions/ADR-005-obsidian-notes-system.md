@@ -21,8 +21,9 @@ personal Markdown vault driven by an AI agent.
 - **Editor**: **Obsidian** (PC + mobile) — the vault is literally a folder of `.md` files.
 - **Sync**: the **Remotely Save** plugin over **Nextcloud WebDAV** (the vault syncs to the
   `Notes/` folder). No extra service to deploy.
-- **Agent**: **Claude Code on the Pi** edits the same vault via a rclone WebDAV mount —
-  see [ADR-004](ADR-004-claude-code-on-the-pi.md).
+- **Agent**: **Claude Code on the Pi** edits the same vault through a bind mount of the
+  directory Nextcloud serves as `Notes` — see [ADR-004](ADR-004-claude-code-on-the-pi.md) and
+  [ADR-045](ADR-045-notes-vault-as-local-external-storage.md).
 - **Organization**: a **PARA** structure governed by the vault's own `CLAUDE.md` (the source
   of truth for naming, frontmatter, links, and Claude's golden rules).
 

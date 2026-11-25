@@ -1,7 +1,7 @@
 # Runbook: LAN host pins disappear after a reboot
 
 Use this page when a host-side service works after a deploy but fails after a
-reboot with "Could not resolve host" or a mount error.
+reboot with "Could not resolve host".
 
 Some host services must resolve a homelab domain to an address inside the
 allow-list (the Pi's LAN IP on the homelab, its WireGuard address on offsite).
@@ -12,17 +12,16 @@ request arrived from an address outside the `vpn-only` `ipAllowList`
 
 | Pin        | Host        | Who needs it                    | Defined in                                          |
 |------------|-------------|---------------------------------|-----------------------------------------------------|
-| `drive`    | homelab     | rclone vault mount (claude)     | `ansible/roles/claude-code/tasks/vault.yml`         |
 | `services` | homelab     | `backup-notify.sh` (Kuma push)  | `ansible/roles/deploy/tasks/backup.yml`             |
 | `services` | **offsite** | —                               | `ansible/roles/offsite-backup/tasks/wireguard.yml`  |
 
 ## Symptom
 
-The vault mount fails / Claude Code won't start, or the backup Kuma push fails
+The backup Kuma push fails
 (`kuma-push-failed` in the backup unit's journal).
 
 ```bash
-getent hosts drive.<domain>      # prints nothing = the pin was wiped
+getent hosts services.<domain>   # prints nothing = the pin was wiped
 ```
 
 ## Cause
@@ -37,7 +36,7 @@ Each role pins in two places: `/etc/cloud/templates/hosts.debian.tmpl`
 playbooks**, because offsite is not in `site.yml`. From `ansible/`:
 
 ```bash
-ansible-playbook playbooks/site.yml --ask-vault-pass --tags claude-code,backup
+ansible-playbook playbooks/site.yml --ask-vault-pass --tags backup
 ```
 ```bash
 ansible-playbook playbooks/offsite.yml --ask-vault-pass --tags offsite-backup
@@ -45,11 +44,11 @@ ansible-playbook playbooks/offsite.yml --ask-vault-pass --tags offsite-backup
 
 ## Check it worked
 
-On the homelab (both must be the Pi LAN IP):
+On the homelab:
 
 ```bash
-getent hosts drive.<domain> services.<domain>    # both must be the Pi LAN IP
-grep -E 'drive|services' /etc/cloud/templates/hosts.debian.tmpl
+getent hosts services.<domain>    # must be the Pi LAN IP
+grep services /etc/cloud/templates/hosts.debian.tmpl
 ```
 
 On offsite, the half that is easy to forget:

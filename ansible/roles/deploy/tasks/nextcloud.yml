@@ -196,7 +196,7 @@
   check_mode: false
   when: nextcloud_up
 
-- name: nextcloud | Create media external storages
+- name: nextcloud | Create the external storages (media read-only, Inbox and Notes writable)
   ansible.builtin.command:
     cmd: >
       docker exec -u www-data nextcloud php occ files_external:create
@@ -207,6 +207,7 @@
     - { name: Videos, path: /external/videos }
     - { name: Papers, path: /external/papers }
     - { name: Inbox, path: /inbox/papers }
+    - { name: Notes, path: /notes }
   when:
     - nextcloud_up
     - item.path not in (nc_ext_list.stdout | default('[]') | from_json | map(attribute='configuration.datadir') | list)
@@ -261,6 +262,6 @@
   when:
     - nextcloud_up
     - item.configuration.datadir is defined
-    - item.configuration.datadir.startswith(('/external/', '/inbox/'))
+    - item.configuration.datadir.startswith(('/external/', '/inbox/', '/notes'))
     - ((item.options | default({})).filesystem_check_changes | default('0') | string) not in ['1', 'true', 'True']
   changed_when: true

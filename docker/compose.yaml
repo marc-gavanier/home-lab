@@ -335,6 +335,7 @@ services:
       - ${MEDIA_DIR}/videos/music-videos:/external/videos/music-videos:ro
       - ${SERVICES_DATA_DIR}/paperless/media/documents/originals:/external/papers:ro
       - ${SERVICES_DATA_DIR}/paperless/consume:/inbox/papers
+      - ${SERVICES_DATA_DIR}/notes:/notes
     extra_hosts: *nextcloud-hosts
     networks:
       - proxy

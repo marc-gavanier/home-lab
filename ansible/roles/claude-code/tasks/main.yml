@@ -24,7 +24,7 @@
 - name: Install the claude user, sandbox deps and Claude Code
   ansible.builtin.import_tasks: install.yml
 
-- name: Set up the notes vault (rclone on LUKS, mount unit, sandbox)
+- name: Set up the notes vault (bind mount of the notes directory, sandbox)
   ansible.builtin.import_tasks: vault.yml
 
 - name: Mirror custom slash commands and subagents

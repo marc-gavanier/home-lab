@@ -1,17 +1,15 @@
 ---
-- name: vault | Pin drive domain in the cloud-init hosts template (persists across reboots)
+- name: vault | Drop the drive pin from the cloud-init hosts template
   ansible.builtin.lineinfile:
     path: /etc/cloud/templates/hosts.debian.tmpl
     regexp: ' drive\.{{ domain | regex_escape }}$'
-    line: "{{ homelab_ip }} drive.{{ domain }}"
-    state: present
+    state: absent
 
-- name: vault | Pin drive domain in /etc/hosts now (immediate, until next cloud-init run)
+- name: vault | Drop the drive pin from /etc/hosts
   ansible.builtin.lineinfile:
     path: /etc/hosts
     regexp: ' drive\.{{ domain | regex_escape }}$'
-    line: "{{ homelab_ip }} drive.{{ domain }}"
-    state: present
+    state: absent
 
 - name: vault | Create claude secrets directory on the encrypted volume
   ansible.builtin.file:
@@ -21,68 +19,50 @@
     group: claude
     mode: "0700"
 
-- name: vault | Check the deployed rclone remote against the vault
-  ansible.builtin.shell:
-    cmd: >-
-      set -o pipefail;
-      IFS= read -r P || true;
-      [ -n "$P" ] || { echo REMOTE_DIFF; exit 0; };
-      cur=$(rclone config dump 2>/dev/null | python3 -c
-      'import json,sys; r=json.load(sys.stdin).get("nextcloud",{});
-      print(r.get("url","")); print(r.get("pass",""))');
-      url=$(echo "$cur" | sed -n 1p); obscured=$(echo "$cur" | sed -n 2p);
-      [ "$url" = "$U" ] || { echo REMOTE_DIFF; exit 0; };
-      [ -n "$obscured" ] && [ "$(rclone reveal "$obscured" 2>/dev/null)" = "$P" ]
-      && echo REMOTE_MATCH || echo REMOTE_DIFF
-    executable: /bin/bash
-    stdin: "{{ rclone_webdav_pass }}"
-  become: true
-  become_user: claude
-  environment:
-    RCLONE_CONFIG: /mnt/data/secrets/claude/rclone.conf
-    U: "https://drive.{{ domain }}/remote.php/dav/files/admin/"
-  register: rclone_remote_check
-  changed_when: false
-  check_mode: false
-  failed_when: false
-  no_log: true
+- name: vault | Install the ACL tools
+  ansible.builtin.apt:
+    name: acl
+    state: present
 
-- name: vault | Obscure the WebDAV password without it reaching a command line
-  ansible.builtin.command:
-    cmd: rclone obscure -
-    stdin: "{{ rclone_webdav_pass }}"
-    stdin_add_newline: false
-  become: true
-  become_user: claude
-  register: rclone_obscured_pass
-  changed_when: false
-  check_mode: false
-  failed_when: rclone_obscured_pass.rc != 0 or rclone_obscured_pass.stdout | length == 0
-  no_log: true
-  when: "'REMOTE_MATCH' not in rclone_remote_check.stdout | default('')"
+- name: vault | Let claude and Nextcloud both write the notes directory
+  ansible.posix.acl:
+    path: "{{ notes_dir }}"
+    entity: "{{ item.entity }}"
+    etype: "{{ item.etype }}"
+    permissions: rwx
+    default: "{{ item.default }}"
+    state: present
+  loop:
+    - { etype: user, entity: claude, default: false }
+    - { etype: user, entity: claude, default: true }
+    - { etype: user, entity: "33", default: true }
+  loop_control:
+    label: "{{ 'default ' if item.default else '' }}{{ item.etype }}:{{ item.entity }}"
 
-- name: vault | Configure rclone WebDAV remote for the claude user
-  ansible.builtin.copy:
-    dest: /mnt/data/secrets/claude/rclone.conf
-    owner: claude
-    group: claude
-    mode: "0600"
-    content: |
-      [nextcloud]
-      type = webdav
-      url = https://drive.{{ domain }}/remote.php/dav/files/admin/
-      vendor = nextcloud
-      user = admin
-      pass = {{ rclone_obscured_pass.stdout }}
-  no_log: true
-  when: "'REMOTE_MATCH' not in rclone_remote_check.stdout | default('')"
-  notify:
-    - Restart vault mount
+- name: vault | Look for the rclone vault mount unit
+  ansible.builtin.stat:
+    path: /etc/systemd/system/vault-mount.service
+  register: vault_mount_unit
 
-- name: vault | Remove legacy rclone config from the SD card
+- name: vault | Stop the rclone vault mount
+  ansible.builtin.systemd:
+    name: vault-mount.service
+    state: stopped
+    enabled: false
+  when: vault_mount_unit.stat.exists
+
+- name: vault | Remove the rclone vault mount units and state
   ansible.builtin.file:
-    path: /home/claude/.config/rclone/rclone.conf
+    path: "{{ item }}"
     state: absent
+  loop:
+    - /etc/systemd/system/mnt-data.mount.wants/vault-mount.service
+    - /etc/systemd/system/vault-mount.service.d
+    - /etc/systemd/system/vault-mount.service
+    - /mnt/data/secrets/claude/rclone.conf
+    - /mnt/data/claude/rclone-cache
+    - /home/claude/.config/rclone/rclone.conf
+    - /home/claude/.cache/rclone
 
 - name: vault | Check if the vault is already mounted
   ansible.builtin.command: grep -q ' /home/claude/vault ' /proc/mounts
@@ -110,7 +90,6 @@
   loop:
     - /mnt/data/claude
     - /mnt/data/claude/dot-claude
-    - /mnt/data/claude/rclone-cache
 
 - name: vault | Refuse to hide Claude state left on the SD card under the mount
   ansible.builtin.shell:
@@ -162,11 +141,6 @@
     state: started
     daemon_reload: true
 
-- name: vault | Remove the legacy rclone write cache from the SD card
-  ansible.builtin.file:
-    path: /home/claude/.cache/rclone
-    state: absent
-
 - name: vault | Deploy Claude Code sandbox settings
   ansible.builtin.copy:
     dest: /home/claude/.claude/settings.json
@@ -194,42 +168,29 @@
         }
       }
 
-- name: vault | Create the rclone vault mount systemd service
+- name: vault | Bind the notes directory onto the vault (mount unit)
   ansible.builtin.copy:
-    dest: /etc/systemd/system/vault-mount.service
+    dest: /etc/systemd/system/home-claude-vault.mount
     mode: "0644"
     content: |
       [Unit]
-      Description=rclone mount of the Nextcloud Notes vault
-      After=network-online.target mnt-data.mount homelab-stack-startup.service
-      Wants=network-online.target
-      RequiresMountsFor=/mnt/data /home/claude/.claude
-      StartLimitIntervalSec=600
-      StartLimitBurst=5
+      Description=Notes vault (Nextcloud Notes external storage) for Claude Code
+      Requires=mnt-data.mount
+      After=mnt-data.mount
 
-      [Service]
-      Type=notify
-      User=claude
-      Group=claude
-      Environment=RCLONE_CONFIG=/mnt/data/secrets/claude/rclone.conf
-      ExecStartPre=-/bin/fusermount -uz /home/claude/vault
-      ExecStart=/usr/bin/rclone mount nextcloud:Notes /home/claude/vault \
-        --vfs-cache-mode writes --vfs-write-back 2s --dir-cache-time 30s \
-        --cache-dir /mnt/data/claude/rclone-cache
-      ExecStop=/bin/sh -c '/bin/fusermount -u /home/claude/vault || /bin/fusermount -uz /home/claude/vault'
-      Restart=on-failure
-      RestartSec=10
-  notify:
-    - Restart vault mount
-    - Restart Claude Remote Control
+      [Mount]
+      What={{ notes_dir }}
+      Where=/home/claude/vault
+      Type=none
+      Options=bind
 
-- name: vault | Start the vault mount whenever the encrypted volume mounts  # noqa: command-instead-of-module
-  ansible.builtin.command: systemctl add-wants mnt-data.mount vault-mount.service
+- name: vault | Mount the vault whenever the encrypted volume mounts  # noqa: command-instead-of-module
+  ansible.builtin.command: systemctl add-wants mnt-data.mount home-claude-vault.mount
   args:
-    creates: /etc/systemd/system/mnt-data.mount.wants/vault-mount.service
+    creates: /etc/systemd/system/mnt-data.mount.wants/home-claude-vault.mount
 
-- name: vault | Start the vault mount (boot-time start comes from mnt-data.mount)
+- name: vault | Mount the vault now
   ansible.builtin.systemd:
-    name: vault-mount.service
+    name: home-claude-vault.mount
     state: started
     daemon_reload: true
