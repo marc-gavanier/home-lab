@@ -110,7 +110,7 @@ services:
       retries: 3
 
   traefik:
-    image: traefik:v3.7.19
+    image: traefik:v3.8.0
     container_name: traefik
     restart: unless-stopped
     security_opt: *no-new-privs
@@ -354,7 +354,7 @@ services:
       start_period: 120s
 
   nextcloud-db:
-    image: mariadb:12.3.3
+    image: mariadb:12.3.4
     container_name: nextcloud-db
     restart: "no"
     stop_grace_period: 90s
@@ -387,7 +387,7 @@ services:
       start_period: 180s
 
   nextcloud-redis:
-    image: redis:8.10.3-alpine
+    image: redis:8.12.0-alpine
     container_name: nextcloud-redis
     restart: "no"
     security_opt: *no-new-privs
@@ -670,7 +670,7 @@ services:
       - internal
 
   immich-redis:
-    image: redis:8.10.3-alpine
+    image: redis:8.12.0-alpine
     container_name: immich-redis
     restart: "no"
     security_opt: *no-new-privs
@@ -724,7 +724,7 @@ services:
       start_period: 180s
 
   transmission:
-    image: linuxserver/transmission:4.1.4-r0-ls370
+    image: linuxserver/transmission:4.1.4-r0-ls371
     container_name: transmission
     restart: "no"
     security_opt: *no-new-privs
@@ -770,7 +770,7 @@ services:
       retries: 3
 
   prowlarr:
-    image: lscr.io/linuxserver/prowlarr:3.0.2
+    image: lscr.io/linuxserver/prowlarr:3.1.0
     container_name: prowlarr
     dns:
       - ${PI_LAN_IP}
@@ -901,7 +901,7 @@ services:
       - "traefik.http.services.uptime.loadbalancer.server.port=3001"
 
   searxng:
-    image: searxng/searxng:2026.11.21-c6ee3e9fd
+    image: searxng/searxng:2026.11.28-d96f0ec9b
     container_name: searxng
     restart: "no"
     security_opt: *no-new-privs
@@ -1246,7 +1246,7 @@ services:
       - "traefik.http.services.paperless.loadbalancer.server.port=8000"
 
   paperless-redis:
-    image: redis:8.10.3-alpine
+    image: redis:8.12.0-alpine
     container_name: paperless-redis
     restart: "no"
     security_opt: *no-new-privs
